@@ -3,11 +3,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, RotateCcw, ChevronDown, ExternalLink, StickyNote, ChevronUp, ChevronsUpDown, LogOut } from "lucide-react";
+import { Search, RotateCcw, ChevronDown, ExternalLink, StickyNote, ChevronUp, ChevronsUpDown, LogOut, Heart } from "lucide-react";
 import type { AuctionItem } from "@/types/auction";
 import { CITIES, getDistricts, getWards, matchDistrict, normalizeCity } from "@/data/korea-regions";
 import { getPriceFilterLabel, PRICE_FILTER_OPTIONS } from "@/data/price-filter-options";
-import { getFailureRateFilterLabel, getFailureRateFilterOptions } from "@/data/failure-rate-filter-options";
+import { getFailureRateFilterLabelFromCities, getFailureRateFilterOptionsFromCities } from "@/data/failure-rate-filter-options";
 import type { FailureRateFilterOption } from "@/data/failure-rate-filter-options";
 import { getAuctionCaseYears } from "@/data/auction-case-years";
 import { matchesPropertyType, PROPERTY_TYPE_OPTIONS } from "@/data/property-type-options";
@@ -21,8 +21,10 @@ import {
   progressLabelToStatus,
 } from "@/lib/progress-status-filter";
 import { clearAuthCookie, isAdminSession, isConsultantSession } from "@/lib/auth";
-import { fetchAuctions } from "@/lib/api";
+import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite } from "@/lib/api";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
+import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
+import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
@@ -42,11 +44,10 @@ const fmtEok = (n: number) => {
   if (n >= 10000) return `${(n / 10000).toFixed(0)}만`;
   return fmt(n);
 };
-const fmtMinPriceWithRatio = (minPrice: number, appraisedValue: number) => {
-  const priceText = fmtEok(minPrice);
+const fmtFailureRate = (minPrice: number, appraisedValue: number) => {
   const ratio = getFailureRateRatio(minPrice, appraisedValue);
-  if (ratio == null) return priceText;
-  return `${priceText}(${ratio}%)`;
+  if (ratio == null) return null;
+  return `${ratio}%`;
 };
 const diff = (a: number, b: number) => {
   const d = a - b;
@@ -94,7 +95,12 @@ const COLUMNS: ColDef[] = [
   { key: "specialNote", label: "특이사항", defaultWidth: 160, render: (r) => <span className="text-red-600">{r.specialNote}</span> },
   { key: "link", label: "링크", defaultWidth: 56, align: "center", render: (r) => <a href={r.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary hover:text-accent"><ExternalLink size={16} /></a> },
   { key: "views", label: "조회수", defaultWidth: 68, align: "right", render: (r) => <span className="font-mono">{fmt(r.views)}</span> },
-  { key: "auctionNo", label: "경매번호", defaultWidth: 140, render: (r) => <span className="font-mono text-primary font-semibold">{r.auctionNo}</span> },
+  { key: "auctionNo", label: "경매번호", defaultWidth: 168, render: (r) => (
+    <span className="font-mono text-primary font-semibold inline-flex items-center gap-1.5">
+      {r.auctionNo}
+      {r.isUpdated && <UpdatedBadge />}
+    </span>
+  ) },
   { key: "address", label: "물건주소", defaultWidth: 280, render: (r) => <span>{r.address}</span> },
   { key: "totalUnits", label: "총 세대수", defaultWidth: 80, align: "right", render: (r) => <span className="font-mono">{fmt(r.totalUnits)}</span> },
   { key: "usage", label: "용도", defaultWidth: 72, align: "center", render: (r) => <span>{r.usage}</span> },
@@ -104,11 +110,17 @@ const COLUMNS: ColDef[] = [
     <span className={`font-mono ${isBidDateEnded(r.bidDate) ? "text-red-600 font-semibold" : ""}`}>{r.bidDate}</span>
   ) },
   { key: "appraisedValue", label: "감정가", defaultWidth: 96, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.appraisedValue)}</span> },
-  { key: "minPrice", label: "최저가(유찰률)", defaultWidth: 156, align: "right", render: (r) => (
+  { key: "minPrice", label: "최저가", defaultWidth: 96, align: "right", render: (r) => (
     r.minPrice
-      ? <span className="font-mono whitespace-nowrap">{fmtMinPriceWithRatio(r.minPrice, r.appraisedValue)}</span>
+      ? <span className="font-mono whitespace-nowrap">{fmtEok(r.minPrice)}</span>
       : <span className="text-muted-foreground/40">-</span>
   ) },
+  { key: "failureRate", label: "유찰률", defaultWidth: 72, align: "right", render: (r) => {
+    const rate = fmtFailureRate(r.minPrice, r.appraisedValue);
+    return rate
+      ? <span className="font-mono whitespace-nowrap">{rate}</span>
+      : <span className="text-muted-foreground/40">-</span>;
+  } },
   { key: "salePrice", label: "매각가", defaultWidth: 96, align: "right", render: (r) => r.salePrice ? <span className="font-mono text-emerald-600 font-semibold">{fmtEok(r.salePrice)}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "naverPrice", label: "네이버 호가", defaultWidth: 100, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.naverPrice)}</span> },
   { key: "diff1", label: "호가-매각가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverSale, r.naverPrice, r.salePrice) },
@@ -228,6 +240,85 @@ function PriceRangeSelect({
   );
 }
 
+function MultiCheckboxSelect({
+  options,
+  selected,
+  onChange,
+  placeholder,
+  disabled,
+  className = "",
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggle = (value: string) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter((item) => item !== value));
+    } else {
+      onChange([...selected, value]);
+    }
+  };
+
+  const summary =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length}개 선택`;
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((prev) => !prev)}
+        className={`w-full text-left bg-card border border-border rounded-sm px-3 py-2.5 pr-8 ${LIST_TEXT} focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors ${
+          disabled
+            ? "opacity-40 cursor-not-allowed bg-muted"
+            : "hover:border-primary/50 cursor-pointer"
+        } ${selected.length === 0 ? "text-muted-foreground" : "text-foreground"}`}
+      >
+        {summary}
+      </button>
+      <ChevronDown size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
+      {open && !disabled && (
+        <ul className="absolute z-[100] top-full left-0 mt-1 min-w-full max-h-60 overflow-y-auto rounded-sm border border-border bg-card shadow-md">
+          {options.map((option) => (
+            <li key={option}>
+              <label className={`flex items-center gap-2 px-3 py-2.5 ${LIST_TEXT} hover:bg-secondary/50 cursor-pointer`}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option)}
+                  onChange={() => toggle(option)}
+                  className="accent-primary"
+                />
+                <span>{option}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ProgressStatusSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -284,6 +375,8 @@ type SortDir = "asc" | "desc" | null;
 
 function getSortValue(row: AuctionItem, key: string): string | number | null {
   switch (key) {
+    case "failureRate":
+      return getFailureRateRatio(row.minPrice, row.appraisedValue);
     case "diff1":
       return row.diffNaverSale ?? (row.salePrice != null ? row.naverPrice - row.salePrice : null);
     case "diff2":
@@ -419,8 +512,8 @@ export default function Home() {
   const [loadError, setLoadError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isConsultant, setIsConsultant] = useState(false);
-  const [city, setCity] = useState("");
-  const [district, setDistrict] = useState("");
+  const [cities, setCities] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<string[]>([]);
   const [ward, setWard] = useState("");
   const [availableWards, setAvailableWards] = useState<string[]>([]);
   const [wardsLoading, setWardsLoading] = useState(false);
@@ -434,17 +527,42 @@ export default function Home() {
   const [auctionCaseNo, setAuctionCaseNo] = useState("");
   const [progressStatus, setProgressStatus] = useState<string>(PROGRESS_STATUS_LABELS.active);
   const [filterOpen, setFilterOpen] = useState(true);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
+  const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
 
-  const availableDistricts = city ? getDistricts(city) : [];
-  const failureRateOptions = useMemo(() => getFailureRateFilterOptions(city), [city]);
+  const availableDistricts = useMemo(() => {
+    if (cities.length === 0) return [];
+    const merged = new Set<string>();
+    for (const city of cities) {
+      getDistricts(city).forEach((district) => merged.add(district));
+    }
+    return Array.from(merged).sort((a, b) => a.localeCompare(b, "ko"));
+  }, [cities]);
+
+  const failureRateOptions = useMemo(
+    () => getFailureRateFilterOptionsFromCities(cities),
+    [cities],
+  );
 
   useEffect(() => {
     if (!failureRateInput) return;
     if (!failureRateOptions.some((option) => option.value === failureRateInput)) {
       setFailureRateInput("");
     }
-  }, [city, failureRateOptions, failureRateInput]);
+  }, [cities, failureRateOptions, failureRateInput]);
+
+  useEffect(() => {
+    setDistricts((prev) =>
+      prev.filter((district) =>
+        cities.some((city) =>
+          getDistricts(city).some((candidate) => matchDistrict(candidate, district)),
+        ),
+      ),
+    );
+  }, [cities]);
 
   useEffect(() => {
     setIsAdmin(isAdminSession());
@@ -475,8 +593,46 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!city || !district) {
+    let cancelled = false;
+
+    fetchFavoriteIds()
+      .then((ids) => {
+        if (!cancelled) setFavoriteIds(new Set(ids));
+      })
+      .catch(() => {
+        if (!cancelled) setFavoriteIds(new Set());
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handleToggleFavorite(auctionId: string, next: boolean) {
+    setFavoriteBusy(true);
+    try {
+      if (next) {
+        await addFavorite(auctionId);
+        setFavoriteIds((prev) => new Set([...Array.from(prev), auctionId]));
+      } else {
+        await removeFavorite(auctionId);
+        setFavoriteIds((prev) => {
+          const nextSet = new Set(prev);
+          nextSet.delete(auctionId);
+          return nextSet;
+        });
+      }
+    } catch (err) {
+      throw err instanceof Error
+        ? err
+        : new Error("관심물건 처리에 실패했습니다.");
+    } finally {
+      setFavoriteBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (cities.length !== 1 || districts.length !== 1) {
       setAvailableWards([]);
+      setWard("");
       setWardsLoading(false);
       return;
     }
@@ -485,7 +641,7 @@ export default function Home() {
     setWardsLoading(true);
     setAvailableWards([]);
 
-    getWards(city, district)
+    getWards(cities[0], districts[0])
       .then((wards) => {
         if (!cancelled) setAvailableWards(wards);
       })
@@ -493,27 +649,46 @@ export default function Home() {
         if (!cancelled) setWardsLoading(false);
       });
 
-    return () => { cancelled = true; };
-  }, [city, district]);
+    return () => {
+      cancelled = true;
+    };
+  }, [cities, districts]);
 
-  const handleCityChange = (v: string) => { setCity(v); setDistrict(""); setWard(""); };
-  const handleDistrictChange = (v: string) => { setDistrict(v); setWard(""); };
+  useEffect(() => {
+    if (districts.length !== 1) {
+      setWard("");
+    }
+  }, [districts]);
 
   const handleReset = () => {
-    setCity(""); setDistrict(""); setWard("");
+    setCities([]);
+    setDistricts([]);
+    setWard("");
     setPropType("");
     setAppraisedMinInput(""); setAppraisedMaxInput("");
     setMinPriceMinInput(""); setMinPriceMaxInput("");
     setFailureRateInput("");
     setAuctionYear(""); setAuctionCaseNo("");
     setProgressStatus(PROGRESS_STATUS_LABELS.active);
+    setFavoritesOnly(false);
   };
 
   // Apply filters
   
   const filtered = items.filter((item) => {
-    if (city && normalizeCity(item.city) !== normalizeCity(city)) return false;
-    if (district && !matchDistrict(item.district, district)) return false;
+    if (favoritesOnly && !favoriteIds.has(item.id)) return false;
+    if (
+      cities.length > 0 &&
+      !cities.some((city) => normalizeCity(item.city) === normalizeCity(city))
+    ) {
+      return false;
+    }
+    if (
+      districts.length > 0 &&
+      !districts.some((district) => matchDistrict(item.district, district))
+    ) {
+      return false;
+    }
     if (ward && !item.address.includes(ward)) return false;
     if (propType && !matchesPropertyType(item, propType)) return false;
     if (appraisedMinInput && item.appraisedValue < Number(appraisedMinInput)) return false;
@@ -530,13 +705,20 @@ export default function Home() {
 
   const activeFilters = [
     auctionNoFilterLabel && `경매번호 ${auctionNoFilterLabel}`,
-    city, district, ward, propType,
+    cities.length > 0 &&
+      (cities.length === 1 ? cities[0] : `시/도 ${cities.length}개`),
+    districts.length > 0 &&
+      (districts.length === 1 ? districts[0] : `군/구 ${districts.length}개`),
+    ward,
+    propType,
     appraisedMinInput && `감정가 ${getPriceFilterLabel(appraisedMinInput)} 이상`,
     appraisedMaxInput && `감정가 ${getPriceFilterLabel(appraisedMaxInput)} 이하`,
     minPriceMinInput && `최저가 ${getPriceFilterLabel(minPriceMinInput)} 이상`,
     minPriceMaxInput && `최저가 ${getPriceFilterLabel(minPriceMaxInput)} 이하`,
-    failureRateInput && `유찰률 ${getFailureRateFilterLabel(failureRateInput, city)}`,
+    failureRateInput &&
+      `유찰률 ${getFailureRateFilterLabelFromCities(failureRateInput, cities)}`,
     progressStatus !== PROGRESS_STATUS_LABELS.all && `진행상태 ${progressStatus}`,
+    favoritesOnly && "관심물건",
   ].filter(Boolean);
 
   const handleLogout = () => {
@@ -616,13 +798,43 @@ export default function Home() {
                   <span className={FILTER_LABEL}>주소</span>
                   <div className="flex flex-wrap items-center gap-2 w-fit">
                     <div className={`${FILTER_SELECT_CITY} shrink-0`}>
-                      <SelectEl value={city} onChange={handleCityChange} options={CITIES} placeholder="시/도 선택" />
+                      <MultiCheckboxSelect
+                        options={[...CITIES]}
+                        selected={cities}
+                        onChange={setCities}
+                        placeholder="시/도 선택"
+                      />
                     </div>
                     <div className={`${FILTER_SELECT_DISTRICT} shrink-0`}>
-                      <SelectEl value={district} onChange={handleDistrictChange} options={availableDistricts} placeholder={city ? "군/구 선택" : "시/도 먼저"} disabled={!city} />
+                      <MultiCheckboxSelect
+                        options={availableDistricts}
+                        selected={districts}
+                        onChange={setDistricts}
+                        placeholder={cities.length > 0 ? "군/구 선택" : "시/도 먼저"}
+                        disabled={cities.length === 0}
+                      />
                     </div>
                     <div className={`${FILTER_SELECT_WARD} shrink-0`}>
-                      <SelectEl value={ward} onChange={setWard} options={availableWards} placeholder={district ? (wardsLoading ? "불러오는 중..." : availableWards.length ? "동/읍/면 선택" : "해당 없음") : "군/구 먼저"} disabled={!district || wardsLoading || !availableWards.length} />
+                      <SelectEl
+                        value={ward}
+                        onChange={setWard}
+                        options={availableWards}
+                        placeholder={
+                          cities.length !== 1 || districts.length !== 1
+                            ? "군/구 1개 선택"
+                            : wardsLoading
+                              ? "불러오는 중..."
+                              : availableWards.length
+                                ? "동/읍/면 선택"
+                                : "해당 없음"
+                        }
+                        disabled={
+                          cities.length !== 1 ||
+                          districts.length !== 1 ||
+                          wardsLoading ||
+                          !availableWards.length
+                        }
+                      />
                     </div>
                   </div>
                 </div>
@@ -676,6 +888,22 @@ export default function Home() {
                     <ProgressStatusSelect value={progressStatus} onChange={setProgressStatus} />
                   </div>
                 </div>
+
+                <div className={`${FILTER_ROW} items-center`}>
+                  <span className={FILTER_LABEL}>관심물건</span>
+                  <label className={`flex items-center gap-2 ${LIST_TEXT} cursor-pointer select-none`}>
+                    <input
+                      type="checkbox"
+                      checked={favoritesOnly}
+                      onChange={(e) => setFavoritesOnly(e.target.checked)}
+                      className="accent-primary"
+                    />
+                    관심물건만 보기
+                    <span className={`${LABEL_TEXT} text-muted-foreground`}>
+                      ({favoriteIds.size}건)
+                    </span>
+                  </label>
+                </div>
               </div>
 
               {/* Actions */}
@@ -724,7 +952,33 @@ export default function Home() {
         )}
       </main>
 
-      <AuctionDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+      <AuctionDetailModal
+        item={selectedItem}
+        onClose={() => setSelectedItem(null)}
+        editable={isAdmin}
+        isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
+        favoriteBusy={favoriteBusy}
+        onToggleFavorite={
+          selectedItem
+            ? (next) => handleToggleFavorite(selectedItem.id, next)
+            : undefined
+        }
+        onSaved={(saved) => {
+          setItems((prev) => prev.map((row) => (row.id === saved.id ? saved : row)));
+          setSelectedItem(saved);
+        }}
+        onDeleted={(id) => {
+          setItems((prev) => prev.filter((row) => row.id !== id));
+          setSelectedItem(null);
+          if (historyItem?.id === id) setHistoryItem(null);
+        }}
+        onViewHistory={isAdmin ? setHistoryItem : undefined}
+      />
+      <AuctionChangeHistoryModal
+        item={historyItem}
+        open={Boolean(historyItem)}
+        onClose={() => setHistoryItem(null)}
+      />
     </div>
   );
 }

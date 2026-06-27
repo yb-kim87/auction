@@ -31,6 +31,20 @@ export function getFailureRateRegionFromCity(city: string): FailureRateRegion | 
   return normalizeCity(city) === SEOUL_CITY ? "seoul" : "regional";
 }
 
+export function getFailureRateRegionFromCities(
+  cities: string[],
+): FailureRateRegion | null {
+  if (cities.length === 0) return null;
+
+  const normalized = cities.map((city) => normalizeCity(city));
+  const hasSeoul = normalized.includes(SEOUL_CITY);
+  const hasNonSeoul = normalized.some((city) => city !== SEOUL_CITY);
+
+  if (hasSeoul && !hasNonSeoul) return "seoul";
+  if (!hasSeoul) return "regional";
+  return null;
+}
+
 function buildRoundRates(base: number, maxRound: number): { round: number; rate: number }[] {
   const result: { round: number; rate: number }[] = [];
   let current = 100;
@@ -106,6 +120,23 @@ export function getFailureRateFilterOptions(city: string, maxRound = 8): Failure
   return buildFailureRateFilterOptions(getFailureRateRegionFromCity(city), maxRound);
 }
 
+export function getFailureRateFilterOptionsFromCities(
+  cities: string[],
+  maxRound = 8,
+): FailureRateFilterOption[] {
+  return buildFailureRateFilterOptions(
+    getFailureRateRegionFromCities(cities),
+    maxRound,
+  );
+}
+
 export function getFailureRateFilterLabel(value: string, city = "") {
   return getFailureRateFilterOptions(city).find((option) => option.value === value)?.label ?? `${value}%`;
+}
+
+export function getFailureRateFilterLabelFromCities(value: string, cities: string[] = []) {
+  return (
+    getFailureRateFilterOptionsFromCities(cities).find((option) => option.value === value)
+      ?.label ?? `${value}%`
+  );
 }

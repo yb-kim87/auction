@@ -11,7 +11,7 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "기본 정보",
     fields: [
-      { key: "memo", label: "메모" },
+      { key: "memo", label: "메모", type: "textarea" },
       { key: "link", label: "링크" },
       { key: "views", label: "조회수", type: "number" },
       { key: "auctionNo", label: "경매번호" },
@@ -45,13 +45,13 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
       { key: "bidInfo", label: "입찰정보" },
       { key: "owner", label: "소유자" },
       { key: "appraiser", label: "감정원" },
-      { key: "tenantInfo", label: "임차정보" },
+      { key: "tenantInfo", label: "임차정보", type: "textarea" },
       { key: "specialNote", label: "특이사항" },
       { key: "elevator", label: "승강기" },
       { key: "parking", label: "주차장" },
       { key: "landShare", label: "토지지분" },
-      { key: "buildingRegistry", label: "건물등기" },
-      { key: "education", label: "교육환경" },
+      { key: "buildingRegistry", label: "건물등기", type: "textarea", full: true },
+      { key: "education", label: "교육환경", type: "textarea", full: true },
       { key: "tenantDetail", label: "임차상세", full: true },
       { key: "priceDetail", label: "호가 상세", full: true },
       { key: "tradingDetail", label: "실거래 상세", full: true },
@@ -97,7 +97,18 @@ export const EMPTY_AUCTION_FORM: UpdateAuctionPayload = {
 };
 
 export function toFormState(item: AuctionItem): UpdateAuctionPayload {
-  const { id: _id, city: _c, district: _d, propType: _p, status: _s, submittedBy: _b, ...rest } = item;
+  const {
+    id: _id,
+    city: _c,
+    district: _d,
+    propType: _p,
+    status: _s,
+    submittedBy: _b,
+    isUpdated: _u,
+    updatedAt: _a,
+    updatedBy: _ub,
+    ...rest
+  } = item;
   return rest;
 }
 

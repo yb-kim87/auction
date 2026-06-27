@@ -8,42 +8,8 @@ import {
   EMPTY_AUCTION_FORM,
   toFormState,
   toPayload,
-  type FieldDef,
 } from "@/lib/auction-form";
-
-function FieldInput({
-  field,
-  value,
-  onChange,
-}: {
-  field: FieldDef;
-  value: string | number | null;
-  onChange: (v: string) => void;
-}) {
-  const className =
-    "w-full px-3 py-2 text-sm bg-input-background border border-border rounded-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
-
-  if (field.type === "textarea") {
-    return (
-      <textarea
-        rows={2}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        className={className}
-      />
-    );
-  }
-
-  return (
-    <input
-      type="text"
-      inputMode={field.type === "number" ? "numeric" : "text"}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value)}
-      className={className}
-    />
-  );
-}
+import { AuctionFieldInput } from "@/components/AuctionFieldInput";
 
 export function AuctionFormModal({
   mode,
@@ -57,7 +23,7 @@ export function AuctionFormModal({
   item: AuctionItem | null;
   open: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (item: AuctionItem) => void;
   editScope?: "admin" | "consultant";
 }) {
   const [form, setForm] = useState<UpdateAuctionPayload>(EMPTY_AUCTION_FORM);
@@ -88,16 +54,16 @@ export function AuctionFormModal({
     setError("");
     try {
       const payload = toPayload(form);
+      let saved: AuctionItem;
       if (mode === "edit" && item) {
-        if (editScope === "consultant") {
-          await updateMyAuction(item.id, payload);
-        } else {
-          await updateAuction(item.id, payload);
-        }
+        saved =
+          editScope === "consultant"
+            ? await updateMyAuction(item.id, payload)
+            : await updateAuction(item.id, payload);
       } else {
-        await createAuction(payload);
+        saved = await createAuction(payload);
       }
-      onSaved();
+      onSaved(saved);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "저장에 실패했습니다.");
@@ -135,7 +101,7 @@ export function AuctionFormModal({
                     <label className="block text-xs font-medium text-foreground/70 mb-1">
                       {field.label}
                     </label>
-                    <FieldInput
+                    <AuctionFieldInput
                       field={field}
                       value={form[field.key] as string | number | null}
                       onChange={(v) => setField(field.key, v)}

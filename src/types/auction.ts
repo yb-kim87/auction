@@ -46,12 +46,39 @@ export interface AuctionItem {
   propType: "아파트" | "빌라";
   status: AuctionStatus;
   submittedBy: string;
+  isUpdated: boolean;
+  updatedAt: string | null;
+  updatedBy: string;
 }
 
 export type UpdateAuctionPayload = Omit<
   AuctionItem,
-  "id" | "city" | "district" | "propType" | "status" | "submittedBy"
+  "id" | "city" | "district" | "propType" | "status" | "submittedBy" | "isUpdated" | "updatedAt" | "updatedBy"
 >;
+
+export interface AuctionFieldChange {
+  field: string;
+  label: string;
+  oldValue: string;
+  newValue: string;
+}
+
+export interface AuctionChangeLogEntry {
+  id: string;
+  auctionId: string;
+  changedAt: string;
+  changedBy: string;
+  source: string;
+  changes: AuctionFieldChange[];
+}
+
+export const CHANGE_SOURCE_LABELS: Record<string, string> = {
+  excel: "엑셀 업로드",
+  crawler: "크롤러 수집",
+  manual_create: "수동 등록",
+  admin_edit: "관리자 수정",
+  consultant_edit: "컨설턴트 수정",
+};
 
 export interface UserProfile {
   id: string;

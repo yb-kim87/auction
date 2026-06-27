@@ -24,7 +24,10 @@ import {
 } from "@/lib/api";
 import { clearAuthCookie } from "@/lib/auth";
 import { AuctionFormModal } from "./AuctionFormModal";
+import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
+import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
+import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 
 function StatusBadge({ status }: { status: AuctionItem["status"] }) {
   const styles = {
@@ -36,6 +39,48 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
     <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-sm border ${styles[status]}`}>
       {STATUS_LABELS[status]}
     </span>
+  );
+}
+
+type AdminTab = "data" | "crawler" | "users";
+
+const ADMIN_TABS: { id: AdminTab; label: string }[] = [
+  { id: "data", label: "물건/데이터 관리" },
+  { id: "crawler", label: "크롤링 작업" },
+  { id: "users", label: "회원권한 관리" },
+];
+
+function AdminTabs({
+  active,
+  onChange,
+  pendingCount,
+}: {
+  active: AdminTab;
+  onChange: (tab: AdminTab) => void;
+  pendingCount: number;
+}) {
+  return (
+    <div className="flex border-b border-border">
+      {ADMIN_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onChange(tab.id)}
+          className={`relative px-5 py-3 text-sm font-semibold transition-colors ${
+            active === tab.id
+              ? "text-primary border-b-2 border-primary -mb-px"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {tab.label}
+          {tab.id === "data" && pendingCount > 0 && (
+            <span className="ml-1.5 inline-flex min-w-[1.25rem] justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-amber-100 text-amber-800 border border-amber-200">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -61,6 +106,8 @@ export default function AdminPage() {
   const [editingItem, setEditingItem] = useState<AuctionItem | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<AdminTab>("data");
+  const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
 
   const loadCounts = useCallback(async () => {
     const counts = await fetchAuctionCount();
@@ -132,7 +179,7 @@ export default function AdminPage() {
       const result = await uploadAuctionExcel(file);
       setMessage({
         type: "success",
-        text: `${result.imported}건이 등록되었습니다. (DB 전체 ${result.total}건)`,
+        text: `${formatAuctionImportMessage(result)} 등록·갱신되었습니다.`,
       });
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
@@ -351,7 +398,7 @@ export default function AdminPage() {
         nav={
           <>
             <div className={HEADER_ACCENT_BAR} />
-            <span className={HEADER_TITLE}>관리자 · 데이터 관리</span>
+            <span className={HEADER_TITLE}>관리자</span>
             <div className={HEADER_NAV_TRAILING}>
               <Link href="/" className={HEADER_BTN}>
                 <ChevronDown size={13} className="rotate-90" />
@@ -379,7 +426,12 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="bg-card border border-border rounded-sm shadow-sm p-6">
+        <div className="bg-card border border-border rounded-sm shadow-sm overflow-hidden">
+          <AdminTabs active={activeTab} onChange={setActiveTab} pendingCount={pendingCount} />
+
+          {activeTab === "data" && (
+            <div className="p-6 space-y-6">
+        <div>
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <h1 className="text-lg font-bold text-foreground">승인 대기 물건</h1>
@@ -443,7 +495,7 @@ export default function AdminPage() {
                       <th className="px-3 py-2.5 text-left font-semibold">경매번호</th>
                       <th className="px-3 py-2.5 text-left font-semibold">물건주소</th>
                       <th className="px-3 py-2.5 text-left font-semibold">입찰기일</th>
-                      <th className="w-28 px-3 py-2.5 text-center font-semibold">관리</th>
+                      <th className="w-36 px-3 py-2.5 text-center font-semibold">관리</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -462,10 +514,22 @@ export default function AdminPage() {
                           />
                         </td>
                         <td className="px-3 py-2.5 text-muted-foreground">{item.submittedBy || "-"}</td>
-                        <td className="px-3 py-2.5 font-mono text-primary whitespace-nowrap">{item.auctionNo || "-"}</td>
+                        <td className="px-3 py-2.5 font-mono text-primary whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            {item.auctionNo || "-"}
+                            {item.isUpdated && <UpdatedBadge />}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5 max-w-[220px] truncate" title={item.address}>{item.address || "-"}</td>
                         <td className="px-3 py-2.5 font-mono text-muted-foreground whitespace-nowrap">{item.bidDate || "-"}</td>
                         <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => setHistoryItem(item)}
+                            className="text-primary hover:text-accent text-xs font-medium mr-2"
+                          >
+                            이력
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleApproveOne(item.id)}
@@ -492,63 +556,7 @@ export default function AdminPage() {
           )}
         </div>
 
-        <div className="bg-card border border-border rounded-sm shadow-sm p-6">
-          <div className="flex items-start justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">회원 권한 관리</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                회원에게 수강생 이상 등급을 부여하면 물건 검색 페이지에 접근할 수 있습니다.
-              </p>
-            </div>
-          </div>
-
-          {loadingUsers ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">불러오는 중...</p>
-          ) : users.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">등록된 회원이 없습니다.</p>
-          ) : (
-            <div className="border border-border rounded-sm overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead className="bg-secondary/80">
-                  <tr className="border-b border-border">
-                    <th className="px-3 py-2.5 text-left font-semibold">아이디</th>
-                    <th className="px-3 py-2.5 text-left font-semibold">이름</th>
-                    <th className="px-3 py-2.5 text-left font-semibold">현재 권한</th>
-                    <th className="px-3 py-2.5 text-left font-semibold">권한 변경</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b border-border hover:bg-secondary/20">
-                      <td className="px-3 py-2.5 font-mono">{user.username}</td>
-                      <td className="px-3 py-2.5">{user.name}</td>
-                      <td className="px-3 py-2.5">{ROLE_LABELS[user.role]}</td>
-                      <td className="px-3 py-2.5">
-                        {user.role === "admin" ? (
-                          <span className="text-muted-foreground">-</span>
-                        ) : (
-                          <select
-                            value={user.role}
-                            disabled={roleUpdating === user.id}
-                            onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                            className="px-2 py-1 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
-                          >
-                            <option value="member">승인대기</option>
-                            <option value="student">수강생</option>
-                            <option value="consulting_student">컨설팅 수강생</option>
-                            <option value="consultant">컨설턴트</option>
-                          </select>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-card border border-border rounded-sm shadow-sm p-6">
+        <div>
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <h2 className="text-lg font-bold text-foreground">경매 물건 등록</h2>
@@ -632,7 +640,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-sm shadow-sm p-6">
+        <div className="pt-2 border-t border-border">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">DB 데이터 관리</h2>
@@ -692,7 +700,7 @@ export default function AdminPage() {
                       <th className="px-3 py-2.5 text-left font-semibold">경매번호</th>
                       <th className="px-3 py-2.5 text-left font-semibold">물건주소</th>
                       <th className="px-3 py-2.5 text-left font-semibold">입찰기일</th>
-                      <th className="w-24 px-3 py-2.5 text-center font-semibold">관리</th>
+                      <th className="w-32 px-3 py-2.5 text-center font-semibold">관리</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -712,10 +720,22 @@ export default function AdminPage() {
                         </td>
                         <td className="px-3 py-2.5"><StatusBadge status={item.status} /></td>
                         <td className="px-3 py-2.5 text-muted-foreground">{item.submittedBy || "-"}</td>
-                        <td className="px-3 py-2.5 font-mono text-primary whitespace-nowrap">{item.auctionNo || "-"}</td>
+                        <td className="px-3 py-2.5 font-mono text-primary whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            {item.auctionNo || "-"}
+                            {item.isUpdated && <UpdatedBadge />}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5 max-w-[220px] truncate" title={item.address}>{item.address || "-"}</td>
                         <td className="px-3 py-2.5 font-mono text-muted-foreground whitespace-nowrap">{item.bidDate || "-"}</td>
                         <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => setHistoryItem(item)}
+                            className="text-primary hover:text-accent text-xs font-medium mr-2"
+                          >
+                            이력
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteOne(item.id)}
@@ -733,6 +753,69 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+            </div>
+          )}
+
+          {activeTab === "crawler" && <CrawlerWorkPanel />}
+
+          {activeTab === "users" && (
+            <div className="p-6">
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">회원 권한 관리</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    회원에게 수강생 이상 등급을 부여하면 물건 검색 페이지에 접근할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+
+              {loadingUsers ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">불러오는 중...</p>
+              ) : users.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">등록된 회원이 없습니다.</p>
+              ) : (
+                <div className="border border-border rounded-sm overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead className="bg-secondary/80">
+                      <tr className="border-b border-border">
+                        <th className="px-3 py-2.5 text-left font-semibold">아이디</th>
+                        <th className="px-3 py-2.5 text-left font-semibold">이름</th>
+                        <th className="px-3 py-2.5 text-left font-semibold">현재 권한</th>
+                        <th className="px-3 py-2.5 text-left font-semibold">권한 변경</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id} className="border-b border-border hover:bg-secondary/20">
+                          <td className="px-3 py-2.5 font-mono">{user.username}</td>
+                          <td className="px-3 py-2.5">{user.name}</td>
+                          <td className="px-3 py-2.5">{ROLE_LABELS[user.role]}</td>
+                          <td className="px-3 py-2.5">
+                            {user.role === "admin" ? (
+                              <span className="text-muted-foreground">-</span>
+                            ) : (
+                              <select
+                                value={user.role}
+                                disabled={roleUpdating === user.id}
+                                onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
+                                className="px-2 py-1 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
+                              >
+                                <option value="member">승인대기</option>
+                                <option value="student">수강생</option>
+                                <option value="consulting_student">컨설팅 수강생</option>
+                                <option value="consultant">컨설턴트</option>
+                              </select>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </main>
 
       <AuctionFormModal
@@ -741,8 +824,13 @@ export default function AdminPage() {
         item={null}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSaved={async () => {
-          setMessage({ type: "success", text: "물건이 등록되었습니다. 검색 페이지에 즉시 노출됩니다." });
+        onSaved={async (saved) => {
+          setMessage({
+            type: "success",
+            text: saved.isUpdated
+              ? "동일 경매번호 물건이 갱신되었습니다."
+              : "물건이 등록되었습니다. 검색 페이지에 즉시 노출됩니다.",
+          });
           await loadData();
         }}
       />
@@ -753,11 +841,17 @@ export default function AdminPage() {
         item={editingItem}
         open={Boolean(editingItem)}
         onClose={() => setEditingItem(null)}
-        onSaved={async () => {
+        onSaved={async (_saved) => {
           setMessage({ type: "success", text: "물건 정보가 수정되었습니다." });
           setEditingItem(null);
           await loadData();
         }}
+      />
+
+      <AuctionChangeHistoryModal
+        item={historyItem}
+        open={Boolean(historyItem)}
+        onClose={() => setHistoryItem(null)}
       />
     </div>
   );

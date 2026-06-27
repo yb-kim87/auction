@@ -16,6 +16,7 @@ import {
 import { clearAuthCookie, getAuthUser } from "@/lib/auth";
 import { AuctionFormModal } from "../admin/AuctionFormModal";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_MUTED, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
+import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
 
 function StatusBadge({ status }: { status: AuctionItem["status"] }) {
   const styles = {
@@ -76,7 +77,7 @@ export default function ConsultantPage() {
       const result = await uploadAuctionExcel(file);
       setMessage({
         type: "success",
-        text: `${result.imported}건이 등록 요청되었습니다. 관리자 승인 후 검색 페이지에 노출됩니다.`,
+        text: `${formatAuctionImportMessage(result)} 등록·갱신 요청되었습니다. 관리자 승인 후 검색 페이지에 노출됩니다.`,
       });
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
@@ -272,7 +273,12 @@ export default function ConsultantPage() {
                       }`}
                     >
                       <td className="px-3 py-2.5"><StatusBadge status={item.status} /></td>
-                      <td className="px-3 py-2.5 font-mono text-primary">{item.auctionNo || "-"}</td>
+                      <td className="px-3 py-2.5 font-mono text-primary">
+                        <span className="inline-flex items-center gap-1.5">
+                          {item.auctionNo || "-"}
+                          {item.isUpdated && <UpdatedBadge />}
+                        </span>
+                      </td>
                       <td className="px-3 py-2.5 max-w-[280px] truncate" title={item.address}>{item.address || "-"}</td>
                       <td className="px-3 py-2.5 font-mono text-muted-foreground">{item.bidDate || "-"}</td>
                       <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
@@ -305,8 +311,13 @@ export default function ConsultantPage() {
         item={null}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSaved={async () => {
-          setMessage({ type: "success", text: "등록 요청이 완료되었습니다. 관리자 승인을 기다려 주세요." });
+        onSaved={async (saved) => {
+          setMessage({
+            type: "success",
+            text: saved.isUpdated
+              ? "동일 경매번호 물건이 갱신되었습니다."
+              : "등록 요청이 완료되었습니다. 관리자 승인을 기다려 주세요.",
+          });
           await loadData();
         }}
       />
@@ -317,7 +328,7 @@ export default function ConsultantPage() {
         item={editingItem}
         open={Boolean(editingItem)}
         onClose={() => setEditingItem(null)}
-        onSaved={async () => {
+        onSaved={async (_saved) => {
           setMessage({ type: "success", text: "물건 정보가 수정되었습니다." });
           setEditingItem(null);
           await loadData();
