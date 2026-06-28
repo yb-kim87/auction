@@ -7,6 +7,8 @@ import {
   crawlerLoadExcel,
   crawlerLogin,
   crawlerManageUrls,
+  crawlerRestartWorker,
+  crawlerBackfillNaverIds,
   crawlerStart,
   crawlerStop,
   fetchCrawlerConfig,
@@ -494,6 +496,35 @@ export function CrawlerWorkPanel() {
                   className="px-4 py-2 text-sm border border-red-200 text-red-700 rounded-sm hover:bg-red-50 disabled:opacity-50"
                 >
                   작업 중단
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(busy) || isRunning}
+                  onClick={() =>
+                    runAction("backfillNaverId", async () => {
+                      const result = await crawlerBackfillNaverIds();
+                      if (result.message) {
+                        setError("");
+                      }
+                    })
+                  }
+                  className="px-4 py-2 text-sm border border-[#03C75A]/40 text-[#03A94A] rounded-sm hover:bg-[#03C75A]/10 disabled:opacity-50"
+                  title="네이버 ID가 없는 DB 물건만 탱크 페이지에서 N단지정보 ID를 수집합니다"
+                >
+                  {busy === "backfillNaverId" ? "ID 수집 중..." : "네이버 ID 수집"}
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(busy) || isRunning}
+                  onClick={() =>
+                    runAction("restartWorker", async () => {
+                      await crawlerRestartWorker();
+                    })
+                  }
+                  className="px-4 py-2 text-sm border border-amber-200 text-amber-800 rounded-sm hover:bg-amber-50 disabled:opacity-50"
+                  title="Python 크롤러 코드 변경 후 반드시 실행"
+                >
+                  {busy === "restartWorker" ? "재시작 중..." : "워커 재시작"}
                 </button>
               </div>
             </div>

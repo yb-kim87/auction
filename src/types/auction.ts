@@ -22,6 +22,7 @@ export interface AuctionItem {
   minPrice: number;
   salePrice: number | null;
   naverPrice: number;
+  naverId: string;
   diffNaverSale: number | null;
   diffNaverMin: number;
   diffNaverAppraised: number;
@@ -30,7 +31,7 @@ export interface AuctionItem {
   landShare: string;
   buildingRegistry: string;
   education: string;
-  tradingCount: number;
+  tradingCount: string;
   bidInfo: string;
   owner: string;
   appraiser: string;
@@ -49,11 +50,21 @@ export interface AuctionItem {
   isUpdated: boolean;
   updatedAt: string | null;
   updatedBy: string;
+  createdAt: string;
 }
 
 export type UpdateAuctionPayload = Omit<
   AuctionItem,
-  "id" | "city" | "district" | "propType" | "status" | "submittedBy" | "isUpdated" | "updatedAt" | "updatedBy"
+  | "id"
+  | "city"
+  | "district"
+  | "propType"
+  | "status"
+  | "submittedBy"
+  | "isUpdated"
+  | "updatedAt"
+  | "updatedBy"
+  | "createdAt"
 >;
 
 export interface AuctionFieldChange {

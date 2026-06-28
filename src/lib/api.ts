@@ -614,6 +614,32 @@ export async function crawlerStop() {
   return res.json();
 }
 
+export async function crawlerRestartWorker() {
+  const res = await fetch(`${API_BASE}/crawler/restart-worker`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "워커 재시작에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function crawlerBackfillNaverIds() {
+  const res = await fetch(`${API_BASE}/crawler/backfill-naver-id`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "네이버 ID 수집 시작에 실패했습니다.",
+    );
+  }
+  return res.json() as Promise<{ ok: boolean; message?: string; total?: number }>;
+}
+
 export async function crawlerClearLogs() {
   const res = await fetch(`${API_BASE}/crawler/logs/clear`, {
     method: "POST",

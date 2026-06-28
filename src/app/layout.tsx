@@ -4,7 +4,7 @@ import "./globals.css";
 
 
 export const metadata: Metadata = {
-  title: "경매코치",
+  title: "경매코치옥션",
   description: "경매 물건 검색 및 분석 서비스",
   icons: {
     icon: "/logo.png",

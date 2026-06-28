@@ -40,8 +40,15 @@ interface ColDef {
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
 const fmtEok = (n: number) => {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(2)}억`;
-  if (n >= 10000) return `${(n / 10000).toFixed(0)}만`;
+  const abs = Math.abs(n);
+  if (abs >= 100000000) {
+    const body = `${(abs / 100000000).toFixed(2)}억`;
+    return n < 0 ? `-${body}` : body;
+  }
+  if (abs >= 10000) {
+    const body = `${(abs / 10000).toFixed(0)}만`;
+    return n < 0 ? `-${body}` : body;
+  }
   return fmt(n);
 };
 const fmtFailureRate = (minPrice: number, appraisedValue: number) => {
@@ -49,10 +56,22 @@ const fmtFailureRate = (minPrice: number, appraisedValue: number) => {
   if (ratio == null) return null;
   return `${ratio}%`;
 };
+const fmtDiffAmount = (n: number) => {
+  const abs = Math.abs(n);
+  if (abs >= 100000000) {
+    const body = `${(abs / 100000000).toFixed(1)}억`;
+    return n < 0 ? `-${body}` : `+${body}`;
+  }
+  if (abs >= 10000) {
+    const body = `${(abs / 10000).toFixed(0)}만`;
+    return n < 0 ? `-${body}` : `+${body}`;
+  }
+  const sign = n >= 0 ? "+" : "";
+  return `${sign}${fmt(n)}`;
+};
 const diff = (a: number, b: number) => {
   const d = a - b;
-  const sign = d >= 0 ? "+" : "";
-  return { val: `${sign}${fmtEok(d)}`, positive: d >= 0 };
+  return { val: fmtDiffAmount(d), positive: d >= 0 };
 };
 
 function renderPriceDiff(
@@ -66,8 +85,7 @@ function renderPriceDiff(
   }
   const amount = stored ?? (other != null ? naver - other : null);
   if (amount == null) return <span className="text-muted-foreground/40">-</span>;
-  const sign = amount >= 0 ? "+" : "";
-  const display = { val: `${sign}${fmtEok(amount)}`, positive: amount >= 0 };
+  const display = { val: fmtDiffAmount(amount), positive: amount >= 0 };
   return (
     <span className={`font-mono font-semibold ${display.positive ? "text-emerald-600" : "text-red-500"}`}>
       {display.val}
@@ -81,7 +99,7 @@ const SECTION_TEXT = "text-[16px] leading-snug";
 const FILTER_ROW = "grid grid-cols-[5.5rem_1fr] gap-x-6";
 const FILTER_LABEL = `${LIST_TEXT} font-semibold text-muted-foreground whitespace-nowrap`;
 const FILTER_SELECT_CITY = "w-[9rem]";
-const FILTER_SELECT_DISTRICT = "w-[7rem]";
+const FILTER_SELECT_DISTRICT = "w-[9rem]";
 const FILTER_SELECT_WARD = "w-[8.5rem]";
 const FILTER_SELECT_PROP = "w-[10.5rem]";
 const FILTER_SELECT_PRICE = "w-[7.25rem]";
@@ -90,7 +108,7 @@ const FILTER_SELECT_YEAR = "w-[6.5rem]";
 const FILTER_SELECT_PROGRESS = "w-[7rem]";
 const AUCTION_CASE_YEARS = getAuctionCaseYears();
 
-const COLUMNS: ColDef[] = [
+const buildColumns = (isAdmin: boolean): ColDef[] => [
   { key: "memo", label: "메모", defaultWidth: 80, sticky: true, render: (r) => r.memo ? <span className="text-amber-600"><StickyNote size={16} className="inline mr-1" />{r.memo}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "specialNote", label: "특이사항", defaultWidth: 160, render: (r) => <span className="text-red-600">{r.specialNote}</span> },
   { key: "link", label: "링크", defaultWidth: 56, align: "center", render: (r) => <a href={r.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary hover:text-accent"><ExternalLink size={16} /></a> },
@@ -98,7 +116,7 @@ const COLUMNS: ColDef[] = [
   { key: "auctionNo", label: "경매번호", defaultWidth: 168, render: (r) => (
     <span className="font-mono text-primary font-semibold inline-flex items-center gap-1.5">
       {r.auctionNo}
-      {r.isUpdated && <UpdatedBadge />}
+      {isAdmin && r.isUpdated && <UpdatedBadge />}
     </span>
   ) },
   { key: "address", label: "물건주소", defaultWidth: 280, render: (r) => <span>{r.address}</span> },
@@ -121,16 +139,16 @@ const COLUMNS: ColDef[] = [
       ? <span className="font-mono whitespace-nowrap">{rate}</span>
       : <span className="text-muted-foreground/40">-</span>;
   } },
-  { key: "salePrice", label: "매각가", defaultWidth: 96, align: "right", render: (r) => r.salePrice ? <span className="font-mono text-emerald-600 font-semibold">{fmtEok(r.salePrice)}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "naverPrice", label: "네이버 호가", defaultWidth: 100, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.naverPrice)}</span> },
-  { key: "diff1", label: "호가-매각가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverSale, r.naverPrice, r.salePrice) },
-  { key: "diff2", label: "호가-최저가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverMin, r.naverPrice, r.minPrice, false) },
   { key: "diff3", label: "호가-감정가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverAppraised, r.naverPrice, r.appraisedValue, false) },
-  { key: "tradingCount", label: "실거래건수", defaultWidth: 80, align: "right", render: (r) => <span className="font-mono">{r.tradingCount}</span> },
-  { key: "bidInfo", label: "입찰정보", defaultWidth: 96, align: "center", render: (r) => <span>{r.bidInfo}</span> },
+  { key: "diff2", label: "호가-최저가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverMin, r.naverPrice, r.minPrice, false) },
+  { key: "tradingCount", label: "실거래건수", defaultWidth: 140, render: (r) => <span className="font-mono text-xs">{r.tradingCount || "-"}</span> },
+  { key: "salePrice", label: "낙찰가", defaultWidth: 96, align: "right", render: (r) => r.salePrice ? <span className="font-mono text-emerald-600 font-semibold">{fmtEok(r.salePrice)}</span> : <span className="text-muted-foreground/40">-</span> },
+  { key: "diff1", label: "호가-낙찰가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverSale, r.naverPrice, r.salePrice) },
+  { key: "bidInfo", label: "낙찰정보", defaultWidth: 96, align: "center", render: (r) => <span>{r.bidInfo}</span> },
   { key: "owner", label: "소유자", defaultWidth: 72, align: "center", render: (r) => <span>{r.owner}</span> },
   { key: "appraiser", label: "감정원", defaultWidth: 120, render: (r) => <span>{r.appraiser}</span> },
-  { key: "officialLandPrice", label: "공시지가", defaultWidth: 96, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.officialLandPrice)}</span> },
+  { key: "officialLandPrice", label: "공시가", defaultWidth: 96, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.officialLandPrice)}</span> },
   { key: "tenantInfo", label: "임차정보", defaultWidth: 160, render: (r) => <span>{r.tenantInfo}</span> },
   { key: "elevator", label: "승강기", defaultWidth: 96, align: "center", render: (r) => <span>{r.elevator}</span> },
   { key: "parking", label: "주차장", defaultWidth: 120, render: (r) => <span>{r.parking}</span> },
@@ -289,7 +307,7 @@ function MultiCheckboxSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((prev) => !prev)}
-        className={`w-full text-left bg-card border border-border rounded-sm px-3 py-2.5 pr-8 ${LIST_TEXT} focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors ${
+        className={`w-full text-left bg-card border border-border rounded-sm px-3 py-2.5 pr-8 ${LIST_TEXT} whitespace-nowrap truncate focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors ${
           disabled
             ? "opacity-40 cursor-not-allowed bg-muted"
             : "hover:border-primary/50 cursor-pointer"
@@ -390,9 +408,18 @@ function getSortValue(row: AuctionItem, key: string): string | number | null {
   }
 }
 
-function AuctionTable({ data, onRowClick }: { data: AuctionItem[]; onRowClick: (item: AuctionItem) => void }) {
+function AuctionTable({
+  data,
+  isAdmin,
+  onRowClick,
+}: {
+  data: AuctionItem[];
+  isAdmin: boolean;
+  onRowClick: (item: AuctionItem) => void;
+}) {
+  const columns = useMemo(() => buildColumns(isAdmin), [isAdmin]);
   const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(COLUMNS.map((c) => [c.key, c.defaultWidth]))
+    Object.fromEntries(buildColumns(false).map((c) => [c.key, c.defaultWidth]))
   );
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
@@ -425,7 +452,7 @@ function AuctionTable({ data, onRowClick }: { data: AuctionItem[]; onRowClick: (
 
   const sorted = [...data].sort((a, b) => {
     if (!sortKey || !sortDir) return 0;
-    const col = COLUMNS.find((c) => c.key === sortKey);
+    const col = columns.find((c) => c.key === sortKey);
     if (!col) return 0;
     const av = getSortValue(a, sortKey);
     const bv = getSortValue(b, sortKey);
@@ -448,7 +475,7 @@ function AuctionTable({ data, onRowClick }: { data: AuctionItem[]; onRowClick: (
             <th className={`sticky left-0 z-30 bg-secondary/80 backdrop-blur-sm w-10 text-center border-b border-r border-border px-2 py-3 ${LIST_TEXT} font-semibold text-muted-foreground select-none`}>
               #
             </th>
-            {COLUMNS.map((col) => (
+            {columns.map((col) => (
               <th
                 key={col.key}
                 className={`relative border-b border-r border-border px-3 py-3 ${LIST_TEXT} font-semibold text-foreground select-none whitespace-nowrap group`}
@@ -473,7 +500,7 @@ function AuctionTable({ data, onRowClick }: { data: AuctionItem[]; onRowClick: (
         <tbody>
           {sorted.length === 0 ? (
             <tr>
-              <td colSpan={COLUMNS.length + 1} className={`text-center py-16 ${LIST_TEXT} text-muted-foreground`}>
+              <td colSpan={columns.length + 1} className={`text-center py-16 ${LIST_TEXT} text-muted-foreground`}>
                 조건에 맞는 물건이 없습니다
               </td>
             </tr>
@@ -486,7 +513,7 @@ function AuctionTable({ data, onRowClick }: { data: AuctionItem[]; onRowClick: (
               <td className={`sticky left-0 z-10 bg-card text-center border-b border-r border-border px-2 py-3 ${LIST_TEXT} text-muted-foreground font-mono`}>
                 {idx + 1}
               </td>
-              {COLUMNS.map((col) => (
+              {columns.map((col) => (
                 <td
                   key={col.key}
                   className="border-b border-r border-border px-3 py-3 whitespace-nowrap overflow-hidden"
@@ -948,7 +975,7 @@ export default function Home() {
             물건 데이터를 불러오는 중...
           </div>
         ) : (
-          <AuctionTable data={filtered} onRowClick={setSelectedItem} />
+          <AuctionTable data={filtered} isAdmin={isAdmin} onRowClick={setSelectedItem} />
         )}
       </main>
 

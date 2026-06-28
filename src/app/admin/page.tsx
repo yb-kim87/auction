@@ -29,6 +29,18 @@ import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_T
 import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
 import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 
+function formatRegisteredAt(value: string | null | undefined): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const y = String(date.getFullYear()).slice(-2);
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${y}.${m}.${d} ${h}:${min}`;
+}
+
 function StatusBadge({ status }: { status: AuctionItem["status"] }) {
   const styles = {
     pending: "bg-amber-100 text-amber-800 border-amber-200",
@@ -695,11 +707,12 @@ export default function AdminPage() {
                           className="accent-primary"
                         />
                       </th>
-                      <th className="px-3 py-2.5 text-left font-semibold">상태</th>
+                      <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">상태</th>
                       <th className="px-3 py-2.5 text-left font-semibold">등록자</th>
                       <th className="px-3 py-2.5 text-left font-semibold">경매번호</th>
                       <th className="px-3 py-2.5 text-left font-semibold">물건주소</th>
                       <th className="px-3 py-2.5 text-left font-semibold">입찰기일</th>
+                      <th className="px-2 py-2.5 text-left font-semibold whitespace-nowrap">등록시간</th>
                       <th className="w-32 px-3 py-2.5 text-center font-semibold">관리</th>
                     </tr>
                   </thead>
@@ -718,7 +731,7 @@ export default function AdminPage() {
                             className="accent-primary"
                           />
                         </td>
-                        <td className="px-3 py-2.5"><StatusBadge status={item.status} /></td>
+                        <td className="px-3 py-2.5 whitespace-nowrap"><StatusBadge status={item.status} /></td>
                         <td className="px-3 py-2.5 text-muted-foreground">{item.submittedBy || "-"}</td>
                         <td className="px-3 py-2.5 font-mono text-primary whitespace-nowrap">
                           <span className="inline-flex items-center gap-1.5">
@@ -728,6 +741,9 @@ export default function AdminPage() {
                         </td>
                         <td className="px-3 py-2.5 max-w-[220px] truncate" title={item.address}>{item.address || "-"}</td>
                         <td className="px-3 py-2.5 font-mono text-muted-foreground whitespace-nowrap">{item.bidDate || "-"}</td>
+                        <td className="px-2 py-2.5 font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                          {formatRegisteredAt(item.createdAt)}
+                        </td>
                         <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"

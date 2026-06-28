@@ -1,7 +1,18 @@
-export function UpdatedBadge({ className = "" }: { className?: string }) {
+export function UpdatedBadge({
+  className = "",
+  variant = "default",
+}: {
+  className?: string;
+  variant?: "default" | "onDark";
+}) {
+  const variantClass =
+    variant === "onDark"
+      ? "bg-amber-300 text-amber-950 border-amber-200 shadow-sm"
+      : "bg-sky-100 text-sky-700 border-sky-200";
+
   return (
     <span
-      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded-sm bg-sky-100 text-sky-700 border border-sky-200 shrink-0 ${className}`}
+      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border shrink-0 ${variantClass} ${className}`}
     >
       갱신
     </span>
