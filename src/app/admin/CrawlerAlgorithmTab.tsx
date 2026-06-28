@@ -32,6 +32,7 @@ export function CrawlerAlgorithmTab() {
   }
 
   async function handleSave() {
+    if (!algorithm || !schedule) return;
     setSaving(true);
     setMessage(null);
     try {

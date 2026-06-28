@@ -349,7 +349,7 @@ export function CrawlerWorkPanel() {
                     runAction("remove", async () => {
                       await crawlerManageUrls({
                         action: "remove",
-                        indices: [...selected],
+                        indices: Array.from(selected),
                       });
                       setSelected(new Set());
                     })

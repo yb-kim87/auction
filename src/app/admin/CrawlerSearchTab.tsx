@@ -84,6 +84,7 @@ export function CrawlerSearchTab() {
   }
 
   async function handleSave() {
+    if (!search) return;
     setSaving(true);
     setMessage(null);
     try {
