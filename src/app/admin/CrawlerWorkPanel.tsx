@@ -180,13 +180,25 @@ export function CrawlerWorkPanel() {
               <h2 className="text-lg font-bold text-foreground">크롤링 작업창</h2>
               <p className="text-sm text-muted-foreground mt-1">
                 탱크옥션 로그인 → 검색(프리셋/검색조건) → 주소 추가 → 조회 시작
+                {status?.remoteWorker && (
+                  <span className="block mt-1 text-amber-700">
+                    운영 웹: 관리자 PC 크롤러 워커에 원격 연결됩니다. PC가 꺼져 있으면
+                    조회가 시작되지 않습니다.
+                  </span>
+                )}
               </p>
             </div>
             <div className="text-right text-xs text-muted-foreground shrink-0">
               <p>
                 워커:{" "}
                 <span className={status?.workerRunning ? "text-emerald-600" : ""}>
-                  {status?.workerRunning ? "실행 중" : "미실행"}
+                  {status?.remoteWorker
+                    ? status.workerRunning
+                      ? "관리자 PC 연결됨"
+                      : "관리자 PC 미연결"
+                    : status?.workerRunning
+                      ? "실행 중"
+                      : "미실행"}
                 </span>
               </p>
               <p>
@@ -205,9 +217,9 @@ export function CrawlerWorkPanel() {
             </div>
           </div>
 
-          {error && (
+          {(error || (status?.remoteWorker && !status.workerRunning && status.error)) && (
             <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
+              {error ?? status?.error}
             </div>
           )}
 

@@ -401,6 +401,7 @@ export type CrawlerStatus = {
   excludeDuplicates: boolean;
   error: string | null;
   lastMessage: string | null;
+  remoteWorker?: boolean;
 };
 
 export type CrawlerSearchConfig = {
