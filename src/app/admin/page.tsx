@@ -26,8 +26,10 @@ import { clearAuthCookie } from "@/lib/auth";
 import { AuctionFormModal } from "./AuctionFormModal";
 import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
+import { AccountNavLink } from "@/components/AccountNavLink";
 import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
 import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
+import { KnowledgePanel } from "./KnowledgePanel";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -54,11 +56,12 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
   );
 }
 
-type AdminTab = "data" | "crawler" | "users";
+type AdminTab = "data" | "crawler" | "users" | "knowledge";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
   { id: "crawler", label: "크롤링 작업" },
+  { id: "knowledge", label: "경매지식" },
   { id: "users", label: "회원권한 관리" },
 ];
 
@@ -416,6 +419,7 @@ export default function AdminPage() {
                 <ChevronDown size={13} className="rotate-90" />
                 검색 페이지
               </Link>
+              <AccountNavLink />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={13} />
                 로그아웃
@@ -773,6 +777,8 @@ export default function AdminPage() {
           )}
 
           {activeTab === "crawler" && <CrawlerWorkPanel />}
+
+          {activeTab === "knowledge" && <KnowledgePanel />}
 
           {activeTab === "users" && (
             <div className="p-6">

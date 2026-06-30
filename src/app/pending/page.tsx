@@ -41,6 +41,12 @@ export default function PendingPage() {
         </p>
         <div className="mt-8 flex flex-col gap-2">
           <Link
+            href="/account"
+            className="w-full py-2.5 text-[15px] font-semibold border border-border rounded-sm hover:bg-secondary/40 transition-colors"
+          >
+            회원정보 수정
+          </Link>
+          <Link
             href="/login"
             className="w-full py-2.5 text-[15px] font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
           >

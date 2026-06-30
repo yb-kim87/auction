@@ -16,6 +16,7 @@ import {
 import { clearAuthCookie, getAuthUser } from "@/lib/auth";
 import { AuctionFormModal } from "../admin/AuctionFormModal";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_MUTED, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
+import { AccountNavLink } from "@/components/AccountNavLink";
 import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
 
 function StatusBadge({ status }: { status: AuctionItem["status"] }) {
@@ -136,6 +137,7 @@ export default function ConsultantPage() {
                 <ChevronDown size={13} className="rotate-90" />
                 검색 페이지
               </Link>
+              <AccountNavLink />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={13} />
                 로그아웃

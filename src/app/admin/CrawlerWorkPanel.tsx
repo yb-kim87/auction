@@ -64,6 +64,7 @@ export function CrawlerWorkPanel() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [localWorkPanelHint, setLocalWorkPanelHint] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -79,6 +80,32 @@ export function CrawlerWorkPanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "상태 조회 실패");
     }
+  }, []);
+
+  const refreshStatusOnly = useCallback(async () => {
+    try {
+      const nextStatus = await fetchCrawlerStatus();
+      setStatus(nextStatus);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "상태 조회 실패");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isLocalHost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+    if (isLocalHost) {
+      setLocalWorkPanelHint(false);
+      return;
+    }
+    fetch("http://127.0.0.1:3001/crawler/status", {
+      signal: AbortSignal.timeout(1200),
+    })
+      .then((res) => setLocalWorkPanelHint(res.ok))
+      .catch(() => setLocalWorkPanelHint(false));
   }, []);
 
   useEffect(() => {
@@ -104,11 +131,30 @@ export function CrawlerWorkPanel() {
       status?.phase === "collecting" ||
       status?.phase === "logging_in" ||
       status?.phase === "starting";
-    const timer = setInterval(() => {
-      void refresh();
-    }, active ? 1500 : 5000);
-    return () => clearInterval(timer);
-  }, [status?.phase, refresh]);
+
+    if (!active) {
+      const timer = setInterval(() => {
+        void refresh();
+      }, 5000);
+      return () => clearInterval(timer);
+    }
+
+    void refresh();
+    const statusTimer = setInterval(() => {
+      void refreshStatusOnly();
+    }, 400);
+
+    const logTimer = setInterval(() => {
+      void fetchCrawlerLogs(300)
+        .then(setLogs)
+        .catch(() => undefined);
+    }, 1500);
+
+    return () => {
+      clearInterval(statusTimer);
+      clearInterval(logTimer);
+    };
+  }, [status?.phase, refresh, refreshStatusOnly]);
 
   useEffect(() => {
     if (logRef.current) {
@@ -220,6 +266,51 @@ export function CrawlerWorkPanel() {
           {(error || (status?.remoteWorker && !status.workerRunning && status.error)) && (
             <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error ?? status?.error}
+            </div>
+          )}
+
+          {status?.remoteWorker && (
+            <div className="rounded-sm border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 space-y-2">
+              <p className="font-semibold">
+                원격 크롤 — Chrome은 이 브라우저 탭이 아니라 관리자 PC 화면에서
+                열립니다
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-xs">
+                <li>
+                  데이터는 운영 DB에 저장되며, 아래 진행률·로그는 PC 워커 상태를
+                  반영합니다.
+                </li>
+                <li>
+                  Chrome 창을 보면서 버튼을 누르려면{" "}
+                  <strong>크롤 워커가 돌아가는 PC</strong>에서 로컬 작업창을
+                  여세요.
+                </li>
+                <li>
+                  운영 URL을 연 PC가 워커 PC와 다르면, 그 PC에서는 크롤을 실행할
+                  수 없습니다(워커·터널 설치 필요).
+                </li>
+                {isRunning && (
+                  <li>
+                    지금 조회 중이라면 PC에서 Alt+Tab으로 Chrome 창을 찾아
+                    보세요.
+                  </li>
+                )}
+              </ul>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <a
+                  href="http://localhost:3000/admin"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex px-3 py-1.5 text-xs font-semibold rounded-sm bg-amber-800 text-white hover:bg-amber-900"
+                >
+                  로컬 작업창 열기 (localhost:3000)
+                </a>
+                {localWorkPanelHint && (
+                  <span className="text-xs text-emerald-700 font-medium">
+                    이 PC에서 로컬 API(3001)가 감지되었습니다
+                  </span>
+                )}
+              </div>
             </div>
           )}
 

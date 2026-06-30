@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { getLoginRedirect, setAuthCookies } from "@/lib/auth";
 import { loginUser, signupUser } from "@/lib/api";
+import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
 
 const FEATURES = [
   { icon: Brain, label: "AI 권리분석", desc: "복잡한 등기부를 AI가 즉시 분석" },
@@ -283,18 +284,65 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   );
 }
 
+function TextAreaField({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-[0.82rem] font-medium text-foreground/70 mb-1.5">
+        {label}
+      </label>
+      <textarea
+        placeholder={placeholder}
+        value={value}
+        rows={3}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[0.9rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 transition-all resize-none"
+      />
+    </div>
+  );
+}
+
 function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [investableFunds, setInvestableFunds] = useState("");
+  const [existingLoanAmount, setExistingLoanAmount] = useState("");
+  const [housingCount, setHousingCount] = useState("");
+  const [investmentGoal, setInvestmentGoal] = useState("");
+  const [targetReturn, setTargetReturn] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
-    if (!name.trim() || !username.trim() || !password.trim()) {
+    const parsedHousingCount = Number.parseInt(housingCount, 10);
+
+    if (
+      !name.trim() ||
+      !username.trim() ||
+      !password.trim() ||
+      !investableFunds.trim() ||
+      !existingLoanAmount.trim() ||
+      !housingCount.trim() ||
+      !investmentGoal.trim() ||
+      !targetReturn.trim()
+    ) {
       setError("모든 항목을 입력해 주세요.");
+      return;
+    }
+    if (Number.isNaN(parsedHousingCount) || parsedHousingCount < 0) {
+      setError("주택수는 0 이상의 숫자로 입력해 주세요.");
       return;
     }
     if (password.length < 4) {
@@ -310,7 +358,16 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     setSuccess("");
     setLoading(true);
     try {
-      await signupUser(username.trim(), password, name.trim());
+      await signupUser({
+        username: username.trim(),
+        password,
+        name: name.trim(),
+        investableFunds: investableFunds.trim(),
+        existingLoanAmount: existingLoanAmount.trim(),
+        housingCount: parsedHousingCount,
+        investmentGoal: investmentGoal.trim(),
+        targetReturn: targetReturn.trim(),
+      });
       setSuccess("회원가입이 완료되었습니다. 관리자 승인 후 로그인해 주세요.");
       setTimeout(() => onSwitch(), 1200);
     } catch (err) {
@@ -321,11 +378,50 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   };
 
   return (
-    <div className="space-y-4">
-      <InputField label="이름" type="text" placeholder="홍길동" value={name} onChange={setName} autoComplete="name" />
-      <InputField label="아이디" type="text" placeholder="아이디를 입력하세요" value={username} onChange={setUsername} autoComplete="username" />
-      <InputField label="비밀번호" type="password" placeholder="4자 이상 입력하세요" value={password} onChange={setPassword} autoComplete="new-password" />
-      <InputField label="비밀번호 확인" type="password" placeholder="비밀번호를 다시 입력하세요" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+    <div className="space-y-5">
+      <div className="space-y-4">
+        <InputField label="이름" type="text" placeholder="홍길동" value={name} onChange={setName} autoComplete="name" />
+        <InputField label="아이디" type="text" placeholder="아이디를 입력하세요" value={username} onChange={setUsername} autoComplete="username" />
+        <InputField label="비밀번호" type="password" placeholder="4자 이상 입력하세요" value={password} onChange={setPassword} autoComplete="new-password" />
+        <InputField label="비밀번호 확인" type="password" placeholder="비밀번호를 다시 입력하세요" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+      </div>
+
+      <InvestmentInfoSection>
+        <InputField
+          label="투자가능자금"
+          type="text"
+          placeholder="예: 3억 5,000만원"
+          value={investableFunds}
+          onChange={setInvestableFunds}
+        />
+        <InputField
+          label="기존대출금액"
+          type="text"
+          placeholder="예: 1억 2,000만원 (없으면 0)"
+          value={existingLoanAmount}
+          onChange={setExistingLoanAmount}
+        />
+        <InputField
+          label="주택수"
+          type="number"
+          placeholder="예: 1"
+          value={housingCount}
+          onChange={setHousingCount}
+        />
+        <InputField
+          label="목표 수익"
+          type="text"
+          placeholder="예: 연 8%, 3,000만원"
+          value={targetReturn}
+          onChange={setTargetReturn}
+        />
+        <TextAreaField
+          label="투자목표"
+          placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
+          value={investmentGoal}
+          onChange={setInvestmentGoal}
+        />
+      </InvestmentInfoSection>
 
       {error && <p className="text-[0.82rem] text-destructive font-medium">{error}</p>}
       {success && <p className="text-[0.82rem] text-emerald-600 font-medium">{success}</p>}
@@ -405,8 +501,8 @@ export default function LoginPage() {
           <BrandPanel />
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-6 py-12 lg:py-16 bg-background">
-          <div className="w-full max-w-[420px]">
+        <div className="flex-1 flex items-center justify-center px-6 py-12 lg:py-16 bg-background overflow-y-auto">
+          <div className={`w-full ${tab === "signup" ? "max-w-[480px]" : "max-w-[420px]"}`}>
             <div className="mb-8">
               <div className="flex items-center gap-2.5 mb-6 lg:hidden">
                 <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">

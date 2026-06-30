@@ -1,5 +1,10 @@
 import type {
   AuctionItem,
+  AuctionAnalysisResult,
+  AuctionKnowledgeItem,
+  CafeCrawlStatus,
+  KnowledgeDraftItem,
+  KnowledgeDraftStatus,
   UpdateAuctionPayload,
   UserProfile,
   UserRole,
@@ -17,8 +22,15 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
   return headers;
 }
 
+async function parseJsonResponse<T>(res: Response): Promise<T | null> {
+  const text = await res.text();
+  if (!text.trim()) return null;
+  return JSON.parse(text) as T;
+}
+
 async function parseErrorMessage(res: Response) {
-  const data = await res.json().catch(() => ({}));
+  const data = await parseJsonResponse<{ message?: string | string[] }>(res);
+  if (!data) return null;
   if (typeof data.message === "string") return data.message;
   if (Array.isArray(data.message)) return data.message.join(", ");
   return null;
@@ -38,15 +50,20 @@ export async function loginUser(username: string, password: string) {
   return res.json() as Promise<UserProfile>;
 }
 
-export async function signupUser(
-  username: string,
-  password: string,
-  name: string,
-) {
+export async function signupUser(input: {
+  username: string;
+  password: string;
+  name: string;
+  investableFunds: string;
+  existingLoanAmount: string;
+  housingCount: number;
+  investmentGoal: string;
+  targetReturn: string;
+}) {
   const res = await fetch(`${API_BASE}/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, name }),
+    body: JSON.stringify(input),
   });
   if (!res.ok) {
     throw new Error(
@@ -370,6 +387,42 @@ export async function updateUserRole(id: string, role: UserRole) {
   return res.json() as Promise<UserProfile>;
 }
 
+export async function fetchMyProfile(): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/users/me`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "회원 정보를 불러오지 못했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function updateMyProfile(input: {
+  name?: string;
+  currentPassword?: string;
+  newPassword?: string;
+  investableFunds?: string;
+  existingLoanAmount?: string;
+  housingCount?: number;
+  targetReturn?: string;
+  investmentGoal?: string;
+}): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/users/me`, {
+    method: "PATCH",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "회원 정보 수정에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
 export type CrawlerPhase =
   | "idle"
   | "starting"
@@ -444,6 +497,7 @@ export type CrawlerConfig = {
   algorithm: CrawlerAlgorithmConfig;
   schedule: CrawlerScheduleConfig;
   credentials: CrawlerCredentialsConfig;
+  naverCredentials?: CrawlerCredentialsConfig;
 };
 
 export type CrawlerLogEntry = {
@@ -649,6 +703,363 @@ export async function crawlerClearLogs() {
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "로그 초기화에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function fetchAuctionAnalysis(
+  auctionId: string,
+): Promise<AuctionAnalysisResult | null> {
+  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/analysis`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "경매코치 AI 분석 결과를 불러오지 못했습니다.",
+    );
+  }
+  return parseJsonResponse<AuctionAnalysisResult>(res);
+}
+
+export async function analyzeAuction(
+  auctionId: string,
+  refresh = false,
+): Promise<AuctionAnalysisResult> {
+  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/analyze`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ refresh }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "경매코치 AI 분석에 실패했습니다.",
+    );
+  }
+  const data = await parseJsonResponse<AuctionAnalysisResult>(res);
+  if (!data) {
+    throw new Error("경매코치 AI 분석 응답이 비어 있습니다.");
+  }
+  return data;
+}
+
+export async function fetchKnowledgeItems(): Promise<AuctionKnowledgeItem[]> {
+  const res = await fetch(`${API_BASE}/ai/knowledge`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "경매지식 목록을 불러오지 못했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function createKnowledgeItem(input: {
+  title: string;
+  category?: string;
+  tags?: string;
+  content: string;
+  active?: boolean;
+}): Promise<AuctionKnowledgeItem> {
+  const res = await fetch(`${API_BASE}/ai/knowledge`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "경매지식 저장에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function updateKnowledgeItem(
+  id: string,
+  input: Partial<{
+    title: string;
+    category: string;
+    tags: string;
+    content: string;
+    active: boolean;
+  }>,
+): Promise<AuctionKnowledgeItem> {
+  const res = await fetch(`${API_BASE}/ai/knowledge/${id}`, {
+    method: "PATCH",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "경매지식 수정에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function deleteKnowledgeItem(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/ai/knowledge/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "경매지식 삭제에 실패했습니다.",
+    );
+  }
+}
+
+export async function fetchKnowledgeDrafts(
+  status?: KnowledgeDraftStatus,
+): Promise<KnowledgeDraftItem[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const res = await fetch(`${API_BASE}/ai/knowledge-drafts${qs}`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "카페 지식 초안을 불러오지 못했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function updateKnowledgeDraft(
+  id: string,
+  input: Partial<{
+    title: string;
+    category: string;
+    tags: string;
+    content: string;
+    status: KnowledgeDraftStatus;
+  }>,
+): Promise<KnowledgeDraftItem> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
+    method: "PATCH",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "초안 수정에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function structureKnowledgeDraft(
+  id: string,
+): Promise<KnowledgeDraftItem> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/structure`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "AI 정리에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function structureKnowledgeDraftBatch(
+  limit = 20,
+): Promise<{ total: number; structured: number; skipped: number; failed: number }> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/structure-batch`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ limit }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "AI 일괄 정리에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function approveKnowledgeDraft(id: string): Promise<unknown> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/approve`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "승인에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function rejectKnowledgeDraft(
+  id: string,
+): Promise<KnowledgeDraftItem> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/reject`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "거절 처리에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function deleteKnowledgeDraft(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "초안 삭제에 실패했습니다.",
+    );
+  }
+}
+
+export async function fetchCafeCrawlStatus(): Promise<CafeCrawlStatus> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/status`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "카페 수집 상태를 불러오지 못했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function cafeLogin(credentials: {
+  userId: string;
+  password: string;
+}): Promise<{
+  ok: boolean;
+  message?: string;
+  naverLoggedIn?: boolean;
+}> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/login`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      userId: credentials.userId,
+      password: credentials.password,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "네이버 로그인에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function cafeOpenLogin(): Promise<{
+  ok: boolean;
+  message?: string;
+  naverLoggedIn?: boolean;
+  profileDir?: string;
+}> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/open-login`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "브라우저를 열지 못했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function cafeOpen(
+  cafeUrl: string,
+): Promise<{ ok: boolean; message?: string; naverLoggedIn?: boolean }> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/open`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ cafeUrl }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "카페 페이지를 열지 못했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function cafeCheckLogin(): Promise<{
+  ok: boolean;
+  naverLoggedIn?: boolean;
+  message?: string;
+}> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/check-login`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "로그인 확인에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function cafeCrawlStart(options?: {
+  cafeUrl?: string;
+  maxArticles?: number;
+  maxPages?: number;
+  userId?: string;
+  password?: string;
+}): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/start`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(options ?? {}),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "카페 수집 시작에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function cafeCrawlStop(): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/stop`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "카페 수집 중단에 실패했습니다.",
+    );
+  }
+  return res.json();
+}
+
+export async function cafeImportArticle(options: {
+  articleUrl: string;
+  cafeUrl?: string;
+  userId?: string;
+  password?: string;
+}): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/import-article`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "단일 글 수집에 실패했습니다.",
     );
   }
   return res.json();

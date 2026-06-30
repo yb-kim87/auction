@@ -70,9 +70,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname.startsWith("/account")) {
+    if (!loggedIn) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    return NextResponse.next();
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/login", "/pending", "/admin/:path*", "/consultant/:path*"],
+  matcher: ["/", "/login", "/pending", "/account", "/admin/:path*", "/consultant/:path*"],
 };

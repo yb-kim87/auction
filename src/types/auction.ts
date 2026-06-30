@@ -96,7 +96,82 @@ export interface UserProfile {
   username: string;
   name: string;
   role: UserRole;
+  investableFunds?: string;
+  existingLoanAmount?: string;
+  housingCount?: number;
+  investmentGoal?: string;
+  targetReturn?: string;
   createdAt: string;
+}
+
+export interface AuctionAnalysisResult {
+  id?: string;
+  auctionId?: string;
+  model?: string;
+  createdAt?: string;
+  cached?: boolean;
+  stale?: boolean;
+  summary: string;
+  priceAnalysis: string;
+  rightsAnalysis: string;
+  loanAnalysis: string;
+  investmentFit: string;
+  checklist: string[];
+  recommendation: string;
+  risks: string[];
+  citations?: string[];
+  knowledgeCount?: number;
+}
+
+export interface AuctionKnowledgeItem {
+  id: string;
+  title: string;
+  category: string;
+  tags: string;
+  content: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type KnowledgeDraftStatus =
+  | "raw"
+  | "structured"
+  | "approved"
+  | "rejected"
+  | "skipped";
+
+export interface KnowledgeDraftItem {
+  id: string;
+  sourceArticleId: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  sourceBoard: string;
+  cafeUrl: string;
+  rawContent: string;
+  title: string;
+  category: string;
+  tags: string;
+  content: string;
+  aiNote: string;
+  status: KnowledgeDraftStatus;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CafeCrawlStatus {
+  phase: string;
+  cafeUrl?: string;
+  completed?: number;
+  total?: number;
+  imported?: number;
+  skipped?: number;
+  browserReady?: boolean;
+  naverLoggedIn?: boolean;
+  error?: string | null;
+  lastMessage?: string | null;
+  events?: string[];
 }
 
 export const STATUS_LABELS: Record<AuctionStatus, string> = {

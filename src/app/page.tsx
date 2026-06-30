@@ -13,6 +13,7 @@ import { getAuctionCaseYears } from "@/data/auction-case-years";
 import { matchesPropertyType, PROPERTY_TYPE_OPTIONS } from "@/data/property-type-options";
 import { formatAuctionNoFilterLabel, matchesAuctionNoFilter } from "@/lib/auction-no-filter";
 import { getFailureRateRatio, matchesFailureRateFilter } from "@/lib/failure-rate";
+import { hasNaverPrice } from "@/lib/naver-price";
 import {
   matchesProgressStatus,
   isBidDateEnded,
@@ -26,6 +27,7 @@ import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
+import { AccountNavLink } from "@/components/AccountNavLink";
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
 
@@ -80,6 +82,9 @@ function renderPriceDiff(
   other: number | null,
   requireOther = true,
 ) {
+  if (!hasNaverPrice(naver)) {
+    return <span className="text-muted-foreground/40">-</span>;
+  }
   if (requireOther && (other == null || other === 0)) {
     return <span className="text-muted-foreground/40">-</span>;
   }
@@ -89,6 +94,24 @@ function renderPriceDiff(
   return (
     <span className={`font-mono font-semibold ${display.positive ? "text-emerald-600" : "text-red-500"}`}>
       {display.val}
+    </span>
+  );
+}
+
+function renderNaverPrice(naverPrice: number) {
+  if (!hasNaverPrice(naverPrice)) {
+    return <span className="text-muted-foreground/40">-</span>;
+  }
+  return <span className="font-mono">{fmtEok(naverPrice)}</span>;
+}
+
+function renderPriceDetail(priceDetail: string, naverPrice: number) {
+  if (!hasNaverPrice(naverPrice)) {
+    return <span className="text-muted-foreground/40">-</span>;
+  }
+  return (
+    <span className="text-muted-foreground">
+      {priceDetail.trim() || "-"}
     </span>
   );
 }
@@ -110,55 +133,66 @@ const AUCTION_CASE_YEARS = getAuctionCaseYears();
 
 const buildColumns = (isAdmin: boolean): ColDef[] => [
   { key: "memo", label: "메모", defaultWidth: 80, sticky: true, render: (r) => r.memo ? <span className="text-amber-600"><StickyNote size={16} className="inline mr-1" />{r.memo}</span> : <span className="text-muted-foreground/40">-</span> },
+  { key: "usage", label: "용도", defaultWidth: 96, render: (r) => <span className="whitespace-nowrap">{r.usage}</span> },
   { key: "specialNote", label: "특이사항", defaultWidth: 160, render: (r) => <span className="text-red-600">{r.specialNote}</span> },
-  { key: "link", label: "링크", defaultWidth: 56, align: "center", render: (r) => <a href={r.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary hover:text-accent"><ExternalLink size={16} /></a> },
-  { key: "views", label: "조회수", defaultWidth: 68, align: "right", render: (r) => <span className="font-mono">{fmt(r.views)}</span> },
-  { key: "auctionNo", label: "경매번호", defaultWidth: 168, render: (r) => (
+  { key: "link", label: "링크", defaultWidth: 56, render: (r) => <a href={r.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary hover:text-accent inline-flex justify-center"><ExternalLink size={16} /></a> },
+  { key: "views", label: "조회수", defaultWidth: 68, render: (r) => <span className="font-mono">{fmt(r.views)}</span> },
+  { key: "auctionNo", label: "경매번호", defaultWidth: 168, align: "left", render: (r) => (
     <span className="font-mono text-primary font-semibold inline-flex items-center gap-1.5">
       {r.auctionNo}
       {isAdmin && r.isUpdated && <UpdatedBadge />}
     </span>
   ) },
   { key: "address", label: "물건주소", defaultWidth: 280, render: (r) => <span>{r.address}</span> },
-  { key: "totalUnits", label: "총 세대수", defaultWidth: 80, align: "right", render: (r) => <span className="font-mono">{fmt(r.totalUnits)}</span> },
-  { key: "usage", label: "용도", defaultWidth: 72, align: "center", render: (r) => <span>{r.usage}</span> },
-  { key: "area", label: "평형", defaultWidth: 64, align: "center", render: (r) => <span className="font-medium">{r.area}</span> },
-  { key: "builtYear", label: "연식", defaultWidth: 64, align: "center", render: (r) => <span className="font-mono">{r.builtYear}년</span> },
-  { key: "bidDate", label: "입찰기일", defaultWidth: 96, align: "center", render: (r) => (
+  { key: "totalUnits", label: "총 세대수", defaultWidth: 80, render: (r) => <span className="font-mono">{fmt(r.totalUnits)}</span> },
+  { key: "area", label: "평형", defaultWidth: 64, render: (r) => <span className="font-medium">{r.area}</span> },
+  { key: "builtYear", label: "연식", defaultWidth: 64, render: (r) => <span className="font-mono">{r.builtYear}년</span> },
+  { key: "bidDate", label: "입찰기일", defaultWidth: 96, render: (r) => (
     <span className={`font-mono ${isBidDateEnded(r.bidDate) ? "text-red-600 font-semibold" : ""}`}>{r.bidDate}</span>
   ) },
-  { key: "appraisedValue", label: "감정가", defaultWidth: 96, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.appraisedValue)}</span> },
-  { key: "minPrice", label: "최저가", defaultWidth: 96, align: "right", render: (r) => (
+  { key: "appraisedValue", label: "감정가", defaultWidth: 96, render: (r) => <span className="font-mono">{fmtEok(r.appraisedValue)}</span> },
+  { key: "minPrice", label: "최저가", defaultWidth: 96, render: (r) => (
     r.minPrice
       ? <span className="font-mono whitespace-nowrap">{fmtEok(r.minPrice)}</span>
       : <span className="text-muted-foreground/40">-</span>
   ) },
-  { key: "failureRate", label: "유찰률", defaultWidth: 72, align: "right", render: (r) => {
+  { key: "failureRate", label: "유찰률", defaultWidth: 72, render: (r) => {
     const rate = fmtFailureRate(r.minPrice, r.appraisedValue);
     return rate
       ? <span className="font-mono whitespace-nowrap">{rate}</span>
       : <span className="text-muted-foreground/40">-</span>;
   } },
-  { key: "naverPrice", label: "네이버 호가", defaultWidth: 100, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.naverPrice)}</span> },
-  { key: "diff3", label: "호가-감정가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverAppraised, r.naverPrice, r.appraisedValue, false) },
-  { key: "diff2", label: "호가-최저가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverMin, r.naverPrice, r.minPrice, false) },
+  { key: "naverPrice", label: "네이버 호가", defaultWidth: 100, render: (r) => renderNaverPrice(r.naverPrice) },
+  { key: "diff3", label: "호가-감정가", defaultWidth: 100, render: (r) => renderPriceDiff(r.diffNaverAppraised, r.naverPrice, r.appraisedValue, false) },
+  { key: "diff2", label: "호가-최저가", defaultWidth: 100, render: (r) => renderPriceDiff(r.diffNaverMin, r.naverPrice, r.minPrice, false) },
   { key: "tradingCount", label: "실거래건수", defaultWidth: 140, render: (r) => <span className="font-mono text-xs">{r.tradingCount || "-"}</span> },
-  { key: "salePrice", label: "낙찰가", defaultWidth: 96, align: "right", render: (r) => r.salePrice ? <span className="font-mono text-emerald-600 font-semibold">{fmtEok(r.salePrice)}</span> : <span className="text-muted-foreground/40">-</span> },
-  { key: "diff1", label: "호가-낙찰가", defaultWidth: 100, align: "right", render: (r) => renderPriceDiff(r.diffNaverSale, r.naverPrice, r.salePrice) },
-  { key: "bidInfo", label: "낙찰정보", defaultWidth: 96, align: "center", render: (r) => <span>{r.bidInfo}</span> },
-  { key: "owner", label: "소유자", defaultWidth: 72, align: "center", render: (r) => <span>{r.owner}</span> },
+  { key: "salePrice", label: "낙찰가", defaultWidth: 96, render: (r) => r.salePrice ? <span className="font-mono text-emerald-600 font-semibold">{fmtEok(r.salePrice)}</span> : <span className="text-muted-foreground/40">-</span> },
+  { key: "diff1", label: "호가-낙찰가", defaultWidth: 100, render: (r) => renderPriceDiff(r.diffNaverSale, r.naverPrice, r.salePrice) },
+  { key: "bidInfo", label: "낙찰정보", defaultWidth: 96, render: (r) => <span>{r.bidInfo}</span> },
+  { key: "owner", label: "소유자", defaultWidth: 72, render: (r) => <span>{r.owner}</span> },
   { key: "appraiser", label: "감정원", defaultWidth: 120, render: (r) => <span>{r.appraiser}</span> },
-  { key: "officialLandPrice", label: "공시가", defaultWidth: 96, align: "right", render: (r) => <span className="font-mono">{fmtEok(r.officialLandPrice)}</span> },
+  { key: "officialLandPrice", label: "공시가", defaultWidth: 96, render: (r) => <span className="font-mono">{fmtEok(r.officialLandPrice)}</span> },
   { key: "tenantInfo", label: "임차정보", defaultWidth: 160, render: (r) => <span>{r.tenantInfo}</span> },
-  { key: "elevator", label: "승강기", defaultWidth: 96, align: "center", render: (r) => <span>{r.elevator}</span> },
+  { key: "elevator", label: "승강기", defaultWidth: 96, render: (r) => <span>{r.elevator}</span> },
   { key: "parking", label: "주차장", defaultWidth: 120, render: (r) => <span>{r.parking}</span> },
-  { key: "landShare", label: "토지지분", defaultWidth: 80, align: "right", render: (r) => <span className="font-mono">{r.landShare}</span> },
+  { key: "landShare", label: "토지지분", defaultWidth: 80, render: (r) => <span className="font-mono">{r.landShare}</span> },
   { key: "buildingRegistry", label: "건물등기", defaultWidth: 100, render: (r) => <span className={r.buildingRegistry !== "이상없음" ? "text-red-500 font-semibold" : "text-emerald-600"}>{r.buildingRegistry}</span> },
   { key: "education", label: "교육환경", defaultWidth: 140, render: (r) => <span>{r.education}</span> },
   { key: "tenantDetail", label: "임차상세", defaultWidth: 180, render: (r) => <span className="text-muted-foreground">{r.tenantDetail}</span> },
-  { key: "priceDetail", label: "호가 상세", defaultWidth: 160, render: (r) => <span className="text-muted-foreground">{r.priceDetail}</span> },
+  { key: "priceDetail", label: "호가 상세", defaultWidth: 160, render: (r) => renderPriceDetail(r.priceDetail, r.naverPrice) },
   { key: "tradingDetail", label: "실거래 상세", defaultWidth: 100, render: (r) => <span className="text-muted-foreground">{r.tradingDetail}</span> },
-  { key: "recordTime", label: "기록시간", defaultWidth: 136, align: "center", render: (r) => <span className="font-mono text-muted-foreground">{r.recordTime}</span> },
+  ...(isAdmin
+    ? [
+        {
+          key: "recordTime",
+          label: "기록시간",
+          defaultWidth: 136,
+          render: (r: AuctionItem) => (
+            <span className="font-mono text-muted-foreground">{r.recordTime}</span>
+          ),
+        } satisfies ColDef,
+      ]
+    : []),
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -396,10 +430,13 @@ function getSortValue(row: AuctionItem, key: string): string | number | null {
     case "failureRate":
       return getFailureRateRatio(row.minPrice, row.appraisedValue);
     case "diff1":
+      if (!hasNaverPrice(row.naverPrice)) return null;
       return row.diffNaverSale ?? (row.salePrice != null ? row.naverPrice - row.salePrice : null);
     case "diff2":
+      if (!hasNaverPrice(row.naverPrice)) return null;
       return row.diffNaverMin ?? row.naverPrice - row.minPrice;
     case "diff3":
+      if (!hasNaverPrice(row.naverPrice)) return null;
       return row.diffNaverAppraised ?? row.naverPrice - row.appraisedValue;
     default: {
       const value = row[key as keyof AuctionItem];
@@ -479,10 +516,16 @@ function AuctionTable({
               <th
                 key={col.key}
                 className={`relative border-b border-r border-border px-3 py-3 ${LIST_TEXT} font-semibold text-foreground select-none whitespace-nowrap group`}
-                style={{ width: colWidths[col.key], minWidth: colWidths[col.key], textAlign: col.align ?? "left" }}
+                style={{ width: colWidths[col.key], minWidth: colWidths[col.key], textAlign: col.align ?? "center" }}
               >
                 <span
-                  className="cursor-pointer hover:text-primary flex items-center gap-0.5 justify-between"
+                  className={`cursor-pointer hover:text-primary inline-flex items-center gap-0.5 w-full ${
+                    col.align === "left"
+                      ? "justify-start"
+                      : col.align === "right"
+                        ? "justify-end"
+                        : "justify-center"
+                  }`}
                   onClick={() => handleSort(col.key)}
                 >
                   <span className="truncate">{col.label}</span>
@@ -516,8 +559,14 @@ function AuctionTable({
               {columns.map((col) => (
                 <td
                   key={col.key}
-                  className="border-b border-r border-border px-3 py-3 whitespace-nowrap overflow-hidden"
-                  style={{ maxWidth: colWidths[col.key], textAlign: col.align ?? "left" }}
+                  className={`border-b border-r border-border px-3 py-3 whitespace-nowrap overflow-hidden ${
+                    col.align === "left"
+                      ? "text-left"
+                      : col.align === "right"
+                        ? "text-right"
+                        : "text-center"
+                  }`}
+                  style={{ maxWidth: colWidths[col.key] }}
                 >
                   {col.render(row)}
                 </td>
@@ -771,6 +820,7 @@ export default function Home() {
                   관리자
                 </Link>
               )}
+              <AccountNavLink />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={16} />
                 로그아웃

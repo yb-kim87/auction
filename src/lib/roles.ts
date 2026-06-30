@@ -25,8 +25,6 @@ export function isValidRole(role: string | null | undefined): role is UserRole {
 }
 
 export function getLoginRedirect(role: UserRole): string {
-  if (role === "admin") return "/admin";
-  if (role === "consultant") return "/consultant";
   if (canAccessSearch(role)) return "/";
   return "/pending";
 }

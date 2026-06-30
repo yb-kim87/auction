@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote } from "lucide-react";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain } from "lucide-react";
 import type { AuctionItem, UpdateAuctionPayload } from "@/types/auction";
 import {
   AUCTION_FIELD_GROUPS,
@@ -12,6 +12,8 @@ import { AuctionFieldInput } from "@/components/AuctionFieldInput";
 import { deleteAuction, updateAuction } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { NaverComplexLink } from "@/components/NaverComplexLink";
+import { hasNaverPrice } from "@/lib/naver-price";
+import { AuctionAnalysisPanel } from "@/components/AuctionAnalysisPanel";
 
 const LIST_TEXT = "text-[15px] leading-snug";
 const LABEL_TEXT = "text-[14px] leading-snug";
@@ -527,6 +529,15 @@ function formatFieldValue(
   key: keyof UpdateAuctionPayload,
   item: AuctionItem,
 ): string {
+  if (key === "naverPrice") {
+    return hasNaverPrice(item.naverPrice) ? fmtEok(item.naverPrice) : "-";
+  }
+  if (key === "priceDetail") {
+    if (!hasNaverPrice(item.naverPrice)) return "-";
+    const detail = String(item.priceDetail ?? "").trim();
+    return detail || "-";
+  }
+
   const value = item[key as keyof AuctionItem];
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "number") {
@@ -826,6 +837,7 @@ export function AuctionDetailModal({
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
   const [showMemo, setShowMemo] = useState(false);
+  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [editingViews, setEditingViews] = useState(false);
   const auctionNoInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLTextAreaElement>(null);
@@ -850,6 +862,7 @@ export function AuctionDetailModal({
     setEditingHeader(null);
     setEditingPrice(null);
     setShowMemo(false);
+    setShowAiAnalysis(false);
     setEditingViews(false);
   }, [item]);
 
@@ -893,11 +906,18 @@ export function AuctionDetailModal({
       ? null
       : parsePreviewNumber(salePriceRaw);
   const naverId = String(form.naverId ?? item.naverId ?? "").trim();
-  const naverPriceDisplay = naverPrice ? fmtEok(naverPrice) : "-";
+  const hasNaver = hasNaverPrice(naverPrice);
+  const naverPriceDisplay = hasNaver ? fmtEok(naverPrice) : "-";
 
-  const d1 = salePrice != null ? diff(naverPrice, salePrice) : null;
-  const d2 = diff(naverPrice, minPrice);
-  const d3 = diff(naverPrice, appraisedValue);
+  const d1 =
+    hasNaver && salePrice != null ? diff(naverPrice, salePrice) : null;
+  const d2 = hasNaver ? diff(naverPrice, minPrice) : null;
+  const d3 = hasNaver ? diff(naverPrice, appraisedValue) : null;
+  const missingDiff = {
+    value: "-",
+    positive: true,
+    suffixEligible: false as const,
+  };
 
   const setField = (key: keyof UpdateAuctionPayload, value: string) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -1214,6 +1234,18 @@ export function AuctionDetailModal({
                   변경 이력
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setShowAiAnalysis((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} border rounded-sm transition-colors ${
+                  showAiAnalysis
+                    ? "bg-white text-primary border-white"
+                    : "bg-white/10 border-white/25 hover:bg-white/20"
+                }`}
+              >
+                <Brain size={14} />
+                경매코치 AI
+              </button>
               {preview.link && (
                 <a
                   href={preview.link}
@@ -1238,6 +1270,10 @@ export function AuctionDetailModal({
         </div>
 
         <div className="px-5 py-5 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
+          {showAiAnalysis && item && (
+            <AuctionAnalysisPanel auctionId={item.id} />
+          )}
+
           <section>
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
               <h3 className={`${SECTION_TEXT} font-semibold text-foreground`}>물건 요약</h3>
@@ -1319,13 +1355,20 @@ export function AuctionDetailModal({
                       )
                     : undefined
                 }
-                diff={{
-                  label: "호가 - 감정가",
-                  value: d3.val,
-                  positive: d3.positive,
-                  suffix: newCaseAppraisedSuffix(d3.amount),
-                  suffixEligible: d3.amount >= BID_THRESHOLD,
-                }}
+                diff={
+                  d3
+                    ? {
+                        label: "호가 - 감정가",
+                        value: d3.val,
+                        positive: d3.positive,
+                        suffix: newCaseAppraisedSuffix(d3.amount),
+                        suffixEligible: d3.amount >= BID_THRESHOLD,
+                      }
+                    : {
+                        label: "호가 - 감정가",
+                        ...missingDiff,
+                      }
+                }
               />
               <PriceColumn
                 priceLabel="최저가"
@@ -1340,13 +1383,20 @@ export function AuctionDetailModal({
                       )
                     : undefined
                 }
-                diff={{
-                  label: "호가 - 최저가",
-                  value: d2.val,
-                  positive: d2.positive,
-                  suffix: minPriceBidSuffix(d2.amount),
-                  suffixEligible: d2.amount >= BID_THRESHOLD,
-                }}
+                diff={
+                  d2
+                    ? {
+                        label: "호가 - 최저가",
+                        value: d2.val,
+                        positive: d2.positive,
+                        suffix: minPriceBidSuffix(d2.amount),
+                        suffixEligible: d2.amount >= BID_THRESHOLD,
+                      }
+                    : {
+                        label: "호가 - 최저가",
+                        ...missingDiff,
+                      }
+                }
               />
               <PriceColumn
                 priceLabel="네이버 호가"
@@ -1393,7 +1443,9 @@ export function AuctionDetailModal({
                 diff={
                   d1
                     ? { label: "호가 - 낙찰가", value: d1.val, positive: d1.positive }
-                    : { label: "호가 - 낙찰가", value: "-", positive: true }
+                    : hasNaver
+                      ? { label: "호가 - 낙찰가", value: "-", positive: true }
+                      : { label: "호가 - 낙찰가", ...missingDiff }
                 }
               />
             </div>
@@ -1489,7 +1541,12 @@ export function AuctionDetailModal({
                             ) : isExpandableDetailField(field.key) ? (
                               <ExpandableDetailField
                                 label={field.label}
-                                value={String(item[field.key as keyof AuctionItem] ?? "")}
+                                value={
+                                  field.key === "priceDetail" &&
+                                  !hasNaverPrice(item.naverPrice)
+                                    ? "-"
+                                    : String(item[field.key as keyof AuctionItem] ?? "")
+                                }
                                 valueClassName={
                                   field.key === "buildingRegistry"
                                     ? buildingRegistryClassName(String(item.buildingRegistry ?? ""))
