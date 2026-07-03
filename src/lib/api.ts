@@ -167,6 +167,46 @@ export async function removeFavorite(auctionId: string): Promise<void> {
   }
 }
 
+export type UserActionType =
+  | "impression"
+  | "click"
+  | "detail_view"
+  | "ai_analysis_click"
+  | "favorite"
+  | "dislike"
+  | "reviewed";
+
+export type LogActionInput = {
+  itemId: string;
+  actionType: UserActionType;
+  durationSeconds?: number;
+  metadata?: Record<string, unknown> | null;
+};
+
+/** 사용자 행동 로그 — 향후 개인화 추천용 수집. 실패해도 화면 동작을 막지 않음. */
+export function logUserAction(input: LogActionInput): void {
+  fetch(`${API_BASE}/actions`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  }).catch(() => {
+    // 수집 실패는 무시 — UX에 영향 주지 않음
+  });
+}
+
+export function logUserActionsBatch(items: LogActionInput[]): void {
+  if (items.length === 0) return;
+  fetch(`${API_BASE}/actions/batch`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ items }),
+  }).catch(() => {
+    // 수집 실패는 무시
+  });
+}
+
 export async function fetchAdminAuctions(): Promise<AuctionItem[]> {
   const res = await fetch(`${API_BASE}/auctions/manage`, {
     cache: "no-store",

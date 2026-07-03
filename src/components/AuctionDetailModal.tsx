@@ -819,6 +819,9 @@ export function AuctionDetailModal({
   isFavorite = false,
   favoriteBusy = false,
   onToggleFavorite,
+  onAiAnalysisClick,
+  onDislike,
+  onReviewed,
 }: {
   item: AuctionItem | null;
   onClose: () => void;
@@ -829,6 +832,9 @@ export function AuctionDetailModal({
   isFavorite?: boolean;
   favoriteBusy?: boolean;
   onToggleFavorite?: (next: boolean) => Promise<void>;
+  onAiAnalysisClick?: (item: AuctionItem) => void;
+  onDislike?: (item: AuctionItem) => void;
+  onReviewed?: (item: AuctionItem) => void;
 }) {
   const [form, setForm] = useState<UpdateAuctionPayload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1225,6 +1231,24 @@ export function AuctionDetailModal({
                   {isFavorite ? "관심물건 해제" : "관심물건 추가"}
                 </button>
               )}
+              {onDislike && (
+                <button
+                  type="button"
+                  onClick={() => onDislike(item)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-white/10 border border-white/25 rounded-sm hover:bg-white/20 transition-colors`}
+                >
+                  관심없음
+                </button>
+              )}
+              {onReviewed && (
+                <button
+                  type="button"
+                  onClick={() => onReviewed(item)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-white/10 border border-white/25 rounded-sm hover:bg-white/20 transition-colors`}
+                >
+                  검토완료
+                </button>
+              )}
               {onViewHistory && (
                 <button
                   type="button"
@@ -1237,7 +1261,13 @@ export function AuctionDetailModal({
               )}
               <button
                 type="button"
-                onClick={() => setShowAiAnalysis((v) => !v)}
+                onClick={() => {
+                  setShowAiAnalysis((v) => {
+                    const next = !v;
+                    if (next) onAiAnalysisClick?.(item);
+                    return next;
+                  });
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} border rounded-sm transition-colors ${
                   showAiAnalysis
                     ? "bg-white text-primary border-white"

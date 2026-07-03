@@ -22,7 +22,7 @@ import {
   progressLabelToStatus,
 } from "@/lib/progress-status-filter";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
-import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, type LoanPolicy } from "@/lib/api";
+import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, logUserAction, logUserActionsBatch, type LoanPolicy } from "@/lib/api";
 import {
   matchesInvestmentRecommend,
   requiredEquityForMinPrice,
@@ -649,6 +649,8 @@ export default function Home() {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
+  const detailOpenedAtRef = useRef<number | null>(null);
+  const impressionLoggedIdsRef = useRef<Set<string>>(new Set());
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -777,6 +779,11 @@ export default function Home() {
       if (next) {
         await addFavorite(auctionId);
         setFavoriteIds((prev) => new Set([...Array.from(prev), auctionId]));
+        logUserAction({
+          itemId: auctionId,
+          actionType: "favorite",
+          metadata: { recommended: recommendEnabled },
+        });
       } else {
         await removeFavorite(auctionId);
         setFavoriteIds((prev) => {
@@ -882,6 +889,24 @@ export default function Home() {
   }, [filtered, recommendEnabled, appliedInvestableWon, appliedPolicy]);
 
   const displayItems = recommendEnabled ? recommendMatches : filtered;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const unseen = displayItems.filter(
+        (item) => !impressionLoggedIdsRef.current.has(item.id),
+      );
+      if (unseen.length === 0) return;
+      unseen.forEach((item) => impressionLoggedIdsRef.current.add(item.id));
+      logUserActionsBatch(
+        unseen.map((item) => ({
+          itemId: item.id,
+          actionType: "impression",
+          metadata: { recommended: recommendEnabled },
+        })),
+      );
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [displayItems, recommendEnabled]);
 
   const auctionNoFilterLabel = formatAuctionNoFilterLabel(auctionYear, auctionCaseNo);
 
@@ -1154,7 +1179,15 @@ export default function Home() {
           <AuctionTable
             data={displayItems}
             isAdmin={isAdmin}
-            onRowClick={setSelectedItem}
+            onRowClick={(row) => {
+              detailOpenedAtRef.current = Date.now();
+              logUserAction({
+                itemId: row.id,
+                actionType: "click",
+                metadata: { recommended: recommendEnabled },
+              });
+              setSelectedItem(row);
+            }}
             recommendPolicy={recommendEnabled ? appliedPolicy : null}
           />
         )}
@@ -1162,7 +1195,21 @@ export default function Home() {
 
       <AuctionDetailModal
         item={selectedItem}
-        onClose={() => setSelectedItem(null)}
+        onClose={() => {
+          if (selectedItem && detailOpenedAtRef.current != null) {
+            const durationSeconds = Math.round(
+              (Date.now() - detailOpenedAtRef.current) / 1000,
+            );
+            logUserAction({
+              itemId: selectedItem.id,
+              actionType: "detail_view",
+              durationSeconds,
+              metadata: { recommended: recommendEnabled },
+            });
+          }
+          detailOpenedAtRef.current = null;
+          setSelectedItem(null);
+        }}
         editable={isAdmin}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
@@ -1170,6 +1217,33 @@ export default function Home() {
           selectedItem
             ? (next) => handleToggleFavorite(selectedItem.id, next)
             : undefined
+        }
+        onAiAnalysisClick={(row) =>
+          logUserAction({
+            itemId: row.id,
+            actionType: "ai_analysis_click",
+            metadata: { recommended: recommendEnabled },
+          })
+        }
+        onDislike={
+          isAdmin
+            ? undefined
+            : (row) =>
+                logUserAction({
+                  itemId: row.id,
+                  actionType: "dislike",
+                  metadata: { recommended: recommendEnabled },
+                })
+        }
+        onReviewed={
+          isAdmin
+            ? undefined
+            : (row) =>
+                logUserAction({
+                  itemId: row.id,
+                  actionType: "reviewed",
+                  metadata: { recommended: recommendEnabled },
+                })
         }
         onSaved={(saved) => {
           setItems((prev) => prev.map((row) => (row.id === saved.id ? saved : row)));
