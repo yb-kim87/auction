@@ -497,7 +497,7 @@ export default function LoginPage() {
           <BrandPanel />
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-6 py-12 lg:py-16 bg-background overflow-y-auto">
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8 lg:py-16 bg-background overflow-y-auto">
           <div className={`w-full ${tab === "signup" ? "max-w-[480px]" : "max-w-[420px]"}`}>
             <div className="mb-8">
               <div className="flex items-center gap-2.5 mb-6 lg:hidden">
@@ -538,7 +538,7 @@ export default function LoginPage() {
               ))}
             </div>
 
-            <div className="bg-card rounded-2xl border border-border p-7 shadow-[0_2px_20px_rgba(30,58,95,0.06),0_1px_4px_rgba(30,58,95,0.04)]">
+            <div className="bg-card rounded-2xl border border-border p-5 sm:p-7 shadow-[0_2px_20px_rgba(30,58,95,0.06),0_1px_4px_rgba(30,58,95,0.04)]">
               {tab === "login" ? (
                 <LoginForm onSwitch={() => setTab("signup")} />
               ) : (

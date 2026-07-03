@@ -212,14 +212,14 @@ export default function AccountPage() {
         }
       />
 
-      <main className="max-w-[960px] mx-auto px-6 py-8">
+      <main className="max-w-[960px] mx-auto px-3 sm:px-6 py-5 sm:py-8">
         {message?.type === "error" && (
           <div className="mb-5 rounded-sm border px-4 py-3 text-sm border-destructive/30 bg-destructive/5 text-destructive">
             {message.text}
           </div>
         )}
 
-        <div className="bg-card border border-border rounded-sm shadow-sm p-6">
+        <div className="bg-card border border-border rounded-sm shadow-sm p-4 sm:p-6">
           <h1 className="text-lg font-bold text-foreground mb-1">내 정보 수정</h1>
           <p className="text-sm text-muted-foreground mb-6">
             이름, 투자정보, 비밀번호를 변경할 수 있습니다. 아이디는 변경할 수 없습니다.

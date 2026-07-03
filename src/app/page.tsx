@@ -129,16 +129,16 @@ function renderPriceDetail(priceDetail: string, naverPrice: number) {
 const LIST_TEXT = "text-[15px] leading-snug";
 const LABEL_TEXT = "text-[14px] leading-snug";
 const SECTION_TEXT = "text-[16px] leading-snug";
-const FILTER_ROW = "grid grid-cols-[5.5rem_1fr] gap-x-6";
+const FILTER_ROW = "grid grid-cols-1 sm:grid-cols-[5.5rem_1fr] gap-x-6 gap-y-1.5";
 const FILTER_LABEL = `${LIST_TEXT} font-semibold text-muted-foreground whitespace-nowrap`;
-const FILTER_SELECT_CITY = "w-[9rem]";
-const FILTER_SELECT_DISTRICT = "w-[9rem]";
-const FILTER_SELECT_WARD = "w-[8.5rem]";
-const FILTER_SELECT_PROP = "w-[10.5rem]";
-const FILTER_SELECT_PRICE = "w-[7.25rem]";
-const FILTER_SELECT_FAILURE = "w-[13.5rem]";
+const FILTER_SELECT_CITY = "w-full sm:w-[9rem]";
+const FILTER_SELECT_DISTRICT = "w-full sm:w-[9rem]";
+const FILTER_SELECT_WARD = "w-full sm:w-[8.5rem]";
+const FILTER_SELECT_PROP = "w-full sm:w-[10.5rem]";
+const FILTER_SELECT_PRICE = "w-[7.25rem] sm:w-[7.25rem]";
+const FILTER_SELECT_FAILURE = "w-full sm:w-[13.5rem]";
 const FILTER_SELECT_YEAR = "w-[6.5rem]";
-const FILTER_SELECT_PROGRESS = "w-[7rem]";
+const FILTER_SELECT_PROGRESS = "w-full sm:w-[7rem]";
 const AUCTION_CASE_YEARS = getAuctionCaseYears();
 
 const buildColumns = (isAdmin: boolean, recommendPolicy: LoanPolicy | null): ColDef[] => [
@@ -475,6 +475,72 @@ function getSortValue(row: AuctionItem, key: string): string | number | null {
       return typeof value === "string" || typeof value === "number" ? value : null;
     }
   }
+}
+
+function AuctionMobileCard({
+  item,
+  onClick,
+  recommendPolicy,
+}: {
+  item: AuctionItem;
+  onClick: () => void;
+  recommendPolicy: LoanPolicy | null;
+}) {
+  const rate = fmtFailureRate(item.minPrice, item.appraisedValue);
+  const equity =
+    recommendPolicy && item.minPrice
+      ? requiredEquityForMinPrice(item.minPrice, recommendPolicy.loanRatio)
+      : null;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left bg-card border border-border rounded-sm shadow-sm px-4 py-3.5 active:bg-secondary/30 transition-colors"
+    >
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <span className="font-mono text-primary font-semibold text-[15px] inline-flex items-center gap-1.5 min-w-0">
+          <span className="truncate">{item.auctionNo || "-"}</span>
+          {item.isUpdated && <UpdatedBadge />}
+        </span>
+        <span
+          className={`shrink-0 font-mono text-[13px] ${
+            isBidDateEnded(item.bidDate) ? "text-red-600 font-semibold" : "text-muted-foreground"
+          }`}
+        >
+          {item.bidDate || "-"}
+        </span>
+      </div>
+      <p className="text-[14px] text-foreground leading-snug mb-2 line-clamp-2">
+        {item.address || "-"}
+      </p>
+      <div className="grid grid-cols-3 gap-2 text-[13px]">
+        <div>
+          <p className="text-muted-foreground/70 text-[11px]">감정가</p>
+          <p className="font-mono font-semibold">{item.appraisedValue ? fmtEok(item.appraisedValue) : "-"}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground/70 text-[11px]">최저가</p>
+          <p className="font-mono font-semibold text-orange-600">{item.minPrice ? fmtEok(item.minPrice) : "-"}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground/70 text-[11px]">유찰률</p>
+          <p className="font-mono font-semibold">{rate ?? "-"}</p>
+        </div>
+      </div>
+      {equity != null && recommendPolicy && (
+        <p className="mt-2 text-[12px] text-primary bg-primary/5 border border-primary/15 rounded-sm px-2 py-1">
+          {recommendPolicy.label} 대출 {Math.round(recommendPolicy.loanRatio * 100)}% · 필요 자기자금 약 {fmtEok(equity)}
+        </p>
+      )}
+      {item.memo && (
+        <p className="mt-2 text-[12px] text-amber-600 inline-flex items-center gap-1">
+          <StickyNote size={12} />
+          {item.memo}
+        </p>
+      )}
+    </button>
+  );
 }
 
 function AuctionTable({
@@ -908,6 +974,16 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [displayItems, recommendEnabled]);
 
+  function handleRowSelect(row: AuctionItem) {
+    detailOpenedAtRef.current = Date.now();
+    logUserAction({
+      itemId: row.id,
+      actionType: "click",
+      metadata: { recommended: recommendEnabled },
+    });
+    setSelectedItem(row);
+  }
+
   const auctionNoFilterLabel = formatAuctionNoFilterLabel(auctionYear, auctionCaseNo);
 
   const activeFilters = [
@@ -967,7 +1043,7 @@ export default function Home() {
         }
       />
 
-      <main className="max-w-[1600px] mx-auto px-6 py-6 space-y-5">
+      <main className="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-5">
         {/* Filter Panel */}
         <div className="bg-card border border-border rounded-sm shadow-sm">
           {/* Filter toggle header */}
@@ -1008,10 +1084,10 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className={`${FILTER_ROW} items-center`}>
+                <div className={`${FILTER_ROW} items-start sm:items-center`}>
                   <span className={FILTER_LABEL}>주소</span>
-                  <div className="flex flex-wrap items-center gap-2 w-fit">
-                    <div className={`${FILTER_SELECT_CITY} shrink-0`}>
+                  <div className="flex flex-wrap items-center gap-2 sm:w-fit">
+                    <div className={`${FILTER_SELECT_CITY} sm:shrink-0`}>
                       <MultiCheckboxSelect
                         options={[...CITIES]}
                         selected={cities}
@@ -1019,7 +1095,7 @@ export default function Home() {
                         placeholder="시/도 선택"
                       />
                     </div>
-                    <div className={`${FILTER_SELECT_DISTRICT} shrink-0`}>
+                    <div className={`${FILTER_SELECT_DISTRICT} sm:shrink-0`}>
                       <MultiCheckboxSelect
                         options={availableDistricts}
                         selected={districts}
@@ -1028,7 +1104,7 @@ export default function Home() {
                         disabled={cities.length === 0}
                       />
                     </div>
-                    <div className={`${FILTER_SELECT_WARD} shrink-0`}>
+                    <div className={`${FILTER_SELECT_WARD} sm:shrink-0`}>
                       <SelectEl
                         value={ward}
                         onChange={setWard}
@@ -1121,7 +1197,7 @@ export default function Home() {
               </div>
 
               {/* Actions */}
-              <div className="px-5 py-3 bg-secondary/30 border-t border-border flex items-center justify-between">
+              <div className="px-5 py-3 bg-secondary/30 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-1.5">
                   {activeFilters.map((f, i) => (
                     <span key={i} className={`inline-flex items-center px-2 py-0.5 bg-primary/10 text-primary ${LIST_TEXT} font-medium rounded-sm border border-primary/20`}>
@@ -1129,7 +1205,7 @@ export default function Home() {
                     </span>
                   ))}
                 </div>
-                <div className="flex gap-2 shrink-0 ml-4">
+                <div className="flex gap-2 shrink-0 sm:ml-4">
                   <button onClick={handleReset} className={`flex items-center gap-1.5 px-3 py-2 ${LIST_TEXT} font-medium text-muted-foreground border border-border rounded-sm hover:text-foreground hover:border-foreground/30 transition-colors`}>
                     <RotateCcw size={15} />초기화
                   </button>
@@ -1176,20 +1252,32 @@ export default function Home() {
             물건 데이터를 불러오는 중...
           </div>
         ) : (
-          <AuctionTable
-            data={displayItems}
-            isAdmin={isAdmin}
-            onRowClick={(row) => {
-              detailOpenedAtRef.current = Date.now();
-              logUserAction({
-                itemId: row.id,
-                actionType: "click",
-                metadata: { recommended: recommendEnabled },
-              });
-              setSelectedItem(row);
-            }}
-            recommendPolicy={recommendEnabled ? appliedPolicy : null}
-          />
+          <>
+            <div className="hidden md:block">
+              <AuctionTable
+                data={displayItems}
+                isAdmin={isAdmin}
+                onRowClick={handleRowSelect}
+                recommendPolicy={recommendEnabled ? appliedPolicy : null}
+              />
+            </div>
+            <div className="md:hidden space-y-2.5">
+              {displayItems.length === 0 ? (
+                <div className={`rounded-sm border border-border bg-card px-6 py-16 text-center ${LIST_TEXT} text-muted-foreground`}>
+                  조건에 맞는 물건이 없습니다.
+                </div>
+              ) : (
+                displayItems.map((item) => (
+                  <AuctionMobileCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => handleRowSelect(item)}
+                    recommendPolicy={recommendEnabled ? appliedPolicy : null}
+                  />
+                ))
+              )}
+            </div>
+          </>
         )}
       </main>
 

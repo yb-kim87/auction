@@ -20,20 +20,20 @@ export function AppHeader({ maxWidth = "1600", nav }: AppHeaderProps) {
 
   return (
     <header className="bg-white border-b border-primary sticky top-0 z-50">
-      <div className={`${maxW} mx-auto px-6 py-1 flex items-center gap-5`}>
+      <div className={`${maxW} mx-auto px-3 sm:px-6 py-1 flex items-center gap-2 sm:gap-5`}>
         <Link href="/" className="shrink-0" aria-label="경매코치 홈">
           <Image
             src="/logo.png"
             alt="경매코치"
             width={240}
             height={96}
-            className="h-20 w-auto object-contain"
+            className="h-12 sm:h-20 w-auto object-contain"
             priority
           />
         </Link>
 
         {nav && (
-          <nav className="flex flex-1 items-center gap-4 min-w-0 flex-wrap">{nav}</nav>
+          <nav className="flex flex-1 items-center gap-2 sm:gap-4 min-w-0 flex-wrap">{nav}</nav>
         )}
       </div>
     </header>

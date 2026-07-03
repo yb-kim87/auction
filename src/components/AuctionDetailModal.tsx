@@ -1006,18 +1006,18 @@ export function AuctionDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-start justify-center p-0 sm:p-6 overflow-y-auto"
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
-        className="relative w-full max-w-4xl my-4 bg-card border border-border rounded-sm shadow-xl"
+        className="relative w-full max-w-4xl sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl"
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
-        <div className="sticky top-0 z-10 bg-primary text-primary-foreground px-5 py-4 rounded-t-sm">
-          <div className="flex items-start justify-between gap-4">
+        <div className="sticky top-0 z-10 bg-primary text-primary-foreground px-4 sm:px-5 py-4 rounded-none sm:rounded-t-sm">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm`}>
@@ -1212,7 +1212,7 @@ export function AuctionDetailModal({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto sm:shrink-0">
               {onToggleFavorite && (
                 <button
                   type="button"
