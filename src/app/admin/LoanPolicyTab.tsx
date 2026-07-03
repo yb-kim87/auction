@@ -6,7 +6,7 @@ import { fetchLoanPolicies, updateLoanPolicy, type LoanPolicy } from "@/lib/api"
 export function LoanPolicyTab() {
   const [policies, setPolicies] = useState<LoanPolicy[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,21 +19,22 @@ export function LoanPolicyTab() {
     setPolicies((prev) =>
       prev.map((p) => (p.id === id ? { ...p, loanRatio: Number(percent) / 100 } : p)),
     );
+    setMessage(null);
   }
 
-  async function handleSave(id: string) {
-    const policy = policies.find((p) => p.id === id);
-    if (!policy) return;
-    setSavingId(id);
+  async function handleSaveAll() {
+    setSaving(true);
     setMessage(null);
     try {
-      const updated = await updateLoanPolicy(id, policy.loanRatio);
-      setPolicies((prev) => prev.map((p) => (p.id === id ? updated : p)));
-      setMessage(`${policy.label} 대출 비율이 저장되었습니다.`);
+      const updated = await Promise.all(
+        policies.map((p) => updateLoanPolicy(p.id, p.loanRatio)),
+      );
+      setPolicies(updated);
+      setMessage("대출 정책이 저장되었습니다.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "저장 실패");
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   }
 
@@ -74,18 +75,19 @@ export function LoanPolicyTab() {
                 className="w-20 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
               />
               <span className="text-sm text-muted-foreground">%</span>
-              <button
-                type="button"
-                onClick={() => handleSave(policy.id)}
-                disabled={savingId === policy.id}
-                className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-              >
-                {savingId === policy.id ? "저장 중..." : "저장"}
-              </button>
             </div>
           </div>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={handleSaveAll}
+        disabled={saving}
+        className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+      >
+        {saving ? "저장 중..." : "저장"}
+      </button>
     </div>
   );
 }
