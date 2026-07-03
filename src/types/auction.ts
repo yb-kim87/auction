@@ -101,6 +101,7 @@ export interface UserProfile {
   housingCount?: number;
   investmentGoal?: string;
   targetReturn?: string;
+  firstTimeBuyer?: boolean;
   createdAt: string;
 }
 
@@ -162,11 +163,14 @@ export interface KnowledgeDraftItem {
 
 export interface CafeCrawlStatus {
   phase: string;
+  subPhase?: string;
   cafeUrl?: string;
   completed?: number;
   total?: number;
   imported?: number;
   skipped?: number;
+  urlCollectTotal?: number;
+  collectedUrls?: Array<{ url: string; title?: string; articleId?: string }>;
   browserReady?: boolean;
   naverLoggedIn?: boolean;
   error?: string | null;

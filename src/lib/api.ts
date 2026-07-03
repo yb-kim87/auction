@@ -9,45 +9,89 @@ import type {
   UserProfile,
   UserRole,
 } from "@/types/auction";
-import { getAuthRole, getAuthUser } from "@/lib/auth";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
+/** 브라우저는 항상 같은 출처(/api)로 호출 — JWT HttpOnly 쿠키 전달 */
+const API_BASE = "/api";
 
-function authHeaders(extra?: HeadersInit): HeadersInit {
+const FETCH_CREDENTIALS: RequestCredentials = "include";
+
+function withJsonHeaders(extra?: HeadersInit): HeadersInit {
   const headers = new Headers(extra);
-  const user = getAuthUser();
-  const role = getAuthRole();
-  if (user) headers.set("X-Auction-User", user);
-  if (role) headers.set("X-Auction-Role", role);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   return headers;
 }
 
+async function parseJsonResponseText<T>(text: string): Promise<T | null> {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    return null;
+  }
+}
+
 async function parseJsonResponse<T>(res: Response): Promise<T | null> {
+  return parseJsonResponseText<T>(await res.text());
+}
+
+async function readJsonResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
-  if (!text.trim()) return null;
-  return JSON.parse(text) as T;
+  const data = await parseJsonResponseText<T>(text);
+  if (data !== null) return data;
+  const snippet = text.trim().slice(0, 200);
+  throw new Error(
+    snippet || `서버 응답을 해석하지 못했습니다. (HTTP ${res.status})`,
+  );
 }
 
 async function parseErrorMessage(res: Response) {
-  const data = await parseJsonResponse<{ message?: string | string[] }>(res);
-  if (!data) return null;
-  if (typeof data.message === "string") return data.message;
-  if (Array.isArray(data.message)) return data.message.join(", ");
+  const text = await res.text();
+  const data = await parseJsonResponseText<{ message?: string | string[] }>(text);
+  if (data?.message) {
+    if (typeof data.message === "string") return data.message;
+    if (Array.isArray(data.message)) return data.message.join(", ");
+  }
+  const trimmed = text.trim();
+  if (trimmed && !trimmed.startsWith("{")) return trimmed.slice(0, 200);
   return null;
 }
 
-export async function loginUser(username: string, password: string) {
+export async function loginUser(
+  username: string,
+  password: string,
+  remember = false,
+) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
+    credentials: FETCH_CREDENTIALS,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, remember }),
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "로그인에 실패했습니다.",
     );
   }
-  return res.json() as Promise<UserProfile>;
+  return readJsonResponse<{ ok: boolean }>(res);
+}
+
+export async function logoutUser() {
+  const res = await fetch(`${API_BASE}/auth/logout`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "로그아웃에 실패했습니다.",
+    );
+  }
+}
+
+export async function fetchCurrentUser(): Promise<UserProfile> {
+  return fetchMyProfile();
 }
 
 export async function signupUser(input: {
@@ -59,9 +103,11 @@ export async function signupUser(input: {
   housingCount: number;
   investmentGoal: string;
   targetReturn: string;
+  firstTimeBuyer: boolean;
 }) {
   const res = await fetch(`${API_BASE}/auth/signup`, {
     method: "POST",
+    credentials: FETCH_CREDENTIALS,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
@@ -70,7 +116,7 @@ export async function signupUser(input: {
       (await parseErrorMessage(res)) ?? "회원가입에 실패했습니다.",
     );
   }
-  return res.json() as Promise<UserProfile>;
+  return readJsonResponse<{ ok: boolean }>(res);
 }
 
 export async function fetchAuctions(): Promise<AuctionItem[]> {
@@ -80,27 +126,27 @@ export async function fetchAuctions(): Promise<AuctionItem[]> {
       (await parseErrorMessage(res)) ?? "물건 데이터를 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function fetchFavoriteIds(): Promise<string[]> {
   const res = await fetch(`${API_BASE}/favorites`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "관심물건 목록을 불러오지 못했습니다.",
     );
   }
-  const data = (await res.json()) as { auctionIds?: string[] };
+  const data = await readJsonResponse<{ auctionIds?: string[] }>(res);
   return data.auctionIds ?? [];
 }
 
 export async function addFavorite(auctionId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/favorites/${auctionId}`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
@@ -112,7 +158,7 @@ export async function addFavorite(auctionId: string): Promise<void> {
 export async function removeFavorite(auctionId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/favorites/${auctionId}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
@@ -124,49 +170,49 @@ export async function removeFavorite(auctionId: string): Promise<void> {
 export async function fetchAdminAuctions(): Promise<AuctionItem[]> {
   const res = await fetch(`${API_BASE}/auctions/manage`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "물건 데이터를 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function fetchPendingAuctions(): Promise<AuctionItem[]> {
   const res = await fetch(`${API_BASE}/auctions/pending`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "승인 대기 목록을 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function fetchMyAuctions(): Promise<AuctionItem[]> {
   const res = await fetch(`${API_BASE}/auctions/my`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "내 등록 물건을 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function fetchAuctionCount(): Promise<{ total: number; pending: number }> {
   const res = await fetch(`${API_BASE}/auctions/count`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) return { total: 0, pending: 0 };
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function uploadAuctionExcel(file: File) {
@@ -175,7 +221,7 @@ export async function uploadAuctionExcel(file: File) {
 
   const res = await fetch(`${API_BASE}/auctions/upload`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
     body: formData,
   });
 
@@ -185,19 +231,20 @@ export async function uploadAuctionExcel(file: File) {
     );
   }
 
-  return res.json() as Promise<{
+  return readJsonResponse<{
     imported: number;
     created: number;
     updated: number;
     total: number;
     status?: string;
-  }>;
+  }>(res);
 }
 
 export async function createAuction(data: UpdateAuctionPayload) {
   const res = await fetch(`${API_BASE}/auctions`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -205,7 +252,7 @@ export async function createAuction(data: UpdateAuctionPayload) {
       (await parseErrorMessage(res)) ?? "물건 등록에 실패했습니다.",
     );
   }
-  return res.json() as Promise<AuctionItem>;
+  return readJsonResponse<AuctionItem>(res);
 }
 
 export function getTemplateDownloadUrl() {
@@ -215,7 +262,8 @@ export function getTemplateDownloadUrl() {
 export async function updateMyAuction(id: string, data: UpdateAuctionPayload) {
   const res = await fetch(`${API_BASE}/auctions/my/${id}`, {
     method: "PATCH",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -223,39 +271,40 @@ export async function updateMyAuction(id: string, data: UpdateAuctionPayload) {
       (await parseErrorMessage(res)) ?? "물건 수정에 실패했습니다.",
     );
   }
-  return res.json() as Promise<AuctionItem>;
+  return readJsonResponse<AuctionItem>(res);
 }
 
 export async function deleteMyAuction(id: string) {
   const res = await fetch(`${API_BASE}/auctions/my/${id}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "물건 삭제에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ deleted: number; total: number }>;
+  return readJsonResponse<{ deleted: number; total: number }>(res);
 }
 
 export async function deleteAuction(id: string) {
   const res = await fetch(`${API_BASE}/auctions/${id}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "물건 삭제에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ deleted: number; total: number }>;
+  return readJsonResponse<{ deleted: number; total: number }>(res);
 }
 
 export async function deleteAuctions(ids: string[]) {
   const res = await fetch(`${API_BASE}/auctions/delete-many`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({ ids }),
   });
   if (!res.ok) {
@@ -263,39 +312,40 @@ export async function deleteAuctions(ids: string[]) {
       (await parseErrorMessage(res)) ?? "선택 항목 삭제에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ deleted: number; total: number }>;
+  return readJsonResponse<{ deleted: number; total: number }>(res);
 }
 
 export async function deleteAllAuctions() {
   const res = await fetch(`${API_BASE}/auctions/all`, {
     method: "DELETE",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "전체 삭제에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ deleted: number; total: number }>;
+  return readJsonResponse<{ deleted: number; total: number }>(res);
 }
 
 export async function fetchAuctionChangeHistory(auctionId: string) {
   const res = await fetch(`${API_BASE}/auctions/${auctionId}/changes`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "변경 이력을 불러오지 못했습니다.",
     );
   }
-  return res.json() as Promise<import("@/types/auction").AuctionChangeLogEntry[]>;
+  return readJsonResponse<import("@/types/auction").AuctionChangeLogEntry[]>(res);
 }
 
 export async function updateAuction(id: string, data: UpdateAuctionPayload) {
   const res = await fetch(`${API_BASE}/auctions/${id}`, {
     method: "PATCH",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -303,39 +353,40 @@ export async function updateAuction(id: string, data: UpdateAuctionPayload) {
       (await parseErrorMessage(res)) ?? "물건 수정에 실패했습니다.",
     );
   }
-  return res.json() as Promise<AuctionItem>;
+  return readJsonResponse<AuctionItem>(res);
 }
 
 export async function approveAuction(id: string) {
   const res = await fetch(`${API_BASE}/auctions/${id}/approve`, {
     method: "PATCH",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "승인에 실패했습니다.",
     );
   }
-  return res.json() as Promise<AuctionItem>;
+  return readJsonResponse<AuctionItem>(res);
 }
 
 export async function rejectAuction(id: string) {
   const res = await fetch(`${API_BASE}/auctions/${id}/reject`, {
     method: "PATCH",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "반려에 실패했습니다.",
     );
   }
-  return res.json() as Promise<AuctionItem>;
+  return readJsonResponse<AuctionItem>(res);
 }
 
 export async function approveAuctions(ids: string[]) {
   const res = await fetch(`${API_BASE}/auctions/approve-many`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({ ids }),
   });
   if (!res.ok) {
@@ -343,13 +394,14 @@ export async function approveAuctions(ids: string[]) {
       (await parseErrorMessage(res)) ?? "일괄 승인에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ approved: number; pending: number }>;
+  return readJsonResponse<{ approved: number; pending: number }>(res);
 }
 
 export async function rejectAuctions(ids: string[]) {
   const res = await fetch(`${API_BASE}/auctions/reject-many`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({ ids }),
   });
   if (!res.ok) {
@@ -357,26 +409,27 @@ export async function rejectAuctions(ids: string[]) {
       (await parseErrorMessage(res)) ?? "일괄 반려에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ rejected: number; pending: number }>;
+  return readJsonResponse<{ rejected: number; pending: number }>(res);
 }
 
 export async function fetchUsers(): Promise<UserProfile[]> {
   const res = await fetch(`${API_BASE}/users`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "회원 목록을 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function updateUserRole(id: string, role: UserRole) {
   const res = await fetch(`${API_BASE}/users/${id}/role`, {
     method: "PATCH",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({ role }),
   });
   if (!res.ok) {
@@ -384,20 +437,20 @@ export async function updateUserRole(id: string, role: UserRole) {
       (await parseErrorMessage(res)) ?? "권한 변경에 실패했습니다.",
     );
   }
-  return res.json() as Promise<UserProfile>;
+  return readJsonResponse<UserProfile>(res);
 }
 
 export async function fetchMyProfile(): Promise<UserProfile> {
   const res = await fetch(`${API_BASE}/users/me`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "회원 정보를 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function updateMyProfile(input: {
@@ -409,10 +462,12 @@ export async function updateMyProfile(input: {
   housingCount?: number;
   targetReturn?: string;
   investmentGoal?: string;
+  firstTimeBuyer?: boolean;
 }): Promise<UserProfile> {
   const res = await fetch(`${API_BASE}/users/me`, {
     method: "PATCH",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -420,7 +475,42 @@ export async function updateMyProfile(input: {
       (await parseErrorMessage(res)) ?? "회원 정보 수정에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
+}
+
+export type LoanPolicy = {
+  id: string;
+  label: string;
+  loanRatio: number;
+  sortOrder: number;
+};
+
+export async function fetchLoanPolicies(): Promise<LoanPolicy[]> {
+  const res = await fetch(`${API_BASE}/loan-policies`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "대출 정책을 불러오지 못했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateLoanPolicy(id: string, loanRatio: number): Promise<LoanPolicy> {
+  const res = await fetch(`${API_BASE}/loan-policies/${id}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ loanRatio }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "대출 정책 저장에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
 }
 
 export type CrawlerPhase =
@@ -454,6 +544,7 @@ export type CrawlerStatus = {
   excludeDuplicates: boolean;
   error: string | null;
   lastMessage: string | null;
+  tankLoggedIn?: boolean | null;
   remoteWorker?: boolean;
 };
 
@@ -509,27 +600,27 @@ export type CrawlerLogEntry = {
 export async function fetchCrawlerStatus(): Promise<CrawlerStatus> {
   const res = await fetch(`${API_BASE}/crawler/status`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "크롤러 상태를 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function fetchCrawlerLogs(limit = 200): Promise<CrawlerLogEntry[]> {
   const res = await fetch(`${API_BASE}/crawler/logs?limit=${limit}`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "크롤러 로그를 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function crawlerLogin(credentials?: {
@@ -538,7 +629,8 @@ export async function crawlerLogin(credentials?: {
 }) {
   const res = await fetch(`${API_BASE}/crawler/login`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(credentials ?? {}),
   });
   if (!res.ok) {
@@ -546,20 +638,20 @@ export async function crawlerLogin(credentials?: {
       (await parseErrorMessage(res)) ?? "로그인 요청에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function fetchCrawlerConfig(): Promise<CrawlerConfig> {
   const res = await fetch(`${API_BASE}/crawler/config`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "크롤러 설정을 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function updateCrawlerConfig(
@@ -567,7 +659,8 @@ export async function updateCrawlerConfig(
 ): Promise<CrawlerConfig> {
   const res = await fetch(`${API_BASE}/crawler/config`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(config),
   });
   if (!res.ok) {
@@ -575,7 +668,7 @@ export async function updateCrawlerConfig(
       (await parseErrorMessage(res)) ?? "크롤러 설정 저장에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function crawlerCollectUrls(
@@ -587,7 +680,8 @@ export async function crawlerCollectUrls(
 ) {
   const res = await fetch(`${API_BASE}/crawler/collect-urls`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({
       preset,
       clear: options?.clear ?? true,
@@ -599,11 +693,14 @@ export async function crawlerCollectUrls(
       (await parseErrorMessage(res)) ?? "주소 수집에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{
+  return readJsonResponse<{
     urls: CrawlerUrlEntry[];
     message?: string;
+    rawCount?: number;
     excluded?: number;
-  }>;
+    deduped?: number;
+    naverRefresh?: number;
+  }>(res);
 }
 
 export async function crawlerLoadExcel(file: File) {
@@ -611,7 +708,7 @@ export async function crawlerLoadExcel(file: File) {
   form.append("file", file);
   const res = await fetch(`${API_BASE}/crawler/load-excel`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
     body: form,
   });
   if (!res.ok) {
@@ -619,7 +716,7 @@ export async function crawlerLoadExcel(file: File) {
       (await parseErrorMessage(res)) ?? "엑셀 불러오기에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ urls: CrawlerUrlEntry[]; imported: number }>;
+  return readJsonResponse<{ urls: CrawlerUrlEntry[]; imported: number }>(res);
 }
 
 export async function crawlerManageUrls(body: {
@@ -629,7 +726,8 @@ export async function crawlerManageUrls(body: {
 }) {
   const res = await fetch(`${API_BASE}/crawler/urls`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -637,7 +735,7 @@ export async function crawlerManageUrls(body: {
       (await parseErrorMessage(res)) ?? "URL 목록 변경에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ urls: CrawlerUrlEntry[] }>;
+  return readJsonResponse<{ urls: CrawlerUrlEntry[] }>(res);
 }
 
 export async function crawlerStart(options?: {
@@ -645,7 +743,8 @@ export async function crawlerStart(options?: {
 }) {
   const res = await fetch(`${API_BASE}/crawler/start`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(options ?? {}),
   });
   if (!res.ok) {
@@ -653,59 +752,59 @@ export async function crawlerStart(options?: {
       (await parseErrorMessage(res)) ?? "조회 시작에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function crawlerStop() {
   const res = await fetch(`${API_BASE}/crawler/stop`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "작업 중단에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function crawlerRestartWorker() {
   const res = await fetch(`${API_BASE}/crawler/restart-worker`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "워커 재시작에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function crawlerBackfillNaverIds() {
   const res = await fetch(`${API_BASE}/crawler/backfill-naver-id`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "네이버 ID 수집 시작에 실패했습니다.",
     );
   }
-  return res.json() as Promise<{ ok: boolean; message?: string; total?: number }>;
+  return readJsonResponse<{ ok: boolean; message?: string; total?: number }>(res);
 }
 
 export async function crawlerClearLogs() {
   const res = await fetch(`${API_BASE}/crawler/logs/clear`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "로그 초기화에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function fetchAuctionAnalysis(
@@ -713,7 +812,7 @@ export async function fetchAuctionAnalysis(
 ): Promise<AuctionAnalysisResult | null> {
   const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/analysis`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (res.status === 404) {
     return null;
@@ -732,7 +831,8 @@ export async function analyzeAuction(
 ): Promise<AuctionAnalysisResult> {
   const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/analyze`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({ refresh }),
   });
   if (!res.ok) {
@@ -750,14 +850,14 @@ export async function analyzeAuction(
 export async function fetchKnowledgeItems(): Promise<AuctionKnowledgeItem[]> {
   const res = await fetch(`${API_BASE}/ai/knowledge`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "경매지식 목록을 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function createKnowledgeItem(input: {
@@ -769,7 +869,8 @@ export async function createKnowledgeItem(input: {
 }): Promise<AuctionKnowledgeItem> {
   const res = await fetch(`${API_BASE}/ai/knowledge`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -777,7 +878,7 @@ export async function createKnowledgeItem(input: {
       (await parseErrorMessage(res)) ?? "경매지식 저장에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function updateKnowledgeItem(
@@ -792,7 +893,8 @@ export async function updateKnowledgeItem(
 ): Promise<AuctionKnowledgeItem> {
   const res = await fetch(`${API_BASE}/ai/knowledge/${id}`, {
     method: "PATCH",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -800,13 +902,13 @@ export async function updateKnowledgeItem(
       (await parseErrorMessage(res)) ?? "경매지식 수정에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function deleteKnowledgeItem(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/ai/knowledge/${id}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
@@ -821,14 +923,14 @@ export async function fetchKnowledgeDrafts(
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
   const res = await fetch(`${API_BASE}/ai/knowledge-drafts${qs}`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "카페 지식 초안을 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function updateKnowledgeDraft(
@@ -843,7 +945,8 @@ export async function updateKnowledgeDraft(
 ): Promise<KnowledgeDraftItem> {
   const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
     method: "PATCH",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -851,7 +954,7 @@ export async function updateKnowledgeDraft(
       (await parseErrorMessage(res)) ?? "초안 수정에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function structureKnowledgeDraft(
@@ -859,14 +962,14 @@ export async function structureKnowledgeDraft(
 ): Promise<KnowledgeDraftItem> {
   const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/structure`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "AI 정리에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function structureKnowledgeDraftBatch(
@@ -874,7 +977,8 @@ export async function structureKnowledgeDraftBatch(
 ): Promise<{ total: number; structured: number; skipped: number; failed: number }> {
   const res = await fetch(`${API_BASE}/ai/knowledge-drafts/structure-batch`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({ limit }),
   });
   if (!res.ok) {
@@ -882,20 +986,20 @@ export async function structureKnowledgeDraftBatch(
       (await parseErrorMessage(res)) ?? "AI 일괄 정리에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function approveKnowledgeDraft(id: string): Promise<unknown> {
   const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/approve`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "승인에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function rejectKnowledgeDraft(
@@ -903,20 +1007,20 @@ export async function rejectKnowledgeDraft(
 ): Promise<KnowledgeDraftItem> {
   const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/reject`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "거절 처리에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function deleteKnowledgeDraft(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
@@ -928,14 +1032,14 @@ export async function deleteKnowledgeDraft(id: string): Promise<void> {
 export async function fetchCafeCrawlStatus(): Promise<CafeCrawlStatus> {
   const res = await fetch(`${API_BASE}/crawler/cafe/status`, {
     cache: "no-store",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "카페 수집 상태를 불러오지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function cafeLogin(credentials: {
@@ -945,10 +1049,12 @@ export async function cafeLogin(credentials: {
   ok: boolean;
   message?: string;
   naverLoggedIn?: boolean;
+  needsManualAuth?: boolean;
 }> {
   const res = await fetch(`${API_BASE}/crawler/cafe/login`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({
       userId: credentials.userId,
       password: credentials.password,
@@ -959,7 +1065,27 @@ export async function cafeLogin(credentials: {
       (await parseErrorMessage(res)) ?? "네이버 로그인에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
+}
+
+export async function cafeRestartBrowser(navigate?: string): Promise<{
+  ok: boolean;
+  message?: string;
+  naverLoggedIn?: boolean;
+  currentUrl?: string;
+}> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/browser/restart`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(navigate ? { navigate } : {}),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "Chrome 재시작에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
 }
 
 export async function cafeOpenLogin(): Promise<{
@@ -970,14 +1096,14 @@ export async function cafeOpenLogin(): Promise<{
 }> {
   const res = await fetch(`${API_BASE}/crawler/cafe/open-login`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "브라우저를 열지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function cafeOpen(
@@ -985,7 +1111,8 @@ export async function cafeOpen(
 ): Promise<{ ok: boolean; message?: string; naverLoggedIn?: boolean }> {
   const res = await fetch(`${API_BASE}/crawler/cafe/open`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify({ cafeUrl }),
   });
   if (!res.ok) {
@@ -993,7 +1120,7 @@ export async function cafeOpen(
       (await parseErrorMessage(res)) ?? "카페 페이지를 열지 못했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function cafeCheckLogin(): Promise<{
@@ -1003,14 +1130,54 @@ export async function cafeCheckLogin(): Promise<{
 }> {
   const res = await fetch(`${API_BASE}/crawler/cafe/check-login`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "로그인 확인에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
+}
+
+export async function fetchCafeCollectedUrls(): Promise<{
+  ok: boolean;
+  cafeUrl?: string;
+  collectedAt?: string | null;
+  total?: number;
+  urls?: Array<{ url: string; title?: string; articleId?: string }>;
+}> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/collected-urls`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "수집된 URL 목록을 불러오지 못했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
+export async function cafeCollectUrls(options?: {
+  cafeUrl?: string;
+  maxArticles?: number;
+  maxPages?: number;
+  userId?: string;
+  password?: string;
+}): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${API_BASE}/crawler/cafe/collect-urls`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(options ?? {}),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "URL 수집 시작에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
 }
 
 export async function cafeCrawlStart(options?: {
@@ -1022,7 +1189,8 @@ export async function cafeCrawlStart(options?: {
 }): Promise<{ ok: boolean; message?: string }> {
   const res = await fetch(`${API_BASE}/crawler/cafe/start`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(options ?? {}),
   });
   if (!res.ok) {
@@ -1030,20 +1198,20 @@ export async function cafeCrawlStart(options?: {
       (await parseErrorMessage(res)) ?? "카페 수집 시작에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function cafeCrawlStop(): Promise<{ ok: boolean }> {
   const res = await fetch(`${API_BASE}/crawler/cafe/stop`, {
     method: "POST",
-    headers: authHeaders(),
+    credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "카페 수집 중단에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }
 
 export async function cafeImportArticle(options: {
@@ -1054,7 +1222,8 @@ export async function cafeImportArticle(options: {
 }): Promise<{ ok: boolean; message?: string }> {
   const res = await fetch(`${API_BASE}/crawler/cafe/import-article`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
     body: JSON.stringify(options),
   });
   if (!res.ok) {
@@ -1062,5 +1231,5 @@ export async function cafeImportArticle(options: {
       (await parseErrorMessage(res)) ?? "단일 글 수집에 실패했습니다.",
     );
   }
-  return res.json();
+  return readJsonResponse(res);
 }

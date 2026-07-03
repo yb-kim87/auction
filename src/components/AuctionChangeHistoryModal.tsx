@@ -5,6 +5,7 @@ import { X, History, Loader2 } from "lucide-react";
 import type { AuctionItem } from "@/types/auction";
 import { CHANGE_SOURCE_LABELS, type AuctionChangeLogEntry } from "@/types/auction";
 import { fetchAuctionChangeHistory } from "@/lib/api";
+import { formatTenantStatusText } from "@/lib/tenant-status";
 
 const LIST_TEXT = "text-[14px] leading-snug";
 const LABEL_TEXT = "text-[13px] leading-snug";
@@ -62,6 +63,18 @@ export function AuctionChangeHistoryModal({
   }, [open, onClose]);
 
   if (!open || !item) return null;
+
+  const renderChangeValue = (field: string, value: string) => {
+    if (field === "tenantDetail") {
+      const formatted = formatTenantStatusText(value);
+      if (formatted) {
+        return (
+          <div className="whitespace-pre-wrap leading-relaxed text-[13px]">{formatted}</div>
+        );
+      }
+    }
+    return value;
+  };
 
   return (
     <div className="fixed inset-0 z-[110] flex items-start justify-center p-4 sm:p-6 overflow-y-auto">
@@ -148,10 +161,10 @@ export function AuctionChangeHistoryModal({
                               {change.label}
                             </td>
                             <td className="px-3 py-2 text-muted-foreground break-all">
-                              {change.oldValue}
+                              {renderChangeValue(change.field, change.oldValue)}
                             </td>
                             <td className="px-3 py-2 text-foreground break-all font-medium">
-                              {change.newValue}
+                              {renderChangeValue(change.field, change.newValue)}
                             </td>
                           </tr>
                         ))}

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, LogOut } from "lucide-react";
-import { fetchMyProfile, updateMyProfile } from "@/lib/api";
-import { clearAuthCookie, getAuthUser, getLoginRedirect, getAuthRole } from "@/lib/auth";
+import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
+import { fetchMyProfile, logoutUser, updateMyProfile } from "@/lib/api";
 import { ROLE_LABELS } from "@/types/auction";
 import type { UserProfile } from "@/types/auction";
 import {
@@ -16,6 +16,13 @@ import {
   HEADER_TITLE,
 } from "@/components/AppHeader";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
+import { SelectField, TextAreaField, CheckboxField } from "@/components/InvestmentFormFields";
+import {
+  EXISTING_LOAN_OPTIONS,
+  HOUSING_COUNT_OPTIONS,
+  INVESTABLE_FUNDS_OPTIONS,
+  TARGET_RETURN_OPTIONS,
+} from "@/data/investment-options";
 
 const inputClass =
   "w-full px-3 py-2 border border-border rounded-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
@@ -31,6 +38,7 @@ export default function AccountPage() {
   const [housingCount, setHousingCount] = useState("");
   const [targetReturn, setTargetReturn] = useState("");
   const [investmentGoal, setInvestmentGoal] = useState("");
+  const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,8 +48,7 @@ export default function AccountPage() {
     null,
   );
 
-  const role = getAuthRole();
-  const homeHref = role ? getLoginRedirect(role) : "/";
+  const homeHref = profile ? getLoginRedirect(profile.role) : "/";
 
   function applyProfile(data: UserProfile) {
     setProfile(data);
@@ -51,6 +58,7 @@ export default function AccountPage() {
     setHousingCount(String(data.housingCount ?? 0));
     setTargetReturn(data.targetReturn ?? "");
     setInvestmentGoal(data.investmentGoal ?? "");
+    setFirstTimeBuyer(data.firstTimeBuyer ?? false);
   }
 
   useEffect(() => {
@@ -65,7 +73,12 @@ export default function AccountPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
     clearAuthCookie();
     router.replace("/login");
   };
@@ -90,12 +103,14 @@ export default function AccountPage() {
     const housingCountChanged = parsedHousingCount !== (profile.housingCount ?? 0);
     const targetReturnChanged = trimmedTargetReturn !== (profile.targetReturn ?? "");
     const investmentGoalChanged = trimmedInvestmentGoal !== (profile.investmentGoal ?? "");
+    const firstTimeBuyerChanged = firstTimeBuyer !== (profile.firstTimeBuyer ?? false);
     const profileFieldsChanged =
       investableFundsChanged ||
       existingLoanAmountChanged ||
       housingCountChanged ||
       targetReturnChanged ||
-      investmentGoalChanged;
+      investmentGoalChanged ||
+      firstTimeBuyerChanged;
     const passwordChanging = Boolean(newPassword || confirmPassword || currentPassword);
 
     if (profileFieldsChanged) {
@@ -144,6 +159,7 @@ export default function AccountPage() {
         housingCount?: number;
         targetReturn?: string;
         investmentGoal?: string;
+        firstTimeBuyer?: boolean;
       } = {};
 
       if (nameChanged) payload.name = trimmedName;
@@ -152,6 +168,7 @@ export default function AccountPage() {
       if (housingCountChanged) payload.housingCount = parsedHousingCount;
       if (targetReturnChanged) payload.targetReturn = trimmedTargetReturn;
       if (investmentGoalChanged) payload.investmentGoal = trimmedInvestmentGoal;
+      if (firstTimeBuyerChanged) payload.firstTimeBuyer = firstTimeBuyer;
       if (passwordChanging) {
         payload.currentPassword = currentPassword;
         payload.newPassword = newPassword;
@@ -196,14 +213,8 @@ export default function AccountPage() {
       />
 
       <main className="max-w-[960px] mx-auto px-6 py-8">
-        {message && (
-          <div
-            className={`mb-5 rounded-sm border px-4 py-3 text-sm ${
-              message.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-destructive/30 bg-destructive/5 text-destructive"
-            }`}
-          >
+        {message?.type === "error" && (
+          <div className="mb-5 rounded-sm border px-4 py-3 text-sm border-destructive/30 bg-destructive/5 text-destructive">
             {message.text}
           </div>
         )}
@@ -241,58 +252,51 @@ export default function AccountPage() {
               </div>
 
               <InvestmentInfoSection className="rounded-sm">
-                <label className="block text-sm space-y-1">
-                  <span className="text-muted-foreground">투자가능자금</span>
-                  <input
-                    value={investableFunds}
-                    onChange={(e) => setInvestableFunds(e.target.value)}
-                    placeholder="예: 3억 5,000만원"
-                    className={inputClass}
-                  />
-                </label>
-
-                <label className="block text-sm space-y-1">
-                  <span className="text-muted-foreground">기존대출금액</span>
-                  <input
-                    value={existingLoanAmount}
-                    onChange={(e) => setExistingLoanAmount(e.target.value)}
-                    placeholder="예: 1억 2,000만원 (없으면 0)"
-                    className={inputClass}
-                  />
-                </label>
-
-                <label className="block text-sm space-y-1">
-                  <span className="text-muted-foreground">주택수</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={housingCount}
-                    onChange={(e) => setHousingCount(e.target.value)}
-                    placeholder="예: 1"
-                    className={inputClass}
-                  />
-                </label>
-
-                <label className="block text-sm space-y-1">
-                  <span className="text-muted-foreground">목표 수익</span>
-                  <input
-                    value={targetReturn}
-                    onChange={(e) => setTargetReturn(e.target.value)}
-                    placeholder="예: 연 8%, 3,000만원"
-                    className={inputClass}
-                  />
-                </label>
-
-                <label className="block text-sm space-y-1">
-                  <span className="text-muted-foreground">투자목표</span>
-                  <textarea
-                    value={investmentGoal}
-                    onChange={(e) => setInvestmentGoal(e.target.value)}
-                    placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
-                    rows={3}
-                    className={`${inputClass} resize-none`}
-                  />
-                </label>
+                <SelectField
+                  label="투자가능자금"
+                  placeholder="투자가능자금 선택"
+                  value={investableFunds}
+                  onChange={setInvestableFunds}
+                  options={INVESTABLE_FUNDS_OPTIONS}
+                />
+                <SelectField
+                  label="기존대출금액"
+                  placeholder="기존대출금액 선택"
+                  value={existingLoanAmount}
+                  onChange={setExistingLoanAmount}
+                  options={EXISTING_LOAN_OPTIONS}
+                />
+                <div className="flex items-end gap-4">
+                  <div className="flex-1">
+                    <SelectField
+                      label="주택수"
+                      placeholder="보유 주택수 선택"
+                      value={housingCount}
+                      onChange={setHousingCount}
+                      options={HOUSING_COUNT_OPTIONS}
+                    />
+                  </div>
+                  <div className="h-11 flex items-center">
+                    <CheckboxField
+                      label="생애최초 주택구입"
+                      checked={firstTimeBuyer}
+                      onChange={setFirstTimeBuyer}
+                    />
+                  </div>
+                </div>
+                <SelectField
+                  label="목표 수익"
+                  placeholder="목표 금액 선택"
+                  value={targetReturn}
+                  onChange={setTargetReturn}
+                  options={TARGET_RETURN_OPTIONS}
+                />
+                <TextAreaField
+                  label="투자목표"
+                  placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
+                  value={investmentGoal}
+                  onChange={setInvestmentGoal}
+                />
               </InvestmentInfoSection>
 
               <div className="rounded-sm border border-border bg-secondary/25 p-4 sm:p-5 space-y-4">
@@ -337,18 +341,25 @@ export default function AccountPage() {
                 </label>
               </div>
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-              >
-                {saving ? "저장 중..." : "저장"}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+                >
+                  {saving ? "저장 중..." : "저장"}
+                </button>
+                {message?.type === "success" && (
+                  <span className="text-sm text-emerald-600 font-medium">
+                    {message.text}
+                  </span>
+                )}
+              </div>
             </form>
           ) : (
             <p className="text-sm text-muted-foreground">
               회원 정보를 불러오지 못했습니다.{" "}
-              {getAuthUser() ? "잠시 후 다시 시도해 주세요." : "로그인이 필요합니다."}
+              {profile ? "잠시 후 다시 시도해 주세요." : "로그인이 필요합니다."}
             </p>
           )}
         </div>

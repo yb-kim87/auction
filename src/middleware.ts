@@ -1,29 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import {
-  AUTH_COOKIE,
-  AUTH_ROLE_COOKIE,
-  type UserRole,
-} from "@/lib/auth";
-import { canAccessSearch, getLoginRedirect, isValidRole } from "@/lib/roles";
+import { type UserRole, isValidRole } from "@/lib/auth";
+import { canAccessSearch, getLoginRedirect } from "@/lib/roles";
+import { readAuthToken, verifySessionToken } from "@/lib/session";
 
-function getAuthUser(request: NextRequest) {
-  return request.cookies.get(AUTH_COOKIE)?.value ?? null;
+async function getSession(request: NextRequest) {
+  const token = readAuthToken(request);
+  if (!token) return null;
+  return verifySessionToken(token);
 }
 
-function getAuthRole(request: NextRequest): UserRole | null {
-  const role = request.cookies.get(AUTH_ROLE_COOKIE)?.value;
-  return isValidRole(role) ? role : null;
-}
-
-function isAuthenticated(request: NextRequest) {
-  return Boolean(getAuthUser(request) && getAuthRole(request));
-}
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const loggedIn = isAuthenticated(request);
-  const role = getAuthRole(request);
+  const session = await getSession(request);
+  const loggedIn = Boolean(session);
+  const role = session?.role && isValidRole(session.role) ? session.role : null;
 
   if (pathname === "/login") {
     if (loggedIn && role) {

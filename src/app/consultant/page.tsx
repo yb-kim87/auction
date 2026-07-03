@@ -6,14 +6,16 @@ import { useRouter } from "next/navigation";
 import { LogOut, Search, ExternalLink, ChevronDown, RotateCcw } from "lucide-react";
 import type { AuctionItem } from "@/types/auction";
 import { STATUS_LABELS } from "@/types/auction";
+import { clearAuthCookie } from "@/lib/auth";
 import {
   deleteMyAuction,
   fetchAuctionCount,
   fetchMyAuctions,
+  fetchMyProfile,
   getTemplateDownloadUrl,
+  logoutUser,
   uploadAuctionExcel,
 } from "@/lib/api";
-import { clearAuthCookie, getAuthUser } from "@/lib/auth";
 import { AuctionFormModal } from "../admin/AuctionFormModal";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_MUTED, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
@@ -46,6 +48,7 @@ export default function ConsultantPage() {
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [username, setUsername] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -65,6 +68,9 @@ export default function ConsultantPage() {
 
   useEffect(() => {
     loadData();
+    fetchMyProfile()
+      .then((profile) => setUsername(profile.username))
+      .catch(() => setUsername(""));
   }, [loadData]);
 
   const handleUpload = async () => {
@@ -93,7 +99,12 @@ export default function ConsultantPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
     clearAuthCookie();
     router.replace("/login");
   };
@@ -132,7 +143,7 @@ export default function ConsultantPage() {
             <div className={HEADER_ACCENT_BAR} />
             <span className={HEADER_TITLE}>컨설턴트 · 물건 등록</span>
             <div className={HEADER_NAV_TRAILING}>
-              <span className={`${HEADER_MUTED} hidden sm:inline`}>{getAuthUser()}</span>
+              <span className={`${HEADER_MUTED} hidden sm:inline`}>{username}</span>
               <Link href="/" className={HEADER_BTN}>
                 <ChevronDown size={13} className="rotate-90" />
                 검색 페이지

@@ -14,6 +14,8 @@ import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { NaverComplexLink } from "@/components/NaverComplexLink";
 import { hasNaverPrice } from "@/lib/naver-price";
 import { AuctionAnalysisPanel } from "@/components/AuctionAnalysisPanel";
+import { TenantStatusPanel } from "@/components/TenantStatusPanel";
+import { displayTenantDetail } from "@/lib/tenant-status";
 
 const LIST_TEXT = "text-[15px] leading-snug";
 const LABEL_TEXT = "text-[14px] leading-snug";
@@ -78,7 +80,6 @@ function detailVisibleFields(group: (typeof AUCTION_FIELD_GROUPS)[number]) {
 
 const EXPANDABLE_DETAIL_KEYS = new Set<keyof UpdateAuctionPayload>([
   "buildingRegistry",
-  "tenantDetail",
   "education",
   "priceDetail",
   "tradingDetail",
@@ -1477,6 +1478,16 @@ export function AuctionDetailModal({
                             editable
                             onChange={(v) => setField("tenantInfo", v)}
                           />
+                        ) : field.key === "tenantDetail" ? (
+                          <textarea
+                            rows={10}
+                            value={
+                              displayTenantDetail(String(form.tenantDetail ?? "")) ||
+                              String(form.tenantDetail ?? "")
+                            }
+                            onChange={(e) => setField("tenantDetail", e.target.value)}
+                            className="w-full bg-input-background border border-border rounded-sm px-3 py-2 text-sm leading-relaxed focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 resize-y min-h-[10rem]"
+                          />
                         ) : isExpandableDetailField(field.key) ? (
                           <ExpandableDetailField
                             label={field.label}
@@ -1538,6 +1549,8 @@ export function AuctionDetailModal({
                                 value={String(item.tenantInfo ?? "")}
                                 editable={false}
                               />
+                            ) : field.key === "tenantDetail" ? (
+                              <TenantStatusPanel value={String(item.tenantDetail ?? "")} />
                             ) : isExpandableDetailField(field.key) ? (
                               <ExpandableDetailField
                                 label={field.label}

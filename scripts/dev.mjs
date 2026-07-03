@@ -29,6 +29,25 @@ const cacheDirs = [
   path.join(root, "..", "..", "..", "..", "auction-next-cache"),
 ];
 
+function invalidateNextCacheIfRootChanged() {
+  const nextDir = path.join(root, ".next");
+  const marker = path.join(root, ".dev-project-root");
+  if (fs.existsSync(nextDir)) {
+    try {
+      const prev = fs.readFileSync(marker, "utf8").trim();
+      if (prev && prev !== root) {
+        fs.rmSync(nextDir, { recursive: true, force: true });
+        console.log("프로젝트 경로가 변경되어 .next 캐시를 삭제했습니다.");
+      }
+    } catch {
+      // marker 없음
+    }
+  }
+  fs.writeFileSync(marker, root, "utf8");
+}
+
+invalidateNextCacheIfRootChanged();
+
 if (process.env.CLEAN_NEXT === "1") {
   for (const dir of cacheDirs) {
     try {

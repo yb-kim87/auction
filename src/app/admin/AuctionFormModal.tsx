@@ -10,6 +10,7 @@ import {
   toPayload,
 } from "@/lib/auction-form";
 import { AuctionFieldInput } from "@/components/AuctionFieldInput";
+import { displayTenantDetail } from "@/lib/tenant-status";
 
 export function AuctionFormModal({
   mode,
@@ -101,11 +102,23 @@ export function AuctionFormModal({
                     <label className="block text-xs font-medium text-foreground/70 mb-1">
                       {field.label}
                     </label>
-                    <AuctionFieldInput
-                      field={field}
-                      value={form[field.key] as string | number | null}
-                      onChange={(v) => setField(field.key, v)}
-                    />
+                    {field.key === "tenantDetail" ? (
+                      <textarea
+                        rows={10}
+                        value={
+                          displayTenantDetail(String(form.tenantDetail ?? "")) ||
+                          String(form.tenantDetail ?? "")
+                        }
+                        onChange={(e) => setField("tenantDetail", e.target.value)}
+                        className="w-full px-3 py-2 text-sm bg-input-background border border-border rounded-sm text-foreground leading-relaxed focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 resize-y min-h-[10rem]"
+                      />
+                    ) : (
+                      <AuctionFieldInput
+                        field={field}
+                        value={form[field.key] as string | number | null}
+                        onChange={(v) => setField(field.key, v)}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

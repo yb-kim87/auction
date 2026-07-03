@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "cronozen-region-codes": "^0.1.0",
+    "jose": "^6.2.3",
     "lucide-react": "^1.21.0",
     "next": "14.2.35",
     "react": "^18",

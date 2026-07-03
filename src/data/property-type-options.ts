@@ -31,7 +31,8 @@ export function matchesPropertyType(
   if (!selected) return true;
 
   if (selected === "아파트") {
-    return item.usage === "아파트" || item.propType === "아파트";
+    // usage가 실제 용도(연립·다세대 등). propType은 주소 키워드 추론이라 오분류 가능.
+    return item.usage === "아파트";
   }
 
   if (selected === "빌라") {

@@ -21,9 +21,19 @@ import {
   PROGRESS_STATUS_OPTIONS,
   progressLabelToStatus,
 } from "@/lib/progress-status-filter";
-import { clearAuthCookie, isAdminSession, isConsultantSession } from "@/lib/auth";
-import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite } from "@/lib/api";
+import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
+import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, type LoanPolicy } from "@/lib/api";
+import {
+  matchesInvestmentRecommend,
+  requiredEquityForMinPrice,
+  selectLoanPolicy,
+  DEFAULT_LOAN_POLICIES,
+  type InvestmentCriteria,
+} from "@/lib/investment-criteria";
+import { InvestmentRecommendPanel } from "@/components/InvestmentRecommendPanel";
+import type { UserProfile } from "@/types/auction";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
+import { formatTenantStatusSummary } from "@/lib/tenant-status";
 import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
@@ -131,7 +141,7 @@ const FILTER_SELECT_YEAR = "w-[6.5rem]";
 const FILTER_SELECT_PROGRESS = "w-[7rem]";
 const AUCTION_CASE_YEARS = getAuctionCaseYears();
 
-const buildColumns = (isAdmin: boolean): ColDef[] => [
+const buildColumns = (isAdmin: boolean, recommendPolicy: LoanPolicy | null): ColDef[] => [
   { key: "memo", label: "메모", defaultWidth: 80, sticky: true, render: (r) => r.memo ? <span className="text-amber-600"><StickyNote size={16} className="inline mr-1" />{r.memo}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "usage", label: "용도", defaultWidth: 96, render: (r) => <span className="whitespace-nowrap">{r.usage}</span> },
   { key: "specialNote", label: "특이사항", defaultWidth: 160, render: (r) => <span className="text-red-600">{r.specialNote}</span> },
@@ -162,6 +172,28 @@ const buildColumns = (isAdmin: boolean): ColDef[] => [
       ? <span className="font-mono whitespace-nowrap">{rate}</span>
       : <span className="text-muted-foreground/40">-</span>;
   } },
+  ...(recommendPolicy
+    ? [
+        {
+          key: "recommendLoan",
+          label: "적용 대출기준",
+          defaultWidth: 168,
+          render: (r: AuctionItem) => {
+            if (!r.minPrice || r.minPrice <= 0) return <span className="text-muted-foreground/40">-</span>;
+            const equity = requiredEquityForMinPrice(r.minPrice, recommendPolicy.loanRatio);
+            return (
+              <span className="text-xs leading-snug whitespace-nowrap">
+                <span className="text-primary font-semibold">
+                  {recommendPolicy.label} 대출 {Math.round(recommendPolicy.loanRatio * 100)}% 적용
+                </span>
+                <br />
+                <span className="text-muted-foreground">필요 자기자금 약 {fmtEok(equity)}</span>
+              </span>
+            );
+          },
+        } satisfies ColDef,
+      ]
+    : []),
   { key: "naverPrice", label: "네이버 호가", defaultWidth: 100, render: (r) => renderNaverPrice(r.naverPrice) },
   { key: "diff3", label: "호가-감정가", defaultWidth: 100, render: (r) => renderPriceDiff(r.diffNaverAppraised, r.naverPrice, r.appraisedValue, false) },
   { key: "diff2", label: "호가-최저가", defaultWidth: 100, render: (r) => renderPriceDiff(r.diffNaverMin, r.naverPrice, r.minPrice, false) },
@@ -178,7 +210,7 @@ const buildColumns = (isAdmin: boolean): ColDef[] => [
   { key: "landShare", label: "토지지분", defaultWidth: 80, render: (r) => <span className="font-mono">{r.landShare}</span> },
   { key: "buildingRegistry", label: "건물등기", defaultWidth: 100, render: (r) => <span className={r.buildingRegistry !== "이상없음" ? "text-red-500 font-semibold" : "text-emerald-600"}>{r.buildingRegistry}</span> },
   { key: "education", label: "교육환경", defaultWidth: 140, render: (r) => <span>{r.education}</span> },
-  { key: "tenantDetail", label: "임차상세", defaultWidth: 180, render: (r) => <span className="text-muted-foreground">{r.tenantDetail}</span> },
+  { key: "tenantDetail", label: "임차인 현황", defaultWidth: 180, render: (r) => <span className="text-muted-foreground">{formatTenantStatusSummary(r.tenantDetail)}</span> },
   { key: "priceDetail", label: "호가 상세", defaultWidth: 160, render: (r) => renderPriceDetail(r.priceDetail, r.naverPrice) },
   { key: "tradingDetail", label: "실거래 상세", defaultWidth: 100, render: (r) => <span className="text-muted-foreground">{r.tradingDetail}</span> },
   ...(isAdmin
@@ -449,15 +481,25 @@ function AuctionTable({
   data,
   isAdmin,
   onRowClick,
+  recommendPolicy,
 }: {
   data: AuctionItem[];
   isAdmin: boolean;
   onRowClick: (item: AuctionItem) => void;
+  recommendPolicy: LoanPolicy | null;
 }) {
-  const columns = useMemo(() => buildColumns(isAdmin), [isAdmin]);
+  const columns = useMemo(() => buildColumns(isAdmin, recommendPolicy), [isAdmin, recommendPolicy]);
   const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(buildColumns(false).map((c) => [c.key, c.defaultWidth]))
+    Object.fromEntries(buildColumns(false, null).map((c) => [c.key, c.defaultWidth]))
   );
+
+  useEffect(() => {
+    setColWidths((prev) => {
+      const missing = columns.filter((c) => !(c.key in prev));
+      if (missing.length === 0) return prev;
+      return { ...prev, ...Object.fromEntries(missing.map((c) => [c.key, c.defaultWidth])) };
+    });
+  }, [columns]);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const resizing = useRef<{ key: string; startX: number; startW: number } | null>(null);
@@ -608,6 +650,20 @@ export default function Home() {
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [recommendEnabled, setRecommendEnabled] = useState(false);
+  const [appliedCriteria, setAppliedCriteria] = useState<InvestmentCriteria | null>(null);
+  const [appliedInvestableWon, setAppliedInvestableWon] = useState<number | null>(null);
+  const [loanPolicies, setLoanPolicies] = useState<LoanPolicy[]>(DEFAULT_LOAN_POLICIES);
+
+  useEffect(() => {
+    fetchLoanPolicies()
+      .then(setLoanPolicies)
+      .catch(() => {
+        // 정책 API 실패 시 기본값 유지
+      });
+  }, []);
 
   const availableDistricts = useMemo(() => {
     if (cities.length === 0) return [];
@@ -641,9 +697,42 @@ export default function Home() {
   }, [cities]);
 
   useEffect(() => {
-    setIsAdmin(isAdminSession());
-    setIsConsultant(isConsultantSession());
+    let cancelled = false;
+    setProfileLoading(true);
+    fetchMyProfile()
+      .then((data) => {
+        if (cancelled) return;
+        setProfile(data);
+        setIsAdmin(data.role === "admin");
+        setIsConsultant(data.role === "consultant");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProfile(null);
+        setIsAdmin(false);
+        setIsConsultant(false);
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
+
+  const reloadProfile = useCallback(async () => {
+    const data = await fetchMyProfile();
+    setProfile(data);
+    setIsAdmin(data.role === "admin");
+    setIsConsultant(data.role === "consultant");
+    return data;
+  }, []);
+
+  const handleApplyRecommend = useCallback(
+    (criteria: InvestmentCriteria, investableWon: number, _mode: "session" | "save") => {
+      setAppliedCriteria(criteria);
+      setAppliedInvestableWon(investableWon);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -747,6 +836,9 @@ export default function Home() {
     setAuctionYear(""); setAuctionCaseNo("");
     setProgressStatus(PROGRESS_STATUS_LABELS.active);
     setFavoritesOnly(false);
+    setRecommendEnabled(false);
+    setAppliedCriteria(null);
+    setAppliedInvestableWon(null);
   };
 
   // Apply filters
@@ -777,6 +869,20 @@ export default function Home() {
     return true;
   });
 
+  const appliedPolicy = useMemo(() => {
+    if (!appliedCriteria) return null;
+    return selectLoanPolicy(appliedCriteria, loanPolicies);
+  }, [appliedCriteria, loanPolicies]);
+
+  const recommendMatches = useMemo(() => {
+    if (!recommendEnabled || appliedInvestableWon == null || !appliedPolicy) return filtered;
+    return filtered.filter((item) =>
+      matchesInvestmentRecommend(item, appliedInvestableWon, appliedPolicy.loanRatio),
+    );
+  }, [filtered, recommendEnabled, appliedInvestableWon, appliedPolicy]);
+
+  const displayItems = recommendEnabled ? recommendMatches : filtered;
+
   const auctionNoFilterLabel = formatAuctionNoFilterLabel(auctionYear, auctionCaseNo);
 
   const activeFilters = [
@@ -795,9 +901,15 @@ export default function Home() {
       `유찰률 ${getFailureRateFilterLabelFromCities(failureRateInput, cities)}`,
     progressStatus !== PROGRESS_STATUS_LABELS.all && `진행상태 ${progressStatus}`,
     favoritesOnly && "관심물건",
+    recommendEnabled && appliedCriteria && "투자 추천",
   ].filter(Boolean);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
     clearAuthCookie();
     router.replace("/login");
   };
@@ -1005,10 +1117,24 @@ export default function Home() {
           )}
         </div>
 
+        <InvestmentRecommendPanel
+          profile={profile}
+          profileLoading={profileLoading}
+          loanPolicies={loanPolicies}
+          recommendEnabled={recommendEnabled}
+          onRecommendEnabledChange={setRecommendEnabled}
+          appliedCriteria={appliedCriteria}
+          appliedInvestableWon={appliedInvestableWon}
+          matchCount={recommendMatches.length}
+          filteredCount={filtered.length}
+          onApply={handleApplyRecommend}
+          onReloadProfile={reloadProfile}
+        />
+
         {/* Result Summary */}
         <div className="flex items-center gap-2">
           <span className={`${SECTION_TEXT} font-semibold text-foreground`}>검색 결과</span>
-          <span className={`font-mono ${LIST_TEXT} text-primary font-bold`}>{filtered.length}</span>
+          <span className={`font-mono ${LIST_TEXT} text-primary font-bold`}>{displayItems.length}</span>
           <span className={`${LIST_TEXT} text-muted-foreground`}>건</span>
           <span className={`${LABEL_TEXT} text-muted-foreground ml-1`}>/ 전체 {items.length}건</span>
         </div>
@@ -1025,7 +1151,12 @@ export default function Home() {
             물건 데이터를 불러오는 중...
           </div>
         ) : (
-          <AuctionTable data={filtered} isAdmin={isAdmin} onRowClick={setSelectedItem} />
+          <AuctionTable
+            data={displayItems}
+            isAdmin={isAdmin}
+            onRowClick={setSelectedItem}
+            recommendPolicy={recommendEnabled ? appliedPolicy : null}
+          />
         )}
       </main>
 

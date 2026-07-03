@@ -1,15 +1,28 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, LogOut } from "lucide-react";
-import { clearAuthCookie, getAuthUser } from "@/lib/auth";
+import { clearAuthCookie } from "@/lib/auth";
+import { fetchMyProfile, logoutUser } from "@/lib/api";
 
 export default function PendingPage() {
   const router = useRouter();
-  const username = getAuthUser();
+  const [username, setUsername] = useState("");
 
-  const handleLogout = () => {
+  useEffect(() => {
+    fetchMyProfile()
+      .then((profile) => setUsername(profile.username))
+      .catch(() => setUsername(""));
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
     clearAuthCookie();
     router.replace("/login");
   };

@@ -43,6 +43,14 @@ const PHASE_LABELS: Record<CrawlerStatus["phase"], string> = {
   error: "오류",
 };
 
+function phaseLabel(status: CrawlerStatus | null): string {
+  if (!status) return "-";
+  if (status.tankLoggedIn && status.phase === "logging_in") {
+    return "대기";
+  }
+  return PHASE_LABELS[status.phase];
+}
+
 function formatTime(iso: string) {
   try {
     return new Date(iso).toLocaleTimeString("ko-KR", { hour12: false });
@@ -64,6 +72,7 @@ export function CrawlerWorkPanel() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [collectSummary, setCollectSummary] = useState<string | null>(null);
   const [localWorkPanelHint, setLocalWorkPanelHint] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
@@ -76,16 +85,6 @@ export function CrawlerWorkPanel() {
       ]);
       setStatus(nextStatus);
       setLogs(nextLogs);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "상태 조회 실패");
-    }
-  }, []);
-
-  const refreshStatusOnly = useCallback(async () => {
-    try {
-      const nextStatus = await fetchCrawlerStatus();
-      setStatus(nextStatus);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "상태 조회 실패");
@@ -132,29 +131,43 @@ export function CrawlerWorkPanel() {
       status?.phase === "logging_in" ||
       status?.phase === "starting";
 
+    const isVisible = () =>
+      typeof document === "undefined" ||
+      document.visibilityState !== "hidden";
+
     if (!active) {
       const timer = setInterval(() => {
+        if (!isVisible()) return;
         void refresh();
-      }, 5000);
-      return () => clearInterval(timer);
+      }, 15_000);
+      const onVisible = () => {
+        if (document.visibilityState === "visible") void refresh();
+      };
+      document.addEventListener("visibilitychange", onVisible);
+      return () => {
+        clearInterval(timer);
+        document.removeEventListener("visibilitychange", onVisible);
+      };
     }
 
     void refresh();
     const statusTimer = setInterval(() => {
-      void refreshStatusOnly();
-    }, 400);
-
-    const logTimer = setInterval(() => {
-      void fetchCrawlerLogs(300)
-        .then(setLogs)
-        .catch(() => undefined);
-    }, 1500);
+      if (!isVisible()) return;
+      void Promise.all([fetchCrawlerStatus(), fetchCrawlerLogs(300)])
+        .then(([nextStatus, nextLogs]) => {
+          setStatus(nextStatus);
+          setLogs(nextLogs);
+          setError(null);
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : "상태 조회 실패");
+        });
+    }, status?.phase === "collecting" || status?.phase === "logging_in" ? 1200 : 800);
 
     return () => {
       clearInterval(statusTimer);
-      clearInterval(logTimer);
     };
-  }, [status?.phase, refresh, refreshStatusOnly]);
+  }, [status?.phase, refresh]);
 
   useEffect(() => {
     if (logRef.current) {
@@ -166,7 +179,7 @@ export function CrawlerWorkPanel() {
   const isRunning =
     status?.phase === "crawling" ||
     status?.phase === "collecting" ||
-    status?.phase === "logging_in" ||
+    (status?.phase === "logging_in" && !status?.tankLoggedIn) ||
     status?.phase === "starting";
 
   const progress =
@@ -253,7 +266,21 @@ export function CrawlerWorkPanel() {
                   {status?.browserReady ? "연결됨" : "미연결"}
                 </span>
               </p>
-              <p>상태: {status ? PHASE_LABELS[status.phase] : "-"}</p>
+              <p>상태: {phaseLabel(status)}</p>
+              <p>
+                탱크옥션:{" "}
+                <span
+                  className={
+                    status?.tankLoggedIn ? "text-emerald-600" : "text-muted-foreground"
+                  }
+                >
+                  {status?.tankLoggedIn === true
+                    ? "로그인됨"
+                    : status?.tankLoggedIn === false
+                      ? "미로그인"
+                      : "-"}
+                </span>
+              </p>
               {status?.scheduleEnabled && (
                 <p className="text-primary">
                   예약: {status.scheduleRepeatDaily ? "매일" : "1회"}{" "}
@@ -320,6 +347,18 @@ export function CrawlerWorkPanel() {
             </div>
           )}
 
+          {collectSummary && (
+            <div className="rounded-sm border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-950">
+              {collectSummary}
+              {collectSummary.includes("추가된 URL 없음") && (
+                <span className="block mt-1 text-xs text-blue-800">
+                  DB에 이미 있는 물건(입찰기일 미도래)은 자동 제외됩니다. 신규
+                  물건이 없거나 탱크 로그인·검색 조건을 확인해 주세요.
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5">
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -343,6 +382,31 @@ export function CrawlerWorkPanel() {
                       const result = await crawlerCollectUrls(preset, {
                         clear: true,
                       });
+                      const raw = result.rawCount ?? result.urls.length;
+                      const parts: string[] = [];
+                      if (raw > 0) {
+                        parts.push(`탱크 ${raw}건 수집`);
+                      }
+                      parts.push(`작업목록 ${result.urls.length}건`);
+                      if (result.excluded) {
+                        parts.push(
+                          `DB중복·입찰기일 미도래 ${result.excluded}건 제외`,
+                        );
+                      }
+                      if (result.deduped) {
+                        parts.push(`목록 중복 ${result.deduped}건 제외`);
+                      }
+                      if (result.naverRefresh) {
+                        parts.push(
+                          `네이버 미수집 ${result.naverRefresh}건 포함`,
+                        );
+                      }
+                      setCollectSummary(parts.join(" · "));
+                      if (result.urls.length === 0) {
+                        setCollectSummary(
+                          `${parts.join(" · ")} — 추가된 URL 없음`,
+                        );
+                      }
                       if (repeatAfterCollect && result.urls.length > 0) {
                         await crawlerStart({ repeatAfterCollect: true });
                       }

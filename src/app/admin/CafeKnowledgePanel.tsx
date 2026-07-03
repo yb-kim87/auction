@@ -14,10 +14,15 @@ import {
   approveKnowledgeDraft,
   cafeCrawlStart,
   cafeCrawlStop,
+  cafeCheckLogin,
+  cafeCollectUrls,
   cafeImportArticle,
   cafeLogin,
   cafeOpen,
+  cafeOpenLogin,
+  cafeRestartBrowser,
   deleteKnowledgeDraft,
+  fetchCafeCollectedUrls,
   fetchCafeCrawlStatus,
   fetchCrawlerConfig,
   fetchKnowledgeDrafts,
@@ -42,11 +47,16 @@ export function CafeKnowledgePanel() {
   const [cafeUrl, setCafeUrl] = useState(DEFAULT_CAFE_URL);
   const [articleUrl, setArticleUrl] = useState("");
   const [maxArticles, setMaxArticles] = useState(30);
+  const [maxPages, setMaxPages] = useState(10);
   const [naverUserId, setNaverUserId] = useState("");
   const [naverPassword, setNaverPassword] = useState("");
   const [naverLoggedIn, setNaverLoggedIn] = useState(false);
   const [crawlStatus, setCrawlStatus] = useState<CafeCrawlStatus | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [collectedUrls, setCollectedUrls] = useState<
+    Array<{ url: string; title?: string; articleId?: string }>
+  >([]);
+  const [collectedAt, setCollectedAt] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<KnowledgeDraftItem[]>([]);
   const [filter, setFilter] = useState<KnowledgeDraftStatus | "all">("all");
   const [loading, setLoading] = useState(true);
@@ -62,6 +72,16 @@ export function CafeKnowledgePanel() {
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastImportedRef = useRef(0);
+
+  const loadCollectedUrls = useCallback(async () => {
+    try {
+      const data = await fetchCafeCollectedUrls();
+      setCollectedUrls(data.urls ?? []);
+      setCollectedAt(data.collectedAt ?? null);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const loadDrafts = useCallback(async () => {
     try {
@@ -92,13 +112,20 @@ export function CafeKnowledgePanel() {
         lastImportedRef.current = imported;
         await loadDrafts();
       }
+      if (
+        status.subPhase === "urls_ready" ||
+        (status.phase === "idle" && (status.urlCollectTotal ?? 0) > 0)
+      ) {
+        await loadCollectedUrls();
+      }
     } catch {
       // ignore polling errors
     }
-  }, [loadDrafts]);
+  }, [loadDrafts, loadCollectedUrls]);
 
   useEffect(() => {
     void loadDrafts();
+    void loadCollectedUrls();
     fetchCrawlerConfig()
       .then((config) => {
         if (config.naverCredentials?.userId) {
@@ -109,7 +136,7 @@ export function CafeKnowledgePanel() {
         }
       })
       .catch(() => undefined);
-  }, [loadDrafts]);
+  }, [loadDrafts, loadCollectedUrls]);
 
   useEffect(() => {
     void pollStatus();
@@ -139,22 +166,93 @@ export function CafeKnowledgePanel() {
       return;
     }
     setBusy("login");
-    setMessage(null);
+    setMessage({
+      type: "success",
+      text: "Chrome 창에서 네이버 로그인을 시도합니다. 창이 뜨지 않으면 「로그인 페이지 열기」를 눌러 주세요.",
+    });
     try {
       const res = await cafeLogin({ userId, password });
-      if (res.naverLoggedIn) setNaverLoggedIn(true);
+      if (res.naverLoggedIn) {
+        setNaverLoggedIn(true);
+        setMessage({
+          type: "success",
+          text:
+            res.message ??
+            "네이버 로그인 완료. 정보는 저장되어 다음에도 사용됩니다.",
+        });
+        return;
+      }
       setMessage({
-        type: res.naverLoggedIn ? "success" : "error",
+        type: res.needsManualAuth ? "success" : "error",
         text:
           res.message ??
-          (res.naverLoggedIn
-            ? "네이버 로그인 완료. 정보는 저장되어 다음에도 사용됩니다."
-            : "로그인에 실패했습니다. 추가인증이 필요하면 열린 Chrome 창에서 완료 후 다시 시도하세요."),
+          "로그인에 실패했습니다. Chrome 창에서 추가 인증을 완료한 뒤 「로그인 확인」을 눌러 주세요.",
       });
     } catch (err) {
       setMessage({
         type: "error",
         text: err instanceof Error ? err.message : "네이버 로그인 실패",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRestartChrome() {
+    setBusy("restart-chrome");
+    try {
+      const res = await cafeRestartBrowser();
+      if (res.naverLoggedIn) setNaverLoggedIn(true);
+      setMessage({
+        type: "success",
+        text:
+          res.message ??
+          `Chrome을 재시작했습니다.${res.currentUrl ? ` (${res.currentUrl})` : ""}`,
+      });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Chrome 재시작 실패",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleOpenLoginPage() {
+    setBusy("open-login");
+    try {
+      const res = await cafeOpenLogin();
+      if (res.naverLoggedIn) setNaverLoggedIn(true);
+      setMessage({
+        type: "success",
+        text:
+          res.message ??
+          "네이버 로그인 페이지를 열었습니다. Chrome 창에서 로그인해 주세요.",
+      });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "로그인 페이지 열기 실패",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleCheckLogin() {
+    setBusy("check-login");
+    try {
+      const res = await cafeCheckLogin();
+      if (res.naverLoggedIn) setNaverLoggedIn(true);
+      setMessage({
+        type: res.naverLoggedIn ? "success" : "error",
+        text: res.message ?? (res.naverLoggedIn ? "네이버 로그인됨" : "로그인 필요"),
+      });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "로그인 확인 실패",
       });
     } finally {
       setBusy(null);
@@ -177,6 +275,31 @@ export function CafeKnowledgePanel() {
     }
   }
 
+  async function handleCollectUrlsOnly() {
+    setBusy("collect-urls");
+    setLogs([]);
+    try {
+      const res = await cafeCollectUrls({
+        cafeUrl,
+        maxArticles,
+        maxPages,
+        userId: naverUserId.trim() || undefined,
+        password: naverPassword || undefined,
+      });
+      setMessage({
+        type: "success",
+        text: res.message ?? "URL 수집을 시작했습니다. Chrome 창과 아래 로그를 확인하세요.",
+      });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "URL 수집 시작 실패",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleStartCrawl() {
     setBusy("crawl");
     setLogs([]);
@@ -185,7 +308,7 @@ export function CafeKnowledgePanel() {
       const res = await cafeCrawlStart({
         cafeUrl,
         maxArticles,
-        maxPages: 5,
+        maxPages,
         userId: naverUserId.trim() || undefined,
         password: naverPassword || undefined,
       });
@@ -346,7 +469,8 @@ export function CafeKnowledgePanel() {
     }
   }
 
-  const crawling = crawlStatus?.phase === "crawling";
+  const crawling =
+    crawlStatus?.phase === "crawling" || crawlStatus?.phase === "collecting_urls";
 
   return (
     <div className="p-6 space-y-6">
@@ -373,9 +497,10 @@ export function CafeKnowledgePanel() {
       <section className="border border-border rounded-sm p-4 space-y-4 bg-card">
         <h3 className="text-sm font-bold">1. 네이버 로그인</h3>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          ID/비밀번호를 입력하고 「네이버 로그인」을 누르면 Chrome에서 자동 로그인합니다.
-          입력한 정보는 서버에 저장되어 다음에도 사용됩니다.
-          추가인증(캡차·2단계)이 뜨면 열린 Chrome 창에서 완료해 주세요.
+          ID/비밀번호 입력 후 「네이버 로그인」을 누르면 Chrome에서 자동 입력합니다.
+          캡차·2단계 인증이 뜨면 Chrome에서 직접 완료한 뒤 「로그인 확인」을 누르세요.
+          Chrome 창이 안 뜨거나 503 오류가 나면 「Chrome 재시작」을 먼저 눌러 주세요.
+          자동 입력이 안 되면 「로그인 페이지 열기」로 수동 로그인할 수 있습니다.
           <br />
           프로필 폴더(<code className="text-[11px]">data/crawler/chrome-profile-cafe</code>)는
           삭제하지 마세요.
@@ -413,6 +538,31 @@ export function CafeKnowledgePanel() {
           <button
             type="button"
             disabled={!!busy}
+            onClick={() => void handleOpenLoginPage()}
+            className="px-3 py-2 text-sm rounded-sm border border-border disabled:opacity-50"
+          >
+            {busy === "open-login" ? "열기 중…" : "로그인 페이지 열기"}
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void handleCheckLogin()}
+            className="px-3 py-2 text-sm rounded-sm border border-border disabled:opacity-50"
+          >
+            {busy === "check" ? "확인 중…" : "로그인 확인"}
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void handleRestartChrome()}
+            className="px-3 py-2 text-sm rounded-sm border border-amber-500/60 text-amber-800 dark:text-amber-200 disabled:opacity-50"
+            title="Chrome이 뜨지 않거나 503 오류가 나면 먼저 눌러 주세요"
+          >
+            {busy === "restart-chrome" ? "재시작 중…" : "Chrome 재시작"}
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
             onClick={() => void handleOpenCafe()}
             className="px-3 py-2 text-sm rounded-sm border border-border"
           >
@@ -428,6 +578,98 @@ export function CafeKnowledgePanel() {
             {naverLoggedIn ? "네이버 로그인됨" : "로그인 필요"}
           </span>
         </div>
+      </section>
+
+      <section className="border-2 border-primary/30 rounded-sm p-4 space-y-4 bg-card">
+        <h3 className="text-sm font-bold">2. 글 URL 목록 가져오기 (1단계)</h3>
+        <p className="text-xs text-muted-foreground">
+          전체글 목록에서 <strong>글 주소만</strong> 먼저 수집합니다. 본문 열람은 하지 않습니다.
+          수집된 URL은 아래 목록과 <code className="text-[11px]">data/crawler/cafe-collected-urls.json</code>에 저장됩니다.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!!busy || crawling}
+            onClick={() => void handleCollectUrlsOnly()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+          >
+            {busy === "collect-urls" || crawlStatus?.subPhase === "urls_only" ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : null}
+            URL 목록만 가져오기
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void loadCollectedUrls()}
+            className="px-3 py-2 text-sm rounded-sm border border-border disabled:opacity-50"
+          >
+            목록 새로고침
+          </button>
+          {collectedUrls.length > 0 ? (
+            <button
+              type="button"
+              className="px-3 py-2 text-sm rounded-sm border border-border"
+              onClick={() => {
+                void navigator.clipboard.writeText(
+                  collectedUrls.map((u) => u.url).join("\n"),
+                );
+                setMessage({ type: "success", text: "URL 목록을 클립보드에 복사했습니다." });
+              }}
+            >
+              URL 전체 복사
+            </button>
+          ) : null}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {collectedUrls.length > 0 ? (
+            <>
+              <strong>{collectedUrls.length}건</strong> URL 저장됨
+              {collectedAt ? ` · ${new Date(collectedAt).toLocaleString("ko-KR")}` : ""}
+            </>
+          ) : (
+            "아직 수집된 URL이 없습니다. 「URL 목록만 가져오기」를 눌러 주세요."
+          )}
+        </div>
+        {collectedUrls.length > 0 ? (
+          <div className="border border-border rounded-sm max-h-72 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr>
+                  <th className="text-left px-2 py-1.5 w-10">#</th>
+                  <th className="text-left px-2 py-1.5">제목</th>
+                  <th className="text-left px-2 py-1.5">URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {collectedUrls.map((item, i) => (
+                  <tr key={`${item.url}-${i}`} className="border-t border-border/60">
+                    <td className="px-2 py-1.5 text-muted-foreground">{i + 1}</td>
+                    <td className="px-2 py-1.5 max-w-[200px] truncate" title={item.title}>
+                      {item.title || item.articleId || "—"}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline break-all"
+                      >
+                        {item.url}
+                        <ExternalLink size={11} className="shrink-0" />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        {logs.length > 0 ? (
+          <pre className="text-[11px] bg-secondary/40 rounded-sm p-3 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono">
+            {logs.slice(-30).join("\n")}
+          </pre>
+        ) : null}
       </section>
 
       <section className="border border-border rounded-sm p-4 space-y-4 bg-card">
@@ -455,12 +697,12 @@ export function CafeKnowledgePanel() {
       </section>
 
       <section className="border border-border rounded-sm p-4 space-y-4 bg-card">
-        <h3 className="text-sm font-bold">2-B. 전체글 일괄 수집</h3>
+        <h3 className="text-sm font-bold">2-B. 전체글 본문 수집 (2단계)</h3>
         <p className="text-xs text-muted-foreground">
-          전체글보기 목록에서 글 URL을 모은 뒤, <strong>한 건씩 들어가 본문을 수집</strong>해 초안에 저장합니다.
-          진행 로그와 초안 목록을 확인하세요.
+          URL 목록 수집 후, 저장된 주소로 한 건씩 들어가 본문을 수집합니다.
+          먼저 위 <strong>「URL 목록만 가져오기」</strong>로 주소가 나오는지 확인하세요.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-3xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-4xl">
           <label className="text-sm space-y-1 block">
             <span className="text-muted-foreground">카페 URL</span>
             <input
@@ -477,6 +719,17 @@ export function CafeKnowledgePanel() {
               max={200}
               value={maxArticles}
               onChange={(e) => setMaxArticles(Number(e.target.value) || 30)}
+              className="w-full px-3 py-2 border border-border rounded-sm bg-background text-sm"
+            />
+          </label>
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">최대 목록 페이지</span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={maxPages}
+              onChange={(e) => setMaxPages(Number(e.target.value) || 10)}
               className="w-full px-3 py-2 border border-border rounded-sm bg-background text-sm"
             />
           </label>
@@ -502,13 +755,44 @@ export function CafeKnowledgePanel() {
           </button>
         </div>
         {crawlStatus && (
-          <p className="text-xs text-muted-foreground">
-            상태: {crawlStatus.phase}
-            {crawlStatus.total ? ` · 진행 ${crawlStatus.completed ?? 0}/${crawlStatus.total}` : ""}
-            {crawlStatus.imported != null ? ` · 저장 ${crawlStatus.imported}건` : ""}
-            {crawlStatus.skipped ? ` · 중복 ${crawlStatus.skipped}건` : ""}
-            {crawlStatus.lastMessage ? ` · ${crawlStatus.lastMessage}` : ""}
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              상태: {crawlStatus.phase}
+              {crawlStatus.subPhase === "collecting_urls"
+                ? " · URL 수집 중"
+                : crawlStatus.subPhase === "reading_articles"
+                  ? " · 글 열람 중"
+                  : ""}
+              {crawlStatus.urlCollectTotal
+                ? ` · URL ${crawlStatus.urlCollectTotal}건`
+                : ""}
+              {crawlStatus.total
+                ? ` · 진행 ${crawlStatus.completed ?? 0}/${crawlStatus.total}`
+                : ""}
+              {crawlStatus.imported != null ? ` · 저장 ${crawlStatus.imported}건` : ""}
+              {crawlStatus.skipped ? ` · 중복 ${crawlStatus.skipped}건` : ""}
+              {crawlStatus.lastMessage ? ` · ${crawlStatus.lastMessage}` : ""}
+            </p>
+            {crawlStatus.collectedUrls && crawlStatus.collectedUrls.length > 0 ? (
+              <div className="text-xs border border-border rounded-sm p-2 max-h-32 overflow-y-auto bg-muted/30">
+                <p className="font-semibold mb-1">수집된 글 URL (미리보기)</p>
+                <ul className="space-y-0.5">
+                  {crawlStatus.collectedUrls.slice(0, 8).map((item, i) => (
+                    <li key={`${item.url}-${i}`} className="truncate">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        {item.title || item.url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         )}
         {logs.length > 0 && (
           <pre className="text-[11px] bg-secondary/40 rounded-sm p-3 max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">

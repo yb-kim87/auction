@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://127.0.0.1:3001";
 
+function forwardSetCookieHeaders(source: Response, target: Headers) {
+  const getSetCookie = (
+    source.headers as Headers & { getSetCookie?: () => string[] }
+  ).getSetCookie?.bind(source.headers);
+
+  const cookies = getSetCookie?.() ?? [];
+  if (cookies.length > 0) {
+    for (const cookie of cookies) {
+      target.append("set-cookie", cookie);
+    }
+    return;
+  }
+
+  const single = source.headers.get("set-cookie");
+  if (single) {
+    target.append("set-cookie", single);
+  }
+}
+
 async function proxyRequest(request: NextRequest, path: string[]) {
   const targetPath = path.join("/");
   const url = `${API_ORIGIN}/${targetPath}${request.nextUrl.search}`;
@@ -12,10 +31,10 @@ async function proxyRequest(request: NextRequest, path: string[]) {
     headers.set("content-type", contentType);
   }
 
-  const authUser = request.headers.get("x-auction-user");
-  const authRole = request.headers.get("x-auction-role");
-  if (authUser) headers.set("x-auction-user", authUser);
-  if (authRole) headers.set("x-auction-role", authRole);
+  const cookie = request.headers.get("cookie");
+  if (cookie) {
+    headers.set("cookie", cookie);
+  }
 
   const init: RequestInit = {
     method: request.method,
@@ -34,6 +53,7 @@ async function proxyRequest(request: NextRequest, path: string[]) {
 
     if (responseType) responseHeaders.set("content-type", responseType);
     if (disposition) responseHeaders.set("content-disposition", disposition);
+    forwardSetCookieHeaders(response, responseHeaders);
 
     return new NextResponse(await response.arrayBuffer(), {
       status: response.status,

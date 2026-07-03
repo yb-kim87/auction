@@ -1,4 +1,5 @@
 import type { AuctionItem, UpdateAuctionPayload } from "@/types/auction";
+import { displayTenantDetail } from "@/lib/tenant-status";
 
 export type FieldDef = {
   key: keyof UpdateAuctionPayload;
@@ -51,7 +52,7 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
       { key: "bidInfo", label: "낙찰정보" },
       { key: "buildingRegistry", label: "건물등기", type: "textarea", full: true },
       { key: "education", label: "교육환경", type: "textarea", full: true },
-      { key: "tenantDetail", label: "임차상세", full: true },
+      { key: "tenantDetail", label: "임차인 현황", full: true },
       { key: "priceDetail", label: "호가 상세", full: true },
       { key: "tradingDetail", label: "실거래 상세", full: true },
       { key: "recordTime", label: "기록시간" },
@@ -109,7 +110,10 @@ export function toFormState(item: AuctionItem): UpdateAuctionPayload {
     updatedBy: _ub,
     ...rest
   } = item;
-  return rest;
+  return {
+    ...rest,
+    tenantDetail: displayTenantDetail(rest.tenantDetail) || rest.tenantDetail,
+  };
 }
 
 export function toPayload(form: UpdateAuctionPayload): UpdateAuctionPayload {

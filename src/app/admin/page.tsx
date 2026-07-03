@@ -23,6 +23,7 @@ import {
   uploadAuctionExcel,
 } from "@/lib/api";
 import { clearAuthCookie } from "@/lib/auth";
+import { logoutUser } from "@/lib/api";
 import { AuctionFormModal } from "./AuctionFormModal";
 import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
@@ -30,6 +31,7 @@ import { AccountNavLink } from "@/components/AccountNavLink";
 import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
 import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
+import { LoanPolicyTab } from "./LoanPolicyTab";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -41,6 +43,19 @@ function formatRegisteredAt(value: string | null | undefined): string {
   const h = String(date.getHours()).padStart(2, "0");
   const min = String(date.getMinutes()).padStart(2, "0");
   return `${y}.${m}.${d} ${h}:${min}`;
+}
+
+function formatItemActivityTime(item: AuctionItem): {
+  primary: string;
+  secondary?: string;
+} {
+  if (item.isUpdated && item.updatedAt) {
+    return {
+      primary: formatRegisteredAt(item.updatedAt),
+      secondary: `등록 ${formatRegisteredAt(item.createdAt)}`,
+    };
+  }
+  return { primary: formatRegisteredAt(item.createdAt) };
 }
 
 function StatusBadge({ status }: { status: AuctionItem["status"] }) {
@@ -56,13 +71,14 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
   );
 }
 
-type AdminTab = "data" | "crawler" | "users" | "knowledge";
+type AdminTab = "data" | "crawler" | "users" | "knowledge" | "loanPolicy";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
   { id: "crawler", label: "크롤링 작업" },
   { id: "knowledge", label: "경매지식" },
   { id: "users", label: "회원권한 관리" },
+  { id: "loanPolicy", label: "대출정책" },
 ];
 
 function AdminTabs({
@@ -401,7 +417,12 @@ export default function AdminPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
     clearAuthCookie();
     router.replace("/login");
   };
@@ -661,7 +682,8 @@ export default function AdminPage() {
             <div>
               <h2 className="text-sm font-semibold text-foreground">DB 데이터 관리</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                행을 클릭하면 수정할 수 있습니다. 체크박스·삭제 버튼은 클릭해도 수정 창이 열리지 않습니다.
+                등록·갱신 최신순 · 크롤 조회 후 목록 갱신은 새로고침 버튼을 눌러 주세요.
+                행을 클릭하면 수정할 수 있습니다.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -716,7 +738,7 @@ export default function AdminPage() {
                       <th className="px-3 py-2.5 text-left font-semibold">경매번호</th>
                       <th className="px-3 py-2.5 text-left font-semibold">물건주소</th>
                       <th className="px-3 py-2.5 text-left font-semibold">입찰기일</th>
-                      <th className="px-2 py-2.5 text-left font-semibold whitespace-nowrap">등록시간</th>
+                      <th className="px-2 py-2.5 text-left font-semibold whitespace-nowrap">등록/갱신</th>
                       <th className="w-32 px-3 py-2.5 text-center font-semibold">관리</th>
                     </tr>
                   </thead>
@@ -746,7 +768,19 @@ export default function AdminPage() {
                         <td className="px-3 py-2.5 max-w-[220px] truncate" title={item.address}>{item.address || "-"}</td>
                         <td className="px-3 py-2.5 font-mono text-muted-foreground whitespace-nowrap">{item.bidDate || "-"}</td>
                         <td className="px-2 py-2.5 font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-                          {formatRegisteredAt(item.createdAt)}
+                          {(() => {
+                            const activity = formatItemActivityTime(item);
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <span>{activity.primary}</span>
+                                {activity.secondary && (
+                                  <span className="text-[9px] text-muted-foreground/80">
+                                    {activity.secondary}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <button
@@ -779,6 +813,8 @@ export default function AdminPage() {
           {activeTab === "crawler" && <CrawlerWorkPanel />}
 
           {activeTab === "knowledge" && <KnowledgePanel />}
+
+          {activeTab === "loanPolicy" && <LoanPolicyTab />}
 
           {activeTab === "users" && (
             <div className="p-6">

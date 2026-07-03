@@ -15,9 +15,17 @@ import {
   Building2,
   Gavel,
 } from "lucide-react";
-import { getLoginRedirect, setAuthCookies } from "@/lib/auth";
-import { loginUser, signupUser } from "@/lib/api";
+import { getLoginRedirect } from "@/lib/auth";
+import { loginUser, fetchMyProfile, signupUser } from "@/lib/api";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
+import { SelectField, TextAreaField, CheckboxField } from "@/components/InvestmentFormFields";
+import { validateInvestmentSignup } from "@/lib/investment-validation";
+import {
+  EXISTING_LOAN_OPTIONS,
+  HOUSING_COUNT_OPTIONS,
+  INVESTABLE_FUNDS_OPTIONS,
+  TARGET_RETURN_OPTIONS,
+} from "@/data/investment-options";
 
 const FEATURES = [
   { icon: Brain, label: "AI 권리분석", desc: "복잡한 등기부를 AI가 즉시 분석" },
@@ -197,9 +205,9 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     setError("");
     setLoading(true);
     try {
-      const user = await loginUser(username.trim(), password);
-      setAuthCookies(user.username, user.role, remember);
-      router.replace(getLoginRedirect(user.role));
+      await loginUser(username.trim(), password, remember);
+      const profile = await fetchMyProfile();
+      router.replace(getLoginRedirect(profile.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
     } finally {
@@ -284,33 +292,6 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   );
 }
 
-function TextAreaField({
-  label,
-  placeholder,
-  value,
-  onChange,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-[0.82rem] font-medium text-foreground/70 mb-1.5">
-        {label}
-      </label>
-      <textarea
-        placeholder={placeholder}
-        value={value}
-        rows={3}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[0.9rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 transition-all resize-none"
-      />
-    </div>
-  );
-}
-
 function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -321,28 +302,19 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [housingCount, setHousingCount] = useState("");
   const [investmentGoal, setInvestmentGoal] = useState("");
   const [targetReturn, setTargetReturn] = useState("");
+  const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
-    const parsedHousingCount = Number.parseInt(housingCount, 10);
-
     if (
       !name.trim() ||
       !username.trim() ||
       !password.trim() ||
-      !investableFunds.trim() ||
-      !existingLoanAmount.trim() ||
-      !housingCount.trim() ||
-      !investmentGoal.trim() ||
-      !targetReturn.trim()
+      !confirm.trim()
     ) {
-      setError("모든 항목을 입력해 주세요.");
-      return;
-    }
-    if (Number.isNaN(parsedHousingCount) || parsedHousingCount < 0) {
-      setError("주택수는 0 이상의 숫자로 입력해 주세요.");
+      setError("아이디, 비밀번호, 이름을 입력해 주세요.");
       return;
     }
     if (password.length < 4) {
@@ -351,6 +323,18 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     }
     if (password !== confirm) {
       setError("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    const investmentCheck = validateInvestmentSignup({
+      investableFunds,
+      existingLoanAmount,
+      housingCount,
+      investmentGoal,
+      targetReturn,
+    });
+    if (!investmentCheck.ok) {
+      setError(investmentCheck.message);
       return;
     }
 
@@ -364,9 +348,10 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         name: name.trim(),
         investableFunds: investableFunds.trim(),
         existingLoanAmount: existingLoanAmount.trim(),
-        housingCount: parsedHousingCount,
+        housingCount: investmentCheck.housingCount,
         investmentGoal: investmentGoal.trim(),
         targetReturn: targetReturn.trim(),
+        firstTimeBuyer,
       });
       setSuccess("회원가입이 완료되었습니다. 관리자 승인 후 로그인해 주세요.");
       setTimeout(() => onSwitch(), 1200);
@@ -387,33 +372,44 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       </div>
 
       <InvestmentInfoSection>
-        <InputField
+        <SelectField
           label="투자가능자금"
-          type="text"
-          placeholder="예: 3억 5,000만원"
+          placeholder="투자가능자금 선택"
           value={investableFunds}
           onChange={setInvestableFunds}
+          options={INVESTABLE_FUNDS_OPTIONS}
         />
-        <InputField
+        <SelectField
           label="기존대출금액"
-          type="text"
-          placeholder="예: 1억 2,000만원 (없으면 0)"
+          placeholder="기존대출금액 선택"
           value={existingLoanAmount}
           onChange={setExistingLoanAmount}
+          options={EXISTING_LOAN_OPTIONS}
         />
-        <InputField
-          label="주택수"
-          type="number"
-          placeholder="예: 1"
-          value={housingCount}
-          onChange={setHousingCount}
-        />
-        <InputField
-          label="목표 수익"
-          type="text"
-          placeholder="예: 연 8%, 3,000만원"
+        <div className="flex items-end gap-4">
+          <div className="flex-1">
+            <SelectField
+              label="주택수"
+              placeholder="보유 주택수 선택"
+              value={housingCount}
+              onChange={setHousingCount}
+              options={HOUSING_COUNT_OPTIONS}
+            />
+          </div>
+          <div className="h-11 flex items-center">
+            <CheckboxField
+              label="생애최초 주택구입"
+              checked={firstTimeBuyer}
+              onChange={setFirstTimeBuyer}
+            />
+          </div>
+        </div>
+        <SelectField
+          label="목표 금액"
+          placeholder="목표 금액 선택"
           value={targetReturn}
           onChange={setTargetReturn}
+          options={TARGET_RETURN_OPTIONS}
         />
         <TextAreaField
           label="투자목표"
