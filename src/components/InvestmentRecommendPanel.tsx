@@ -108,7 +108,7 @@ export function InvestmentRecommendPanel({
           ? err.message
           : mode === "save"
             ? "조건 저장에 실패했습니다."
-            : "물건 조회에 실패했습니다.",
+            : "물건 추천에 실패했습니다.",
       );
     } finally {
       setBusy(null);
@@ -171,7 +171,7 @@ export function InvestmentRecommendPanel({
         <div className="border-t border-border px-5 py-4 space-y-4">
           <p className="text-xs text-muted-foreground leading-relaxed">
             회원정보(주택수·생애최초 여부)에 따라 자동 적용되는 대출 비율로 감당 가능한 물건을 추천합니다.
-            「물건 조회」는 회원정보를 바꾸지 않고 이 조건으로 바로 조회하며, 「조건 저장」은 물건을 조회하지 않고 회원정보에 투자정보만 저장합니다.
+            「물건 추천」은 회원정보를 바꾸지 않고 이 조건으로 바로 조회하며, 「조건 저장」은 물건을 조회하지 않고 회원정보에 투자정보만 저장합니다.
           </p>
 
           {profileLoading ? (
@@ -265,7 +265,7 @@ export function InvestmentRecommendPanel({
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
             >
               {busy === "session" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              물건 조회
+              물건 추천
             </button>
 
             <button
