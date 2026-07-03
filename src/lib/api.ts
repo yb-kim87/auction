@@ -553,6 +553,147 @@ export async function updateLoanPolicy(id: string, loanRatio: number): Promise<L
   return readJsonResponse(res);
 }
 
+export type AiPlatformEngineType = "normalizer" | "feature" | "tag";
+export type AiPlatformActionType = "auto_generate" | "manual_update" | "regenerate";
+
+export type AiPlatformHistoryEntry = {
+  id: string;
+  itemId: string;
+  engineType: AiPlatformEngineType;
+  actionType: AiPlatformActionType;
+  beforeData: string | null;
+  afterData: string;
+  changedBy: string;
+  createdAt: string;
+};
+
+export type NormalizedDataRow = {
+  id: string;
+  itemId: string;
+  normalizedData: Record<string, unknown>;
+  normalizedSources: Record<string, unknown>;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiFeatureRow = {
+  id: string;
+  itemId: string;
+  features: Record<string, unknown>;
+  featureSources: Record<string, unknown>;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiTagRow = {
+  id: string;
+  itemId: string;
+  autoTags: string[];
+  manualTags: string[] | null;
+  finalTags: string[];
+  tagSources: Record<string, unknown>;
+  confidence: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+async function aiPlatformGet<T>(path: string, fallbackError: string): Promise<T> {
+  const res = await fetch(`${API_BASE}/ai-platform/${path}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? fallbackError);
+  return readJsonResponse(res);
+}
+
+async function aiPlatformRegenerate(
+  engine: "normalizer" | "features" | "tags",
+  itemIds: string[] | undefined,
+): Promise<{ count: number }> {
+  const res = await fetch(`${API_BASE}/ai-platform/${engine}/regenerate`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ itemIds }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "재생성에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export function fetchNormalizedDataList(): Promise<NormalizedDataRow[]> {
+  return aiPlatformGet("normalizer", "정규화 데이터를 불러오지 못했습니다.");
+}
+export function fetchNormalizedDataHistory(itemId: string): Promise<AiPlatformHistoryEntry[]> {
+  return aiPlatformGet(`normalizer/${itemId}/history`, "이력을 불러오지 못했습니다.");
+}
+export function regenerateNormalizedData(itemIds?: string[]) {
+  return aiPlatformRegenerate("normalizer", itemIds);
+}
+export async function updateNormalizedData(
+  itemId: string,
+  data: Record<string, unknown>,
+): Promise<NormalizedDataRow> {
+  const res = await fetch(`${API_BASE}/ai-platform/normalizer/${itemId}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "수정에 실패했습니다.");
+  return readJsonResponse(res);
+}
+
+export function fetchAiFeatureList(): Promise<AiFeatureRow[]> {
+  return aiPlatformGet("features", "Feature 데이터를 불러오지 못했습니다.");
+}
+export function fetchAiFeatureHistory(itemId: string): Promise<AiPlatformHistoryEntry[]> {
+  return aiPlatformGet(`features/${itemId}/history`, "이력을 불러오지 못했습니다.");
+}
+export function regenerateAiFeatures(itemIds?: string[]) {
+  return aiPlatformRegenerate("features", itemIds);
+}
+export async function updateAiFeature(
+  itemId: string,
+  data: Record<string, unknown>,
+): Promise<AiFeatureRow> {
+  const res = await fetch(`${API_BASE}/ai-platform/features/${itemId}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "수정에 실패했습니다.");
+  return readJsonResponse(res);
+}
+
+export function fetchAiTagList(): Promise<AiTagRow[]> {
+  return aiPlatformGet("tags", "Tag 데이터를 불러오지 못했습니다.");
+}
+export function fetchAiTagHistory(itemId: string): Promise<AiPlatformHistoryEntry[]> {
+  return aiPlatformGet(`tags/${itemId}/history`, "이력을 불러오지 못했습니다.");
+}
+export function regenerateAiTags(itemIds?: string[]) {
+  return aiPlatformRegenerate("tags", itemIds);
+}
+export async function updateAiManualTags(
+  itemId: string,
+  manualTags: string[] | null,
+): Promise<AiTagRow> {
+  const res = await fetch(`${API_BASE}/ai-platform/tags/${itemId}/manual-tags`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ manualTags }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "수정에 실패했습니다.");
+  return readJsonResponse(res);
+}
+
 export type CrawlerPhase =
   | "idle"
   | "starting"

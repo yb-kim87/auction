@@ -32,6 +32,7 @@ import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBa
 import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { LoanPolicyTab } from "./LoanPolicyTab";
+import { AiPlatformPanel } from "./AiPlatformPanel";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -71,7 +72,8 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
   );
 }
 
-type AdminTab = "data" | "crawler" | "users" | "knowledge" | "loanPolicy";
+type AdminTab = "data" | "crawler" | "users" | "knowledge" | "loanPolicy" | "aiPlatform";
+type AiPlatformSubTab = "normalizer" | "feature" | "tag";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
@@ -79,6 +81,13 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "knowledge", label: "경매지식" },
   { id: "users", label: "회원권한 관리" },
   { id: "loanPolicy", label: "대출정책" },
+  { id: "aiPlatform", label: "AI Platform" },
+];
+
+const AI_PLATFORM_SUB_TABS: { id: AiPlatformSubTab; label: string }[] = [
+  { id: "normalizer", label: "Normalized Data 관리" },
+  { id: "feature", label: "Feature 관리" },
+  { id: "tag", label: "Tag 관리" },
 ];
 
 function AdminTabs({
@@ -138,6 +147,7 @@ export default function AdminPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>("data");
+  const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
 
   const loadCounts = useCallback(async () => {
@@ -815,6 +825,28 @@ export default function AdminPage() {
           {activeTab === "knowledge" && <KnowledgePanel />}
 
           {activeTab === "loanPolicy" && <LoanPolicyTab />}
+
+          {activeTab === "aiPlatform" && (
+            <div>
+              <div className="flex border-b border-border px-2">
+                {AI_PLATFORM_SUB_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setAiPlatformSubTab(tab.id)}
+                    className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                      aiPlatformSubTab === tab.id
+                        ? "text-primary border-b-2 border-primary -mb-px"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <AiPlatformPanel engine={aiPlatformSubTab} />
+            </div>
+          )}
 
           {activeTab === "users" && (
             <div className="p-6">
