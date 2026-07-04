@@ -914,9 +914,10 @@ export function AuctionDetailModal({
       : parsePreviewNumber(salePriceRaw);
   const naverId = String(form.naverId ?? item.naverId ?? "").trim();
   const hasNaver = hasNaverPrice(naverPrice);
-  const naverPriceFloor = item.naverPriceFloor;
+  const naverPriceFloorLabel =
+    item.naverPriceFloorLabel ?? (item.naverPriceFloor != null ? `${item.naverPriceFloor}층` : null);
   const naverPriceDisplay = hasNaver
-    ? `${fmtEok(naverPrice)}${naverPriceFloor != null ? ` (${naverPriceFloor}층)` : ""}`
+    ? `${fmtEok(naverPrice)}${naverPriceFloorLabel ? ` (${naverPriceFloorLabel})` : ""}`
     : "-";
 
   const d1 =
