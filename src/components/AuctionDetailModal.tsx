@@ -914,7 +914,10 @@ export function AuctionDetailModal({
       : parsePreviewNumber(salePriceRaw);
   const naverId = String(form.naverId ?? item.naverId ?? "").trim();
   const hasNaver = hasNaverPrice(naverPrice);
-  const naverPriceDisplay = hasNaver ? fmtEok(naverPrice) : "-";
+  const naverPriceFloor = item.naverPriceFloor;
+  const naverPriceDisplay = hasNaver
+    ? `${fmtEok(naverPrice)}${naverPriceFloor != null ? ` (${naverPriceFloor}층)` : ""}`
+    : "-";
 
   const d1 =
     hasNaver && salePrice != null ? diff(naverPrice, salePrice) : null;

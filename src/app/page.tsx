@@ -108,11 +108,18 @@ function renderPriceDiff(
   );
 }
 
-function renderNaverPrice(naverPrice: number) {
+function renderNaverPrice(naverPrice: number, naverPriceFloor?: number | null) {
   if (!hasNaverPrice(naverPrice)) {
     return <span className="text-muted-foreground/40">-</span>;
   }
-  return <span className="font-mono">{fmtEok(naverPrice)}</span>;
+  return (
+    <span className="font-mono">
+      {fmtEok(naverPrice)}
+      {naverPriceFloor != null && (
+        <span className="text-muted-foreground text-[13px] ml-1">({naverPriceFloor}층)</span>
+      )}
+    </span>
+  );
 }
 
 function renderPriceDetail(priceDetail: string, naverPrice: number) {
@@ -194,7 +201,7 @@ const buildColumns = (isAdmin: boolean, recommendPolicy: LoanPolicy | null): Col
         } satisfies ColDef,
       ]
     : []),
-  { key: "naverPrice", label: "네이버 호가", defaultWidth: 100, render: (r) => renderNaverPrice(r.naverPrice) },
+  { key: "naverPrice", label: "네이버 호가", defaultWidth: 120, render: (r) => renderNaverPrice(r.naverPrice, r.naverPriceFloor) },
   { key: "diff3", label: "호가-감정가", defaultWidth: 100, render: (r) => renderPriceDiff(r.diffNaverAppraised, r.naverPrice, r.appraisedValue, false) },
   { key: "diff2", label: "호가-최저가", defaultWidth: 100, render: (r) => renderPriceDiff(r.diffNaverMin, r.naverPrice, r.minPrice, false) },
   { key: "tradingCount", label: "실거래건수", defaultWidth: 140, render: (r) => <span className="font-mono text-xs">{r.tradingCount || "-"}</span> },
