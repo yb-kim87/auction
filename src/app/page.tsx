@@ -126,12 +126,12 @@ function RecommendCard({
 
         <div className="grid grid-cols-2 gap-px mt-3 bg-border">
           <div className="bg-card px-4 py-2.5">
-            <p className="text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.minPrice)}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">최저입찰가</p>
+            <p className="text-[11px] text-muted-foreground">최저입찰가</p>
+            <p className="mt-0.5 text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.minPrice)}</p>
           </div>
           <div className="bg-card px-4 py-2.5">
-            <p className="text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.appraisedValue)}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">감정가</p>
+            <p className="text-[11px] text-muted-foreground">감정가</p>
+            <p className="mt-0.5 text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.appraisedValue)}</p>
           </div>
         </div>
       </button>
