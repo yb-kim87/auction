@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Heart, MapPin, Calendar } from "lucide-react";
+import { LogOut, Heart, Calendar } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import {
@@ -36,17 +36,6 @@ function formatAreaLabel(area: string | null | undefined): string {
   return Number.isFinite(num) && num > 0 ? `${Math.round(num)}㎡` : "-";
 }
 
-function buildingLabel(item: AuctionItem): string {
-  const address = item.address ?? "";
-  const complexMatch = address.match(/\(([^,()]+),\s*([^)]+)\)/);
-  const complexName = complexMatch?.[2]?.trim();
-  const unitMatch = address.match(/(\d+동)\s*(?:\d+층\s*)?(\d+호)/);
-  const unitLabel = unitMatch ? `${unitMatch[1]} ${unitMatch[2]}` : "";
-  if (complexName) return [complexName, unitLabel].filter(Boolean).join(" ");
-  const dong = address.split(/\s+/).find((token) => /(동|읍|면)$/.test(token));
-  return [dong, unitLabel].filter(Boolean).join(" ") || address || "-";
-}
-
 function RecommendCard({
   item,
   loanRatio,
@@ -68,7 +57,6 @@ function RecommendCard({
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = failureRate != null ? Math.max(0, Math.round((100 - failureRate) / 20)) : null;
   const isNew = failureRate === 100;
-  const depositEstimate = item.minPrice > 0 ? Math.round(item.minPrice * 0.1) : 0;
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden hover:border-primary/40 transition-colors">
@@ -102,15 +90,12 @@ function RecommendCard({
           </button>
         </div>
 
-        <p className="px-4 mt-1 text-[12px] text-muted-foreground flex items-center gap-1">
-          <MapPin size={12} className="shrink-0" />
-          {item.city} {item.district}
-        </p>
+        <p className="px-4 mt-1 text-[12px] text-muted-foreground font-mono">{item.auctionNo}</p>
 
         <div className="px-4 mt-2">
-          <p className="font-semibold text-foreground text-[15px] truncate">{buildingLabel(item)}</p>
+          <p className="font-semibold text-foreground text-[15px] truncate">{item.address}</p>
           <p className="mt-1 text-[12.5px] text-muted-foreground flex items-center gap-3 flex-wrap">
-            <span className="font-mono">{item.auctionNo}</span>
+            <span>{formatAreaLabel(item.area)}</span>
             <span className="inline-flex items-center gap-1">
               <Calendar size={11} />
               {item.bidDate || "-"}
@@ -138,30 +123,14 @@ function RecommendCard({
 
         <div className="grid grid-cols-2 gap-px mt-3 bg-border">
           <div className="bg-card px-4 py-2.5">
-            <p className="text-[11px] text-muted-foreground">최저입찰가</p>
-            <p className="text-[13.5px] font-semibold font-mono text-foreground">{fmtEok(item.minPrice)}</p>
+            <p className="text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.minPrice)}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">최저입찰가</p>
           </div>
           <div className="bg-card px-4 py-2.5">
-            <p className="text-[11px] text-muted-foreground">감정가</p>
-            <p className="text-[13.5px] font-semibold font-mono text-foreground">{fmtEok(item.appraisedValue)}</p>
-          </div>
-          {loanRatio != null && (
-            <div className="bg-card px-4 py-2.5">
-              <p className="text-[11px] text-muted-foreground">예상 대출금 (LTV {Math.round(loanRatio * 100)}%)</p>
-              <p className="text-[13.5px] font-semibold font-mono text-foreground">
-                {fmtEok(Math.round(item.minPrice * loanRatio))}
-              </p>
-            </div>
-          )}
-          <div className="bg-card px-4 py-2.5">
-            <p className="text-[11px] text-muted-foreground">입찰보증금 (최저가 10%)</p>
-            <p className="text-[13.5px] font-semibold font-mono text-foreground">{fmtEok(depositEstimate)}</p>
+            <p className="text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.appraisedValue)}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">감정가</p>
           </div>
         </div>
-
-        <p className="px-4 py-2.5 text-[12px] text-muted-foreground line-clamp-1">
-          {formatAreaLabel(item.area)} · {item.address?.split("(")[0].trim()}
-        </p>
       </button>
     </div>
   );
