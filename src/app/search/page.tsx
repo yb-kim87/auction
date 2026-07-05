@@ -1035,6 +1035,9 @@ export default function Home() {
             <div className={HEADER_ACCENT_BAR} />
             <span className={HEADER_TITLE}>경매 물건 검색</span>
             <div className={HEADER_NAV_TRAILING}>
+              <Link href="/" className={HEADER_BTN}>
+                추천 물건
+              </Link>
               {isConsultant && (
                 <Link href="/consultant" className={HEADER_BTN}>
                   컨설턴트
