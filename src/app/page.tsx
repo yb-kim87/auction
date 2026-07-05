@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Heart, MapPin, Calendar } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import {
@@ -31,64 +31,139 @@ const fmtEok = (n: number) => {
   return abs.toLocaleString("ko-KR");
 };
 
+function formatAreaLabel(area: string | null | undefined): string {
+  const num = Number.parseFloat(String(area ?? "").match(/[\d.]+/)?.[0] ?? "");
+  return Number.isFinite(num) && num > 0 ? `${Math.round(num)}㎡` : "-";
+}
+
+function buildingLabel(item: AuctionItem): string {
+  const address = item.address ?? "";
+  const complexMatch = address.match(/\(([^,()]+),\s*([^)]+)\)/);
+  const complexName = complexMatch?.[2]?.trim();
+  const unitMatch = address.match(/(\d+동)\s*(?:\d+층\s*)?(\d+호)/);
+  const unitLabel = unitMatch ? `${unitMatch[1]} ${unitMatch[2]}` : "";
+  if (complexName) return [complexName, unitLabel].filter(Boolean).join(" ");
+  const dong = address.split(/\s+/).find((token) => /(동|읍|면)$/.test(token));
+  return [dong, unitLabel].filter(Boolean).join(" ") || address || "-";
+}
+
 function RecommendCard({
   item,
   loanRatio,
   loanPolicyLabel,
+  isFavorite,
+  favoriteBusy,
+  onToggleFavorite,
   onOpen,
 }: {
   item: AuctionItem;
   loanRatio: number | null;
   loanPolicyLabel: string | null;
+  isFavorite: boolean;
+  favoriteBusy: boolean;
+  onToggleFavorite: () => void;
   onOpen: () => void;
 }) {
   const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
+  const failureCount = failureRate != null ? Math.max(0, Math.round((100 - failureRate) / 20)) : null;
+  const isNew = failureRate === 100;
+  const depositEstimate = item.minPrice > 0 ? Math.round(item.minPrice * 0.1) : 0;
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full text-left bg-card border border-border rounded-xl shadow-sm px-4 py-3.5 hover:border-primary/40 transition-colors"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-semibold text-foreground text-[15px] flex items-center gap-1.5 min-w-0">
-          <span className="shrink-0 text-[11px] font-medium text-muted-foreground bg-secondary/60 rounded-sm px-1.5 py-0.5">
-            {item.usage || "물건"}
-          </span>
-          <span className="truncate font-mono">{item.auctionNo}</span>
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden hover:border-primary/40 transition-colors">
+      <button type="button" onClick={onOpen} className="w-full text-left">
+        <div className="px-4 pt-3.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="shrink-0 text-[11px] font-medium text-muted-foreground bg-secondary/60 rounded-sm px-1.5 py-0.5">
+              {item.usage || "물건"}
+            </span>
+            {isNew ? (
+              <span className="shrink-0 text-[11px] font-semibold text-primary bg-primary/10 rounded-sm px-1.5 py-0.5">
+                신건
+              </span>
+            ) : failureRate != null ? (
+              <span className="shrink-0 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-1.5 py-0.5">
+                유찰 {failureCount}회 · {failureRate}%
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            disabled={favoriteBusy}
+            aria-label={isFavorite ? "관심물건 해제" : "관심물건 추가"}
+            className="shrink-0 p-1 rounded-full hover:bg-secondary/60 disabled:opacity-50"
+          >
+            <Heart size={16} className={isFavorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"} />
+          </button>
+        </div>
+
+        <p className="px-4 mt-1 text-[12px] text-muted-foreground flex items-center gap-1">
+          <MapPin size={12} className="shrink-0" />
+          {item.city} {item.district}
         </p>
-        {failureRate != null && (
-          <span className="shrink-0 text-[12px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-1.5 py-0.5">
-            유찰 {failureRate}%
-          </span>
+
+        <div className="px-4 mt-2">
+          <p className="font-semibold text-foreground text-[15px] truncate">{buildingLabel(item)}</p>
+          <p className="mt-1 text-[12.5px] text-muted-foreground flex items-center gap-3 flex-wrap">
+            <span className="font-mono">{item.auctionNo}</span>
+            <span className="inline-flex items-center gap-1">
+              <Calendar size={11} />
+              {item.bidDate || "-"}
+            </span>
+          </p>
+        </div>
+
+        {item.specialNote && item.specialNote !== "없음" && (
+          <p className="px-4 mt-1.5 text-[12px] text-red-600 line-clamp-1">{item.specialNote}</p>
         )}
-      </div>
 
-      <p className="text-[13px] text-muted-foreground mt-1.5 line-clamp-1">{item.address}</p>
+        {requiredEquity != null && (
+          <div className="mx-4 mt-3 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2.5">
+            <p className="text-[11px] text-muted-foreground">실 투자금</p>
+            <p className="mt-0.5 text-[19px] font-bold text-primary font-mono">
+              {formatWonShort(requiredEquity)}
+            </p>
+            <p className="mt-1 text-[11.5px] text-muted-foreground leading-relaxed">
+              최저입찰가 {fmtEok(item.minPrice)}
+              {loanRatio != null && <> ~ 예상대출 {fmtEok(Math.round(item.minPrice * loanRatio))}</>}
+              {loanPolicyLabel && <> ({loanPolicyLabel} {Math.round(loanRatio! * 100)}%)</>}
+            </p>
+          </div>
+        )}
 
-      {item.specialNote && item.specialNote !== "없음" && (
-        <p className="text-[12px] text-red-600 mt-1 line-clamp-1">{item.specialNote}</p>
-      )}
-
-      <div className="flex items-center gap-4 mt-2 text-[13px]">
-        <span className="text-muted-foreground">
-          감정가 <span className="font-mono text-foreground">{fmtEok(item.appraisedValue)}</span>
-        </span>
-        <span className="text-muted-foreground">
-          최저가 <span className="font-mono text-foreground font-semibold">{fmtEok(item.minPrice)}</span>
-        </span>
-      </div>
-
-      {requiredEquity != null && (
-        <p className="mt-2 text-[13px] text-primary bg-primary/5 border border-primary/20 rounded-sm px-2 py-1.5 inline-block">
-          필요 자기자금 약 <span className="font-mono font-semibold">{formatWonShort(requiredEquity)}</span>
-          {loanPolicyLabel && (
-            <span className="text-muted-foreground"> · {loanPolicyLabel} {Math.round(loanRatio! * 100)}% 대출 적용</span>
+        <div className="grid grid-cols-2 gap-px mt-3 bg-border">
+          <div className="bg-card px-4 py-2.5">
+            <p className="text-[11px] text-muted-foreground">최저입찰가</p>
+            <p className="text-[13.5px] font-semibold font-mono text-foreground">{fmtEok(item.minPrice)}</p>
+          </div>
+          <div className="bg-card px-4 py-2.5">
+            <p className="text-[11px] text-muted-foreground">감정가</p>
+            <p className="text-[13.5px] font-semibold font-mono text-foreground">{fmtEok(item.appraisedValue)}</p>
+          </div>
+          {loanRatio != null && (
+            <div className="bg-card px-4 py-2.5">
+              <p className="text-[11px] text-muted-foreground">예상 대출금 (LTV {Math.round(loanRatio * 100)}%)</p>
+              <p className="text-[13.5px] font-semibold font-mono text-foreground">
+                {fmtEok(Math.round(item.minPrice * loanRatio))}
+              </p>
+            </div>
           )}
+          <div className="bg-card px-4 py-2.5">
+            <p className="text-[11px] text-muted-foreground">입찰보증금 (최저가 10%)</p>
+            <p className="text-[13.5px] font-semibold font-mono text-foreground">{fmtEok(depositEstimate)}</p>
+          </div>
+        </div>
+
+        <p className="px-4 py-2.5 text-[12px] text-muted-foreground line-clamp-1">
+          {formatAreaLabel(item.area)} · {item.address?.split("(")[0].trim()}
         </p>
-      )}
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -230,6 +305,9 @@ export default function HomePage() {
                 item={item}
                 loanRatio={loanRatio}
                 loanPolicyLabel={loanPolicyLabel}
+                isFavorite={favoriteIds.has(item.id)}
+                favoriteBusy={favoriteBusy}
+                onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
                 onOpen={() => {
                   logUserAction({ itemId: item.id, actionType: "click", metadata: { recommended: true } });
                   setSelectedItem(item);
