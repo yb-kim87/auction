@@ -16,7 +16,7 @@ import {
   logUserAction,
   logUserActionsBatch,
 } from "@/lib/api";
-import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
+import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { formatWonShort } from "@/lib/investment-money";
@@ -227,7 +227,7 @@ export default function HomePage() {
         nav={
           <>
             <div className={HEADER_ACCENT_BAR} />
-            <span className={HEADER_TITLE}>추천 물건</span>
+            <span className={HEADER_TAB_ACTIVE}>추천 물건</span>
             <Link href="/search" className={HEADER_BTN}>
               전체 검색
             </Link>

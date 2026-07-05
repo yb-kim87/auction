@@ -8,6 +8,8 @@ export const HEADER_MUTED = `${HEADER_TEXT} text-[#222222]/55`;
 export const HEADER_ACCENT_BAR = "w-1 h-5 bg-primary rounded-full shrink-0";
 export const HEADER_BTN =
   `${HEADER_TEXT} flex items-center gap-1.5 px-3 py-1.5 font-medium text-[#222222] rounded-sm hover:text-primary transition-colors`;
+export const HEADER_TAB_ACTIVE =
+  `${HEADER_TEXT} flex items-center gap-1.5 px-3 py-1.5 font-semibold text-primary bg-primary/10 rounded-sm`;
 export const HEADER_NAV_TRAILING = "ml-auto flex items-center gap-3 shrink-0";
 
 type AppHeaderProps = {

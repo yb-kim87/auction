@@ -36,7 +36,7 @@ import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { formatTenantStatusSummary } from "@/lib/tenant-status";
 import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
-import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
+import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
@@ -1030,24 +1030,25 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
       <AppHeader
+        maxWidth="1400"
         nav={
           <>
             <div className={HEADER_ACCENT_BAR} />
-            <span className={HEADER_TITLE}>경매 물건 검색</span>
-            <div className={HEADER_NAV_TRAILING}>
-              <Link href="/" className={HEADER_BTN}>
-                추천 물건
+            <Link href="/" className={HEADER_BTN}>
+              추천 물건
+            </Link>
+            <span className={HEADER_TAB_ACTIVE}>전체 검색</span>
+            {isConsultant && (
+              <Link href="/consultant" className={HEADER_BTN}>
+                컨설턴트
               </Link>
-              {isConsultant && (
-                <Link href="/consultant" className={HEADER_BTN}>
-                  컨설턴트
-                </Link>
-              )}
-              {isAdmin && (
-                <Link href="/admin" className={HEADER_BTN}>
-                  관리자
-                </Link>
-              )}
+            )}
+            {isAdmin && (
+              <Link href="/admin" className={HEADER_BTN}>
+                관리자
+              </Link>
+            )}
+            <div className={HEADER_NAV_TRAILING}>
               <AccountNavLink />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={16} />
