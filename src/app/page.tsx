@@ -42,6 +42,12 @@ const fmtEok = (n: number) => {
   return abs.toLocaleString("ko-KR");
 };
 
+function shortLoanPolicyLabel(label: string): string {
+  const match = label.match(/\(([^)]+)\)/);
+  const inner = match?.[1] ?? label;
+  return inner.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
+}
+
 function formatAreaLabel(area: string | null | undefined): string {
   const num = Number.parseFloat(String(area ?? "").match(/[\d.]+/)?.[0] ?? "");
   return Number.isFinite(num) && num > 0 ? `${Math.round(num)}㎡` : "-";
@@ -503,7 +509,7 @@ function RecommendListRow({
           <p className="font-bold text-primary text-[14px] font-mono">{formatWonShort(requiredEquity)}</p>
           {loanPolicyLabel && (
             <p className="text-[10px] text-muted-foreground truncate">
-              {loanPolicyLabel} {Math.round(loanRatio! * 100)}%
+              {shortLoanPolicyLabel(loanPolicyLabel)} {Math.round(loanRatio! * 100)}%
             </p>
           )}
         </div>
