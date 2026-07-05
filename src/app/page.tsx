@@ -34,10 +34,12 @@ const fmtEok = (n: number) => {
 function RecommendCard({
   item,
   loanRatio,
+  loanPolicyLabel,
   onOpen,
 }: {
   item: AuctionItem;
   loanRatio: number | null;
+  loanPolicyLabel: string | null;
   onOpen: () => void;
 }) {
   const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : null;
@@ -81,6 +83,9 @@ function RecommendCard({
       {requiredEquity != null && (
         <p className="mt-2 text-[13px] text-primary bg-primary/5 border border-primary/20 rounded-sm px-2 py-1.5 inline-block">
           필요 자기자금 약 <span className="font-mono font-semibold">{formatWonShort(requiredEquity)}</span>
+          {loanPolicyLabel && (
+            <span className="text-muted-foreground"> · {loanPolicyLabel} {Math.round(loanRatio! * 100)}% 대출 적용</span>
+          )}
         </p>
       )}
     </button>
@@ -97,6 +102,7 @@ export default function HomePage() {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [loanRatio, setLoanRatio] = useState<number | null>(null);
+  const [loanPolicyLabel, setLoanPolicyLabel] = useState<string | null>(null);
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -117,6 +123,7 @@ export default function HomePage() {
       .then((res) => {
         setItems(res.items);
         setLoanRatio(res.loanRatio);
+        setLoanPolicyLabel(res.loanPolicyLabel);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "추천 물건을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
@@ -222,6 +229,7 @@ export default function HomePage() {
                 key={item.id}
                 item={item}
                 loanRatio={loanRatio}
+                loanPolicyLabel={loanPolicyLabel}
                 onOpen={() => {
                   logUserAction({ itemId: item.id, actionType: "click", metadata: { recommended: true } });
                   setSelectedItem(item);
