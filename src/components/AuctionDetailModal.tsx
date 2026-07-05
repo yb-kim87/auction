@@ -844,7 +844,7 @@ export function AuctionDetailModal({
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
   const [showMemo, setShowMemo] = useState(false);
-  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
+  const [activeTab, setActiveTab] = useState<"info" | "ai">("info");
   const [editingViews, setEditingViews] = useState(false);
   const auctionNoInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLTextAreaElement>(null);
@@ -869,7 +869,7 @@ export function AuctionDetailModal({
     setEditingHeader(null);
     setEditingPrice(null);
     setShowMemo(false);
-    setShowAiAnalysis(false);
+    setActiveTab("info");
     setEditingViews(false);
   }, [item]);
 
@@ -1263,24 +1263,6 @@ export function AuctionDetailModal({
                   변경 이력
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAiAnalysis((v) => {
-                    const next = !v;
-                    if (next) onAiAnalysisClick?.(item);
-                    return next;
-                  });
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} border rounded-sm transition-colors ${
-                  showAiAnalysis
-                    ? "bg-white text-primary border-white"
-                    : "bg-white/10 border-white/25 hover:bg-white/20"
-                }`}
-              >
-                <Brain size={14} />
-                경매코치 AI
-              </button>
               {preview.link && (
                 <a
                   href={preview.link}
@@ -1304,11 +1286,40 @@ export function AuctionDetailModal({
           </div>
         </div>
 
-        <div className="px-5 py-5 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
-          {showAiAnalysis && item && (
-            <AuctionAnalysisPanel auctionId={item.id} />
-          )}
+        <div className="px-5 pt-3 border-b border-border flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("info")}
+            className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === "info"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            기본정보
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("ai");
+              onAiAnalysisClick?.(item);
+            }}
+            className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5 ${
+              activeTab === "ai"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Brain size={13} />
+            AI에게 물어보기
+          </button>
+        </div>
 
+        <div className="px-5 py-5 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
+          {activeTab === "ai" ? (
+            item && <AuctionAnalysisPanel auctionId={item.id} />
+          ) : (
+          <>
           <section>
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
               <h3 className={`${SECTION_TEXT} font-semibold text-foreground`}>물건 요약</h3>
@@ -1611,6 +1622,8 @@ export function AuctionDetailModal({
                 </section>
               );
             })
+          )}
+          </>
           )}
         </div>
 

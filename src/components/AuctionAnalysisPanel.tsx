@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Loader2, RefreshCw } from "lucide-react";
+import { Brain, Loader2, RefreshCw, Send } from "lucide-react";
 import type { AuctionAnalysisResult } from "@/types/auction";
-import { analyzeAuction, fetchAuctionAnalysis } from "@/lib/api";
+import { analyzeAuction, askAi, fetchAuctionAnalysis } from "@/lib/api";
 
 const ANALYSIS_ENGINE_LABEL = "경매코치 AI";
 const SECTION = "text-[14px] leading-relaxed";
@@ -20,6 +20,60 @@ function AnalysisSection({ title, children }: { title: string; children: React.R
     <div className="space-y-2">
       <h4 className={TITLE}>{title}</h4>
       <div className={`${SECTION} text-foreground/90 whitespace-pre-wrap`}>{children}</div>
+    </div>
+  );
+}
+
+function AskAboutItemBox({ auctionId }: { auctionId: string }) {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [askError, setAskError] = useState("");
+
+  async function handleAsk() {
+    const trimmed = question.trim();
+    if (!trimmed) return;
+    setAskError("");
+    setAnswer(null);
+    setAsking(true);
+    try {
+      const result = await askAi({ question: trimmed, auctionId });
+      setAnswer(result.answer);
+    } catch (err) {
+      setAskError(err instanceof Error ? err.message : "질문 처리에 실패했습니다.");
+    } finally {
+      setAsking(false);
+    }
+  }
+
+  return (
+    <div className="rounded-sm border border-border bg-card p-3 sm:p-4 space-y-2">
+      <h4 className={TITLE}>이 물건에 대해 물어보기</h4>
+      <div className="flex items-center gap-2">
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void handleAsk();
+          }}
+          placeholder="예: 이 물건 어때? 왜 추천됐지?"
+          className="flex-1 min-w-0 bg-transparent text-[14px] focus:outline-none placeholder:text-muted-foreground/60 border-b border-border pb-1.5"
+        />
+        <button
+          type="button"
+          onClick={() => void handleAsk()}
+          disabled={asking || !question.trim()}
+          className="shrink-0 p-1.5 rounded-sm text-primary hover:bg-primary/10 disabled:opacity-40"
+          aria-label="질문하기"
+        >
+          <Send size={16} />
+        </button>
+      </div>
+      {asking && <p className="text-[13px] text-muted-foreground">답변을 준비하고 있어요...</p>}
+      {askError && <p className="text-[13px] text-destructive">{askError}</p>}
+      {answer && (
+        <p className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap">{answer}</p>
+      )}
     </div>
   );
 }
@@ -70,7 +124,9 @@ export function AuctionAnalysisPanel({ auctionId }: { auctionId: string }) {
   }
 
   return (
-    <div className="rounded-sm border border-primary/20 bg-primary/[0.03] p-4 sm:p-5 space-y-5">
+    <div className="space-y-4">
+      <AskAboutItemBox auctionId={auctionId} />
+      <div className="rounded-sm border border-primary/20 bg-primary/[0.03] p-4 sm:p-5 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -199,6 +255,7 @@ export function AuctionAnalysisPanel({ auctionId }: { auctionId: string }) {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
