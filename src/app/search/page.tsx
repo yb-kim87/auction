@@ -36,7 +36,7 @@ import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { formatTenantStatusSummary } from "@/lib/tenant-status";
 import { AuctionChangeHistoryModal } from "@/components/AuctionChangeHistoryModal";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
-import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
+import { AppHeader, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
@@ -1033,7 +1033,6 @@ export default function Home() {
         maxWidth="1400"
         nav={
           <>
-            <div className={HEADER_ACCENT_BAR} />
             <Link href="/" className={HEADER_BTN}>
               추천 물건
             </Link>
