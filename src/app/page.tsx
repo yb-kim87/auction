@@ -22,6 +22,7 @@ import {
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TITLE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
+import { parseMoneyToWon } from "@/lib/investment-money";
 
 function RecommendCard({
   item,
@@ -63,7 +64,11 @@ function RecommendCard({
   );
 }
 
-function AskAiBox() {
+function AskAiBox({
+  onBudgetOverride,
+}: {
+  onBudgetOverride: (budgetWon: number, rawText: string) => void;
+}) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,9 +77,17 @@ function AskAiBox() {
   async function handleAsk() {
     const trimmed = question.trim();
     if (!trimmed) return;
-    setLoading(true);
     setError("");
     setAnswer(null);
+
+    // 예산이 명확한 질문은 AI 설명 없이 바로 리스트를 그 조건으로 갱신한다(빠르고 정확, 토큰도 안 씀).
+    const budgetWon = parseMoneyToWon(trimmed);
+    if (budgetWon != null && budgetWon > 0) {
+      onBudgetOverride(budgetWon, trimmed);
+      return;
+    }
+
+    setLoading(true);
     try {
       const result = await askAi({ question: trimmed });
       setAnswer(result.answer);
@@ -220,6 +233,7 @@ export default function HomePage() {
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [budgetFilter, setBudgetFilter] = useState<{ won: number; text: string } | null>(null);
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -233,12 +247,29 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    fetchRecommendations()
+  function loadRecommendations(budget?: string) {
+    setLoading(true);
+    setLoadError("");
+    fetchRecommendations(budget)
       .then((res) => setItems(res.items))
       .catch((err) => setLoadError(err instanceof Error ? err.message : "추천 물건을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    loadRecommendations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function handleBudgetOverride(budgetWon: number, rawText: string) {
+    setBudgetFilter({ won: budgetWon, text: rawText });
+    loadRecommendations(String(budgetWon));
+  }
+
+  function resetBudgetFilter() {
+    setBudgetFilter(null);
+    loadRecommendations();
+  }
 
   useEffect(() => {
     if (items.length === 0) return;
@@ -320,7 +351,22 @@ export default function HomePage() {
       />
 
       <main className="max-w-[720px] mx-auto px-4 py-6 space-y-4">
-        <AskAiBox />
+        <AskAiBox onBudgetOverride={handleBudgetOverride} />
+
+        {budgetFilter && (
+          <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-sm px-3 py-2 text-[13px]">
+            <span className="text-primary font-medium">
+              &quot;{budgetFilter.text}&quot; 조건으로 다시 추천했어요
+            </span>
+            <button
+              type="button"
+              onClick={resetBudgetFilter}
+              className="text-muted-foreground hover:text-foreground underline shrink-0 ml-3"
+            >
+              기본 추천으로
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="text-center py-16 text-muted-foreground text-sm">추천 물건을 불러오는 중...</div>
