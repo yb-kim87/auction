@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Heart, Calendar, SlidersHorizontal, Search, X } from "lucide-react";
+import { LogOut, Heart, Calendar, SlidersHorizontal, Search, Wallet, X } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import {
@@ -441,7 +441,8 @@ export default function HomePage() {
             onClick={() => setShowInvestmentModal(true)}
             className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
           >
-            투자정보 수정
+            <Wallet size={14} />
+            투자정보
           </button>
         </div>
 
