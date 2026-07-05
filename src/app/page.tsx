@@ -21,14 +21,7 @@ import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { formatWonShort } from "@/lib/investment-money";
 import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
-
-function buildItemName(item: AuctionItem): string {
-  const areaNum = Number.parseFloat(String(item.area ?? "").match(/[\d.]+/)?.[0] ?? "");
-  const areaLabel = Number.isFinite(areaNum) && areaNum > 0 ? `${Math.round(areaNum)}㎡` : "";
-  const dong = item.address?.split(/\s+/).find((token) => /(동|읍|면)$/.test(token));
-  const parts = [dong, areaLabel, item.usage || "물건"].filter(Boolean);
-  return parts.join(" ");
-}
+import { getFailureRateRatio } from "@/lib/failure-rate";
 
 const fmtEok = (n: number) => {
   if (!n) return "-";
@@ -48,6 +41,7 @@ function RecommendCard({
   onOpen: () => void;
 }) {
   const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : null;
+  const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
 
   return (
     <button
@@ -55,16 +49,40 @@ function RecommendCard({
       onClick={onOpen}
       className="w-full text-left bg-card border border-border rounded-xl shadow-sm px-4 py-3.5 hover:border-primary/40 transition-colors"
     >
-      <p className="font-semibold text-foreground text-[16px] truncate">{buildItemName(item)}</p>
-      <p className="text-[13px] text-muted-foreground mt-1 line-clamp-1">{item.address}</p>
-      <p className="mt-2 text-[15px]">
-        <span className="font-mono font-semibold text-foreground">{fmtEok(item.minPrice)}</span>
-        {requiredEquity != null && (
-          <span className="text-muted-foreground text-[13px]">
-            {" "}· 필요자금 <span className="font-mono">{formatWonShort(requiredEquity)}</span>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-semibold text-foreground text-[15px] flex items-center gap-1.5 min-w-0">
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground bg-secondary/60 rounded-sm px-1.5 py-0.5">
+            {item.usage || "물건"}
+          </span>
+          <span className="truncate font-mono">{item.auctionNo}</span>
+        </p>
+        {failureRate != null && (
+          <span className="shrink-0 text-[12px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-1.5 py-0.5">
+            유찰 {failureRate}%
           </span>
         )}
-      </p>
+      </div>
+
+      <p className="text-[13px] text-muted-foreground mt-1.5 line-clamp-1">{item.address}</p>
+
+      {item.specialNote && item.specialNote !== "없음" && (
+        <p className="text-[12px] text-red-600 mt-1 line-clamp-1">{item.specialNote}</p>
+      )}
+
+      <div className="flex items-center gap-4 mt-2 text-[13px]">
+        <span className="text-muted-foreground">
+          감정가 <span className="font-mono text-foreground">{fmtEok(item.appraisedValue)}</span>
+        </span>
+        <span className="text-muted-foreground">
+          최저가 <span className="font-mono text-foreground font-semibold">{fmtEok(item.minPrice)}</span>
+        </span>
+      </div>
+
+      {requiredEquity != null && (
+        <p className="mt-2 text-[13px] text-primary bg-primary/5 border border-primary/20 rounded-sm px-2 py-1.5 inline-block">
+          필요 자기자금 약 <span className="font-mono font-semibold">{formatWonShort(requiredEquity)}</span>
+        </p>
+      )}
     </button>
   );
 }
