@@ -90,7 +90,14 @@ function RecommendCard({
           </button>
         </div>
 
-        <p className="px-4 mt-1 text-[12px] text-muted-foreground font-mono">{item.auctionNo}</p>
+        <div className="px-4 mt-1 flex items-center justify-between gap-2">
+          <p className="text-[12px] text-muted-foreground font-mono">{item.auctionNo}</p>
+          {item.specialNote && item.specialNote !== "없음" && (
+            <p className="shrink-0 text-[11px] font-medium text-red-600 bg-red-50 border border-red-200 rounded-sm px-1.5 py-0.5 truncate max-w-[55%]">
+              {item.specialNote}
+            </p>
+          )}
+        </div>
 
         <div className="px-4 mt-2">
           <p className="font-semibold text-foreground text-[15px] truncate">{item.address}</p>
@@ -102,10 +109,6 @@ function RecommendCard({
             </span>
           </p>
         </div>
-
-        {item.specialNote && item.specialNote !== "없음" && (
-          <p className="px-4 mt-1.5 text-[12px] text-red-600 line-clamp-1">{item.specialNote}</p>
-        )}
 
         {requiredEquity != null && (
           <div className="mx-4 mt-3 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
