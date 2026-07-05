@@ -31,6 +31,8 @@ import {
 import { formatWonShort } from "@/lib/investment-money";
 import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
+import { CITIES } from "@/data/korea-regions";
+import { PROPERTY_TYPE_OPTIONS, matchesPropertyType } from "@/data/property-type-options";
 
 const fmtEok = (n: number) => {
   if (!n) return "-";
@@ -43,6 +45,150 @@ const fmtEok = (n: number) => {
 function formatAreaLabel(area: string | null | undefined): string {
   const num = Number.parseFloat(String(area ?? "").match(/[\d.]+/)?.[0] ?? "");
   return Number.isFinite(num) && num > 0 ? `${Math.round(num)}㎡` : "-";
+}
+
+type RecommendFilters = {
+  city: string;
+  propType: string;
+  maxFailureRate: string;
+  favoritesOnly: boolean;
+};
+
+const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
+  city: "",
+  propType: "",
+  maxFailureRate: "",
+  favoritesOnly: false,
+};
+
+function matchesRecommendFilters(
+  item: AuctionItem,
+  filters: RecommendFilters,
+  favoriteIds: Set<string>,
+): boolean {
+  if (filters.city && item.city !== filters.city) return false;
+  if (filters.propType && !matchesPropertyType(item, filters.propType)) return false;
+  if (filters.maxFailureRate) {
+    const rate = getFailureRateRatio(item.minPrice, item.appraisedValue);
+    if (rate == null || rate > Number(filters.maxFailureRate)) return false;
+  }
+  if (filters.favoritesOnly && !favoriteIds.has(item.id)) return false;
+  return true;
+}
+
+function RecommendFilterModal({
+  filters,
+  favoriteCount,
+  onClose,
+  onApply,
+}: {
+  filters: RecommendFilters;
+  favoriteCount: number;
+  onClose: () => void;
+  onApply: (next: RecommendFilters) => void;
+}) {
+  const [city, setCity] = useState(filters.city);
+  const [propType, setPropType] = useState(filters.propType);
+  const [maxFailureRate, setMaxFailureRate] = useState(filters.maxFailureRate);
+  const [favoritesOnly, setFavoritesOnly] = useState(filters.favoritesOnly);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
+      <div
+        className="relative w-full max-w-md sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl p-5 sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-base font-bold text-foreground">상세 필터</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-sm hover:bg-secondary">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-[13px] text-muted-foreground mb-5">
+          조건을 선택하면 추천 물건 리스트가 바로 필터링됩니다.
+        </p>
+
+        <div className="space-y-4">
+          <label className="block text-sm space-y-1.5">
+            <span className="text-muted-foreground text-[13px]">지역</span>
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">전체</option>
+              {CITIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm space-y-1.5">
+            <span className="text-muted-foreground text-[13px]">물건종류</span>
+            <select
+              value={propType}
+              onChange={(e) => setPropType(e.target.value)}
+              className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">전체</option>
+              {PROPERTY_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm space-y-1.5">
+            <span className="text-muted-foreground text-[13px]">유찰률(감정가 대비 최저가, 이하)</span>
+            <select
+              value={maxFailureRate}
+              onChange={(e) => setMaxFailureRate(e.target.value)}
+              className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">전체</option>
+              <option value="100">100% 이하 (신건 포함)</option>
+              <option value="80">80% 이하</option>
+              <option value="70">70% 이하</option>
+              <option value="60">60% 이하</option>
+              <option value="50">50% 이하</option>
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={favoritesOnly}
+              onChange={(e) => setFavoritesOnly(e.target.checked)}
+              className="accent-primary"
+            />
+            관심물건만 보기
+            <span className="text-muted-foreground text-[13px]">({favoriteCount}건)</span>
+          </label>
+        </div>
+
+        <div className="flex justify-between gap-2 mt-6">
+          <button
+            type="button"
+            onClick={() => {
+              setCity("");
+              setPropType("");
+              setMaxFailureRate("");
+              setFavoritesOnly(false);
+            }}
+            className="px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
+          >
+            초기화
+          </button>
+          <button
+            type="button"
+            onClick={() => onApply({ city, propType, maxFailureRate, favoritesOnly })}
+            className="px-5 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
+          >
+            필터 적용
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function InvestmentInfoModal({
@@ -307,6 +453,8 @@ export default function HomePage() {
   const [loanPolicyLabel, setLoanPolicyLabel] = useState<string | null>(null);
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState<RecommendFilters>(EMPTY_RECOMMEND_FILTERS);
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -377,15 +525,22 @@ export default function HomePage() {
     }
   }
 
-  const filteredItems = searchText.trim()
-    ? items.filter((item) => {
-        const q = searchText.trim().toLowerCase();
-        return (
-          item.address?.toLowerCase().includes(q) ||
-          item.auctionNo?.toLowerCase().includes(q)
-        );
-      })
-    : items;
+  const filteredItems = items.filter((item) => {
+    if (!matchesRecommendFilters(item, filters, favoriteIds)) return false;
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      const matchesText =
+        item.address?.toLowerCase().includes(q) || item.auctionNo?.toLowerCase().includes(q);
+      if (!matchesText) return false;
+    }
+    return true;
+  });
+
+  const activeFilterCount =
+    (filters.city ? 1 : 0) +
+    (filters.propType ? 1 : 0) +
+    (filters.maxFailureRate ? 1 : 0) +
+    (filters.favoritesOnly ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -429,13 +584,19 @@ export default function HomePage() {
               className="w-full h-9 pl-10 pr-4 rounded-lg bg-secondary/40 border border-transparent text-sm focus:outline-none focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
             />
           </div>
-          <Link
-            href="/search"
-            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
+          <button
+            type="button"
+            onClick={() => setShowFilterModal(true)}
+            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm font-normal text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
           >
             <SlidersHorizontal size={14} />
             상세 필터
-          </Link>
+            {activeFilterCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setShowInvestmentModal(true)}
@@ -505,6 +666,18 @@ export default function HomePage() {
             setProfile(updated);
             setShowInvestmentModal(false);
             loadRecommendations();
+          }}
+        />
+      )}
+
+      {showFilterModal && (
+        <RecommendFilterModal
+          filters={filters}
+          favoriteCount={favoriteIds.size}
+          onClose={() => setShowFilterModal(false)}
+          onApply={(next) => {
+            setFilters(next);
+            setShowFilterModal(false);
           }}
         />
       )}
