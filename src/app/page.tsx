@@ -249,7 +249,7 @@ export default function HomePage() {
         }
       />
 
-      <main className="max-w-[560px] mx-auto px-4 py-8 space-y-4">
+      <main className="max-w-[1400px] mx-auto px-4 py-8 space-y-4">
         <h1 className="text-[19px] font-semibold text-foreground">오늘의 추천</h1>
 
         {loading ? (
@@ -267,7 +267,7 @@ export default function HomePage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {items.map((item) => (
               <RecommendCard
                 key={item.id}
