@@ -124,7 +124,7 @@ function RecommendCard({
 
         {requiredEquity != null && (
           <div className="mx-4 mt-3 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2.5">
-            <p className="text-[11px] text-muted-foreground">실 투자금</p>
+            <p className="text-[11px] text-muted-foreground">최소 투자금</p>
             <p className="mt-0.5 text-[19px] font-bold text-primary font-mono">
               {formatWonShort(requiredEquity)}
             </p>
