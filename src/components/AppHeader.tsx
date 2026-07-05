@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { Gavel } from "lucide-react";
 import type { ReactNode } from "react";
 
 export const HEADER_TEXT = "text-[16px] leading-snug";
@@ -22,17 +22,15 @@ export function AppHeader({ maxWidth = "1600", nav }: AppHeaderProps) {
     maxWidth === "960" ? "max-w-[960px]" : maxWidth === "1400" ? "max-w-[1400px]" : "max-w-[1600px]";
 
   return (
-    <header className="bg-white border-b border-primary sticky top-0 z-50">
-      <div className={`${maxW} mx-auto px-3 sm:px-6 py-1 flex items-center gap-2 sm:gap-5`}>
-        <Link href="/" className="shrink-0" aria-label="경매코치 홈">
-          <Image
-            src="/logo.png"
-            alt="경매코치"
-            width={240}
-            height={96}
-            className="h-12 sm:h-20 w-auto object-contain"
-            priority
-          />
+    <header className="bg-white border-b border-border sticky top-0 z-50">
+      <div className={`${maxW} mx-auto px-3 sm:px-6 py-2.5 flex items-center gap-2 sm:gap-5`}>
+        <Link href="/" className="flex items-center gap-2.5 shrink-0" aria-label="경매코치 홈">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+            <Gavel className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-bold text-foreground text-[1rem] tracking-tight whitespace-nowrap">
+            코치경매
+          </span>
         </Link>
 
         {nav && (
