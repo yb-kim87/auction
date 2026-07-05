@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Heart, Calendar } from "lucide-react";
+import { LogOut, Heart, Calendar, SlidersHorizontal, X } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import {
@@ -15,10 +15,19 @@ import {
   logoutUser,
   logUserAction,
   logUserActionsBatch,
+  updateMyProfile,
 } from "@/lib/api";
 import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
+import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
+import { SelectField, TextAreaField, CheckboxField } from "@/components/InvestmentFormFields";
+import {
+  EXISTING_LOAN_OPTIONS,
+  HOUSING_COUNT_OPTIONS,
+  INVESTABLE_FUNDS_OPTIONS,
+  TARGET_RETURN_OPTIONS,
+} from "@/data/investment-options";
 import { formatWonShort } from "@/lib/investment-money";
 import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
@@ -34,6 +43,152 @@ const fmtEok = (n: number) => {
 function formatAreaLabel(area: string | null | undefined): string {
   const num = Number.parseFloat(String(area ?? "").match(/[\d.]+/)?.[0] ?? "");
   return Number.isFinite(num) && num > 0 ? `${Math.round(num)}㎡` : "-";
+}
+
+function InvestmentInfoModal({
+  profile,
+  onClose,
+  onSaved,
+}: {
+  profile: UserProfile;
+  onClose: () => void;
+  onSaved: (updated: UserProfile) => void;
+}) {
+  const [investableFunds, setInvestableFunds] = useState(profile.investableFunds ?? "");
+  const [existingLoanAmount, setExistingLoanAmount] = useState(profile.existingLoanAmount ?? "");
+  const [housingCount, setHousingCount] = useState(String(profile.housingCount ?? 0));
+  const [targetReturn, setTargetReturn] = useState(profile.targetReturn ?? "");
+  const [investmentGoal, setInvestmentGoal] = useState(profile.investmentGoal ?? "");
+  const [firstTimeBuyer, setFirstTimeBuyer] = useState(profile.firstTimeBuyer ?? false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    const trimmedInvestableFunds = investableFunds.trim();
+    const trimmedExistingLoanAmount = existingLoanAmount.trim();
+    const trimmedTargetReturn = targetReturn.trim();
+    const trimmedInvestmentGoal = investmentGoal.trim();
+    const parsedHousingCount = Number.parseInt(housingCount, 10);
+
+    if (!trimmedInvestableFunds || !trimmedExistingLoanAmount || !trimmedTargetReturn || !trimmedInvestmentGoal) {
+      setError("투자정보 항목을 모두 입력해 주세요.");
+      return;
+    }
+    if (Number.isNaN(parsedHousingCount) || parsedHousingCount < 0) {
+      setError("주택수는 0 이상의 숫자로 입력해 주세요.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updateMyProfile({
+        investableFunds: trimmedInvestableFunds,
+        existingLoanAmount: trimmedExistingLoanAmount,
+        housingCount: parsedHousingCount,
+        targetReturn: trimmedTargetReturn,
+        investmentGoal: trimmedInvestmentGoal,
+        firstTimeBuyer,
+      });
+      onSaved(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
+      <div
+        className="relative w-full max-w-lg sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl p-5 sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-base font-bold text-foreground">투자정보 수정</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-sm hover:bg-secondary">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-[13px] text-muted-foreground mb-5">
+          여기서 수정한 내용이 추천 물건 리스트에 바로 반영됩니다.
+        </p>
+
+        {error && (
+          <p className="mb-4 text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded-sm px-3 py-2">
+            {error}
+          </p>
+        )}
+
+        <InvestmentInfoSection className="rounded-sm">
+          <SelectField
+            label="투자가능자금"
+            placeholder="투자가능자금 선택"
+            value={investableFunds}
+            onChange={setInvestableFunds}
+            options={INVESTABLE_FUNDS_OPTIONS}
+          />
+          <SelectField
+            label="기존대출금액"
+            placeholder="기존대출금액 선택"
+            value={existingLoanAmount}
+            onChange={setExistingLoanAmount}
+            options={EXISTING_LOAN_OPTIONS}
+          />
+          <div className="flex items-end gap-4">
+            <div className="flex-1">
+              <SelectField
+                label="주택수"
+                placeholder="보유 주택수 선택"
+                value={housingCount}
+                onChange={setHousingCount}
+                options={HOUSING_COUNT_OPTIONS}
+              />
+            </div>
+            <div className="h-11 flex items-center">
+              <CheckboxField
+                label="생애최초 주택구입"
+                checked={firstTimeBuyer}
+                onChange={setFirstTimeBuyer}
+              />
+            </div>
+          </div>
+          <SelectField
+            label="목표 수익"
+            placeholder="목표 금액 선택"
+            value={targetReturn}
+            onChange={setTargetReturn}
+            options={TARGET_RETURN_OPTIONS}
+          />
+          <TextAreaField
+            label="투자목표"
+            placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
+            value={investmentGoal}
+            onChange={setInvestmentGoal}
+          />
+        </InvestmentInfoSection>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors disabled:opacity-50"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="px-5 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            {saving ? "저장 중..." : "저장하고 추천 새로고침"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function RecommendCard({
@@ -150,6 +305,7 @@ export default function HomePage() {
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [loanRatio, setLoanRatio] = useState<number | null>(null);
   const [loanPolicyLabel, setLoanPolicyLabel] = useState<string | null>(null);
+  const [showInvestmentModal, setShowInvestmentModal] = useState(false);
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -253,7 +409,17 @@ export default function HomePage() {
       />
 
       <main className="max-w-[1400px] mx-auto px-4 py-8 space-y-4">
-        <h1 className="text-[19px] font-semibold text-foreground">오늘의 추천</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-[19px] font-semibold text-foreground">오늘의 추천</h1>
+          <button
+            type="button"
+            onClick={() => setShowInvestmentModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-foreground border border-border rounded-sm hover:bg-secondary/60 transition-colors"
+          >
+            <SlidersHorizontal size={14} />
+            투자정보 수정
+          </button>
+        </div>
 
         {loading ? (
           <div className="text-center py-16 text-muted-foreground text-sm">추천 물건을 불러오는 중...</div>
@@ -303,6 +469,18 @@ export default function HomePage() {
           logUserAction({ itemId: row.id, actionType: "ai_analysis_click", metadata: { recommended: true } })
         }
       />
+
+      {showInvestmentModal && profile && (
+        <InvestmentInfoModal
+          profile={profile}
+          onClose={() => setShowInvestmentModal(false)}
+          onSaved={(updated) => {
+            setProfile(updated);
+            setShowInvestmentModal(false);
+            loadRecommendations();
+          }}
+        />
+      )}
     </div>
   );
 }
