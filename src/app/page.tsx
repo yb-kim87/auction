@@ -223,25 +223,25 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
       <AppHeader
-        maxWidth="960"
+        maxWidth="1400"
         nav={
           <>
             <div className={HEADER_ACCENT_BAR} />
             <span className={HEADER_TITLE}>추천 물건</span>
-            <div className={HEADER_NAV_TRAILING}>
-              <Link href="/search" className={HEADER_BTN}>
-                전체 검색
+            <Link href="/search" className={HEADER_BTN}>
+              전체 검색
+            </Link>
+            {isConsultant && (
+              <Link href="/consultant" className={HEADER_BTN}>
+                컨설턴트
               </Link>
-              {isConsultant && (
-                <Link href="/consultant" className={HEADER_BTN}>
-                  컨설턴트
-                </Link>
-              )}
-              {isAdmin && (
-                <Link href="/admin" className={HEADER_BTN}>
-                  관리자
-                </Link>
-              )}
+            )}
+            {isAdmin && (
+              <Link href="/admin" className={HEADER_BTN}>
+                관리자
+              </Link>
+            )}
+            <div className={HEADER_NAV_TRAILING}>
               <AccountNavLink />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={16} />

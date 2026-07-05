@@ -11,12 +11,13 @@ export const HEADER_BTN =
 export const HEADER_NAV_TRAILING = "ml-auto flex items-center gap-3 shrink-0";
 
 type AppHeaderProps = {
-  maxWidth?: "960" | "1600";
+  maxWidth?: "960" | "1400" | "1600";
   nav?: ReactNode;
 };
 
 export function AppHeader({ maxWidth = "1600", nav }: AppHeaderProps) {
-  const maxW = maxWidth === "960" ? "max-w-[960px]" : "max-w-[1600px]";
+  const maxW =
+    maxWidth === "960" ? "max-w-[960px]" : maxWidth === "1400" ? "max-w-[1400px]" : "max-w-[1600px]";
 
   return (
     <header className="bg-white border-b border-primary sticky top-0 z-50">
