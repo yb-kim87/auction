@@ -159,7 +159,8 @@ function HeaderSpecialNote({
   onDeactivate: () => void;
   onChange: (value: string) => void;
 }) {
-  const text = String(value ?? "").trim();
+  const rawText = String(value ?? "").trim();
+  const text = rawText === "없음" ? "" : rawText;
   if (!editable && !text) return null;
 
   if (active) {
@@ -1020,8 +1021,46 @@ export function AuctionDetailModal({
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
-        <div className="sticky top-0 z-10 bg-primary text-primary-foreground px-4 sm:px-5 py-4 rounded-none sm:rounded-t-sm">
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
+        <div className="sticky top-0 z-10 bg-primary text-primary-foreground px-4 sm:px-5 py-3 sm:py-4 rounded-none sm:rounded-t-sm">
+          <div className="flex sm:hidden items-center justify-between gap-2">
+            <p className="flex items-center gap-2 min-w-0 flex-1">
+              <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm shrink-0`}>
+                {preview.propType}
+              </span>
+              <span className={`font-mono font-bold ${SECTION_TEXT} truncate`}>
+                {(editable ? form.auctionNo : preview.auctionNo) || "경매번호 없음"}
+              </span>
+              {preview.isUpdated && <UpdatedBadge variant="onDark" />}
+            </p>
+            <div className="flex items-center gap-1 shrink-0">
+              {onToggleFavorite && (
+                <button
+                  type="button"
+                  onClick={handleToggleFavorite}
+                  disabled={favoriteDisabled}
+                  aria-label={isFavorite ? "관심물건 해제" : "관심물건 추가"}
+                  className={`p-1.5 rounded-sm transition-colors disabled:opacity-50 ${
+                    isFavorite ? "bg-rose-500/25 hover:bg-rose-500/35" : "hover:bg-white/15"
+                  }`}
+                >
+                  <Heart size={16} className={isFavorite ? "fill-current text-rose-200" : ""} />
+                </button>
+              )}
+              {preview.link && (
+                <a
+                  href={preview.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="경매지정보"
+                  className="p-1.5 rounded-sm hover:bg-white/15 transition-colors"
+                >
+                  <ExternalLink size={16} />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="hidden sm:flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm`}>
@@ -1284,6 +1323,68 @@ export function AuctionDetailModal({
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="sm:hidden px-4 pt-3 pb-1 bg-primary/5 border-b border-border space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {String((editable ? form.specialNote : preview.specialNote) ?? "").trim() !== "없음" &&
+              String((editable ? form.specialNote : preview.specialNote) ?? "").trim() && (
+                <span className="text-[13px] font-semibold text-red-600 truncate max-w-[16rem]">
+                  {String((editable ? form.specialNote : preview.specialNote) ?? "").trim()}
+                </span>
+              )}
+          </div>
+          <p className="text-[13px] text-foreground/80 leading-relaxed flex items-start gap-1.5">
+            <MapPin size={14} className="shrink-0 mt-0.5 opacity-70" />
+            <span>{(editable ? form.address : preview.address) || "-"}</span>
+          </p>
+          <div className="flex flex-col gap-y-1 text-[12px] text-muted-foreground">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
+              <span className="inline-flex items-center gap-1">
+                <Building2 size={12} />
+                {preview.city} {preview.district}
+              </span>
+              <span><AreaLabel area={preview.area} /></span>
+              <span>{preview.builtYear ? `${preview.builtYear}년` : "-"}</span>
+              <span>{formatOfficialLandPriceLabel(preview.officialLandPrice)}</span>
+            </div>
+            <span className="inline-flex items-center gap-1">
+              <Calendar size={12} />
+              입찰 {preview.bidDate || "-"}
+            </span>
+          </div>
+          {(onDislike || onReviewed || onViewHistory) && (
+            <div className="flex items-center flex-wrap gap-2 pt-1">
+              {onDislike && (
+                <button
+                  type="button"
+                  onClick={() => onDislike(item)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
+                >
+                  관심없음
+                </button>
+              )}
+              {onReviewed && (
+                <button
+                  type="button"
+                  onClick={() => onReviewed(item)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
+                >
+                  검토완료
+                </button>
+              )}
+              {onViewHistory && (
+                <button
+                  type="button"
+                  onClick={() => onViewHistory(item)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
+                >
+                  <History size={14} />
+                  변경 이력
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="px-5 pt-3 border-b border-border flex items-center gap-1">
@@ -1627,42 +1728,44 @@ export function AuctionDetailModal({
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-border bg-secondary/20 flex items-center justify-between gap-2">
-          {editable ? (
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              disabled={saving || deleting}
-              className={`flex items-center gap-1.5 px-4 py-2 ${LIST_TEXT} font-medium text-destructive border border-destructive/30 rounded-sm hover:bg-destructive/5 transition-colors disabled:opacity-50`}
-            >
-              <Trash2 size={16} />
-              {deleting ? "삭제 중..." : "삭제"}
-            </button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            {editable && (
+        {activeTab === "info" && (
+          <div className="px-5 py-3 border-t border-border bg-secondary/20 flex items-center justify-between gap-2">
+            {editable ? (
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={() => void handleDelete()}
                 disabled={saving || deleting}
-                className={`flex items-center gap-1.5 px-5 py-2 ${LIST_TEXT} font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors disabled:opacity-50`}
+                className={`flex items-center gap-1.5 px-4 py-2 ${LIST_TEXT} font-medium text-destructive border border-destructive/30 rounded-sm hover:bg-destructive/5 transition-colors disabled:opacity-50`}
               >
-                <Save size={16} />
-                {saving ? "저장 중..." : "저장"}
+                <Trash2 size={16} />
+                {deleting ? "삭제 중..." : "삭제"}
               </button>
+            ) : (
+              <span />
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={deleting}
-              className={`px-5 py-2 ${LIST_TEXT} font-medium border border-border rounded-sm hover:bg-secondary transition-colors disabled:opacity-50`}
-            >
-              닫기
-            </button>
+            <div className="flex gap-2">
+              {editable && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || deleting}
+                  className={`flex items-center gap-1.5 px-5 py-2 ${LIST_TEXT} font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors disabled:opacity-50`}
+                >
+                  <Save size={16} />
+                  {saving ? "저장 중..." : "저장"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={deleting}
+                className={`px-5 py-2 ${LIST_TEXT} font-medium border border-border rounded-sm hover:bg-secondary transition-colors disabled:opacity-50`}
+              >
+                닫기
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

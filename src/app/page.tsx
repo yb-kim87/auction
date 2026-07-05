@@ -33,6 +33,14 @@ import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
 import { CITIES } from "@/data/korea-regions";
 import { PROPERTY_TYPE_OPTIONS, matchesPropertyType } from "@/data/property-type-options";
+import {
+  parseBidDate,
+  matchesProgressStatus,
+  progressLabelToStatus,
+  isBidDateEnded,
+  PROGRESS_STATUS_LABELS,
+  PROGRESS_STATUS_OPTIONS,
+} from "@/lib/progress-status-filter";
 
 const fmtEok = (n: number) => {
   if (!n) return "-";
@@ -71,6 +79,7 @@ type RecommendFilters = {
   propType: string;
   maxFailureRate: string;
   favoritesOnly: boolean;
+  progressStatus: string;
 };
 
 const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
@@ -78,6 +87,7 @@ const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
   propType: "",
   maxFailureRate: "",
   favoritesOnly: false,
+  progressStatus: PROGRESS_STATUS_LABELS.active,
 };
 
 function matchesRecommendFilters(
@@ -92,6 +102,7 @@ function matchesRecommendFilters(
     if (rate == null || rate > Number(filters.maxFailureRate)) return false;
   }
   if (filters.favoritesOnly && !favoriteIds.has(item.id)) return false;
+  if (!matchesProgressStatus(item.bidDate, progressLabelToStatus(filters.progressStatus))) return false;
   return true;
 }
 
@@ -110,6 +121,7 @@ function RecommendFilterModal({
   const [propType, setPropType] = useState(filters.propType);
   const [maxFailureRate, setMaxFailureRate] = useState(filters.maxFailureRate);
   const [favoritesOnly, setFavoritesOnly] = useState(filters.favoritesOnly);
+  const [progressStatus, setProgressStatus] = useState(filters.progressStatus);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
@@ -172,6 +184,19 @@ function RecommendFilterModal({
             </select>
           </label>
 
+          <label className="block text-sm space-y-1.5">
+            <span className="text-muted-foreground text-[13px]">진행상태</span>
+            <select
+              value={progressStatus}
+              onChange={(e) => setProgressStatus(e.target.value)}
+              className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              {PROGRESS_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"
@@ -192,6 +217,7 @@ function RecommendFilterModal({
               setPropType("");
               setMaxFailureRate("");
               setFavoritesOnly(false);
+              setProgressStatus(PROGRESS_STATUS_LABELS.active);
             }}
             className="px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
           >
@@ -199,7 +225,7 @@ function RecommendFilterModal({
           </button>
           <button
             type="button"
-            onClick={() => onApply({ city, propType, maxFailureRate, favoritesOnly })}
+            onClick={() => onApply({ city, propType, maxFailureRate, favoritesOnly, progressStatus })}
             className="px-5 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
           >
             필터 적용
@@ -435,7 +461,7 @@ function RecommendCard({
           <p className="font-semibold text-foreground text-[0.88rem] truncate">{item.address}</p>
           <p className="mt-1 text-[0.7rem] text-muted-foreground flex items-center gap-3 flex-wrap">
             <span>{formatAreaLabel(item.area)}</span>
-            <span className="inline-flex items-center gap-1">
+            <span className={`inline-flex items-center gap-1 ${isBidDateEnded(item.bidDate ?? "") ? "text-red-600 font-medium" : ""}`}>
               <Calendar size={11} />
               {item.bidDate || "-"}
             </span>
@@ -566,7 +592,10 @@ function RecommendListRow({
           </div>
           <p className="font-semibold text-sm text-foreground truncate">{item.address}</p>
           <p className="text-[0.72rem] text-muted-foreground truncate">
-            {formatAreaLabel(item.area)} · {item.bidDate || "-"}
+            {formatAreaLabel(item.area)} ·{" "}
+            <span className={isBidDateEnded(item.bidDate ?? "") ? "text-red-600 font-medium" : ""}>
+              {item.bidDate || "-"}
+            </span>
           </p>
         </div>
 
@@ -631,7 +660,7 @@ function RecommendListRow({
   );
 }
 
-const SORT_OPTIONS = ["최신순", "실투자금낮은순", "낙찰가율순", "최저가낮은순", "감정가높은순"] as const;
+const SORT_OPTIONS = ["최신순", "실투자금낮은순", "입찰기일순", "최저가낮은순", "감정가높은순"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
 
 function sortRecommendItems(
@@ -641,15 +670,17 @@ function sortRecommendItems(
 ): AuctionItem[] {
   const withEquity = (item: AuctionItem) =>
     loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : item.minPrice;
-  const bidRate = (item: AuctionItem) =>
-    getFailureRateRatio(item.minPrice, item.appraisedValue) ?? 0;
+  const bidTime = (item: AuctionItem) => {
+    const parsed = parseBidDate(item.bidDate ?? "");
+    return parsed ? parsed.getTime() : Infinity;
+  };
 
   const sorted = [...items];
   switch (sortBy) {
     case "실투자금낮은순":
       return sorted.sort((a, b) => withEquity(a) - withEquity(b));
-    case "낙찰가율순":
-      return sorted.sort((a, b) => bidRate(a) - bidRate(b));
+    case "입찰기일순":
+      return sorted.sort((a, b) => bidTime(a) - bidTime(b));
     case "최저가낮은순":
       return sorted.sort((a, b) => a.minPrice - b.minPrice);
     case "감정가높은순":
@@ -765,7 +796,8 @@ export default function HomePage() {
     (filters.city ? 1 : 0) +
     (filters.propType ? 1 : 0) +
     (filters.maxFailureRate ? 1 : 0) +
-    (filters.favoritesOnly ? 1 : 0);
+    (filters.favoritesOnly ? 1 : 0) +
+    (filters.progressStatus !== PROGRESS_STATUS_LABELS.active ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
