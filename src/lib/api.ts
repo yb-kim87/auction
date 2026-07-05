@@ -694,6 +694,69 @@ export async function updateAiManualTags(
   return readJsonResponse(res);
 }
 
+export async function fetchRecommendations(budget?: string): Promise<{
+  items: AuctionItem[];
+  hasCriteria: boolean;
+}> {
+  const qs = budget ? `?budget=${encodeURIComponent(budget)}` : "";
+  const res = await fetch(`${API_BASE}/recommendations${qs}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "추천 물건을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function askAi(input: {
+  question: string;
+  auctionId?: string;
+}): Promise<{ answer: string; matchedCount?: number; criteriaApplied?: boolean }> {
+  const res = await fetch(`${API_BASE}/ai/ask`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "질문 처리에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export type AuctionCompareRow = {
+  id: string;
+  auctionNo: string;
+  address: string;
+  usage: string;
+  area: string;
+  appraisedValue: number;
+  minPrice: number;
+  naverPrice: number;
+  naverPriceFloorLabel: string | null;
+  bidDate: string;
+};
+
+export async function compareAuctions(
+  auctionIdA: string,
+  auctionIdB: string,
+): Promise<{
+  table: { a: AuctionCompareRow; b: AuctionCompareRow };
+  ai: { summary: string; betterChoice: string; reasons: string[] } | null;
+}> {
+  const res = await fetch(`${API_BASE}/ai/compare`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ auctionIdA, auctionIdB }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "비교에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export type CrawlerPhase =
   | "idle"
   | "starting"

@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/") {
+  if (pathname === "/" || pathname === "/search") {
     if (!loggedIn) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -72,5 +72,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/pending", "/account", "/admin/:path*", "/consultant/:path*"],
+  matcher: ["/", "/search", "/login", "/pending", "/account", "/admin/:path*", "/consultant/:path*"],
 };
+

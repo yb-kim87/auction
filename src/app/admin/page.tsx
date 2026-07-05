@@ -446,7 +446,7 @@ export default function AdminPage() {
             <div className={HEADER_ACCENT_BAR} />
             <span className={HEADER_TITLE}>관리자</span>
             <div className={HEADER_NAV_TRAILING}>
-              <Link href="/" className={HEADER_BTN}>
+              <Link href="/search" className={HEADER_BTN}>
                 <ChevronDown size={13} className="rotate-90" />
                 검색 페이지
               </Link>

@@ -144,7 +144,7 @@ export default function ConsultantPage() {
             <span className={HEADER_TITLE}>컨설턴트 · 물건 등록</span>
             <div className={HEADER_NAV_TRAILING}>
               <span className={`${HEADER_MUTED} hidden sm:inline`}>{username}</span>
-              <Link href="/" className={HEADER_BTN}>
+              <Link href="/search" className={HEADER_BTN}>
                 <ChevronDown size={13} className="rotate-90" />
                 검색 페이지
               </Link>
