@@ -21,7 +21,7 @@ import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { formatWonShort } from "@/lib/investment-money";
 import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
-import { getFailureRateRatio } from "@/lib/failure-rate";
+import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
 
 const fmtEok = (n: number) => {
   if (!n) return "-";
@@ -55,7 +55,7 @@ function RecommendCard({
 }) {
   const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
-  const failureCount = failureRate != null ? Math.max(0, Math.round((100 - failureRate) / 20)) : null;
+  const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
 
   return (

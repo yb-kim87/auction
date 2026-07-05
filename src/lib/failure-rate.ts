@@ -6,6 +6,22 @@ export function getFailureRateRatio(minPrice: number, appraisedValue: number): n
   return Math.round((minPrice / appraisedValue) * 100);
 }
 
+/** 지역별 체감률(서울 80%, 경기·지방 70%) 기준으로 실제 유찰 횟수를 역산한다. */
+export function getFailureRoundCount(
+  minPrice: number,
+  appraisedValue: number,
+  city: string,
+): number | null {
+  const ratio = getFailureRateRatio(minPrice, appraisedValue);
+  if (ratio === null) return null;
+  if (ratio >= 100) return 0;
+
+  const region = getFailureRateRegionFromCity(city);
+  const base = region === "seoul" ? 0.8 : 0.7;
+  const round = Math.round(Math.log(ratio / 100) / Math.log(base));
+  return Math.max(round, 1);
+}
+
 export function matchesFailureRateFilter(
   minPrice: number,
   appraisedValue: number,
