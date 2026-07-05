@@ -1048,7 +1048,7 @@ export default function Home() {
                   관리자
                 </Link>
               )}
-              <AccountNavLink />
+              <AccountNavLink name={profile?.name} />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={16} />
                 로그아웃

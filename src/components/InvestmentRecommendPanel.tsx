@@ -202,10 +202,10 @@ export function InvestmentRecommendPanel({
                   label="주택수"
                   placeholder="보유 주택수 선택"
                   value={String(draft.housingCount)}
-                  onChange={(v) => patchDraft({ housingCount: v })}
+                  onChange={(v) => patchDraft(v !== "0" ? { housingCount: v, firstTimeBuyer: false } : { housingCount: v })}
                   options={HOUSING_COUNT_OPTIONS}
                 />
-                <div>
+                <div className={String(draft.housingCount) !== "0" ? "opacity-40 pointer-events-none" : ""}>
                   <CheckboxField
                     label="생애최초 주택구입"
                     checked={draft.firstTimeBuyer}

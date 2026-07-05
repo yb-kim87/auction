@@ -392,11 +392,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               label="주택수"
               placeholder="보유 주택수 선택"
               value={housingCount}
-              onChange={setHousingCount}
+              onChange={(v) => {
+                setHousingCount(v);
+                if (v !== "0") setFirstTimeBuyer(false);
+              }}
               options={HOUSING_COUNT_OPTIONS}
             />
           </div>
-          <div className="h-11 flex items-center">
+          <div className={`h-11 flex items-center ${housingCount !== "0" ? "opacity-40 pointer-events-none" : ""}`}>
             <CheckboxField
               label="생애최초 주택구입"
               checked={firstTimeBuyer}

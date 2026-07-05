@@ -42,15 +42,28 @@ const fmtEok = (n: number) => {
   return abs.toLocaleString("ko-KR");
 };
 
-function shortLoanPolicyLabel(label: string): string {
-  const match = label.match(/\(([^)]+)\)/);
-  const inner = match?.[1] ?? label;
-  return inner.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
+const HIDDEN_SPECIAL_NOTE_PATTERNS = [/공시가/, /임차권\s*등기/];
+
+function displaySpecialNote(specialNote: string | null | undefined): string {
+  if (!specialNote || specialNote === "없음") return "";
+  const visible = specialNote
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part && !HIDDEN_SPECIAL_NOTE_PATTERNS.some((re) => re.test(part)));
+  return visible.join("/");
 }
 
 function formatAreaLabel(area: string | null | undefined): string {
   const num = Number.parseFloat(String(area ?? "").match(/[\d.]+/)?.[0] ?? "");
-  return Number.isFinite(num) && num > 0 ? `${Math.round(num)}㎡` : "-";
+  if (!Number.isFinite(num) || num <= 0) return "-";
+  const pyeong = Math.round(num / 3.3);
+  return `건물 전용${pyeong}평(${num}㎡)`;
+}
+
+function shortLoanPolicyLabel(label: string): string {
+  const match = label.match(/\(([^)]+)\)/);
+  const inner = match?.[1] ?? label;
+  return inner.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
 }
 
 type RecommendFilters = {
@@ -293,11 +306,14 @@ function InvestmentInfoModal({
                 label="주택수"
                 placeholder="보유 주택수 선택"
                 value={housingCount}
-                onChange={setHousingCount}
+                onChange={(v) => {
+                  setHousingCount(v);
+                  if (v !== "0") setFirstTimeBuyer(false);
+                }}
                 options={HOUSING_COUNT_OPTIONS}
               />
             </div>
-            <div className="h-11 flex items-center">
+            <div className={`h-11 flex items-center ${housingCount !== "0" ? "opacity-40 pointer-events-none" : ""}`}>
               <CheckboxField
                 label="생애최초 주택구입"
                 checked={firstTimeBuyer}
@@ -365,24 +381,37 @@ function RecommendCard({
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
 
+  const isApartment = item.usage === "아파트";
+
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden hover:border-primary/40 transition-colors">
+    <div
+      className="bg-card border border-border overflow-hidden group hover:shadow-lg hover:shadow-[rgba(30,58,95,0.09)] hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+      style={{ borderRadius: "1rem" }}
+    >
       <button type="button" onClick={onOpen} className="w-full text-left">
-        <div className="px-4 pt-3.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="shrink-0 text-[11px] font-medium text-muted-foreground bg-secondary/60 rounded-sm px-1.5 py-0.5">
+        <div className="relative h-32 overflow-hidden bg-secondary">
+          <img
+            src={
+              isApartment
+                ? "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=480&h=200&fit=crop&auto=format"
+                : "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=480&h=200&fit=crop&auto=format"
+            }
+            alt={item.usage || "물건"}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/5 to-transparent" />
+
+          <div className="absolute top-2.5 left-2.5 right-11 flex items-center gap-1.5 min-w-0">
+            <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[0.65rem] font-semibold border border-transparent bg-white/90 text-[#2A5298] backdrop-blur-sm">
               {item.usage || "물건"}
             </span>
-            {isNew ? (
-              <span className="shrink-0 text-[11px] font-semibold text-primary bg-primary/10 rounded-sm px-1.5 py-0.5">
-                신건
+            {displaySpecialNote(item.specialNote) && (
+              <span className="min-w-0 px-1.5 py-0.5 rounded-md text-[0.65rem] font-medium border bg-red-50/95 text-red-600 border-red-100 truncate backdrop-blur-sm">
+                {displaySpecialNote(item.specialNote)}
               </span>
-            ) : failureRate != null ? (
-              <span className="shrink-0 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-1.5 py-0.5">
-                유찰 {failureCount}회 · {failureRate}%
-              </span>
-            ) : null}
+            )}
           </div>
+
           <button
             type="button"
             onClick={(e) => {
@@ -391,24 +420,20 @@ function RecommendCard({
             }}
             disabled={favoriteBusy}
             aria-label={isFavorite ? "관심물건 해제" : "관심물건 추가"}
-            className="shrink-0 p-1 rounded-full hover:bg-secondary/60 disabled:opacity-50"
+            className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition-colors shadow-sm disabled:opacity-50"
           >
-            <Heart size={16} className={isFavorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"} />
+            <Heart size={14} className={isFavorite ? "fill-rose-500 text-rose-500" : "text-gray-400"} />
           </button>
+
         </div>
 
-        <div className="px-4 mt-1 flex items-center justify-between gap-2">
-          <p className="text-[12px] text-muted-foreground font-mono">{item.auctionNo}</p>
-          {item.specialNote && item.specialNote !== "없음" && (
-            <p className="shrink-0 text-[11px] font-medium text-red-600 bg-red-50 border border-red-200 rounded-sm px-1.5 py-0.5 truncate max-w-[55%]">
-              {item.specialNote}
-            </p>
-          )}
+        <div className="px-4 pt-3">
+          <p className="text-[0.85rem] text-muted-foreground">{item.auctionNo}</p>
         </div>
 
         <div className="px-4 mt-2">
-          <p className="font-semibold text-foreground text-[15px] truncate">{item.address}</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground flex items-center gap-3 flex-wrap">
+          <p className="font-semibold text-foreground text-[0.88rem] truncate">{item.address}</p>
+          <p className="mt-1 text-[0.7rem] text-muted-foreground flex items-center gap-3 flex-wrap">
             <span>{formatAreaLabel(item.area)}</span>
             <span className="inline-flex items-center gap-1">
               <Calendar size={11} />
@@ -418,27 +443,58 @@ function RecommendCard({
         </div>
 
         {requiredEquity != null && (
-          <div className="mx-4 mt-3 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
-            <p className="text-[11px] text-muted-foreground">최소 투자금</p>
-            <p className="mt-0.5 text-[19px] font-bold text-primary font-mono">
+          <div
+            className="mx-4 mt-3 px-3.5 py-3"
+            style={{
+              background: "linear-gradient(135deg, #EEF4FF 0%, #F0F5FF 100%)",
+              border: "1px solid rgba(42,82,152,0.15)",
+              borderRadius: "0.75rem",
+            }}
+          >
+            <p className="text-[0.7rem] font-semibold text-primary/70 tracking-wide uppercase">최소 투자금</p>
+            <p
+              className="text-[1.2rem] font-bold text-primary tracking-tight mt-0.5"
+              style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}
+            >
               {formatWonShort(requiredEquity)}
             </p>
-            <p className="mt-1 text-[11.5px] text-muted-foreground leading-relaxed">
-              최저입찰가 {fmtEok(item.minPrice)}
-              {loanRatio != null && <> ~ 예상대출 {fmtEok(Math.round(item.minPrice * loanRatio))}</>}
-              {loanPolicyLabel && <> ({loanPolicyLabel} {Math.round(loanRatio! * 100)}%)</>}
-            </p>
+            {loanPolicyLabel && loanRatio != null && (
+              <p className="text-[0.67rem] text-primary/50 mt-0.5">
+                {shortLoanPolicyLabel(loanPolicyLabel)} 대출{Math.round(loanRatio * 100)}%
+              </p>
+            )}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-px mt-3 bg-border">
-          <div className="bg-card px-4 py-2.5">
-            <p className="text-[11px] text-muted-foreground">최저입찰가</p>
-            <p className="mt-0.5 text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.minPrice)}</p>
+        <div className="grid grid-cols-2 gap-x-2 gap-y-2.5 px-4 mt-3 pb-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[0.67rem] text-muted-foreground flex items-center gap-1.5">
+              최저입찰가
+              {isNew ? (
+                <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[0.62rem] font-medium border bg-blue-50 text-blue-700 border-blue-100">
+                  신건
+                </span>
+              ) : failureRate != null ? (
+                <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[0.62rem] font-medium border bg-amber-50 text-amber-700 border-amber-100">
+                  유찰 {failureCount}회 · {failureRate}%
+                </span>
+              ) : null}
+            </span>
+            <span
+              className="text-[0.83rem] font-semibold text-foreground"
+              style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}
+            >
+              {fmtEok(item.minPrice)}
+            </span>
           </div>
-          <div className="bg-card px-4 py-2.5">
-            <p className="text-[11px] text-muted-foreground">감정가</p>
-            <p className="mt-0.5 text-[15px] font-semibold font-mono text-foreground">{fmtEok(item.appraisedValue)}</p>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[0.67rem] text-muted-foreground">감정가</span>
+            <span
+              className="text-[0.83rem] font-semibold text-foreground/75"
+              style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}
+            >
+              {fmtEok(item.appraisedValue)}
+            </span>
           </div>
         </div>
       </button>
@@ -468,76 +524,110 @@ function RecommendListRow({
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
 
+  const isApartment = item.usage === "아파트";
+
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full text-left bg-card border border-border rounded-xl px-4 sm:px-5 py-3 flex items-center gap-4 hover:border-primary/40 transition-colors"
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-          <span className="text-[11px] font-medium text-muted-foreground bg-secondary/60 rounded-sm px-1.5 py-0.5">
-            {item.usage || "물건"}
-          </span>
-          {isNew ? (
-            <span className="text-[11px] font-semibold text-primary bg-primary/10 rounded-sm px-1.5 py-0.5">신건</span>
-          ) : failureRate != null ? (
-            <span className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-1.5 py-0.5">
-              유찰 {failureCount}회 · {failureRate}%
-            </span>
-          ) : null}
-          {item.specialNote && item.specialNote !== "없음" && (
-            <span className="text-[11px] font-medium text-red-600 bg-red-50 border border-red-200 rounded-sm px-1.5 py-0.5">
-              {item.specialNote}
-            </span>
-          )}
-        </div>
-        <p className="font-semibold text-[14px] text-foreground truncate">{item.address}</p>
-        <p className="text-[12px] text-muted-foreground truncate flex items-center gap-2">
-          <span className="font-mono">{item.auctionNo}</span>
-          <span className="inline-flex items-center gap-1">
-            <Calendar size={10} />
-            {item.bidDate || "-"}
-          </span>
-          <span>{formatAreaLabel(item.area)}</span>
-        </p>
-      </div>
+    <div className="bg-card border border-border rounded-xl px-5 py-3.5 flex items-center gap-4 hover:shadow-md hover:shadow-[rgba(30,58,95,0.06)] hover:-translate-y-px transition-all duration-150 cursor-pointer group">
+      <button type="button" onClick={onOpen} className="flex-1 min-w-0 text-left">
+        <p className="text-[0.7rem] text-muted-foreground mb-1.5">{item.auctionNo}</p>
 
-      {requiredEquity != null && (
-        <div className="hidden sm:block shrink-0 w-40 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-right">
-          <p className="text-[10.5px] text-muted-foreground">최소 투자금</p>
-          <p className="font-bold text-primary text-[14px] font-mono">{formatWonShort(requiredEquity)}</p>
-          {loanPolicyLabel && (
-            <p className="text-[10px] text-muted-foreground truncate">
-              {shortLoanPolicyLabel(loanPolicyLabel)} 대출{Math.round(loanRatio! * 100)}%
+        <div className="flex items-center gap-4">
+        <div className="w-20 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-secondary">
+          <img
+            src={
+              isApartment
+                ? "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=480&h=200&fit=crop&auto=format"
+                : "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=480&h=200&fit=crop&auto=format"
+            }
+            alt={item.usage || "물건"}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-semibold border bg-[#EEF4FF] text-[#2A5298] border-transparent">
+              {item.usage || "물건"}
+            </span>
+            {isNew ? (
+              <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-medium border bg-blue-50 text-blue-700 border-blue-100">
+                신건
+              </span>
+            ) : failureRate != null ? (
+              <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-medium border bg-amber-50 text-amber-700 border-amber-100">
+                유찰 {failureCount}회<span className="hidden sm:inline"> · {failureRate}%</span>
+              </span>
+            ) : null}
+            {displaySpecialNote(item.specialNote) && (
+              <span className="min-w-0 px-1.5 py-px rounded text-[0.62rem] font-medium border bg-red-50 text-red-600 border-red-100 truncate">
+                {displaySpecialNote(item.specialNote)}
+              </span>
+            )}
+          </div>
+          <p className="font-semibold text-sm text-foreground truncate">{item.address}</p>
+          <p className="text-[0.72rem] text-muted-foreground truncate">
+            {formatAreaLabel(item.area)} · {item.bidDate || "-"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-5">
+          {requiredEquity != null && (
+            <div
+              className="flex-shrink-0 w-36 hidden sm:block px-3 py-2 text-right"
+              style={{
+                background: "linear-gradient(135deg,#EEF4FF,#F0F5FF)",
+                border: "1px solid rgba(42,82,152,0.12)",
+                borderRadius: "0.75rem",
+              }}
+            >
+              <p className="text-[0.62rem] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">최소 투자금</p>
+              <p className="font-bold text-primary text-sm" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+                {formatWonShort(requiredEquity)}
+              </p>
+            </div>
+          )}
+
+          {loanPolicyLabel && loanRatio != null && (
+            <div className="text-right flex-shrink-0 hidden lg:block">
+              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{shortLoanPolicyLabel(loanPolicyLabel)} 대출</p>
+              <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+                {Math.round(loanRatio * 100)}%
+              </p>
+            </div>
+          )}
+
+          <div className="text-right flex-shrink-0 hidden md:block">
+            <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">최저입찰가</p>
+            <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+              {fmtEok(item.minPrice)}
             </p>
-          )}
+          </div>
+
+          <div className="text-right flex-shrink-0 hidden xl:block">
+            <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">감정가</p>
+            <p className="text-sm text-foreground/50" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+              {fmtEok(item.appraisedValue)}
+            </p>
+          </div>
         </div>
-      )}
-
-      <div className="hidden md:block text-right shrink-0 w-24">
-        <p className="text-[10.5px] text-muted-foreground">최저입찰가</p>
-        <p className="font-semibold text-[14px] font-mono text-foreground">{fmtEok(item.minPrice)}</p>
-      </div>
-
-      <div className="hidden lg:block text-right shrink-0 w-24">
-        <p className="text-[10.5px] text-muted-foreground">감정가</p>
-        <p className="text-[14px] font-mono text-foreground/70">{fmtEok(item.appraisedValue)}</p>
-      </div>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFavorite();
-        }}
-        disabled={favoriteBusy}
-        aria-label={isFavorite ? "관심물건 해제" : "관심물건 추가"}
-        className="shrink-0 p-1.5 rounded-full hover:bg-secondary/60 disabled:opacity-50"
-      >
-        <Heart size={16} className={isFavorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"} />
+        </div>
       </button>
-    </button>
+
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          disabled={favoriteBusy}
+          aria-label={isFavorite ? "관심물건 해제" : "관심물건 추가"}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors disabled:opacity-50"
+        >
+          <Heart size={16} className={isFavorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"} />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -679,79 +769,134 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <AppHeader
-        maxWidth="1400"
-        nav={
-          <>
-            <span className={HEADER_TAB_ACTIVE}>추천 물건</span>
-            <Link href="/search" className={HEADER_BTN}>
-              전체 검색
-            </Link>
-            {isConsultant && (
-              <Link href="/consultant" className={HEADER_BTN}>
-                컨설턴트
+      <div className="sm:sticky sm:top-0 z-50">
+        <AppHeader
+          maxWidth="1400"
+          nav={
+            <>
+              <span className={HEADER_TAB_ACTIVE}>추천 물건</span>
+              <Link href="/search" className={HEADER_BTN}>
+                전체 검색
               </Link>
-            )}
-            <div className={HEADER_NAV_TRAILING}>
-              {isAdmin && (
-                <Link href="/admin" className={HEADER_BTN}>
-                  관리자
+              {isConsultant && (
+                <Link href="/consultant" className={HEADER_BTN}>
+                  컨설턴트
                 </Link>
               )}
-              <AccountNavLink />
-              <button type="button" onClick={handleLogout} className={HEADER_BTN}>
-                <LogOut size={16} />
-                로그아웃
+              <div className={HEADER_NAV_TRAILING}>
+                {isAdmin && (
+                  <Link href="/admin" className={HEADER_BTN}>
+                    관리자
+                  </Link>
+                )}
+                <AccountNavLink name={profile?.name} />
+                <button type="button" onClick={handleLogout} className={HEADER_BTN} aria-label="로그아웃">
+                  <LogOut size={16} />
+                  <span className="hidden sm:inline">로그아웃</span>
+                </button>
+              </div>
+            </>
+          }
+        />
+      </div>
+
+      <div className="sticky top-0 sm:top-14 z-40">
+        <div className="bg-white" style={{ borderTop: "1px solid rgba(30,58,95,0.08)", borderBottom: "1px solid rgba(30,58,95,0.08)" }}>
+          <div className="max-w-[1400px] mx-auto px-4 py-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3 sm:flex-wrap">
+            <div className="flex items-center gap-2 sm:contents">
+              <div className="relative flex-1 min-w-0 sm:flex-none sm:w-[280px] sm:shrink-0">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="주소, 사건번호로 검색..."
+                  className="w-full h-9 pl-10 pr-4 border border-transparent text-sm focus:outline-none focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+                  style={{ background: "#F4F6F9", borderRadius: "0.5rem" }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(true)}
+                className="h-9 px-3 sm:px-4 flex items-center gap-1.5 sm:gap-2 border border-border text-sm font-normal text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
+                style={{ borderRadius: "0.5rem" }}
+              >
+                <SlidersHorizontal size={14} />
+                <span>상세 필터</span>
+                {activeFilterCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowInvestmentModal(true)}
+                className="h-9 px-3 sm:px-4 flex items-center gap-1.5 sm:gap-2 border border-border text-sm font-normal text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
+                style={{ borderRadius: "0.5rem" }}
+              >
+                <Wallet size={14} />
+                <span>투자정보</span>
               </button>
             </div>
-          </>
-        }
-      />
 
-      <main className="max-w-[1400px] mx-auto px-4 py-8 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              placeholder="주소, 사건번호로 검색..."
-              className="w-full h-9 pl-10 pr-4 rounded-lg bg-secondary/40 border border-transparent text-sm focus:outline-none focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowFilterModal(true)}
-            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm font-normal text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
-          >
-            <SlidersHorizontal size={14} />
-            상세 필터
-            {activeFilterCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">
-                {activeFilterCount}
+            <div className="hidden sm:block flex-1" />
+
+            <div className="hidden sm:flex items-center gap-2">
+              <span className="text-xs text-muted-foreground shrink-0">
+                총 <span className="font-semibold text-foreground">{filteredItems.length}</span>건
               </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowInvestmentModal(true)}
-            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm font-normal text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
-          >
-            <Wallet size={14} />
-            투자정보
-          </button>
+              <div className="relative shrink-0">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="h-7 pl-3 pr-7 bg-secondary text-xs text-foreground/70 focus:outline-none appearance-none cursor-pointer border-0"
+                  style={{ borderRadius: "0.5rem" }}
+                >
+                  {SORT_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+              </div>
+              <div className="flex items-center border border-border overflow-hidden shrink-0" style={{ borderRadius: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  aria-label="카드형 보기"
+                  className={`w-7 h-7 flex items-center justify-center transition-colors ${
+                    viewMode === "grid" ? "bg-primary text-white" : "hover:bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  aria-label="리스트형 보기"
+                  className={`w-7 h-7 flex items-center justify-center transition-colors ${
+                    viewMode === "list" ? "bg-primary text-white" : "hover:bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">
+      <main className="max-w-[1400px] mx-auto px-4 py-6 space-y-4">
+        <div className="flex sm:hidden items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground shrink-0">
             총 <span className="font-semibold text-foreground">{filteredItems.length}</span>건
           </span>
           <div className="flex items-center gap-2">
-            <div className="relative">
+            <div className="relative shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="h-7 pl-3 pr-7 rounded-lg bg-secondary text-xs text-foreground/70 focus:outline-none appearance-none cursor-pointer border-0"
+                className="h-7 pl-3 pr-7 bg-secondary text-xs text-foreground/70 focus:outline-none appearance-none cursor-pointer border-0"
+                style={{ borderRadius: "0.5rem" }}
               >
                 {SORT_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s}</option>
@@ -759,7 +904,7 @@ export default function HomePage() {
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
             </div>
-            <div className="flex items-center border border-border rounded-lg overflow-hidden">
+            <div className="flex items-center border border-border overflow-hidden shrink-0" style={{ borderRadius: "0.5rem" }}>
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
@@ -801,7 +946,7 @@ export default function HomePage() {
         ) : filteredItems.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground text-sm">검색 결과가 없습니다.</div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
             {filteredItems.map((item) => (
               <RecommendCard
                 key={item.id}
