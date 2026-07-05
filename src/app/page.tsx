@@ -509,7 +509,7 @@ function RecommendListRow({
           <p className="font-bold text-primary text-[14px] font-mono">{formatWonShort(requiredEquity)}</p>
           {loanPolicyLabel && (
             <p className="text-[10px] text-muted-foreground truncate">
-              {shortLoanPolicyLabel(loanPolicyLabel)} 대출 {Math.round(loanRatio! * 100)}%
+              {shortLoanPolicyLabel(loanPolicyLabel)} 대출{Math.round(loanRatio! * 100)}%
             </p>
           )}
         </div>
