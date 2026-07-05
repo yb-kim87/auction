@@ -697,6 +697,8 @@ export async function updateAiManualTags(
 export async function fetchRecommendations(budget?: string): Promise<{
   items: AuctionItem[];
   hasCriteria: boolean;
+  loanRatio: number | null;
+  loanPolicyLabel: string | null;
 }> {
   const qs = budget ? `?budget=${encodeURIComponent(budget)}` : "";
   const res = await fetch(`${API_BASE}/recommendations${qs}`, {
