@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Gavel } from "lucide-react";
+import { Search } from "lucide-react";
 import type { ReactNode } from "react";
 
 export const HEADER_TEXT = "text-[16px] leading-snug";
@@ -26,7 +26,7 @@ export function AppHeader({ maxWidth = "1600", nav }: AppHeaderProps) {
       <div className={`${maxW} mx-auto px-3 sm:px-6 py-2.5 flex items-center gap-2 sm:gap-5`}>
         <Link href="/" className="flex items-center gap-2.5 shrink-0" aria-label="경매코치 홈">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <Gavel className="w-4 h-4 text-white" />
+            <Search className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-foreground text-[1rem] tracking-tight whitespace-nowrap">
             코치경매
