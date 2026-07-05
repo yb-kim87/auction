@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Heart, Calendar, SlidersHorizontal, X } from "lucide-react";
+import { LogOut, Heart, Calendar, SlidersHorizontal, Search, X } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import {
@@ -306,6 +306,7 @@ export default function HomePage() {
   const [loanRatio, setLoanRatio] = useState<number | null>(null);
   const [loanPolicyLabel, setLoanPolicyLabel] = useState<string | null>(null);
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
+  const [searchText, setSearchText] = useState("");
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -376,6 +377,16 @@ export default function HomePage() {
     }
   }
 
+  const filteredItems = searchText.trim()
+    ? items.filter((item) => {
+        const q = searchText.trim().toLowerCase();
+        return (
+          item.address?.toLowerCase().includes(q) ||
+          item.auctionNo?.toLowerCase().includes(q)
+        );
+      })
+    : items;
+
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
       <AppHeader
@@ -408,14 +419,28 @@ export default function HomePage() {
       />
 
       <main className="max-w-[1400px] mx-auto px-4 py-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-[19px] font-semibold text-foreground">오늘의 추천</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="주소, 사건번호로 검색..."
+              className="w-full h-9 pl-10 pr-4 rounded-lg bg-secondary/40 border border-transparent text-sm focus:outline-none focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+            />
+          </div>
+          <Link
+            href="/search"
+            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
+          >
+            <SlidersHorizontal size={14} />
+            상세 필터
+          </Link>
           <button
             type="button"
             onClick={() => setShowInvestmentModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-foreground border border-border rounded-sm hover:bg-secondary/60 transition-colors"
+            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
           >
-            <SlidersHorizontal size={14} />
             투자정보 수정
           </button>
         </div>
@@ -434,9 +459,11 @@ export default function HomePage() {
               에서 투자가능자금을 입력하면 추천이 시작됩니다.
             </p>
           </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground text-sm">검색 결과가 없습니다.</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <RecommendCard
                 key={item.id}
                 item={item}
