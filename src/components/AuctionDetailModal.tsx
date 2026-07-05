@@ -151,6 +151,7 @@ function HeaderSpecialNote({
   onActivate,
   onDeactivate,
   onChange,
+  onDark = true,
 }: {
   value: string;
   editable: boolean;
@@ -158,10 +159,14 @@ function HeaderSpecialNote({
   onActivate: () => void;
   onDeactivate: () => void;
   onChange: (value: string) => void;
+  onDark?: boolean;
 }) {
   const rawText = String(value ?? "").trim();
   const text = rawText === "없음" ? "" : rawText;
   if (!editable && !text) return null;
+
+  const textColor = onDark ? "text-red-200" : "text-red-600";
+  const placeholderColor = onDark ? "text-white/50" : "text-muted-foreground/60";
 
   if (active) {
     return (
@@ -178,7 +183,7 @@ function HeaderSpecialNote({
           }
         }}
         placeholder="특이사항"
-        className={`${headerFieldCompactClass} text-red-100 max-w-[14rem]`}
+        className={`${headerFieldCompactClass} ${onDark ? "text-red-100" : "text-red-600"} max-w-[14rem]`}
       />
     );
   }
@@ -189,7 +194,7 @@ function HeaderSpecialNote({
         type="button"
         onClick={onActivate}
         className={`${headerEditableButtonClass} ${LABEL_TEXT} font-medium truncate max-w-[14rem] ${
-          text ? "text-red-200" : "text-white/50"
+          text ? textColor : placeholderColor
         }`}
         title={text ? text : "클릭하여 특이사항 입력"}
       >
@@ -200,7 +205,7 @@ function HeaderSpecialNote({
 
   return (
     <span
-      className={`${LABEL_TEXT} font-medium text-red-200 truncate max-w-[14rem]`}
+      className={`${LABEL_TEXT} font-medium ${textColor} truncate max-w-[14rem]`}
       title={text}
     >
       {text}
@@ -1021,8 +1026,28 @@ export function AuctionDetailModal({
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
-        <div className="sticky top-0 z-10 bg-primary text-primary-foreground px-4 sm:px-5 py-3 sm:py-4 rounded-none sm:rounded-t-sm">
-          <div className="flex sm:hidden items-center justify-between gap-2">
+        <div className="hidden sm:flex sm:sticky sm:top-0 z-10 bg-primary text-primary-foreground px-4 sm:px-5 py-3 sm:py-4 rounded-none sm:rounded-t-sm items-center justify-between gap-4">
+          <p className="flex items-center gap-2 min-w-0 flex-1">
+            <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm shrink-0`}>
+              {preview.propType}
+            </span>
+            <span className={`font-mono font-bold ${SECTION_TEXT} truncate`}>
+              {(editable ? form.auctionNo : preview.auctionNo) || "경매번호 없음"}
+            </span>
+            {preview.isUpdated && <UpdatedBadge variant="onDark" />}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-sm hover:bg-white/15 transition-colors shrink-0"
+            aria-label="닫기"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(100vh-12rem)] overflow-y-auto">
+          <div className="flex sm:hidden items-center justify-between gap-2 bg-primary text-primary-foreground px-4 py-3">
             <p className="flex items-center gap-2 min-w-0 flex-1">
               <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm shrink-0`}>
                 {preview.propType}
@@ -1060,98 +1085,65 @@ export function AuctionDetailModal({
             </div>
           </div>
 
-          <div className="hidden sm:flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm`}>
-                  {preview.propType}
-                </span>
+          <div className="hidden sm:block px-5 py-4 border-b border-border bg-secondary/10">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
+              <div className="min-w-0 flex-1">
                 {editable && (
-                  <span className={`${LABEL_TEXT} bg-white/20 px-2 py-0.5 rounded-sm`}>
+                  <span className={`inline-block mb-2 ${LABEL_TEXT} bg-secondary px-2 py-0.5 rounded-sm text-foreground/70`}>
                     수정 가능
                   </span>
                 )}
-              </div>
-              {editable ? (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {editingHeader === "auctionNo" ? (
-                      <input
-                        ref={auctionNoInputRef}
-                        type="text"
-                        value={form.auctionNo}
-                        onChange={(e) => setField("auctionNo", e.target.value)}
-                        onBlur={() => setEditingHeader(null)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === "Escape") {
-                            e.preventDefault();
-                            setEditingHeader(null);
-                          }
-                        }}
-                        placeholder="경매번호"
-                        className={`${headerFieldClass} font-mono font-bold ${SECTION_TEXT} max-w-md`}
+                {editable ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <HeaderSpecialNote
+                        value={String(form.specialNote ?? "")}
+                        editable
+                        active={editingHeader === "specialNote"}
+                        onActivate={() => activateHeaderEdit("specialNote")}
+                        onDeactivate={stopEditingHeader}
+                        onChange={(v) => setField("specialNote", v)}
+                        onDark={false}
                       />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => activateHeaderEdit("auctionNo")}
-                        className={`${headerEditableButtonClass} font-mono font-bold ${SECTION_TEXT} inline-flex items-center gap-2 flex-wrap`}
-                        title="클릭하여 경매번호 수정"
-                      >
-                        {form.auctionNo || "경매번호 없음"}
-                      </button>
+                    </div>
+                    {preview.isUpdated && preview.updatedAt && (
+                      <p className={`mt-1 ${LABEL_TEXT} text-muted-foreground`}>
+                        최근 갱신 {new Date(preview.updatedAt).toLocaleString("ko-KR")}
+                        {preview.updatedBy ? ` · ${preview.updatedBy}` : ""}
+                      </p>
                     )}
-                    {preview.isUpdated && <UpdatedBadge variant="onDark" />}
-                    <HeaderSpecialNote
-                      value={String(form.specialNote ?? "")}
-                      editable
-                      active={editingHeader === "specialNote"}
-                      onActivate={() => activateHeaderEdit("specialNote")}
-                      onDeactivate={stopEditingHeader}
-                      onChange={(v) => setField("specialNote", v)}
-                    />
-                  </div>
-                  {preview.isUpdated && preview.updatedAt && (
-                    <p className={`mt-1 ${LABEL_TEXT} text-amber-100`}>
-                      최근 갱신 {new Date(preview.updatedAt).toLocaleString("ko-KR")}
-                      {preview.updatedBy ? ` · ${preview.updatedBy}` : ""}
-                    </p>
-                  )}
-                  <div className="mt-2 flex items-start gap-2">
-                    <MapPin size={16} className="shrink-0 mt-0.5 opacity-80" />
-                    {editingHeader === "address" ? (
-                      <textarea
-                        ref={addressInputRef}
-                        rows={2}
-                        value={form.address}
-                        onChange={(e) => setField("address", e.target.value)}
-                        onBlur={() => setEditingHeader(null)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Escape") {
-                            e.preventDefault();
-                            setEditingHeader(null);
-                          }
-                        }}
-                        placeholder="물건주소"
-                        className={`${headerFieldClass} ${LIST_TEXT} leading-relaxed resize-y min-h-[2.75rem] flex-1`}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => activateHeaderEdit("address")}
-                        className={`${headerEditableButtonClass} ${LIST_TEXT} text-white/90 leading-relaxed flex-1 min-w-0`}
-                        title="클릭하여 물건주소 수정"
-                      >
-                        {form.address || "-"}
-                      </button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className={`font-mono font-bold ${SECTION_TEXT} inline-flex items-center gap-2 flex-wrap`}>
-                    {preview.auctionNo || "경매번호 없음"}
-                    {preview.isUpdated && <UpdatedBadge variant="onDark" />}
+                    <div className="mt-2 flex items-start gap-2">
+                      <MapPin size={16} className="shrink-0 mt-0.5 opacity-60" />
+                      {editingHeader === "address" ? (
+                        <textarea
+                          ref={addressInputRef}
+                          rows={2}
+                          value={form.address}
+                          onChange={(e) => setField("address", e.target.value)}
+                          onBlur={() => setEditingHeader(null)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              setEditingHeader(null);
+                            }
+                          }}
+                          placeholder="물건주소"
+                          className={`${headerFieldClass} ${LIST_TEXT} leading-relaxed resize-y min-h-[2.75rem] flex-1`}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => activateHeaderEdit("address")}
+                          className={`${headerEditableButtonClass} ${LIST_TEXT} text-foreground leading-relaxed flex-1 min-w-0 text-left`}
+                          title="클릭하여 물건주소 수정"
+                        >
+                          {form.address || "-"}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
                     <HeaderSpecialNote
                       value={String(preview.specialNote ?? "")}
                       editable={false}
@@ -1159,268 +1151,256 @@ export function AuctionDetailModal({
                       onActivate={() => {}}
                       onDeactivate={() => {}}
                       onChange={() => {}}
+                      onDark={false}
                     />
-                  </p>
-                  <p className={`mt-2 ${LIST_TEXT} text-white/90 leading-relaxed flex items-start gap-2`}>
-                    <MapPin size={16} className="shrink-0 mt-0.5 opacity-80" />
-                    <span>{preview.address || "-"}</span>
-                  </p>
-                </>
-              )}
-              <div className={`mt-2 flex flex-col gap-y-1 ${LABEL_TEXT} text-white/70`}>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
-                  <span className="inline-flex items-center gap-1">
-                    <Building2 size={14} />
-                    {preview.city} {preview.district}
-                  </span>
-                  {editable ? (
-                    <>
-                      <HeaderInlineInput
-                        active={editingHeader === "area"}
-                        onActivate={() => activateHeaderEdit("area")}
-                        onDeactivate={stopEditingHeader}
-                        value={parseAreaNumber(form.area)}
-                        onChange={(v) => setField("area", v)}
-                        display={<AreaLabel area={form.area} />}
-                        placeholder="면적"
-                        title="클릭하여 면적 수정"
-                        compact
-                      />
-                      <HeaderInlineInput
-                        active={editingHeader === "builtYear"}
-                        onActivate={() => activateHeaderEdit("builtYear")}
-                        onDeactivate={stopEditingHeader}
-                        value={String(form.builtYear ?? "")}
-                        onChange={(v) => setField("builtYear", v)}
-                        display={form.builtYear ? `${form.builtYear}년` : "-"}
-                        placeholder="연식"
-                        title="클릭하여 연식 수정"
-                        compact
-                      />
-                      <HeaderInlineInput
-                        active={editingHeader === "totalUnits"}
-                        onActivate={() => activateHeaderEdit("totalUnits")}
-                        onDeactivate={stopEditingHeader}
-                        value={String(form.totalUnits ?? "")}
-                        onChange={(v) => setField("totalUnits", v)}
-                        display={formatTotalUnitsLabel(form.totalUnits)}
-                        placeholder="세대수"
-                        title="클릭하여 총 세대수 수정"
-                        compact
-                      />
-                      <HeaderInlineInput
-                        active={editingHeader === "officialLandPrice"}
-                        onActivate={() => activateHeaderEdit("officialLandPrice")}
-                        onDeactivate={stopEditingHeader}
-                        value={String(form.officialLandPrice ?? "")}
-                        onChange={(v) => setField("officialLandPrice", v)}
-                        display={formatOfficialLandPriceLabel(form.officialLandPrice)}
-                        placeholder="공시가"
-                        title="클릭하여 공시가 수정"
-                        compact
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <span><AreaLabel area={preview.area} /></span>
-                      <span>{preview.builtYear ? `${preview.builtYear}년` : "-"}</span>
-                      <span>{formatTotalUnitsLabel(preview.totalUnits)}</span>
-                      <span>{formatOfficialLandPriceLabel(preview.officialLandPrice)}</span>
-                    </>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
-                  {editable ? (
+                    <p className={`mt-2 ${LIST_TEXT} text-foreground leading-relaxed flex items-start gap-2`}>
+                      <MapPin size={16} className="shrink-0 mt-0.5 opacity-60" />
+                      <span>{preview.address || "-"}</span>
+                    </p>
+                  </>
+                )}
+                <div className={`mt-2 flex flex-col gap-y-1 ${LABEL_TEXT} text-muted-foreground`}>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
                     <span className="inline-flex items-center gap-1">
-                      <Calendar size={14} />
-                      입찰{" "}
-                      <HeaderInlineInput
-                        active={editingHeader === "bidDate"}
-                        onActivate={() => activateHeaderEdit("bidDate")}
-                        onDeactivate={stopEditingHeader}
-                        value={String(form.bidDate ?? "")}
-                        onChange={(v) => setField("bidDate", v)}
-                        display={form.bidDate || "-"}
-                        placeholder="입찰기일"
-                        title="클릭하여 입찰기일 수정"
-                        compact
-                      />
+                      <Building2 size={14} />
+                      {preview.city} {preview.district}
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar size={14} />
-                      입찰 {preview.bidDate || "-"}
-                    </span>
-                  )}
+                    {editable ? (
+                      <>
+                        <HeaderInlineInput
+                          active={editingHeader === "area"}
+                          onActivate={() => activateHeaderEdit("area")}
+                          onDeactivate={stopEditingHeader}
+                          value={parseAreaNumber(form.area)}
+                          onChange={(v) => setField("area", v)}
+                          display={<AreaLabel area={form.area} />}
+                          placeholder="면적"
+                          title="클릭하여 면적 수정"
+                          compact
+                        />
+                        <HeaderInlineInput
+                          active={editingHeader === "builtYear"}
+                          onActivate={() => activateHeaderEdit("builtYear")}
+                          onDeactivate={stopEditingHeader}
+                          value={String(form.builtYear ?? "")}
+                          onChange={(v) => setField("builtYear", v)}
+                          display={form.builtYear ? `${form.builtYear}년` : "-"}
+                          placeholder="연식"
+                          title="클릭하여 연식 수정"
+                          compact
+                        />
+                        <HeaderInlineInput
+                          active={editingHeader === "totalUnits"}
+                          onActivate={() => activateHeaderEdit("totalUnits")}
+                          onDeactivate={stopEditingHeader}
+                          value={String(form.totalUnits ?? "")}
+                          onChange={(v) => setField("totalUnits", v)}
+                          display={formatTotalUnitsLabel(form.totalUnits)}
+                          placeholder="세대수"
+                          title="클릭하여 총 세대수 수정"
+                          compact
+                        />
+                        <HeaderInlineInput
+                          active={editingHeader === "officialLandPrice"}
+                          onActivate={() => activateHeaderEdit("officialLandPrice")}
+                          onDeactivate={stopEditingHeader}
+                          value={String(form.officialLandPrice ?? "")}
+                          onChange={(v) => setField("officialLandPrice", v)}
+                          display={formatOfficialLandPriceLabel(form.officialLandPrice)}
+                          placeholder="공시가"
+                          title="클릭하여 공시가 수정"
+                          compact
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <span><AreaLabel area={preview.area} /></span>
+                        <span>{preview.builtYear ? `${preview.builtYear}년` : "-"}</span>
+                        <span>{formatTotalUnitsLabel(preview.totalUnits)}</span>
+                        <span>{formatOfficialLandPriceLabel(preview.officialLandPrice)}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
+                    {editable ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar size={14} />
+                        입찰{" "}
+                        <HeaderInlineInput
+                          active={editingHeader === "bidDate"}
+                          onActivate={() => activateHeaderEdit("bidDate")}
+                          onDeactivate={stopEditingHeader}
+                          value={String(form.bidDate ?? "")}
+                          onChange={(v) => setField("bidDate", v)}
+                          display={form.bidDate || "-"}
+                          placeholder="입찰기일"
+                          title="클릭하여 입찰기일 수정"
+                          compact
+                        />
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar size={14} />
+                        입찰 {preview.bidDate || "-"}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto sm:shrink-0">
-              {onToggleFavorite && (
-                <button
-                  type="button"
-                  onClick={handleToggleFavorite}
-                  disabled={favoriteDisabled}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} border rounded-sm transition-colors disabled:opacity-50 ${
-                    isFavorite
-                      ? "bg-rose-500/25 border-rose-200/40 text-white hover:bg-rose-500/35"
-                      : "bg-white/10 border-white/25 hover:bg-white/20"
-                  }`}
-                >
-                  <Heart
-                    size={14}
-                    className={isFavorite ? "fill-current text-rose-200" : ""}
-                  />
-                  {isFavorite ? "관심물건 해제" : "관심물건 추가"}
-                </button>
-              )}
-              {onDislike && (
-                <button
-                  type="button"
-                  onClick={() => onDislike(item)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-white/10 border border-white/25 rounded-sm hover:bg-white/20 transition-colors`}
-                >
-                  관심없음
-                </button>
-              )}
-              {onReviewed && (
-                <button
-                  type="button"
-                  onClick={() => onReviewed(item)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-white/10 border border-white/25 rounded-sm hover:bg-white/20 transition-colors`}
-                >
-                  검토완료
-                </button>
-              )}
-              {onViewHistory && (
-                <button
-                  type="button"
-                  onClick={() => onViewHistory(item)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-white/10 border border-white/25 rounded-sm hover:bg-white/20 transition-colors`}
-                >
-                  <History size={14} />
-                  변경 이력
-                </button>
-              )}
-              {preview.link && (
-                <a
-                  href={preview.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-white/10 border border-white/25 rounded-sm hover:bg-white/20 transition-colors`}
-                >
-                  <ExternalLink size={14} />
-                  경매지정보
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 rounded-sm hover:bg-white/15 transition-colors"
-                aria-label="닫기"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto sm:shrink-0">
+                {onToggleFavorite && (
+                  <button
+                    type="button"
+                    onClick={handleToggleFavorite}
+                    disabled={favoriteDisabled}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} border rounded-sm transition-colors disabled:opacity-50 ${
+                      isFavorite
+                        ? "bg-rose-500/10 border-rose-300 text-rose-600 hover:bg-rose-500/15"
+                        : "bg-card border-border hover:bg-secondary"
+                    }`}
+                  >
+                    <Heart size={14} className={isFavorite ? "fill-current text-rose-500" : ""} />
+                    {isFavorite ? "관심물건 해제" : "관심물건 추가"}
+                  </button>
+                )}
+                {onDislike && (
+                  <button
+                    type="button"
+                    onClick={() => onDislike(item)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-card border border-border rounded-sm hover:bg-secondary transition-colors`}
+                  >
+                    관심없음
+                  </button>
+                )}
+                {onReviewed && (
+                  <button
+                    type="button"
+                    onClick={() => onReviewed(item)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-card border border-border rounded-sm hover:bg-secondary transition-colors`}
+                  >
+                    검토완료
+                  </button>
+                )}
+                {onViewHistory && (
+                  <button
+                    type="button"
+                    onClick={() => onViewHistory(item)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-card border border-border rounded-sm hover:bg-secondary transition-colors`}
+                  >
+                    <History size={14} />
+                    변경 이력
+                  </button>
+                )}
+                {preview.link && (
+                  <a
+                    href={preview.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-card border border-border rounded-sm hover:bg-secondary transition-colors`}
+                  >
+                    <ExternalLink size={14} />
+                    경매지정보
+                  </a>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="sm:hidden px-4 pt-3 pb-1 bg-primary/5 border-b border-border space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            {String((editable ? form.specialNote : preview.specialNote) ?? "").trim() !== "없음" &&
-              String((editable ? form.specialNote : preview.specialNote) ?? "").trim() && (
-                <span className="text-[13px] font-semibold text-red-600 truncate max-w-[16rem]">
-                  {String((editable ? form.specialNote : preview.specialNote) ?? "").trim()}
-                </span>
-              )}
+          <div className="sticky top-0 z-10 bg-card px-5 pt-3 border-b border-border flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("info")}
+              className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === "info"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              기본정보
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("ai");
+                onAiAnalysisClick?.(item);
+              }}
+              className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5 ${
+                activeTab === "ai"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Brain size={13} />
+              AI에게 물어보기
+            </button>
           </div>
-          <p className="text-[13px] text-foreground/80 leading-relaxed flex items-start gap-1.5">
-            <MapPin size={14} className="shrink-0 mt-0.5 opacity-70" />
-            <span>{(editable ? form.address : preview.address) || "-"}</span>
-          </p>
-          <div className="flex flex-col gap-y-1 text-[12px] text-muted-foreground">
-            <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
-              <span className="inline-flex items-center gap-1">
-                <Building2 size={12} />
-                {preview.city} {preview.district}
-              </span>
-              <span><AreaLabel area={preview.area} /></span>
-              <span>{preview.builtYear ? `${preview.builtYear}년` : "-"}</span>
-              <span>{formatOfficialLandPriceLabel(preview.officialLandPrice)}</span>
-            </div>
-            <span className="inline-flex items-center gap-1">
-              <Calendar size={12} />
-              입찰 {preview.bidDate || "-"}
-            </span>
-          </div>
-          {(onDislike || onReviewed || onViewHistory) && (
-            <div className="flex items-center flex-wrap gap-2 pt-1">
-              {onDislike && (
-                <button
-                  type="button"
-                  onClick={() => onDislike(item)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
-                >
-                  관심없음
-                </button>
-              )}
-              {onReviewed && (
-                <button
-                  type="button"
-                  onClick={() => onReviewed(item)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
-                >
-                  검토완료
-                </button>
-              )}
-              {onViewHistory && (
-                <button
-                  type="button"
-                  onClick={() => onViewHistory(item)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
-                >
-                  <History size={14} />
-                  변경 이력
-                </button>
-              )}
-            </div>
-          )}
-        </div>
 
-        <div className="px-5 pt-3 border-b border-border flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab("info")}
-            className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === "info"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            기본정보
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("ai");
-              onAiAnalysisClick?.(item);
-            }}
-            className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5 ${
-              activeTab === "ai"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Brain size={13} />
-            AI에게 물어보기
-          </button>
-        </div>
-
-        <div className="px-5 py-5 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
+          <div className="px-5 py-5 space-y-6">
           {activeTab === "ai" ? (
             item && <AuctionAnalysisPanel auctionId={item.id} />
           ) : (
           <>
+          <div className="sm:hidden -mt-6 -mx-5 mb-6 px-4 pt-3 pb-3 bg-primary/5 border-b border-border space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {String((editable ? form.specialNote : preview.specialNote) ?? "").trim() !== "없음" &&
+                String((editable ? form.specialNote : preview.specialNote) ?? "").trim() && (
+                  <span className="text-[13px] font-semibold text-red-600 truncate max-w-[16rem]">
+                    {String((editable ? form.specialNote : preview.specialNote) ?? "").trim()}
+                  </span>
+                )}
+            </div>
+            <p className="text-[13px] text-foreground/80 leading-relaxed flex items-start gap-1.5">
+              <MapPin size={14} className="shrink-0 mt-0.5 opacity-70" />
+              <span>{(editable ? form.address : preview.address) || "-"}</span>
+            </p>
+            <div className="flex flex-col gap-y-1 text-[12px] text-muted-foreground">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
+                <span className="inline-flex items-center gap-1">
+                  <Building2 size={12} />
+                  {preview.city} {preview.district}
+                </span>
+                <span><AreaLabel area={preview.area} /></span>
+                <span>{preview.builtYear ? `${preview.builtYear}년` : "-"}</span>
+                <span>{formatOfficialLandPriceLabel(preview.officialLandPrice)}</span>
+              </div>
+              <span className="inline-flex items-center gap-1">
+                <Calendar size={12} />
+                입찰 {preview.bidDate || "-"}
+              </span>
+            </div>
+            {(onDislike || onReviewed || onViewHistory) && (
+              <div className="flex items-center flex-wrap gap-2 pt-1">
+                {onDislike && (
+                  <button
+                    type="button"
+                    onClick={() => onDislike(item)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
+                  >
+                    관심없음
+                  </button>
+                )}
+                {onReviewed && (
+                  <button
+                    type="button"
+                    onClick={() => onReviewed(item)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
+                  >
+                    검토완료
+                  </button>
+                )}
+                {onViewHistory && (
+                  <button
+                    type="button"
+                    onClick={() => onViewHistory(item)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
+                  >
+                    <History size={14} />
+                    변경 이력
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <section>
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
               <h3 className={`${SECTION_TEXT} font-semibold text-foreground`}>물건 요약</h3>
@@ -1726,6 +1706,7 @@ export function AuctionDetailModal({
           )}
           </>
           )}
+          </div>
         </div>
 
         {activeTab === "info" && (
