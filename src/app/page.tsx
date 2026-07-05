@@ -439,7 +439,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() => setShowInvestmentModal(true)}
-            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
+            className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border text-sm font-normal text-foreground/70 hover:bg-secondary/60 transition-colors shrink-0"
           >
             <Wallet size={14} />
             투자정보
