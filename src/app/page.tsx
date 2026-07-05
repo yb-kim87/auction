@@ -236,12 +236,12 @@ export default function HomePage() {
                 컨설턴트
               </Link>
             )}
-            {isAdmin && (
-              <Link href="/admin" className={HEADER_BTN}>
-                관리자
-              </Link>
-            )}
             <div className={HEADER_NAV_TRAILING}>
+              {isAdmin && (
+                <Link href="/admin" className={HEADER_BTN}>
+                  관리자
+                </Link>
+              )}
               <AccountNavLink />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={16} />
