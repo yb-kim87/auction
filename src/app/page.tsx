@@ -1028,6 +1028,8 @@ export default function HomePage() {
         onAiAnalysisClick={(row) =>
           logUserAction({ itemId: row.id, actionType: "ai_analysis_click", metadata: { recommended: true } })
         }
+        loanRatio={loanRatio}
+        loanPolicyLabel={loanPolicyLabel}
       />
 
       {showInvestmentModal && profile && (

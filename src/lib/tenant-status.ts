@@ -144,6 +144,211 @@ export function formatTenantStatusSummary(raw: string | null | undefined): strin
   return first.length > 42 ? `${first.slice(0, 40)}…` : first || "-";
 }
 
+function parsePlainTenantBlock(block: string): TenantStatusRow | null {
+  const lines = block
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0 || !lines[0].startsWith("임차인:")) return null;
+
+  const fields: Record<string, string> = {
+    tenant: lines[0].replace(/^임차인:\s*/, ""),
+    occupancy: "",
+    dates: "",
+    deposit: "",
+    opposability: "",
+    analysis: "",
+    other: "",
+  };
+  let current = "tenant";
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("점유:")) {
+      current = "occupancy";
+      fields.occupancy = line.replace(/^점유:\s*/, "");
+    } else if (line.startsWith("전입/확정/배당:")) {
+      current = "dates";
+      fields.dates = line.replace(/^전입\/확정\/배당:\s*/, "");
+    } else if (line.startsWith("보증금/차임:")) {
+      current = "deposit";
+      fields.deposit = line.replace(/^보증금\/차임:\s*/, "");
+    } else if (line.startsWith("대항력:")) {
+      current = "opposability";
+      fields.opposability = line.replace(/^대항력:\s*/, "");
+    } else if (line.startsWith("분석:")) {
+      current = "analysis";
+      fields.analysis = line.replace(/^분석:\s*/, "");
+    } else if (line.startsWith("기타:")) {
+      current = "other";
+      fields.other = line.replace(/^기타:\s*/, "");
+    } else {
+      fields[current] = fields[current] ? `${fields[current]} ${line}` : line;
+    }
+  }
+
+  const tenantMatch = fields.tenant.match(/^(\S+)\s*(.*)$/);
+  const occupancyNo = tenantMatch?.[1] ?? "";
+  const tenantName = tenantMatch?.[2]?.trim() ?? fields.tenant;
+
+  return normalizeRow({
+    occupancyNo,
+    tenantName,
+    occupancy: fields.occupancy,
+    dates: fields.dates,
+    depositRent: fields.deposit,
+    opposability: fields.opposability,
+    analysis: fields.analysis ? fields.analysis.split(" / ").map((s) => s.trim()) : [],
+    other: fields.other,
+  });
+}
+
+const TENANT_ROLE_WORDS = ["임차인", "경매신청인", "채권자", "임차권자", "임차권등기자"];
+
+function extractTrailingRole(text: string): { remainder: string; role: string } {
+  const rolePattern = new RegExp(`\\s*(${TENANT_ROLE_WORDS.join("|")})\\s*$`);
+  const match = text.match(rolePattern);
+  if (!match) return { remainder: text, role: "" };
+  return { remainder: text.slice(0, match.index).trim(), role: match[1] };
+}
+
+/**
+ * Handles freeform crawl text where multiple tenants appear as
+ * "{no} {name}\n{occupancy/period lines}\n전입:.. 확정:.. 배당:.. 보:.. {free text}" blocks,
+ * with occupancy/period sometimes wrapping across several lines before "전입:" appears.
+ */
+function parseFreeformTenants(mainPart: string): TenantStatusRow[] {
+  const lines = mainPart
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const rows: TenantStatusRow[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const headerMatch = lines[i].match(/^(\d+)\s+(.+)$/);
+    if (!headerMatch) {
+      i++;
+      continue;
+    }
+
+    const occupancyNo = headerMatch[1];
+    const headerLines = [headerMatch[2]];
+    i++;
+
+    while (i < lines.length && !headerLines.join(" ").includes("전입:")) {
+      if (/^\d+\s+\S/.test(lines[i])) break;
+      headerLines.push(lines[i]);
+      i++;
+    }
+
+    let headerText = headerLines.join(" ").replace(/\s+/g, " ").trim();
+    const moveInMatch = headerText.match(/전입:(\S+)/);
+    if (!moveInMatch) continue;
+
+    const moveInIndex = moveInMatch.index ?? 0;
+    const beforeMoveIn = headerText.slice(0, moveInIndex).trim();
+    const afterMoveIn = headerText.slice(moveInIndex + moveInMatch[0].length).trim();
+
+    const nameMatch = beforeMoveIn.match(/^(\S+)\s*(.*)$/);
+    const tenantName = nameMatch ? nameMatch[1] : beforeMoveIn;
+    const occupancy = nameMatch ? nameMatch[2].trim() : "";
+
+    const tailLines = [afterMoveIn];
+    while (i < lines.length && !/^\d+\s+\S/.test(lines[i])) {
+      tailLines.push(lines[i]);
+      i++;
+    }
+
+    let tailText = tailLines.join(" ").replace(/\s+/g, " ").trim();
+    const confirmMatch = tailText.match(/확정:(\S+)/);
+    const dividendMatch = tailText.match(/배당:(\S+)/);
+    const depositMatch = tailText.match(/보:(\S+)/);
+    const rentMatch = tailText.match(/월:(\S+)/);
+
+    let remainder = tailText;
+    for (const m of [confirmMatch, dividendMatch, depositMatch, rentMatch]) {
+      if (m) remainder = remainder.replace(m[0], "");
+    }
+    remainder = remainder.replace(/\s+/g, " ").trim();
+
+    const { remainder: withoutRole, role } = extractTrailingRole(remainder);
+    remainder = withoutRole;
+
+    const oppMatch = remainder.match(
+      /(대항력\s*여지\s*있음(?:\([^)]*\))?|미배당\s*보증금\s*매수인\s*인수|매수인\s*인수|^인수$|^있음$|^없음$)/,
+    );
+    let opposability = "";
+    if (oppMatch) {
+      opposability = oppMatch[1];
+      remainder = (
+        remainder.slice(0, oppMatch.index) +
+        remainder.slice((oppMatch.index ?? 0) + oppMatch[0].length)
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    rows.push(
+      normalizeRow({
+        occupancyNo,
+        tenantName,
+        occupancy,
+        dates: [
+          `전입:${moveInMatch[1]}`,
+          confirmMatch ? `확정:${confirmMatch[1]}` : "",
+          dividendMatch ? `배당:${dividendMatch[1]}` : "",
+        ]
+          .filter(Boolean)
+          .join(" / "),
+        depositRent: [depositMatch ? `보:${depositMatch[1]}` : "", rentMatch ? `월:${rentMatch[1]}` : ""]
+          .filter(Boolean)
+          .join(" "),
+        opposability: opposability || "-",
+        analysis: remainder ? [remainder] : [],
+        other: role,
+      }),
+    );
+  }
+
+  return rows;
+}
+
+export type ParsedTenantStatus = {
+  rows: TenantStatusRow[];
+  miscNotes: string;
+};
+
+export function parseAnyTenantStatus(raw: string | null | undefined): ParsedTenantStatus | null {
+  const structured = parseTenantStatus(raw);
+  if (structured && !tenantStatusIsEmpty(structured)) {
+    return { rows: structured.rows, miscNotes: structured.miscNotes };
+  }
+
+  const text = String(raw ?? "").trim();
+  if (!text || text === "값없음" || text === "없음") return null;
+  if (text.startsWith(TENANT_STATUS_PREFIX)) return null;
+
+  const [mainPart, ...miscParts] = text.split(/\n\[기타사항\]\n?/);
+  const miscNotes = miscParts.join("\n").trim();
+
+  const blocks = mainPart.split(/\n\n+/).map((b) => b.trim());
+  const labeledRows = blocks
+    .map((block) => parsePlainTenantBlock(block))
+    .filter((row): row is TenantStatusRow => row != null && !row.sectionHeader);
+
+  if (labeledRows.length > 0) {
+    return { rows: labeledRows, miscNotes };
+  }
+
+  const freeformRows = parseFreeformTenants(mainPart);
+
+  if (freeformRows.length === 0 && !miscNotes) return null;
+
+  return { rows: freeformRows, miscNotes };
+}
+
 export function analysisTone(text: string): "danger" | "warning" | "info" | "default" {
   const normalized = text.replace(/\s+/g, "");
   if (/미배당|매수인\s*인수|인수|주의/.test(normalized)) return "danger";
