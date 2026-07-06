@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain } from "lucide-react";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home } from "lucide-react";
 import type { AuctionItem, UpdateAuctionPayload } from "@/types/auction";
 import {
   AUCTION_FIELD_GROUPS,
@@ -16,6 +16,9 @@ import { hasNaverPrice } from "@/lib/naver-price";
 import { AuctionAnalysisPanel } from "@/components/AuctionAnalysisPanel";
 import { TenantStatusPanel } from "@/components/TenantStatusPanel";
 import { displayTenantDetail } from "@/lib/tenant-status";
+import { getFailureRateRatio } from "@/lib/failure-rate";
+import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
+import { formatWonShort } from "@/lib/investment-money";
 
 const LIST_TEXT = "text-[15px] leading-snug";
 const LABEL_TEXT = "text-[14px] leading-snug";
@@ -141,6 +144,15 @@ function AreaLabel({ area }: { area: string | null | undefined }) {
     <>
       {num}m<sup className="text-[0.75em] align-super">2</sup>
     </>
+  );
+}
+
+function DataRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <p className="text-[0.68rem] text-muted-foreground mb-0.5">{label}</p>
+      <p className="text-[0.82rem] font-medium text-foreground">{value}</p>
+    </div>
   );
 }
 
@@ -369,7 +381,7 @@ function ExpandableDetailField({
           />
         ) : (
           <div
-            className={`${LIST_TEXT} leading-relaxed max-h-40 overflow-y-auto rounded-sm border border-border/60 bg-secondary/10 px-3 py-2 whitespace-pre-wrap break-words ${valueClassName} ${
+            className={`text-[0.82rem] leading-relaxed max-h-40 overflow-y-auto rounded-xl border border-border bg-card px-4 py-3 whitespace-pre-wrap break-words ${valueClassName} ${
               text ? "text-foreground" : "text-muted-foreground"
             }`}
           >
@@ -442,6 +454,589 @@ function ExpandableDetailField({
         </div>
       )}
     </>
+  );
+}
+
+function detailTableShellClass() {
+  return "rounded-xl border border-border bg-card overflow-hidden";
+}
+
+const detailTableHeadCellClass =
+  "px-3 py-2 text-left text-[0.68rem] font-medium text-muted-foreground whitespace-nowrap";
+const detailTableBodyCellClass =
+  "px-3 py-2 text-[0.78rem] text-foreground whitespace-nowrap";
+
+type ListingPriceRow = {
+  dong: string;
+  priceText: string;
+  area: string;
+  floorText: string;
+  date: string;
+  note: string;
+};
+
+const IGNORED_LISTING_LINES = new Set([
+  "관심매물",
+  "매물목록 펼치기",
+  "매물 보러가기",
+]);
+
+function parseSingleLineListingRow(line: string): ListingPriceRow | null {
+  const match = line.match(
+    /^(\S+동)\s+(매매\S*)\s+(([\d.]+㎡)?\s*\([^)]*\))\s+(\S+\/\S+)\s+([\d.]{8,10})\s*(.*)$/,
+  );
+  if (!match) return null;
+  const [, dong, priceText, area, , floorText, date, note] = match;
+  return { dong, priceText, area: area.trim(), floorText, date, note: note.trim() };
+}
+
+function parseListingCardBlock(blockLines: string[]): ListingPriceRow | null {
+  const lines = blockLines.filter((l) => !IGNORED_LISTING_LINES.has(l));
+  if (lines.length === 0) return null;
+
+  const dongLine = lines.find((l) => /\S+동$/.test(l));
+  const priceLine = lines.find((l) => l.startsWith("매매"));
+  const specLine = lines.find((l) => /층/.test(l) && /㎡/.test(l));
+  if (!dongLine || !priceLine || !specLine) return null;
+
+  const dongMatch = dongLine.match(/(\S+동)$/);
+  const dong = dongMatch ? dongMatch[1] : dongLine;
+  const priceText = priceLine.replace(/\s+/g, "");
+
+  const specMatch = specLine.match(/([\d.]+㎡\s*\([^)]*\))(\S+)층(\S*)/);
+  const area = specMatch ? specMatch[1].trim() : specLine;
+  const floorText = specMatch ? specMatch[2] : "-";
+  const direction = specMatch ? specMatch[3] : "";
+
+  const quoteIdx = lines.indexOf('"');
+  let note = "";
+  if (quoteIdx !== -1) {
+    const closeIdx = lines.indexOf('"', quoteIdx + 1);
+    if (closeIdx !== -1) {
+      note = lines.slice(quoteIdx + 1, closeIdx).join(" ");
+    }
+  }
+  if (!note && direction) note = direction;
+
+  const dateLine = lines.find((l) => /^(집주인)?확인매물\s/.test(l));
+  const dateMatch = dateLine?.match(/([\d.]{8,10})/);
+  const date = dateMatch ? dateMatch[1] : "";
+
+  return { dong, priceText, area, floorText, date, note };
+}
+
+function parseListingPriceDetail(raw: string): ListingPriceRow[] {
+  const allLines = raw.split("\n").map((l) => l.trim());
+
+  const looksLikeCardFormat = allLines.some((l) => l.startsWith("매매 "));
+  if (looksLikeCardFormat) {
+    const nonEmpty = allLines.filter(Boolean);
+    const rows: ListingPriceRow[] = [];
+    let block: string[] = [];
+
+    for (const line of nonEmpty) {
+      const isNewDongHeader = /\S+동$/.test(line) && !line.startsWith('"');
+      if (isNewDongHeader && block.some((l) => l.startsWith("매매"))) {
+        const row = parseListingCardBlock(block);
+        if (row) rows.push(row);
+        block = [];
+      }
+      block.push(line);
+    }
+    if (block.length > 0) {
+      const row = parseListingCardBlock(block);
+      if (row) rows.push(row);
+    }
+
+    return rows;
+  }
+
+  const lines = allLines.filter(Boolean);
+  const rows: ListingPriceRow[] = [];
+  let lastRow: ListingPriceRow | null = null;
+  let inQuoteBlock = false;
+
+  for (const line of lines) {
+    if (line === '"') {
+      inQuoteBlock = !inQuoteBlock;
+      continue;
+    }
+
+    const row = parseSingleLineListingRow(line);
+    if (row) {
+      inQuoteBlock = false;
+      lastRow = row;
+      rows.push(lastRow);
+      continue;
+    }
+
+    if (inQuoteBlock && lastRow) {
+      const prev: ListingPriceRow = lastRow;
+      lastRow = { ...prev, note: prev.note ? `${prev.note} ${line}` : line };
+      rows[rows.length - 1] = lastRow;
+    }
+  }
+
+  return rows;
+}
+
+function ListingPriceTable({ value }: { value: string }) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "-") {
+    return (
+      <div className="rounded-xl border border-border bg-card px-4 py-3 text-[0.82rem] text-muted-foreground">
+        -
+      </div>
+    );
+  }
+
+  const rows = parseListingPriceDetail(text);
+  if (rows.length === 0) {
+    return (
+      <div className="text-[0.82rem] leading-relaxed max-h-40 overflow-y-auto rounded-xl border border-border bg-card px-4 py-3 whitespace-pre-wrap break-words text-foreground">
+        {text}
+      </div>
+    );
+  }
+
+  return (
+    <div className={detailTableShellClass()}>
+      <div className="overflow-x-auto max-h-48 overflow-y-auto">
+        <table className="w-full border-collapse">
+          <thead className="sticky top-0 bg-card border-b border-border shadow-[0_1px_0_0_var(--border)]">
+            <tr>
+              <th className={detailTableHeadCellClass}>동</th>
+              <th className={detailTableHeadCellClass}>호가</th>
+              <th className={detailTableHeadCellClass}>면적</th>
+              <th className={detailTableHeadCellClass}>층</th>
+              <th className={detailTableHeadCellClass}>등록일</th>
+              <th className={detailTableHeadCellClass}>비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-t border-border/60">
+                <td className={detailTableBodyCellClass}>{row.dong}</td>
+                <td className={`${detailTableBodyCellClass} font-semibold`}>{row.priceText}</td>
+                <td className={detailTableBodyCellClass}>{row.area}</td>
+                <td className={detailTableBodyCellClass}>{row.floorText}</td>
+                <td className={detailTableBodyCellClass}>{row.date}</td>
+                <td className={`${detailTableBodyCellClass} whitespace-normal text-muted-foreground`}>
+                  {row.note || "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+type TransactionRow = {
+  year: string;
+  contractDate: string;
+  registryDate: string;
+  floorText: string;
+  priceText: string;
+};
+
+type TransactionGroup = { areaLabel: string; rows: TransactionRow[] };
+
+function parseTransactionGroup(raw: string): TransactionGroup {
+  const lines = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  let areaLabel = "";
+  let currentYear = "";
+  const rows: TransactionRow[] = [];
+
+  for (const line of lines) {
+    const areaMatch = line.match(/^\[(.+)\]$/);
+    if (areaMatch) {
+      areaLabel = areaMatch[1];
+      continue;
+    }
+    const yearMatch = line.match(/^(\d{4})년\s*계약(\s*매매\s*실거래가\s*표)?$/);
+    if (yearMatch) {
+      currentYear = yearMatch[1];
+      continue;
+    }
+    if (line.startsWith("계약일") || line.includes("등기일")) continue;
+
+    const rowMatch = line.match(
+      /^([\d.]{4,6})\.?\s+(\S+)\s+(\S+층)\s+(.+)$/,
+    );
+    if (rowMatch) {
+      const [, contractDate, registryDate, floorText, priceText] = rowMatch;
+      if (registryDate === "계약취소") continue;
+      rows.push({
+        year: currentYear,
+        contractDate,
+        registryDate,
+        floorText,
+        priceText: priceText.trim(),
+      });
+    }
+  }
+
+  const seen = new Set<string>();
+  const dedupedRows = rows.filter((row) => {
+    const key = `${row.year}|${row.contractDate}|${row.registryDate}|${row.floorText}|${row.priceText}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const sortedRows = dedupedRows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const yearDiff = Number(b.row.year) - Number(a.row.year);
+      if (yearDiff !== 0) return yearDiff;
+      return a.index - b.index;
+    })
+    .map(({ row }) => row);
+
+  return { areaLabel, rows: sortedRows };
+}
+
+function parseTransactionDetail(raw: string): TransactionGroup[] {
+  return raw
+    .split(/\n-{2,}\n/)
+    .map((chunk) => parseTransactionGroup(chunk))
+    .filter((group) => group.rows.length > 0);
+}
+
+function TransactionDetailTable({ value }: { value: string }) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "-") {
+    return (
+      <div className="rounded-xl border border-border bg-card px-4 py-3 text-[0.82rem] text-muted-foreground">
+        -
+      </div>
+    );
+  }
+
+  const groups = parseTransactionDetail(text);
+  if (groups.length === 0) {
+    return (
+      <div className="text-[0.82rem] leading-relaxed max-h-40 overflow-y-auto rounded-xl border border-border bg-card px-4 py-3 whitespace-pre-wrap break-words text-foreground">
+        {text}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {groups.map((group, gi) => (
+        <div key={gi} className={detailTableShellClass()}>
+          {group.areaLabel && (
+            <div className="px-3 py-1.5 text-[0.68rem] text-muted-foreground bg-secondary/20 border-b border-border/60">
+              {group.areaLabel}
+            </div>
+          )}
+          <div className="overflow-x-auto max-h-48 overflow-y-auto">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 bg-card border-b border-border shadow-[0_1px_0_0_var(--border)]">
+                <tr>
+                  <th className={detailTableHeadCellClass}>계약연도</th>
+                  <th className={detailTableHeadCellClass}>계약일</th>
+                  <th className={detailTableHeadCellClass}>등기일</th>
+                  <th className={detailTableHeadCellClass}>층</th>
+                  <th className={detailTableHeadCellClass}>가격</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.rows.map((row, i) => (
+                  <tr key={i} className="border-t border-border/60">
+                    <td className={detailTableBodyCellClass}>{row.year}</td>
+                    <td className={detailTableBodyCellClass}>{row.contractDate}</td>
+                    <td className={detailTableBodyCellClass}>{row.registryDate}</td>
+                    <td className={detailTableBodyCellClass}>{row.floorText}</td>
+                    <td className={`${detailTableBodyCellClass} font-semibold`}>{row.priceText}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type EducationRow = {
+  level: string;
+  name: string;
+  distance: string;
+};
+
+const EDUCATION_LEVELS = ["유치원", "초등학교", "중학교", "고등학교", "대학교"];
+const EDUCATION_LEVEL_PATTERN = EDUCATION_LEVELS.join("|");
+
+function parseEducationDetail(raw: string): EducationRow[] {
+  const lines = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const parseSchoolItem = (item: string, level: string): EducationRow => {
+    const match = item.match(/^(.+?)\s*\(([^)]+)\)$/);
+    return match
+      ? { level, name: match[1].trim(), distance: match[2].trim() }
+      : { level, name: item, distance: "" };
+  };
+
+  const isLabeledFormat = lines.some((l) =>
+    new RegExp(`^(${EDUCATION_LEVEL_PATTERN}):`).test(l),
+  );
+  if (isLabeledFormat) {
+    const rows: EducationRow[] = [];
+    for (const line of lines) {
+      const match = line.match(new RegExp(`^(${EDUCATION_LEVEL_PATTERN}):\\s*(.+)$`));
+      if (!match) continue;
+      const [, level, rest] = match;
+      rest
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((item) => rows.push(parseSchoolItem(item, level)));
+    }
+    return rows;
+  }
+
+  const countMatches = [
+    ...lines[0].matchAll(new RegExp(`(${EDUCATION_LEVEL_PATTERN})\\s*\\((\\d+)\\)`, "g")),
+  ];
+  if (countMatches.length === 0) return [];
+
+  const schoolLines = lines.slice(1);
+  const rows: EducationRow[] = [];
+  let cursor = 0;
+  for (const m of countMatches) {
+    const level = m[1];
+    const count = Number(m[2]);
+    for (let i = 0; i < count; i++) {
+      const line = schoolLines[cursor];
+      if (!line) break;
+      rows.push(parseSchoolItem(line, level));
+      cursor++;
+    }
+  }
+  return rows;
+}
+
+function EducationTable({ value }: { value: string }) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "-") {
+    return (
+      <div className="rounded-xl border border-border bg-card px-4 py-3 text-[0.82rem] text-muted-foreground">
+        -
+      </div>
+    );
+  }
+
+  const rows = parseEducationDetail(text);
+  if (rows.length === 0) {
+    return (
+      <div className="text-[0.82rem] leading-relaxed max-h-40 overflow-y-auto rounded-xl border border-border bg-card px-4 py-3 whitespace-pre-wrap break-words text-foreground">
+        {text}
+      </div>
+    );
+  }
+
+  return (
+    <div className={detailTableShellClass()}>
+      <div className="overflow-x-auto max-h-48 overflow-y-auto">
+        <table className="w-full border-collapse">
+          <thead className="sticky top-0 bg-card border-b border-border shadow-[0_1px_0_0_var(--border)]">
+            <tr>
+              <th className={detailTableHeadCellClass}>구분</th>
+              <th className={detailTableHeadCellClass}>학교명</th>
+              <th className={detailTableHeadCellClass}>거리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-t border-border/60">
+                <td className={detailTableBodyCellClass}>{row.level}</td>
+                <td className={detailTableBodyCellClass}>{row.name}</td>
+                <td className={`${detailTableBodyCellClass} text-muted-foreground`}>
+                  {row.distance || "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+type RegistryRow = {
+  section: string;
+  seq: string;
+  date: string;
+  rightType: string;
+  holder: string;
+  amount: string;
+  isClaimAmount: boolean;
+  note: string;
+  cancelled: boolean;
+};
+
+const REGISTRY_HEADER_RE = /^([갑을])\((\d+)\)\s+(\d{4}-\d{2}-\d{2})$/;
+
+function parseRegistryDetail(raw: string): RegistryRow[] {
+  const lines = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const rows: RegistryRow[] = [];
+  let block: string[] = [];
+
+  const flush = () => {
+    if (block.length === 0) return;
+    const headerMatch = block[0].match(REGISTRY_HEADER_RE);
+    if (!headerMatch) {
+      block = [];
+      return;
+    }
+    const [, section, seq, date] = headerMatch;
+    const bodyText = block
+      .slice(1)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const cancelled = /(^|\s)소멸(\s|$)/.test(bodyText);
+    const bodyNoCancel = bodyText.replace(/(^|\s)소멸(\s|$)/, " ").trim();
+
+    const rightTypeMatch = bodyNoCancel.match(/^(\S+)\s*/);
+    const rightType = rightTypeMatch ? rightTypeMatch[1] : bodyNoCancel;
+    let rest = bodyNoCancel.slice(rightType.length).trim();
+
+    let holder = "";
+    let amount = "";
+    let note = "";
+    let isClaimAmount = false;
+
+    const isTransferType = rightType === "소유권이전" || rightType.includes("지분전부이전");
+    if (isTransferType) {
+      const dealMatch = rest.match(/(거래가액:[\d,]+원)/);
+      if (dealMatch) {
+        holder = rest.slice(0, dealMatch.index).trim();
+        note = dealMatch[1];
+      } else {
+        holder = rest;
+      }
+    } else {
+      isClaimAmount = /청구금액/.test(rest);
+      rest = rest.replace(/청구금액\s*/, "");
+      const amountMatch = rest.match(/([\d,]{4,})/);
+      amount = amountMatch ? amountMatch[1] : "";
+      if (amountMatch && amountMatch.index != null) {
+        holder = rest.slice(0, amountMatch.index).trim();
+        note = rest.slice(amountMatch.index + amountMatch[0].length).trim();
+      } else {
+        holder = rest;
+        note = "";
+      }
+    }
+
+    rows.push({ section, seq, date, rightType, holder, amount, isClaimAmount, note, cancelled });
+    block = [];
+  };
+
+  for (const line of lines) {
+    if (REGISTRY_HEADER_RE.test(line) && block.length > 0) flush();
+    block.push(line);
+  }
+  flush();
+
+  return rows;
+}
+
+function RegistryTable({ value }: { value: string }) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "-" || text === "이상없음") {
+    return (
+      <div className="rounded-xl border border-border bg-card px-4 py-3 text-[0.82rem] text-emerald-600">
+        이상없음
+      </div>
+    );
+  }
+
+  const rows = parseRegistryDetail(text);
+  if (rows.length === 0) {
+    return (
+      <div className="text-[0.82rem] leading-relaxed max-h-40 overflow-y-auto rounded-xl border border-border bg-card px-4 py-3 whitespace-pre-wrap break-words text-red-500 font-semibold">
+        {text}
+      </div>
+    );
+  }
+
+  const totalAmount = rows.reduce((sum, row) => {
+    if (row.isClaimAmount) return sum;
+    const n = Number(row.amount.replace(/,/g, ""));
+    return Number.isFinite(n) ? sum + n : sum;
+  }, 0);
+
+  return (
+    <div className={detailTableShellClass()}>
+      {totalAmount > 0 && (
+        <div className="px-3 py-1.5 text-[0.68rem] text-muted-foreground bg-secondary/20 border-b border-border/60">
+          채권합계금액: {totalAmount.toLocaleString("ko-KR")}원
+        </div>
+      )}
+      <div className="overflow-x-auto max-h-56 overflow-y-auto">
+        <table className="w-full border-collapse">
+          <thead className="sticky top-0 bg-card border-b border-border shadow-[0_1px_0_0_var(--border)]">
+            <tr>
+              <th className={detailTableHeadCellClass}>순서</th>
+              <th className={detailTableHeadCellClass}>접수일</th>
+              <th className={detailTableHeadCellClass}>권리종류</th>
+              <th className={detailTableHeadCellClass}>권리자</th>
+              <th className={`${detailTableHeadCellClass} text-right`}>채권금액</th>
+              <th className={detailTableHeadCellClass}>비고</th>
+              <th className={detailTableHeadCellClass}>소멸</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-t border-border/60">
+                <td className={detailTableBodyCellClass}>
+                  {row.section}({row.seq})
+                </td>
+                <td className={detailTableBodyCellClass}>{row.date}</td>
+                <td className={detailTableBodyCellClass}>{row.rightType}</td>
+                <td className={detailTableBodyCellClass}>{row.holder || "-"}</td>
+                <td className={`${detailTableBodyCellClass} text-right font-semibold`}>
+                  {row.isClaimAmount ? (
+                    <span className="inline-flex flex-col items-end leading-tight">
+                      <span className="text-[0.6rem] font-normal text-muted-foreground">청구금액</span>
+                      <span>{row.amount}</span>
+                    </span>
+                  ) : (
+                    row.amount || ""
+                  )}
+                </td>
+                <td className={`${detailTableBodyCellClass} whitespace-normal text-muted-foreground`}>
+                  {row.note || ""}
+                </td>
+                <td className={detailTableBodyCellClass}>
+                  {row.cancelled && <span className="text-primary">소멸</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -671,7 +1266,7 @@ function DiffBadge({
   );
 }
 
-const TRADING_COUNT_VALUE = "text-[13px] leading-tight font-mono font-semibold truncate";
+const TRADING_COUNT_VALUE = "text-[13px] leading-tight font-mono font-semibold";
 
 function PriceInlineInput({
   active,
@@ -738,6 +1333,17 @@ function PriceInlineInput({
   );
 }
 
+function formatTradingCountDisplay(value: string): string {
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => {
+      const match = part.match(/(\d+)\s*건$/);
+      return !match || Number(match[1]) > 0;
+    });
+  return parts.length > 0 ? parts.join(", ") : "-";
+}
+
 function TradingCountBadge({
   label,
   value,
@@ -747,18 +1353,23 @@ function TradingCountBadge({
   value: string;
   valueSlot?: ReactNode;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <div className={SECONDARY_CARD_SHELL}>
       <p className={`${LABEL_TEXT} text-muted-foreground truncate`}>{label}</p>
       {valueSlot ?? (
-        <p
-          className={`${TRADING_COUNT_VALUE} ${
-            value === "-" ? "text-muted-foreground/40" : "text-primary"
-          }`}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          disabled={value === "-"}
+          className={`${TRADING_COUNT_VALUE} text-left w-full ${
+            expanded ? "whitespace-normal break-words" : "truncate"
+          } ${value === "-" ? "text-muted-foreground/40 cursor-default" : "text-primary cursor-pointer"}`}
           title={value === "-" ? undefined : value}
         >
           {value}
-        </p>
+        </button>
       )}
     </div>
   );
@@ -828,6 +1439,8 @@ export function AuctionDetailModal({
   onAiAnalysisClick,
   onDislike,
   onReviewed,
+  loanRatio = null,
+  loanPolicyLabel = null,
 }: {
   item: AuctionItem | null;
   onClose: () => void;
@@ -841,6 +1454,8 @@ export function AuctionDetailModal({
   onAiAnalysisClick?: (item: AuctionItem) => void;
   onDislike?: (item: AuctionItem) => void;
   onReviewed?: (item: AuctionItem) => void;
+  loanRatio?: number | null;
+  loanPolicyLabel?: string | null;
 }) {
   const [form, setForm] = useState<UpdateAuctionPayload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -913,6 +1528,9 @@ export function AuctionDetailModal({
   const naverPrice = parsePreviewNumber(form.naverPrice);
   const minPrice = parsePreviewNumber(form.minPrice);
   const appraisedValue = parsePreviewNumber(form.appraisedValue);
+  const failureRate = getFailureRateRatio(minPrice, appraisedValue);
+  const isNewCase = failureRate === 100;
+  const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(minPrice, loanRatio) : null;
   const salePriceRaw = form.salePrice;
   const salePrice =
     salePriceRaw == null || String(salePriceRaw).trim() === ""
@@ -1022,7 +1640,7 @@ export function AuctionDetailModal({
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
-        className="relative w-full max-w-4xl sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl"
+        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-5xl"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
@@ -1036,6 +1654,36 @@ export function AuctionDetailModal({
             </span>
             {preview.isUpdated && <UpdatedBadge variant="onDark" />}
           </p>
+          {!editable && (
+            <div className="flex items-center gap-2 shrink-0">
+              {onToggleFavorite && (
+                <button
+                  type="button"
+                  onClick={handleToggleFavorite}
+                  disabled={favoriteDisabled}
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs border transition-colors disabled:opacity-50 ${
+                    isFavorite
+                      ? "bg-rose-500/25 border-rose-200/40 text-white hover:bg-rose-500/35"
+                      : "bg-white/10 border-white/25 hover:bg-white/20"
+                  }`}
+                >
+                  <Heart size={14} className={isFavorite ? "fill-current text-rose-200" : ""} />
+                  {isFavorite ? "관심물건 해제" : "관심물건 추가"}
+                </button>
+              )}
+              {preview.link && (
+                <a
+                  href={preview.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs bg-white/10 border border-white/25 hover:bg-white/20 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                  경매지정보
+                </a>
+              )}
+            </div>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -1046,7 +1694,31 @@ export function AuctionDetailModal({
           </button>
         </div>
 
-        <div className="max-h-[calc(100vh-12rem)] overflow-y-auto">
+        <div className={editable ? "" : "sm:flex sm:items-start"}>
+        <div className="max-h-[calc(100vh-12rem)] overflow-y-auto flex-1 min-w-0">
+          <div className="relative h-40 sm:h-56 overflow-hidden bg-secondary">
+            <img
+              src={
+                preview.usage === "아파트"
+                  ? "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&h=500&fit=crop&auto=format"
+                  : "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=500&fit=crop&auto=format"
+              }
+              alt={preview.usage || "물건"}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
+            <div className="absolute top-3 left-3 flex items-center gap-1.5">
+              <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-white/90 backdrop-blur text-primary border border-white/60">
+                {preview.propType}
+              </span>
+              {isNewCase && (
+                <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-500/90 backdrop-blur text-white">
+                  신건
+                </span>
+              )}
+            </div>
+          </div>
+
           <div className="flex sm:hidden items-center justify-between gap-2 bg-primary text-primary-foreground px-4 py-3">
             <p className="flex items-center gap-2 min-w-0 flex-1">
               <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm shrink-0`}>
@@ -1085,165 +1757,126 @@ export function AuctionDetailModal({
             </div>
           </div>
 
+          {editable && (
           <div className="hidden sm:block px-5 py-4 border-b border-border bg-secondary/10">
             <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0 flex-1">
-                {editable && (
-                  <span className={`inline-block mb-2 ${LABEL_TEXT} bg-secondary px-2 py-0.5 rounded-sm text-foreground/70`}>
-                    수정 가능
-                  </span>
+                <span className={`inline-block mb-2 ${LABEL_TEXT} bg-secondary px-2 py-0.5 rounded-sm text-foreground/70`}>
+                  수정 가능
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <HeaderSpecialNote
+                    value={String(form.specialNote ?? "")}
+                    editable
+                    active={editingHeader === "specialNote"}
+                    onActivate={() => activateHeaderEdit("specialNote")}
+                    onDeactivate={stopEditingHeader}
+                    onChange={(v) => setField("specialNote", v)}
+                    onDark={false}
+                  />
+                </div>
+                {preview.isUpdated && preview.updatedAt && (
+                  <p className={`mt-1 ${LABEL_TEXT} text-muted-foreground`}>
+                    최근 갱신 {new Date(preview.updatedAt).toLocaleString("ko-KR")}
+                    {preview.updatedBy ? ` · ${preview.updatedBy}` : ""}
+                  </p>
                 )}
-                {editable ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <HeaderSpecialNote
-                        value={String(form.specialNote ?? "")}
-                        editable
-                        active={editingHeader === "specialNote"}
-                        onActivate={() => activateHeaderEdit("specialNote")}
-                        onDeactivate={stopEditingHeader}
-                        onChange={(v) => setField("specialNote", v)}
-                        onDark={false}
-                      />
-                    </div>
-                    {preview.isUpdated && preview.updatedAt && (
-                      <p className={`mt-1 ${LABEL_TEXT} text-muted-foreground`}>
-                        최근 갱신 {new Date(preview.updatedAt).toLocaleString("ko-KR")}
-                        {preview.updatedBy ? ` · ${preview.updatedBy}` : ""}
-                      </p>
-                    )}
-                    <div className="mt-2 flex items-start gap-2">
-                      <MapPin size={16} className="shrink-0 mt-0.5 opacity-60" />
-                      {editingHeader === "address" ? (
-                        <textarea
-                          ref={addressInputRef}
-                          rows={2}
-                          value={form.address}
-                          onChange={(e) => setField("address", e.target.value)}
-                          onBlur={() => setEditingHeader(null)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Escape") {
-                              e.preventDefault();
-                              setEditingHeader(null);
-                            }
-                          }}
-                          placeholder="물건주소"
-                          className={`${headerFieldClass} ${LIST_TEXT} leading-relaxed resize-y min-h-[2.75rem] flex-1`}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => activateHeaderEdit("address")}
-                          className={`${headerEditableButtonClass} ${LIST_TEXT} text-foreground leading-relaxed flex-1 min-w-0 text-left`}
-                          title="클릭하여 물건주소 수정"
-                        >
-                          {form.address || "-"}
-                        </button>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <HeaderSpecialNote
-                      value={String(preview.specialNote ?? "")}
-                      editable={false}
-                      active={false}
-                      onActivate={() => {}}
-                      onDeactivate={() => {}}
-                      onChange={() => {}}
-                      onDark={false}
+                <div className="mt-2 flex items-start gap-2">
+                  <MapPin size={16} className="shrink-0 mt-0.5 opacity-60" />
+                  {editingHeader === "address" ? (
+                    <textarea
+                      ref={addressInputRef}
+                      rows={2}
+                      value={form.address}
+                      onChange={(e) => setField("address", e.target.value)}
+                      onBlur={() => setEditingHeader(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          setEditingHeader(null);
+                        }
+                      }}
+                      placeholder="물건주소"
+                      className={`${headerFieldClass} ${LIST_TEXT} leading-relaxed resize-y min-h-[2.75rem] flex-1`}
                     />
-                    <p className={`mt-2 ${LIST_TEXT} text-foreground leading-relaxed flex items-start gap-2`}>
-                      <MapPin size={16} className="shrink-0 mt-0.5 opacity-60" />
-                      <span>{preview.address || "-"}</span>
-                    </p>
-                  </>
-                )}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => activateHeaderEdit("address")}
+                      className={`${headerEditableButtonClass} ${LIST_TEXT} text-foreground leading-relaxed flex-1 min-w-0 text-left`}
+                      title="클릭하여 물건주소 수정"
+                    >
+                      {form.address || "-"}
+                    </button>
+                  )}
+                </div>
                 <div className={`mt-2 flex flex-col gap-y-1 ${LABEL_TEXT} text-muted-foreground`}>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
                     <span className="inline-flex items-center gap-1">
                       <Building2 size={14} />
                       {preview.city} {preview.district}
                     </span>
-                    {editable ? (
-                      <>
-                        <HeaderInlineInput
-                          active={editingHeader === "area"}
-                          onActivate={() => activateHeaderEdit("area")}
-                          onDeactivate={stopEditingHeader}
-                          value={parseAreaNumber(form.area)}
-                          onChange={(v) => setField("area", v)}
-                          display={<AreaLabel area={form.area} />}
-                          placeholder="면적"
-                          title="클릭하여 면적 수정"
-                          compact
-                        />
-                        <HeaderInlineInput
-                          active={editingHeader === "builtYear"}
-                          onActivate={() => activateHeaderEdit("builtYear")}
-                          onDeactivate={stopEditingHeader}
-                          value={String(form.builtYear ?? "")}
-                          onChange={(v) => setField("builtYear", v)}
-                          display={form.builtYear ? `${form.builtYear}년` : "-"}
-                          placeholder="연식"
-                          title="클릭하여 연식 수정"
-                          compact
-                        />
-                        <HeaderInlineInput
-                          active={editingHeader === "totalUnits"}
-                          onActivate={() => activateHeaderEdit("totalUnits")}
-                          onDeactivate={stopEditingHeader}
-                          value={String(form.totalUnits ?? "")}
-                          onChange={(v) => setField("totalUnits", v)}
-                          display={formatTotalUnitsLabel(form.totalUnits)}
-                          placeholder="세대수"
-                          title="클릭하여 총 세대수 수정"
-                          compact
-                        />
-                        <HeaderInlineInput
-                          active={editingHeader === "officialLandPrice"}
-                          onActivate={() => activateHeaderEdit("officialLandPrice")}
-                          onDeactivate={stopEditingHeader}
-                          value={String(form.officialLandPrice ?? "")}
-                          onChange={(v) => setField("officialLandPrice", v)}
-                          display={formatOfficialLandPriceLabel(form.officialLandPrice)}
-                          placeholder="공시가"
-                          title="클릭하여 공시가 수정"
-                          compact
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <span><AreaLabel area={preview.area} /></span>
-                        <span>{preview.builtYear ? `${preview.builtYear}년` : "-"}</span>
-                        <span>{formatTotalUnitsLabel(preview.totalUnits)}</span>
-                        <span>{formatOfficialLandPriceLabel(preview.officialLandPrice)}</span>
-                      </>
-                    )}
+                    <HeaderInlineInput
+                      active={editingHeader === "area"}
+                      onActivate={() => activateHeaderEdit("area")}
+                      onDeactivate={stopEditingHeader}
+                      value={parseAreaNumber(form.area)}
+                      onChange={(v) => setField("area", v)}
+                      display={<AreaLabel area={form.area} />}
+                      placeholder="면적"
+                      title="클릭하여 면적 수정"
+                      compact
+                    />
+                    <HeaderInlineInput
+                      active={editingHeader === "builtYear"}
+                      onActivate={() => activateHeaderEdit("builtYear")}
+                      onDeactivate={stopEditingHeader}
+                      value={String(form.builtYear ?? "")}
+                      onChange={(v) => setField("builtYear", v)}
+                      display={form.builtYear ? `${form.builtYear}년` : "-"}
+                      placeholder="연식"
+                      title="클릭하여 연식 수정"
+                      compact
+                    />
+                    <HeaderInlineInput
+                      active={editingHeader === "totalUnits"}
+                      onActivate={() => activateHeaderEdit("totalUnits")}
+                      onDeactivate={stopEditingHeader}
+                      value={String(form.totalUnits ?? "")}
+                      onChange={(v) => setField("totalUnits", v)}
+                      display={formatTotalUnitsLabel(form.totalUnits)}
+                      placeholder="세대수"
+                      title="클릭하여 총 세대수 수정"
+                      compact
+                    />
+                    <HeaderInlineInput
+                      active={editingHeader === "officialLandPrice"}
+                      onActivate={() => activateHeaderEdit("officialLandPrice")}
+                      onDeactivate={stopEditingHeader}
+                      value={String(form.officialLandPrice ?? "")}
+                      onChange={(v) => setField("officialLandPrice", v)}
+                      display={formatOfficialLandPriceLabel(form.officialLandPrice)}
+                      placeholder="공시가"
+                      title="클릭하여 공시가 수정"
+                      compact
+                    />
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
-                    {editable ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar size={14} />
-                        입찰{" "}
-                        <HeaderInlineInput
-                          active={editingHeader === "bidDate"}
-                          onActivate={() => activateHeaderEdit("bidDate")}
-                          onDeactivate={stopEditingHeader}
-                          value={String(form.bidDate ?? "")}
-                          onChange={(v) => setField("bidDate", v)}
-                          display={form.bidDate || "-"}
-                          placeholder="입찰기일"
-                          title="클릭하여 입찰기일 수정"
-                          compact
-                        />
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar size={14} />
-                        입찰 {preview.bidDate || "-"}
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar size={14} />
+                      입찰{" "}
+                      <HeaderInlineInput
+                        active={editingHeader === "bidDate"}
+                        onActivate={() => activateHeaderEdit("bidDate")}
+                        onDeactivate={stopEditingHeader}
+                        value={String(form.bidDate ?? "")}
+                        onChange={(v) => setField("bidDate", v)}
+                        display={form.bidDate || "-"}
+                        placeholder="입찰기일"
+                        title="클릭하여 입찰기일 수정"
+                        compact
+                      />
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1305,17 +1938,19 @@ export function AuctionDetailModal({
               </div>
             </div>
           </div>
+          )}
 
-          <div className="sticky top-0 z-10 bg-card px-5 pt-3 border-b border-border flex items-center gap-1">
+          <div className="sticky top-0 z-10 bg-card border-b border-border flex items-center">
             <button
               type="button"
               onClick={() => setActiveTab("info")}
-              className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 text-sm font-semibold border-b-2 -mb-px transition-all ${
                 activeTab === "info"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "border-primary text-primary bg-primary/[0.02]"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/50"
               }`}
             >
+              <Home size={14} />
               기본정보
             </button>
             <button
@@ -1324,13 +1959,13 @@ export function AuctionDetailModal({
                 setActiveTab("ai");
                 onAiAnalysisClick?.(item);
               }}
-              className={`px-3 py-2 ${LABEL_TEXT} font-medium border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5 ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 text-sm font-semibold border-b-2 -mb-px transition-all ${
                 activeTab === "ai"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "border-primary text-primary bg-primary/[0.02]"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/50"
               }`}
             >
-              <Brain size={13} />
+              <Brain size={14} />
               AI에게 물어보기
             </button>
           </div>
@@ -1340,70 +1975,79 @@ export function AuctionDetailModal({
             item && <AuctionAnalysisPanel auctionId={item.id} />
           ) : (
           <>
-          <div className="sm:hidden -mt-6 -mx-5 mb-6 px-4 pt-3 pb-3 bg-primary/5 border-b border-border space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              {String((editable ? form.specialNote : preview.specialNote) ?? "").trim() !== "없음" &&
-                String((editable ? form.specialNote : preview.specialNote) ?? "").trim() && (
-                  <span className="text-[13px] font-semibold text-red-600 truncate max-w-[16rem]">
-                    {String((editable ? form.specialNote : preview.specialNote) ?? "").trim()}
-                  </span>
-                )}
-            </div>
-            <p className="text-[13px] text-foreground/80 leading-relaxed flex items-start gap-1.5">
-              <MapPin size={14} className="shrink-0 mt-0.5 opacity-70" />
-              <span>{(editable ? form.address : preview.address) || "-"}</span>
-            </p>
-            <div className="flex flex-col gap-y-1 text-[12px] text-muted-foreground">
-              <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
-                <span className="inline-flex items-center gap-1">
-                  <Building2 size={12} />
-                  {preview.city} {preview.district}
-                </span>
-                <span><AreaLabel area={preview.area} /></span>
-                <span>{preview.builtYear ? `${preview.builtYear}년` : "-"}</span>
-                <span>{formatOfficialLandPriceLabel(preview.officialLandPrice)}</span>
+          {!editable && (
+            <div className="rounded-2xl bg-card border border-border overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
+                <Home size={16} className="text-muted-foreground" />
+                <h3 className="text-sm font-bold text-foreground">기본 물건 정보</h3>
               </div>
-              <span className="inline-flex items-center gap-1">
-                <Calendar size={12} />
-                입찰 {preview.bidDate || "-"}
-              </span>
-            </div>
-            {(onDislike || onReviewed || onViewHistory) && (
-              <div className="flex items-center flex-wrap gap-2 pt-1">
-                {onDislike && (
-                  <button
-                    type="button"
-                    onClick={() => onDislike(item)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
-                  >
-                    관심없음
-                  </button>
-                )}
-                {onReviewed && (
-                  <button
-                    type="button"
-                    onClick={() => onReviewed(item)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
-                  >
-                    검토완료
-                  </button>
-                )}
-                {onViewHistory && (
-                  <button
-                    type="button"
-                    onClick={() => onViewHistory(item)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-secondary/50 border border-border rounded-sm hover:bg-secondary transition-colors"
-                  >
-                    <History size={14} />
-                    변경 이력
-                  </button>
-                )}
+              <div className="px-5 py-4">
+                {(() => {
+                  const noteText = String(preview.specialNote ?? "").trim();
+                  const hasNote = noteText && noteText !== "없음";
+                  return (
+                    <>
+                      {hasNote && (
+                        <p className="text-[0.82rem] font-semibold text-red-600 mb-3">{noteText}</p>
+                      )}
+                      <p className="text-sm font-medium text-foreground mb-4 flex items-start gap-2">
+                        <MapPin size={15} className="shrink-0 mt-0.5 text-muted-foreground" />
+                        <span>{preview.address || "-"}</span>
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+                        <DataRow label="소유자" value={preview.owner || "-"} />
+                        <DataRow label="전용면적" value={<AreaLabel area={preview.area} />} />
+                        <DataRow label="사용승인일" value={preview.builtYear ? `${preview.builtYear}년` : "-"} />
+                        <DataRow label="총 세대수" value={formatTotalUnitsLabel(preview.totalUnits)} />
+                        <DataRow label="공시가격" value={formatOfficialLandPriceLabel(preview.officialLandPrice)} />
+                        <DataRow label="입찰기일" value={preview.bidDate || "-"} />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
-            )}
-          </div>
-          <section>
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
-              <h3 className={`${SECTION_TEXT} font-semibold text-foreground`}>물건 요약</h3>
+
+              {(onDislike || onReviewed || onViewHistory) && (
+                <div className="flex items-center flex-wrap gap-2 px-5 py-4 border-t border-border/50">
+                  {onDislike && (
+                    <button
+                      type="button"
+                      onClick={() => onDislike(item)}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
+                    >
+                      관심없음
+                    </button>
+                  )}
+                  {onReviewed && (
+                    <button
+                      type="button"
+                      onClick={() => onReviewed(item)}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
+                    >
+                      검토완료
+                    </button>
+                  )}
+                  {onViewHistory && (
+                    <button
+                      type="button"
+                      onClick={() => onViewHistory(item)}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
+                    >
+                      <History size={14} />
+                      변경 이력
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-2xl bg-card border border-border overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <Home size={16} className="text-muted-foreground" />
+                <h3 className="text-sm font-bold text-foreground">물건 요약</h3>
+              </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
@@ -1452,6 +2096,7 @@ export function AuctionDetailModal({
                 </span>
               </div>
             </div>
+            <div className="px-5 py-4">
             {showMemo && (
               <div className="mb-3 rounded-sm border border-amber-200/80 bg-amber-50/50 px-4 py-3">
                 {editable ? (
@@ -1541,7 +2186,11 @@ export function AuctionDetailModal({
                 secondary={
                   <TradingCountBadge
                     label="실거래 건수"
-                    value={preview.tradingCount || "-"}
+                    value={
+                      editable
+                        ? preview.tradingCount || "-"
+                        : formatTradingCountDisplay(preview.tradingCount || "-")
+                    }
                     valueSlot={
                       editable
                         ? renderPriceField(
@@ -1576,7 +2225,59 @@ export function AuctionDetailModal({
                 }
               />
             </div>
-          </section>
+            </div>
+          </div>
+
+          {!editable && (
+            <div className="rounded-2xl bg-card border border-border overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
+                <MapPin size={16} className="text-muted-foreground" />
+                <h3 className="text-sm font-bold text-foreground">소재지</h3>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <div>
+                  <p className="text-[0.72rem] text-muted-foreground mb-0.5">지번 주소</p>
+                  <p className="text-sm font-medium text-foreground">{preview.address || "-"}</p>
+                </div>
+                {preview.address ? (
+                  <a
+                    href={`https://map.naver.com/p/search/${encodeURIComponent(preview.address)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 h-40 rounded-xl bg-[#EEF1F6] border border-border flex items-center justify-center overflow-hidden relative group hover:border-primary/40 transition-colors"
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(rgba(30,58,95,0.04) 1px, transparent 1px), linear-gradient(90deg,rgba(30,58,95,0.04) 1px, transparent 1px)",
+                        backgroundSize: "20px 20px",
+                      }}
+                    />
+                    <div className="relative z-10 flex flex-col items-center gap-2 text-muted-foreground group-hover:text-primary transition-colors">
+                      <MapPin size={28} className="text-primary/40 group-hover:text-primary" />
+                      <span className="text-xs font-medium">네이버 지도에서 보기</span>
+                    </div>
+                  </a>
+                ) : (
+                  <div className="mt-2 h-40 rounded-xl bg-[#EEF1F6] border border-border flex items-center justify-center overflow-hidden relative">
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(rgba(30,58,95,0.04) 1px, transparent 1px), linear-gradient(90deg,rgba(30,58,95,0.04) 1px, transparent 1px)",
+                        backgroundSize: "20px 20px",
+                      }}
+                    />
+                    <div className="relative z-10 flex flex-col items-center gap-2 text-muted-foreground">
+                      <MapPin size={28} className="text-primary/40" />
+                      <span className="text-xs">주소 정보 없음</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {editable ? (
             <>
@@ -1648,65 +2349,162 @@ export function AuctionDetailModal({
             </>
           ) : (
             AUCTION_FIELD_GROUPS.map((group) => {
-              const fields = detailVisibleFields(group);
+              const fields = detailVisibleFields(group).filter((field) => field.key !== "owner");
               if (fields.length === 0) return null;
 
               return (
-                <section key={group.title}>
-                  <h3 className={`${SECTION_TEXT} font-semibold text-foreground mb-3 pb-2 border-b border-border`}>
-                    {group.title}
-                  </h3>
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                    {fields.map((field) => {
-                      const value = formatFieldValue(field.key, item);
-                      const isFull = field.full;
+                <div key={group.title} className="rounded-2xl bg-card border border-border overflow-hidden">
+                  <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
+                    <FileText size={16} className="text-muted-foreground" />
+                    <h3 className="text-sm font-bold text-foreground">{group.title}</h3>
+                  </div>
+                  <div className="px-5 py-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                      {fields.map((field) => {
+                        const value = formatFieldValue(field.key, item);
+                        const isFull = field.full;
 
-                      return (
-                        <div key={field.key} className={isFull ? "sm:col-span-2" : ""}>
-                          <dt className={`${LABEL_TEXT} text-muted-foreground mb-0.5 flex items-center gap-1.5`}>
-                            <span>{field.label}</span>
-                            {field.key === "priceDetail" && (
-                              <NaverComplexLink naverId={naverId} compact />
-                            )}
-                          </dt>
-                          <dd className={`${LIST_TEXT} text-foreground break-words min-w-0`}>
-                            {field.key === "tenantInfo" ? (
-                              <TenantInfoField
-                                value={String(item.tenantInfo ?? "")}
-                                editable={false}
-                              />
-                            ) : field.key === "tenantDetail" ? (
-                              <TenantStatusPanel value={String(item.tenantDetail ?? "")} />
-                            ) : isExpandableDetailField(field.key) ? (
-                              <ExpandableDetailField
-                                label={field.label}
-                                value={
-                                  field.key === "priceDetail" &&
-                                  !hasNaverPrice(item.naverPrice)
-                                    ? "-"
-                                    : String(item[field.key as keyof AuctionItem] ?? "")
-                                }
-                                valueClassName={
-                                  field.key === "buildingRegistry"
-                                    ? buildingRegistryClassName(String(item.buildingRegistry ?? ""))
-                                    : ""
-                                }
-                              />
-                            ) : (
-                              value
-                            )}
-                          </dd>
-                        </div>
-                      );
-                    })}
-                  </dl>
-                </section>
+                        return (
+                          <div key={field.key} className={isFull ? "sm:col-span-2 min-w-0" : "min-w-0"}>
+                            <p className="text-[0.68rem] text-muted-foreground mb-1 flex items-center gap-1.5">
+                              <span>{field.label}</span>
+                              {field.key === "priceDetail" && (
+                                <NaverComplexLink naverId={naverId} compact />
+                              )}
+                            </p>
+                            <div className="text-[0.82rem] font-medium text-foreground break-words min-w-0">
+                              {field.key === "tenantInfo" ? (
+                                <TenantInfoField
+                                  value={String(item.tenantInfo ?? "")}
+                                  editable={false}
+                                />
+                              ) : field.key === "tenantDetail" ? (
+                                <TenantStatusPanel value={String(item.tenantDetail ?? "")} />
+                              ) : field.key === "priceDetail" ? (
+                                <ListingPriceTable
+                                  value={
+                                    hasNaverPrice(item.naverPrice)
+                                      ? String(item.priceDetail ?? "")
+                                      : "-"
+                                  }
+                                />
+                              ) : field.key === "tradingDetail" ? (
+                                <TransactionDetailTable value={String(item.tradingDetail ?? "")} />
+                              ) : field.key === "education" ? (
+                                <EducationTable value={String(item.education ?? "")} />
+                              ) : field.key === "buildingRegistry" ? (
+                                <RegistryTable value={String(item.buildingRegistry ?? "")} />
+                              ) : isExpandableDetailField(field.key) ? (
+                                <ExpandableDetailField
+                                  label={field.label}
+                                  value={String(item[field.key as keyof AuctionItem] ?? "")}
+                                />
+                              ) : (
+                                value
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               );
             })
           )}
           </>
           )}
           </div>
+        </div>
+
+        {!editable && (
+          <div className="hidden sm:block w-[280px] shrink-0 border-l border-border bg-secondary/10 px-5 py-5 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
+            {requiredEquity != null && (
+              <div
+                className="rounded-xl p-4"
+                style={{ background: "linear-gradient(135deg,#EEF4FF,#F0F5FF)", border: "1px solid rgba(42,82,152,0.15)" }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[0.68rem] font-bold text-primary/60 uppercase tracking-wider" style={{ fontFamily: "'Inter', sans-serif" }}>
+                    최소 투자금
+                  </span>
+                  {failureRate != null && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-600 text-[0.65rem] font-bold border border-blue-200">
+                      {failureRate}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-[1.5rem] font-bold text-primary leading-none mt-1 mb-0.5" style={{ fontFamily: "'Inter', sans-serif" }}>
+                  {formatWonShort(requiredEquity)}
+                </p>
+                {loanPolicyLabel && loanRatio != null && (
+                  <p className="text-[0.68rem] text-primary/50">
+                    {loanPolicyLabel} {Math.round(loanRatio * 100)}% 대출 적용
+                  </p>
+                )}
+                <div className="mt-3 pt-3 border-t border-primary/10 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[0.72rem] text-primary/60">최저입찰가</span>
+                    <span className="text-[0.8rem] font-semibold text-primary" style={{ fontFamily: "'Inter', sans-serif" }}>
+                      {fmtEok(minPrice)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[0.72rem] text-primary/60">감정가</span>
+                    <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
+                      {fmtEok(appraisedValue)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-xl bg-card border border-border p-4 space-y-3">
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                <Clock size={16} className="text-amber-500 shrink-0" />
+                <div>
+                  <p className="text-[0.72rem] font-semibold text-amber-700">다음 기일</p>
+                  <p className="text-[0.82rem] font-bold text-amber-800" style={{ fontFamily: "'Inter', sans-serif" }}>
+                    {preview.bidDate || "-"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onAiAnalysisClick?.(item)}
+                className="w-full h-11 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90 active:scale-[0.99]"
+                style={{ background: "linear-gradient(135deg,#1E3A5F,#2A5298)" }}
+              >
+                입찰 준비하기
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("ai");
+                  onAiAnalysisClick?.(item);
+                }}
+                className="w-full h-10 rounded-xl text-sm font-medium text-primary border border-primary/20 bg-primary/4 hover:bg-primary/8 transition-all"
+              >
+                AI 권리분석 요청
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-card border border-border p-4 space-y-3">
+              {[
+                { icon: <Building2 size={14} />, label: "소재지", value: `${preview.city} ${preview.district}` },
+                { icon: <Calendar size={14} />, label: "입찰기일", value: preview.bidDate || "-" },
+              ].map(({ icon, label, value }, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <div className="w-4 h-4 flex items-center justify-center text-muted-foreground flex-shrink-0 mt-0.5">{icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[0.65rem] text-muted-foreground">{label}</p>
+                    <p className="text-[0.78rem] font-medium text-foreground truncate">{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
 
         {activeTab === "info" && (
