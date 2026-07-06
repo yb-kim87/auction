@@ -1640,7 +1640,7 @@ export function AuctionDetailModal({
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
-        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-6xl"} sm:my-4 min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
+        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-6xl"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
@@ -1702,7 +1702,7 @@ export function AuctionDetailModal({
         </div>
 
         <div
-          className={`sm:max-h-[calc(100vh-6rem)] sm:overflow-y-auto ${editable ? "" : "sm:flex sm:items-start"}`}
+          className={`max-h-[100vh] sm:max-h-[calc(100vh-6rem)] overflow-y-auto ${editable ? "" : "sm:flex sm:items-start"}`}
           style={{ backgroundColor: "#f4f6f9" }}
         >
         <div className="flex-1 min-w-0">
@@ -1960,8 +1960,7 @@ export function AuctionDetailModal({
           </div>
           )}
 
-          <div className="sm:px-5">
-          <div className="sticky top-0 z-10 bg-card border-b border-border flex items-center">
+          <div className="sticky top-0 z-10 bg-card border-b border-border flex items-center sm:px-5">
             <button
               type="button"
               onClick={() => setActiveTab("info")}
@@ -1989,7 +1988,6 @@ export function AuctionDetailModal({
               <Brain size={14} />
               AI에게 물어보기
             </button>
-          </div>
           </div>
 
           <div className="bg-card px-5 py-5 space-y-6">
@@ -2491,14 +2489,6 @@ export function AuctionDetailModal({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => onAiAnalysisClick?.(item)}
-                className="w-full h-11 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90 active:scale-[0.99]"
-                style={{ background: "linear-gradient(135deg,#1E3A5F,#2A5298)" }}
-              >
-                입찰 준비하기
-              </button>
               <button
                 type="button"
                 onClick={() => {
