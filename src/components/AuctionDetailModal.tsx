@@ -1640,7 +1640,7 @@ export function AuctionDetailModal({
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
-        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-5xl"} sm:my-4 min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
+        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-6xl"} sm:my-4 min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
@@ -1702,7 +1702,7 @@ export function AuctionDetailModal({
         </div>
 
         <div
-          className={`sm:max-h-[calc(100vh-12rem)] sm:overflow-y-auto ${editable ? "" : "sm:flex sm:items-start"}`}
+          className={`sm:max-h-[calc(100vh-6rem)] sm:overflow-y-auto ${editable ? "" : "sm:flex sm:items-start"}`}
           style={{ backgroundColor: "#f4f6f9" }}
         >
         <div className="flex-1 min-w-0">
@@ -2381,13 +2381,13 @@ export function AuctionDetailModal({
                     <h3 className="text-sm font-bold text-foreground">{group.title}</h3>
                   </div>
                   <div className="px-5 py-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                       {fields.map((field) => {
                         const value = formatFieldValue(field.key, item);
                         const isFull = field.full;
 
                         return (
-                          <div key={field.key} className={isFull ? "sm:col-span-2 min-w-0" : "min-w-0"}>
+                          <div key={field.key} className={isFull ? "col-span-2 min-w-0" : "min-w-0"}>
                             <p className="text-[0.68rem] text-muted-foreground mb-1 flex items-center gap-1.5">
                               <span>{field.label}</span>
                               {field.key === "priceDetail" && (
