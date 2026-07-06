@@ -1469,6 +1469,8 @@ export function AuctionDetailModal({
   const [editingViews, setEditingViews] = useState(false);
   const auctionNoInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLTextAreaElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const stopEditingHeader = () => setEditingHeader(null);
   const stopEditingPrice = () => setEditingPrice(null);
@@ -1493,6 +1495,26 @@ export function AuctionDetailModal({
     setActiveTab("info");
     setEditingViews(false);
   }, [item]);
+
+  // Push a history entry when the modal opens so mobile "back" closes the
+  // modal instead of navigating past the list page that opened it.
+  useEffect(() => {
+    if (!item) return;
+    window.history.pushState({ auctionDetailModal: true }, "");
+
+    const onPopState = () => {
+      onCloseRef.current();
+    };
+    window.addEventListener("popstate", onPopState);
+
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      if (window.history.state?.auctionDetailModal) {
+        window.history.back();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id]);
 
   useEffect(() => {
     if (editingHeader === "auctionNo") {
@@ -2369,7 +2391,14 @@ export function AuctionDetailModal({
             </>
           ) : (
             AUCTION_FIELD_GROUPS.map((group) => {
-              const fields = detailVisibleFields(group).filter((field) => field.key !== "owner");
+              const fields = detailVisibleFields(group).filter((field) => {
+                if (field.key === "owner" || field.key === "tenantInfo") return false;
+                if (field.key === "bidInfo") {
+                  const bidInfoValue = String(item.bidInfo ?? "").trim();
+                  return bidInfoValue && bidInfoValue !== "없음";
+                }
+                return true;
+              });
               if (fields.length === 0) return null;
 
               return (
