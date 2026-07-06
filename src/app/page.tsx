@@ -705,7 +705,7 @@ export default function HomePage() {
   const [searchText, setSearchText] = useState("");
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filters, setFilters] = useState<RecommendFilters>(EMPTY_RECOMMEND_FILTERS);
-  const [sortBy, setSortBy] = useState<SortOption>("최신순");
+  const [sortBy, setSortBy] = useState<SortOption>("입찰기일순");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const isAdmin = profile?.role === "admin";

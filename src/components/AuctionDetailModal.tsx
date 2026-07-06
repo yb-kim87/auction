@@ -1662,7 +1662,7 @@ export function AuctionDetailModal({
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
-        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-6xl"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
+        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-7xl"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
