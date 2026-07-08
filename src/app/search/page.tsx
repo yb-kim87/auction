@@ -1319,6 +1319,13 @@ export default function Home() {
         }}
         editable={isAdmin}
         isAdmin={isAdmin}
+        aiAnalysisLimit={profile?.aiAnalysisLimit}
+        aiAnalysisUsed={profile?.aiAnalysisUsed}
+        onAiAnalysisUsed={() =>
+          setProfile((prev) =>
+            prev ? { ...prev, aiAnalysisUsed: (prev.aiAnalysisUsed ?? 0) + 1 } : prev,
+          )
+        }
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
         onToggleFavorite={

@@ -16,12 +16,14 @@ import {
   HEADER_TITLE,
 } from "@/components/AppHeader";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { SelectField, TextAreaField, CheckboxField } from "@/components/InvestmentFormFields";
+import { SelectField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
 import {
   EXISTING_LOAN_OPTIONS,
   HOUSING_COUNT_OPTIONS,
   INVESTABLE_FUNDS_OPTIONS,
   TARGET_RETURN_OPTIONS,
+  CREDIT_SCORE_OPTIONS,
+  ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
 
 const inputClass =
@@ -36,6 +38,8 @@ export default function AccountPage() {
   const [investableFunds, setInvestableFunds] = useState("");
   const [existingLoanAmount, setExistingLoanAmount] = useState("");
   const [housingCount, setHousingCount] = useState("");
+  const [creditScore, setCreditScore] = useState("");
+  const [annualNetIncome, setAnnualNetIncome] = useState("");
   const [targetReturn, setTargetReturn] = useState("");
   const [investmentGoal, setInvestmentGoal] = useState("");
   const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
@@ -56,6 +60,8 @@ export default function AccountPage() {
     setInvestableFunds(data.investableFunds ?? "");
     setExistingLoanAmount(data.existingLoanAmount ?? "");
     setHousingCount(String(data.housingCount ?? 0));
+    setCreditScore(data.creditScore ?? "");
+    setAnnualNetIncome(data.annualNetIncome ?? "");
     setTargetReturn(data.targetReturn ?? "");
     setInvestmentGoal(data.investmentGoal ?? "");
     setFirstTimeBuyer(data.firstTimeBuyer ?? false);
@@ -92,6 +98,8 @@ export default function AccountPage() {
     const trimmedName = name.trim();
     const trimmedInvestableFunds = investableFunds.trim();
     const trimmedExistingLoanAmount = existingLoanAmount.trim();
+    const trimmedCreditScore = creditScore.trim();
+    const trimmedAnnualNetIncome = annualNetIncome.trim();
     const trimmedTargetReturn = targetReturn.trim();
     const trimmedInvestmentGoal = investmentGoal.trim();
     const parsedHousingCount = Number.parseInt(housingCount, 10);
@@ -101,6 +109,8 @@ export default function AccountPage() {
     const existingLoanAmountChanged =
       trimmedExistingLoanAmount !== (profile.existingLoanAmount ?? "");
     const housingCountChanged = parsedHousingCount !== (profile.housingCount ?? 0);
+    const creditScoreChanged = trimmedCreditScore !== (profile.creditScore ?? "");
+    const annualNetIncomeChanged = trimmedAnnualNetIncome !== (profile.annualNetIncome ?? "");
     const targetReturnChanged = trimmedTargetReturn !== (profile.targetReturn ?? "");
     const investmentGoalChanged = trimmedInvestmentGoal !== (profile.investmentGoal ?? "");
     const firstTimeBuyerChanged = firstTimeBuyer !== (profile.firstTimeBuyer ?? false);
@@ -108,13 +118,22 @@ export default function AccountPage() {
       investableFundsChanged ||
       existingLoanAmountChanged ||
       housingCountChanged ||
+      creditScoreChanged ||
+      annualNetIncomeChanged ||
       targetReturnChanged ||
       investmentGoalChanged ||
       firstTimeBuyerChanged;
     const passwordChanging = Boolean(newPassword || confirmPassword || currentPassword);
 
     if (profileFieldsChanged) {
-      if (!trimmedInvestableFunds || !trimmedExistingLoanAmount || !trimmedTargetReturn || !trimmedInvestmentGoal) {
+      if (
+        !trimmedInvestableFunds ||
+        !trimmedExistingLoanAmount ||
+        !trimmedCreditScore ||
+        !trimmedAnnualNetIncome ||
+        !trimmedTargetReturn ||
+        !trimmedInvestmentGoal
+      ) {
         setMessage({ type: "error", text: "투자정보 항목을 모두 입력해 주세요." });
         return;
       }
@@ -157,6 +176,8 @@ export default function AccountPage() {
         investableFunds?: string;
         existingLoanAmount?: string;
         housingCount?: number;
+        creditScore?: string;
+        annualNetIncome?: string;
         targetReturn?: string;
         investmentGoal?: string;
         firstTimeBuyer?: boolean;
@@ -166,6 +187,8 @@ export default function AccountPage() {
       if (investableFundsChanged) payload.investableFunds = trimmedInvestableFunds;
       if (existingLoanAmountChanged) payload.existingLoanAmount = trimmedExistingLoanAmount;
       if (housingCountChanged) payload.housingCount = parsedHousingCount;
+      if (creditScoreChanged) payload.creditScore = trimmedCreditScore;
+      if (annualNetIncomeChanged) payload.annualNetIncome = trimmedAnnualNetIncome;
       if (targetReturnChanged) payload.targetReturn = trimmedTargetReturn;
       if (investmentGoalChanged) payload.investmentGoal = trimmedInvestmentGoal;
       if (firstTimeBuyerChanged) payload.firstTimeBuyer = firstTimeBuyer;
@@ -235,6 +258,13 @@ export default function AccountPage() {
                   <input readOnly value={profile.username} className={readOnlyClass} />
                 </label>
 
+                {profile.phone && (
+                  <label className="block text-sm space-y-1">
+                    <span className="text-muted-foreground">전화번호</span>
+                    <input readOnly value={profile.phone} className={readOnlyClass} />
+                  </label>
+                )}
+
                 <label className="block text-sm space-y-1">
                   <span className="text-muted-foreground">이름</span>
                   <input
@@ -258,6 +288,14 @@ export default function AccountPage() {
                   value={investableFunds}
                   onChange={setInvestableFunds}
                   options={INVESTABLE_FUNDS_OPTIONS}
+                />
+                <SelectField
+                  label="연순소득"
+                  placeholder="연순소득 선택"
+                  value={annualNetIncome}
+                  onChange={setAnnualNetIncome}
+                  options={ANNUAL_NET_INCOME_OPTIONS}
+                  hint="* 매출이 아닌 순소득정보입니다."
                 />
                 <SelectField
                   label="기존대출금액"
@@ -288,18 +326,21 @@ export default function AccountPage() {
                   </div>
                 </div>
                 <SelectField
+                  label="신용점수"
+                  placeholder="신용점수 선택"
+                  value={creditScore}
+                  onChange={setCreditScore}
+                  options={CREDIT_SCORE_OPTIONS}
+                  hint="* 나이스/KCB 신용점수는 토스/카카오를 통해 확인가능합니다."
+                />
+                <SelectField
                   label="목표 수익"
-                  placeholder="목표 금액 선택"
+                  placeholder="목표 수익 선택"
                   value={targetReturn}
                   onChange={setTargetReturn}
                   options={TARGET_RETURN_OPTIONS}
                 />
-                <TextAreaField
-                  label="투자목표"
-                  placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
-                  value={investmentGoal}
-                  onChange={setInvestmentGoal}
-                />
+                <InvestmentGoalField value={investmentGoal} onChange={setInvestmentGoal} />
               </InvestmentInfoSection>
 
               <div className="rounded-sm border border-border bg-secondary/25 p-4 sm:p-5 space-y-4">

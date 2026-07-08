@@ -81,9 +81,15 @@ function AskAboutItemBox({ auctionId }: { auctionId: string }) {
 export function AuctionAnalysisPanel({
   auctionId,
   isAdmin = false,
+  aiAnalysisLimit,
+  aiAnalysisUsed,
+  onAnalysisUsed,
 }: {
   auctionId: string;
   isAdmin?: boolean;
+  aiAnalysisLimit?: number;
+  aiAnalysisUsed?: number;
+  onAnalysisUsed?: () => void;
 }) {
   const [result, setResult] = useState<AuctionAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,18 +113,28 @@ export function AuctionAnalysisPanel({
     void loadCached();
   }, [loadCached]);
 
+  const wasCachedBeforeRun = result != null;
+
   async function runAnalysis(refresh = false) {
     setAnalyzing(true);
     setError("");
     try {
       const data = await analyzeAuction(auctionId, refresh);
       setResult(data);
+      if (!isAdmin && !data.cached && !wasCachedBeforeRun) {
+        onAnalysisUsed?.();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "경매코치 AI 분석에 실패했습니다.");
     } finally {
       setAnalyzing(false);
     }
   }
+
+  const remaining =
+    !isAdmin && aiAnalysisLimit != null && aiAnalysisUsed != null
+      ? Math.max(0, aiAnalysisLimit - aiAnalysisUsed)
+      : null;
 
   if (loading) {
     return (
@@ -144,6 +160,11 @@ export function AuctionAnalysisPanel({
           <p className="text-xs text-muted-foreground mt-1">
             권리분석 · 물건분석 · 대출·자금 관점을 종합합니다. (참고용, 최종 판단은 전문가 확인 필요)
           </p>
+          {remaining != null && (
+            <p className="text-xs text-muted-foreground mt-1">
+              남은 AI 분석 횟수: <span className="font-semibold text-foreground">{remaining}</span>회
+            </p>
+          )}
         </div>
         {canRunAnalysis && (
           <div className="flex gap-2">

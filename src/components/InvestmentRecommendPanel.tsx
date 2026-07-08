@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Loader2, RotateCcw, Sparkles, Save } from "lucide-react";
 import type { UserProfile } from "@/types/auction";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { CheckboxField, SelectField, TextAreaField } from "@/components/InvestmentFormFields";
+import { CheckboxField, SelectField, InvestmentGoalField } from "@/components/InvestmentFormFields";
 import {
   EXISTING_LOAN_OPTIONS,
   HOUSING_COUNT_OPTIONS,
   INVESTABLE_FUNDS_OPTIONS,
   TARGET_RETURN_OPTIONS,
+  CREDIT_SCORE_OPTIONS,
+  ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
 import { updateMyProfile, type LoanPolicy } from "@/lib/api";
 import {
@@ -60,6 +62,8 @@ export function InvestmentRecommendPanel({
     investmentGoal: "",
     firstTimeBuyer: false,
   });
+  const [creditScore, setCreditScore] = useState("");
+  const [annualNetIncome, setAnnualNetIncome] = useState("");
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [busy, setBusy] = useState<RecommendApplyMode | "reload" | null>(null);
@@ -67,6 +71,8 @@ export function InvestmentRecommendPanel({
   const syncDraftFromProfile = useCallback((p: UserProfile | null) => {
     if (!p) return;
     setDraft(criteriaFromProfile(p));
+    setCreditScore(p.creditScore ?? "");
+    setAnnualNetIncome(p.annualNetIncome ?? "");
   }, []);
 
   useEffect(() => {
@@ -92,6 +98,8 @@ export function InvestmentRecommendPanel({
           investableFunds: check.criteria.investableFunds,
           existingLoanAmount: check.criteria.existingLoanAmount,
           housingCount: check.criteria.housingCount,
+          creditScore: creditScore.trim() || undefined,
+          annualNetIncome: annualNetIncome.trim() || undefined,
           investmentGoal: check.criteria.investmentGoal,
           firstTimeBuyer: check.criteria.firstTimeBuyer,
         });
@@ -190,6 +198,15 @@ export function InvestmentRecommendPanel({
               />
 
               <SelectField
+                label="연순소득"
+                placeholder="연순소득 선택"
+                value={annualNetIncome}
+                onChange={setAnnualNetIncome}
+                options={ANNUAL_NET_INCOME_OPTIONS}
+                hint="* 매출이 아닌 순소득정보입니다."
+              />
+
+              <SelectField
                 label="기존대출금액"
                 placeholder="기존대출금액 선택"
                 value={draft.existingLoanAmount}
@@ -214,9 +231,16 @@ export function InvestmentRecommendPanel({
                 </div>
               </div>
 
-              <TextAreaField
-                label="투자목표"
-                placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
+              <SelectField
+                label="신용점수"
+                placeholder="신용점수 선택"
+                value={creditScore}
+                onChange={setCreditScore}
+                options={CREDIT_SCORE_OPTIONS}
+                hint="* 나이스/KCB 신용점수는 토스/카카오를 통해 확인가능합니다."
+              />
+
+              <InvestmentGoalField
                 value={draft.investmentGoal}
                 onChange={(v) => patchDraft({ investmentGoal: v })}
               />

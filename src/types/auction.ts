@@ -97,10 +97,13 @@ export interface UserProfile {
   id: string;
   username: string;
   name: string;
+  phone?: string;
   role: UserRole;
   investableFunds?: string;
   existingLoanAmount?: string;
   housingCount?: number;
+  creditScore?: string;
+  annualNetIncome?: string;
   investmentGoal?: string;
   targetReturn?: string;
   firstTimeBuyer?: boolean;

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { InvestmentSelectOption } from "@/data/investment-options";
+import { INVESTMENT_GOAL_ETC, INVESTMENT_GOAL_OPTIONS } from "@/data/investment-options";
 
 export function SelectField({
   label,
@@ -10,12 +11,14 @@ export function SelectField({
   onChange,
   options,
   placeholder,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: InvestmentSelectOption[];
   placeholder: string;
+  hint?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -79,6 +82,9 @@ export function SelectField({
           </div>
         )}
       </div>
+      {hint && (
+        <p className="mt-1 text-[0.75rem] text-muted-foreground/80">{hint}</p>
+      )}
     </div>
   );
 }
@@ -128,6 +134,54 @@ export function TextAreaField({
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[0.9rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 transition-all resize-none"
       />
+    </div>
+  );
+}
+
+/**
+ * 투자목표: 프리셋 드롭다운 + "기타" 선택 시 직접 입력.
+ * value가 프리셋 목록에 없는 기존 자유입력 값이면 "기타"로 간주해 그 텍스트를 보여준다.
+ */
+export function InvestmentGoalField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const isPreset = INVESTMENT_GOAL_OPTIONS.some(
+    (o) => o.value === value && o.value !== INVESTMENT_GOAL_ETC,
+  );
+  const [etcMode, setEtcMode] = useState(value !== "" && !isPreset);
+  const selectValue = etcMode ? INVESTMENT_GOAL_ETC : isPreset ? value : "";
+  const showCustomInput = selectValue === INVESTMENT_GOAL_ETC;
+
+  return (
+    <div className="space-y-2">
+      <SelectField
+        label="투자목표"
+        placeholder="투자목표 선택"
+        value={selectValue}
+        onChange={(next) => {
+          if (next === INVESTMENT_GOAL_ETC) {
+            setEtcMode(true);
+            if (isPreset) onChange("");
+          } else {
+            setEtcMode(false);
+            onChange(next);
+          }
+        }}
+        options={INVESTMENT_GOAL_OPTIONS}
+      />
+      {showCustomInput && (
+        <input
+          type="text"
+          placeholder="투자목표를 직접 입력해 주세요"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full h-11 px-4 rounded-xl bg-input-background border border-border text-[0.9rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 transition-all"
+        />
+      )}
     </div>
   );
 }

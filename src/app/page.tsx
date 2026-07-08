@@ -21,12 +21,14 @@ import { AppHeader, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@
 import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { SelectField, TextAreaField, CheckboxField } from "@/components/InvestmentFormFields";
+import { SelectField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
 import {
   EXISTING_LOAN_OPTIONS,
   HOUSING_COUNT_OPTIONS,
   INVESTABLE_FUNDS_OPTIONS,
   TARGET_RETURN_OPTIONS,
+  CREDIT_SCORE_OPTIONS,
+  ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
 import { formatWonShort } from "@/lib/investment-money";
 import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
@@ -236,6 +238,31 @@ function RecommendFilterModal({
   );
 }
 
+function WelcomeGuideModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45" onClick={onClose}>
+      <div
+        className="relative w-full max-w-sm bg-card border border-border rounded-sm shadow-xl p-5 sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-bold text-foreground mb-3">
+          회원님의 투자정보를 바탕으로 추천된 물건입니다.
+        </h2>
+        <p className="text-[13px] text-muted-foreground leading-relaxed mb-5">
+          '투자정보'에서 자금, 지역, 투자목적을 변경하면 추천 결과도 함께 변경됩니다.
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full px-4 py-2.5 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
+        >
+          확인
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function InvestmentInfoModal({
   profile,
   onClose,
@@ -248,6 +275,8 @@ function InvestmentInfoModal({
   const [investableFunds, setInvestableFunds] = useState(profile.investableFunds ?? "");
   const [existingLoanAmount, setExistingLoanAmount] = useState(profile.existingLoanAmount ?? "");
   const [housingCount, setHousingCount] = useState(String(profile.housingCount ?? 0));
+  const [creditScore, setCreditScore] = useState(profile.creditScore ?? "");
+  const [annualNetIncome, setAnnualNetIncome] = useState(profile.annualNetIncome ?? "");
   const [targetReturn, setTargetReturn] = useState(profile.targetReturn ?? "");
   const [investmentGoal, setInvestmentGoal] = useState(profile.investmentGoal ?? "");
   const [firstTimeBuyer, setFirstTimeBuyer] = useState(profile.firstTimeBuyer ?? false);
@@ -257,11 +286,20 @@ function InvestmentInfoModal({
   async function handleSave() {
     const trimmedInvestableFunds = investableFunds.trim();
     const trimmedExistingLoanAmount = existingLoanAmount.trim();
+    const trimmedCreditScore = creditScore.trim();
+    const trimmedAnnualNetIncome = annualNetIncome.trim();
     const trimmedTargetReturn = targetReturn.trim();
     const trimmedInvestmentGoal = investmentGoal.trim();
     const parsedHousingCount = Number.parseInt(housingCount, 10);
 
-    if (!trimmedInvestableFunds || !trimmedExistingLoanAmount || !trimmedTargetReturn || !trimmedInvestmentGoal) {
+    if (
+      !trimmedInvestableFunds ||
+      !trimmedExistingLoanAmount ||
+      !trimmedCreditScore ||
+      !trimmedAnnualNetIncome ||
+      !trimmedTargetReturn ||
+      !trimmedInvestmentGoal
+    ) {
       setError("투자정보 항목을 모두 입력해 주세요.");
       return;
     }
@@ -277,6 +315,8 @@ function InvestmentInfoModal({
         investableFunds: trimmedInvestableFunds,
         existingLoanAmount: trimmedExistingLoanAmount,
         housingCount: parsedHousingCount,
+        creditScore: trimmedCreditScore,
+        annualNetIncome: trimmedAnnualNetIncome,
         targetReturn: trimmedTargetReturn,
         investmentGoal: trimmedInvestmentGoal,
         firstTimeBuyer,
@@ -320,6 +360,14 @@ function InvestmentInfoModal({
             options={INVESTABLE_FUNDS_OPTIONS}
           />
           <SelectField
+            label="연순소득"
+            placeholder="연순소득 선택"
+            value={annualNetIncome}
+            onChange={setAnnualNetIncome}
+            options={ANNUAL_NET_INCOME_OPTIONS}
+            hint="* 매출이 아닌 순소득정보입니다."
+          />
+          <SelectField
             label="기존대출금액"
             placeholder="기존대출금액 선택"
             value={existingLoanAmount}
@@ -348,18 +396,21 @@ function InvestmentInfoModal({
             </div>
           </div>
           <SelectField
+            label="신용점수"
+            placeholder="신용점수 선택"
+            value={creditScore}
+            onChange={setCreditScore}
+            options={CREDIT_SCORE_OPTIONS}
+            hint="* 나이스/KCB 신용점수는 토스/카카오를 통해 확인가능합니다."
+          />
+          <SelectField
             label="목표 수익"
-            placeholder="목표 금액 선택"
+            placeholder="목표 수익 선택"
             value={targetReturn}
             onChange={setTargetReturn}
             options={TARGET_RETURN_OPTIONS}
           />
-          <TextAreaField
-            label="투자목표"
-            placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
-            value={investmentGoal}
-            onChange={setInvestmentGoal}
-          />
+          <InvestmentGoalField value={investmentGoal} onChange={setInvestmentGoal} />
         </InvestmentInfoSection>
 
         <div className="flex justify-end gap-2 mt-5">
@@ -707,18 +758,32 @@ export default function HomePage() {
   const [filters, setFilters] = useState<RecommendFilters>(EMPTY_RECOMMEND_FILTERS);
   const [sortBy, setSortBy] = useState<SortOption>("입찰기일순");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
 
   useEffect(() => {
     fetchMyProfile()
-      .then(setProfile)
+      .then((data) => {
+        setProfile(data);
+        const guideKey = `welcomeGuideSeen:${data.id}`;
+        if (typeof window !== "undefined" && !window.localStorage.getItem(guideKey)) {
+          setShowWelcomeGuide(true);
+        }
+      })
       .catch(() => {});
     fetchFavoriteIds()
       .then((ids) => setFavoriteIds(new Set(ids)))
       .catch(() => {});
   }, []);
+
+  function dismissWelcomeGuide() {
+    setShowWelcomeGuide(false);
+    if (profile && typeof window !== "undefined") {
+      window.localStorage.setItem(`welcomeGuideSeen:${profile.id}`, "1");
+    }
+  }
 
   function loadRecommendations(budget?: string) {
     setLoading(true);
@@ -1033,6 +1098,13 @@ export default function HomePage() {
         }
         loanRatio={loanRatio}
         loanPolicyLabel={loanPolicyLabel}
+        aiAnalysisLimit={profile?.aiAnalysisLimit}
+        aiAnalysisUsed={profile?.aiAnalysisUsed}
+        onAiAnalysisUsed={() =>
+          setProfile((prev) =>
+            prev ? { ...prev, aiAnalysisUsed: (prev.aiAnalysisUsed ?? 0) + 1 } : prev,
+          )
+        }
       />
 
       {showInvestmentModal && profile && (
@@ -1058,6 +1130,8 @@ export default function HomePage() {
           }}
         />
       )}
+
+      {showWelcomeGuide && <WelcomeGuideModal onClose={dismissWelcomeGuide} />}
     </div>
   );
 }

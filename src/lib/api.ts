@@ -98,9 +98,12 @@ export async function signupUser(input: {
   username: string;
   password: string;
   name: string;
+  phone: string;
   investableFunds: string;
   existingLoanAmount: string;
   housingCount: number;
+  creditScore: string;
+  annualNetIncome: string;
   investmentGoal: string;
   targetReturn: string;
   firstTimeBuyer: boolean;
@@ -515,6 +518,8 @@ export async function updateMyProfile(input: {
   investableFunds?: string;
   existingLoanAmount?: string;
   housingCount?: number;
+  creditScore?: string;
+  annualNetIncome?: string;
   targetReturn?: string;
   investmentGoal?: string;
   firstTimeBuyer?: boolean;

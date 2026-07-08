@@ -890,6 +890,7 @@ export default function AdminPage() {
                       <tr className="border-b border-border">
                         <th className="px-3 py-2.5 text-left font-semibold">아이디</th>
                         <th className="px-3 py-2.5 text-left font-semibold">이름</th>
+                        <th className="px-3 py-2.5 text-left font-semibold">전화번호</th>
                         <th className="px-3 py-2.5 text-left font-semibold">현재 권한</th>
                         <th className="px-3 py-2.5 text-left font-semibold">권한 변경</th>
                         <th className="px-3 py-2.5 text-left font-semibold">AI 분석 사용/제한</th>
@@ -900,6 +901,7 @@ export default function AdminPage() {
                         <tr key={user.id} className="border-b border-border hover:bg-secondary/20">
                           <td className="px-3 py-2.5 font-mono">{user.username}</td>
                           <td className="px-3 py-2.5">{user.name}</td>
+                          <td className="px-3 py-2.5">{user.phone || "-"}</td>
                           <td className="px-3 py-2.5">{ROLE_LABELS[user.role]}</td>
                           <td className="px-3 py-2.5">
                             {user.role === "admin" ? (

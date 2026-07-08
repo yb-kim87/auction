@@ -18,13 +18,15 @@ import {
 import { getLoginRedirect } from "@/lib/auth";
 import { loginUser, fetchMyProfile, signupUser } from "@/lib/api";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { SelectField, TextAreaField, CheckboxField } from "@/components/InvestmentFormFields";
+import { SelectField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
 import { validateInvestmentSignup } from "@/lib/investment-validation";
 import {
   EXISTING_LOAN_OPTIONS,
   HOUSING_COUNT_OPTIONS,
   INVESTABLE_FUNDS_OPTIONS,
   TARGET_RETURN_OPTIONS,
+  CREDIT_SCORE_OPTIONS,
+  ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
 
 const FEATURES = [
@@ -295,11 +297,14 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
 function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [investableFunds, setInvestableFunds] = useState("");
   const [existingLoanAmount, setExistingLoanAmount] = useState("");
   const [housingCount, setHousingCount] = useState("");
+  const [creditScore, setCreditScore] = useState("");
+  const [annualNetIncome, setAnnualNetIncome] = useState("");
   const [investmentGoal, setInvestmentGoal] = useState("");
   const [targetReturn, setTargetReturn] = useState("");
   const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
@@ -311,10 +316,15 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     if (
       !name.trim() ||
       !username.trim() ||
+      !phone.trim() ||
       !password.trim() ||
       !confirm.trim()
     ) {
-      setError("아이디, 비밀번호, 이름을 입력해 주세요.");
+      setError("아이디, 비밀번호, 이름, 전화번호를 입력해 주세요.");
+      return;
+    }
+    if (!/^01[0-9]-?\d{3,4}-?\d{4}$/.test(phone.trim())) {
+      setError("전화번호 형식을 확인해 주세요. (예: 010-1234-5678)");
       return;
     }
     if (password.length < 4) {
@@ -330,6 +340,8 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       investableFunds,
       existingLoanAmount,
       housingCount,
+      creditScore,
+      annualNetIncome,
       investmentGoal,
       targetReturn,
     });
@@ -346,9 +358,12 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         username: username.trim(),
         password,
         name: name.trim(),
+        phone: phone.trim(),
         investableFunds: investableFunds.trim(),
         existingLoanAmount: existingLoanAmount.trim(),
         housingCount: investmentCheck.housingCount,
+        creditScore: creditScore.trim(),
+        annualNetIncome: annualNetIncome.trim(),
         investmentGoal: investmentGoal.trim(),
         targetReturn: targetReturn.trim(),
         firstTimeBuyer,
@@ -367,6 +382,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       <div className="space-y-4">
         <InputField label="이름" type="text" placeholder="홍길동" value={name} onChange={setName} autoComplete="name" />
         <InputField label="아이디" type="text" placeholder="아이디를 입력하세요" value={username} onChange={setUsername} autoComplete="username" />
+        <InputField label="전화번호" type="text" placeholder="010-1234-5678" value={phone} onChange={setPhone} autoComplete="tel" />
         <InputField label="비밀번호" type="password" placeholder="4자 이상 입력하세요" value={password} onChange={setPassword} autoComplete="new-password" />
         <InputField label="비밀번호 확인" type="password" placeholder="비밀번호를 다시 입력하세요" value={confirm} onChange={setConfirm} autoComplete="new-password" />
       </div>
@@ -378,6 +394,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           value={investableFunds}
           onChange={setInvestableFunds}
           options={INVESTABLE_FUNDS_OPTIONS}
+        />
+        <SelectField
+          label="연순소득"
+          placeholder="연순소득 선택"
+          value={annualNetIncome}
+          onChange={setAnnualNetIncome}
+          options={ANNUAL_NET_INCOME_OPTIONS}
+          hint="* 매출이 아닌 순소득정보입니다."
         />
         <SelectField
           label="기존대출금액"
@@ -408,18 +432,21 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           </div>
         </div>
         <SelectField
-          label="목표 금액"
-          placeholder="목표 금액 선택"
+          label="신용점수"
+          placeholder="신용점수 선택"
+          value={creditScore}
+          onChange={setCreditScore}
+          options={CREDIT_SCORE_OPTIONS}
+          hint="* 나이스/KCB 신용점수는 토스/카카오를 통해 확인가능합니다."
+        />
+        <SelectField
+          label="목표 수익"
+          placeholder="목표 수익 선택"
           value={targetReturn}
           onChange={setTargetReturn}
           options={TARGET_RETURN_OPTIONS}
         />
-        <TextAreaField
-          label="투자목표"
-          placeholder="예: 갭투자, 임대수익, 실거주 등 목표를 입력해 주세요"
-          value={investmentGoal}
-          onChange={setInvestmentGoal}
-        />
+        <InvestmentGoalField value={investmentGoal} onChange={setInvestmentGoal} />
       </InvestmentInfoSection>
 
       {error && <p className="text-[0.82rem] text-destructive font-medium">{error}</p>}

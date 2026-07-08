@@ -66,7 +66,7 @@ export const HOUSING_COUNT_OPTIONS: InvestmentSelectOption[] = [
   { value: "3", label: "3주택 이상" },
 ];
 
-/** 목표 금액: 500만~5천만(500만) → 6천만~2억(1천만) → 2.5억~5억(5천만) → 6억~10억(1억) */
+/** 목표 수익: 500만~5천만(500만) → 6천만~2억(1천만) → 2.5억~5억(5천만) → 6억~10억(1억) */
 const TARGET_AMOUNT_WON_STEPS = buildWonSteps([
   { from: 5_000_000, to: 50_000_000, step: 5_000_000 },
   { from: 60_000_000, to: 200_000_000, step: TEN_M },
@@ -78,3 +78,42 @@ export const TARGET_RETURN_OPTIONS: InvestmentSelectOption[] = withOverflowOptio
   toMoneyOptions(TARGET_AMOUNT_WON_STEPS),
   "1억 이상",
 );
+
+export const INVESTMENT_GOAL_ETC = "기타";
+
+export const INVESTMENT_GOAL_OPTIONS: InvestmentSelectOption[] = [
+  { value: "내집마련", label: "내집마련" },
+  { value: "단기수익", label: "단기수익" },
+  { value: "중장기수익", label: "중장기수익" },
+  { value: "월현금흐름", label: "월현금흐름" },
+  { value: INVESTMENT_GOAL_ETC, label: INVESTMENT_GOAL_ETC },
+];
+
+/** 신용점수: 900점 이상 ~ 350점 미만, 50점 단위 */
+export const CREDIT_SCORE_OPTIONS: InvestmentSelectOption[] = [
+  { value: "900점 이상", label: "900점 이상" },
+  { value: "850~899점", label: "850~899점" },
+  { value: "800~849점", label: "800~849점" },
+  { value: "750~799점", label: "750~799점" },
+  { value: "700~749점", label: "700~749점" },
+  { value: "650~699점", label: "650~699점" },
+  { value: "600~649점", label: "600~649점" },
+  { value: "550~599점", label: "550~599점" },
+  { value: "500~549점", label: "500~549점" },
+  { value: "450~499점", label: "450~499점" },
+  { value: "400~449점", label: "400~449점" },
+  { value: "350~399점", label: "350~399점" },
+  { value: "350점 미만", label: "350점 미만" },
+];
+
+/** 연순소득: 1천만~1억(1천만) → 1.5억~3억(5천만) → 4억~10억(1억) */
+const ANNUAL_NET_INCOME_WON_STEPS = buildWonSteps([
+  { from: TEN_M, to: ONE_HUNDRED_M, step: TEN_M },
+  { from: 150_000_000, to: 300_000_000, step: FIFTY_M },
+  { from: 400_000_000, to: 1_000_000_000, step: ONE_HUNDRED_M },
+]);
+
+export const ANNUAL_NET_INCOME_OPTIONS: InvestmentSelectOption[] = [
+  { value: "0", label: "소득없음 (0원)" },
+  ...withOverflowOption(toMoneyOptions(ANNUAL_NET_INCOME_WON_STEPS), "10억 이상"),
+];

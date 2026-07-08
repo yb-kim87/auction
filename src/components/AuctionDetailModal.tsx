@@ -1442,6 +1442,9 @@ export function AuctionDetailModal({
   loanRatio = null,
   loanPolicyLabel = null,
   isAdmin = false,
+  aiAnalysisLimit,
+  aiAnalysisUsed,
+  onAiAnalysisUsed,
 }: {
   item: AuctionItem | null;
   onClose: () => void;
@@ -1458,6 +1461,9 @@ export function AuctionDetailModal({
   loanRatio?: number | null;
   loanPolicyLabel?: string | null;
   isAdmin?: boolean;
+  aiAnalysisLimit?: number;
+  aiAnalysisUsed?: number;
+  onAiAnalysisUsed?: () => void;
 }) {
   const [form, setForm] = useState<UpdateAuctionPayload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -2016,7 +2022,15 @@ export function AuctionDetailModal({
 
           <div className="bg-card px-5 py-5 space-y-6">
           {activeTab === "ai" ? (
-            item && <AuctionAnalysisPanel auctionId={item.id} isAdmin={isAdmin} />
+            item && (
+              <AuctionAnalysisPanel
+                auctionId={item.id}
+                isAdmin={isAdmin}
+                aiAnalysisLimit={aiAnalysisLimit}
+                aiAnalysisUsed={aiAnalysisUsed}
+                onAnalysisUsed={onAiAnalysisUsed}
+              />
+            )
           ) : (
           <>
           {!editable && (
