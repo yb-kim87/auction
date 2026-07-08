@@ -807,9 +807,11 @@ export default function HomePage() {
           nav={
             <>
               <span className={HEADER_TAB_ACTIVE}>추천 물건</span>
-              <Link href="/search" className={HEADER_BTN}>
-                전체 검색
-              </Link>
+              {isAdmin && (
+                <Link href="/search" className={HEADER_BTN}>
+                  전체 검색
+                </Link>
+              )}
               {isConsultant && (
                 <Link href="/consultant" className={HEADER_BTN}>
                   컨설턴트

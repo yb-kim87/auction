@@ -785,18 +785,22 @@ export default function Home() {
         setProfile(data);
         setIsAdmin(data.role === "admin");
         setIsConsultant(data.role === "consultant");
+        if (data.role !== "admin") {
+          router.replace("/");
+        }
       })
       .catch(() => {
         if (cancelled) return;
         setProfile(null);
         setIsAdmin(false);
         setIsConsultant(false);
+        router.replace("/");
       })
       .finally(() => {
         if (!cancelled) setProfileLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [router]);
 
   const reloadProfile = useCallback(async () => {
     const data = await fetchMyProfile();
