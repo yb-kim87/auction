@@ -1318,6 +1318,7 @@ export default function Home() {
           setSelectedItem(null);
         }}
         editable={isAdmin}
+        isAdmin={isAdmin}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
         onToggleFavorite={

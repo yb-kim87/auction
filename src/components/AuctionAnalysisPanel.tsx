@@ -78,7 +78,13 @@ function AskAboutItemBox({ auctionId }: { auctionId: string }) {
   );
 }
 
-export function AuctionAnalysisPanel({ auctionId }: { auctionId: string }) {
+export function AuctionAnalysisPanel({
+  auctionId,
+  isAdmin = false,
+}: {
+  auctionId: string;
+  isAdmin?: boolean;
+}) {
   const [result, setResult] = useState<AuctionAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -123,9 +129,11 @@ export function AuctionAnalysisPanel({ auctionId }: { auctionId: string }) {
     );
   }
 
+  const canRunAnalysis = isAdmin || !result;
+
   return (
     <div className="space-y-4">
-      <AskAboutItemBox auctionId={auctionId} />
+      {isAdmin && <AskAboutItemBox auctionId={auctionId} />}
       <div className="rounded-sm border border-primary/20 bg-primary/[0.03] p-4 sm:p-5 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -137,37 +145,39 @@ export function AuctionAnalysisPanel({ auctionId }: { auctionId: string }) {
             권리분석 · 물건분석 · 대출·자금 관점을 종합합니다. (참고용, 최종 판단은 전문가 확인 필요)
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void runAnalysis(Boolean(result))}
-            disabled={analyzing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-          >
-            {analyzing ? (
-              <>
-                <Loader2 size={13} className="animate-spin" />
-                분석 중...
-              </>
-            ) : (
-              <>
-                <Brain size={13} />
-                {result ? "다시 분석" : "분석 시작"}
-              </>
-            )}
-          </button>
-          {result && (
+        {canRunAnalysis && (
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => void runAnalysis(true)}
+              onClick={() => void runAnalysis(Boolean(result))}
               disabled={analyzing}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-sm border border-border bg-card disabled:opacity-50"
-              title="캐시 무시하고 새로 분석"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
             >
-              <RefreshCw size={13} />
+              {analyzing ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  분석 중...
+                </>
+              ) : (
+                <>
+                  <Brain size={13} />
+                  {result ? "다시 분석" : "분석 시작"}
+                </>
+              )}
             </button>
-          )}
-        </div>
+            {result && isAdmin && (
+              <button
+                type="button"
+                onClick={() => void runAnalysis(true)}
+                disabled={analyzing}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-sm border border-border bg-card disabled:opacity-50"
+                title="캐시 무시하고 새로 분석"
+              >
+                <RefreshCw size={13} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (

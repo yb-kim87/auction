@@ -480,6 +480,21 @@ export async function updateUserRole(id: string, role: UserRole) {
   return readJsonResponse<UserProfile>(res);
 }
 
+export async function updateUserAiAnalysisLimit(id: string, limit: number) {
+  const res = await fetch(`${API_BASE}/users/${id}/ai-limit`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ limit }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "AI 분석 제한 변경에 실패했습니다.",
+    );
+  }
+  return readJsonResponse<UserProfile>(res);
+}
+
 export async function fetchMyProfile(): Promise<UserProfile> {
   const res = await fetch(`${API_BASE}/users/me`, {
     cache: "no-store",

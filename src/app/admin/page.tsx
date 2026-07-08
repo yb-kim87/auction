@@ -20,6 +20,7 @@ import {
   getTemplateDownloadUrl,
   rejectAuction,
   updateUserRole,
+  updateUserAiAnalysisLimit,
   uploadAuctionExcel,
 } from "@/lib/api";
 import { clearAuthCookie } from "@/lib/auth";
@@ -146,6 +147,7 @@ export default function AdminPage() {
   const [editingItem, setEditingItem] = useState<AuctionItem | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
+  const [aiLimitUpdating, setAiLimitUpdating] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>("data");
   const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
@@ -424,6 +426,24 @@ export default function AdminPage() {
       });
     } finally {
       setRoleUpdating(null);
+    }
+  };
+
+  const handleAiLimitChange = async (userId: string, limit: number) => {
+    if (!Number.isInteger(limit) || limit < 0) return;
+    setAiLimitUpdating(userId);
+    setMessage(null);
+    try {
+      await updateUserAiAnalysisLimit(userId, limit);
+      setMessage({ type: "success", text: "AI 분석 제한 횟수가 변경되었습니다." });
+      await loadUsers();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "AI 분석 제한 변경에 실패했습니다.",
+      });
+    } finally {
+      setAiLimitUpdating(null);
     }
   };
 
@@ -872,6 +892,7 @@ export default function AdminPage() {
                         <th className="px-3 py-2.5 text-left font-semibold">이름</th>
                         <th className="px-3 py-2.5 text-left font-semibold">현재 권한</th>
                         <th className="px-3 py-2.5 text-left font-semibold">권한 변경</th>
+                        <th className="px-3 py-2.5 text-left font-semibold">AI 분석 사용/제한</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -895,6 +916,31 @@ export default function AdminPage() {
                                 <option value="consulting_student">컨설팅 수강생</option>
                                 <option value="consultant">컨설턴트</option>
                               </select>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {user.role === "admin" ? (
+                              <span className="text-muted-foreground">무제한</span>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-muted-foreground">{user.aiAnalysisUsed ?? 0} /</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  defaultValue={user.aiAnalysisLimit ?? 10}
+                                  disabled={aiLimitUpdating === user.id}
+                                  onBlur={(e) => {
+                                    const next = Number(e.target.value);
+                                    if (next !== (user.aiAnalysisLimit ?? 10)) {
+                                      void handleAiLimitChange(user.id, next);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") e.currentTarget.blur();
+                                  }}
+                                  className="w-16 px-2 py-1 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
+                                />
+                              </div>
                             )}
                           </td>
                         </tr>

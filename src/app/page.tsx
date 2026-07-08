@@ -1022,6 +1022,7 @@ export default function HomePage() {
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
         editable={false}
+        isAdmin={isAdmin}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
         onToggleFavorite={

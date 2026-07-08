@@ -104,6 +104,8 @@ export interface UserProfile {
   investmentGoal?: string;
   targetReturn?: string;
   firstTimeBuyer?: boolean;
+  aiAnalysisLimit?: number;
+  aiAnalysisUsed?: number;
   createdAt: string;
 }
 
