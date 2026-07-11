@@ -372,14 +372,18 @@ function TestSendCard() {
   }
 
   return (
-    <div className="border border-border rounded-sm p-4 space-y-3">
-      <div>
-        <h3 className="text-sm font-bold text-foreground">테스트 발송</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          고객 DB에 저장하지 않고 알림톡 발송만 즉시 테스트합니다. 템플릿을 선택하면 그
-          템플릿이 요구하는 변수 입력창이 자동으로 나타납니다.
-        </p>
-      </div>
+    <details className="border border-border rounded-sm p-4 group">
+      <summary className="cursor-pointer select-none list-none flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-foreground inline">테스트 발송</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            고객 DB에 저장하지 않고 알림톡 발송만 즉시 테스트합니다.
+          </p>
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0 ml-2 group-open:hidden">펼치기</span>
+        <span className="text-xs text-muted-foreground shrink-0 ml-2 hidden group-open:inline">접기</span>
+      </summary>
+      <div className="space-y-3 mt-3">
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
@@ -454,7 +458,8 @@ function TestSendCard() {
           {result.result === "success" ? "발송 성공" : `발송 실패: ${result.errorMessage ?? "알 수 없는 오류"}`}
         </div>
       )}
-    </div>
+      </div>
+    </details>
   );
 }
 
@@ -970,17 +975,12 @@ function InstagramSheetConfigCard() {
   );
 }
 
-function SyncStateCard() {
+function AutoSendControlCard() {
   const [states, setStates] = useState<KakaoSyncState[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [runMessage, setRunMessage] = useState("");
-  const [runningSource, setRunningSource] = useState<KakaoLeadSource | null>(null);
-  const [cancellingSource, setCancellingSource] = useState<KakaoLeadSource | null>(null);
-  const [sourceMessages, setSourceMessages] = useState<Record<string, string>>({});
-  const [backfilling, setBackfilling] = useState(false);
-  const [backfillMessage, setBackfillMessage] = useState("");
   const [schedulerEnabled, setSchedulerEnabled] = useState(false);
   const [schedulerLoading, setSchedulerLoading] = useState(true);
   const [schedulerToggling, setSchedulerToggling] = useState(false);
@@ -1044,20 +1044,19 @@ function SyncStateCard() {
   }
 
   useEffect(() => {
-    if (!running && !runningSource) return;
+    if (!running) return;
     const timer = setInterval(() => {
       fetchKakaoAutoSendStatus()
         .then((status) => {
           if (!status.imweb.running && !status.instagram.running) {
             setRunning(false);
-            setRunningSource(null);
             void load();
           }
         })
         .catch(() => {});
     }, 3000);
     return () => clearInterval(timer);
-  }, [running, runningSource, load]);
+  }, [running, load]);
 
   async function handleRunNow() {
     setRunning(true);
@@ -1086,88 +1085,6 @@ function SyncStateCard() {
       setRunMessage(err instanceof Error ? err.message : "중단 요청에 실패했습니다.");
     } finally {
       setCancelling(false);
-    }
-  }
-
-  async function handleRunNowOne(source: KakaoLeadSource) {
-    setRunningSource(source);
-    setSourceMessages((prev) => ({ ...prev, [source]: "" }));
-    try {
-      const result = await runKakaoAutoSendOne(source);
-      setSourceMessages((prev) => ({
-        ...prev,
-        [source]: `${result.processed}건 확인, ${result.created}건 신규 발송`,
-      }));
-      await load();
-    } catch (err) {
-      setSourceMessages((prev) => ({
-        ...prev,
-        [source]: err instanceof Error ? err.message : "실행에 실패했습니다.",
-      }));
-    } finally {
-      setRunningSource(null);
-    }
-  }
-
-  async function handleCancelOne(source: KakaoLeadSource) {
-    setCancellingSource(source);
-    try {
-      await cancelKakaoAutoSendOne(source);
-      setSourceMessages((prev) => ({ ...prev, [source]: "중단을 요청했습니다." }));
-    } catch (err) {
-      setSourceMessages((prev) => ({
-        ...prev,
-        [source]: err instanceof Error ? err.message : "중단 요청에 실패했습니다.",
-      }));
-    } finally {
-      setCancellingSource(null);
-    }
-  }
-
-  async function handleBackfill() {
-    if (
-      !window.confirm(
-        "기존 아임웹 회원 전체를 발송 없이 '발송됨' 상태로 저장합니다. 계속할까요?",
-      )
-    ) {
-      return;
-    }
-    setBackfilling(true);
-    setBackfillMessage("");
-    try {
-      const result = await backfillImwebExistingMembers();
-      setBackfillMessage(
-        `기존 회원 ${result.processed}건 확인, ${result.created}건 신규 저장(발송됨 처리)`,
-      );
-      await load();
-    } catch (err) {
-      setBackfillMessage(err instanceof Error ? err.message : "백필에 실패했습니다.");
-    } finally {
-      setBackfilling(false);
-    }
-  }
-
-  async function handleResetAndBackfill() {
-    if (
-      !window.confirm(
-        "저장된 아임웹 고객 데이터를 모두 삭제한 뒤 가입일 순서대로 다시 백필합니다. 계속할까요?",
-      )
-    ) {
-      return;
-    }
-    setBackfilling(true);
-    setBackfillMessage("");
-    try {
-      const del = await deleteKakaoLeadsBySource("imweb");
-      const result = await backfillImwebExistingMembers();
-      setBackfillMessage(
-        `기존 데이터 ${del.deleted}건 삭제 후 재백필: ${result.processed}건 확인, ${result.created}건 저장`,
-      );
-      await load();
-    } catch (err) {
-      setBackfillMessage(err instanceof Error ? err.message : "재정렬에 실패했습니다.");
-    } finally {
-      setBackfilling(false);
     }
   }
 
@@ -1257,6 +1174,142 @@ function SyncStateCard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {states.map((state) => (
           <div key={state.source} className="border border-border rounded-sm p-3 text-xs space-y-1">
+            <p className="font-semibold text-foreground">{SOURCE_LABELS[state.source]}</p>
+            <p className="text-muted-foreground">마지막 동기화: {formatDate(state.lastSyncedAt)}</p>
+            <p className="text-muted-foreground">마지막 실행: {formatDate(state.lastRunAt)}</p>
+            <p
+              className={
+                state.lastRunStatus === "error" ? "text-destructive" : "text-muted-foreground"
+              }
+            >
+              상태: {state.lastRunStatus === "ok" ? "정상" : state.lastRunStatus === "error" ? "오류" : "미실행"}
+            </p>
+            {state.lastErrorMessage && (
+              <p className="text-destructive">{state.lastErrorMessage}</p>
+            )}
+          </div>
+        ))}
+      </div>
+      {runMessage && <p className="text-xs text-muted-foreground">{runMessage}</p>}
+    </div>
+  );
+}
+
+function AdvancedSyncCard() {
+  const [states, setStates] = useState<KakaoSyncState[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [runningSource, setRunningSource] = useState<KakaoLeadSource | null>(null);
+  const [cancellingSource, setCancellingSource] = useState<KakaoLeadSource | null>(null);
+  const [sourceMessages, setSourceMessages] = useState<Record<string, string>>({});
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMessage, setBackfillMessage] = useState("");
+
+  const load = useCallback(() => {
+    return fetchKakaoSyncState()
+      .then(setStates)
+      .catch(() => setStates([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function handleRunNowOne(source: KakaoLeadSource) {
+    setRunningSource(source);
+    setSourceMessages((prev) => ({ ...prev, [source]: "" }));
+    try {
+      const result = await runKakaoAutoSendOne(source);
+      setSourceMessages((prev) => ({
+        ...prev,
+        [source]: `${result.processed}건 확인, ${result.created}건 신규 발송`,
+      }));
+      await load();
+    } catch (err) {
+      setSourceMessages((prev) => ({
+        ...prev,
+        [source]: err instanceof Error ? err.message : "실행에 실패했습니다.",
+      }));
+    } finally {
+      setRunningSource(null);
+    }
+  }
+
+  async function handleCancelOne(source: KakaoLeadSource) {
+    setCancellingSource(source);
+    try {
+      await cancelKakaoAutoSendOne(source);
+      setSourceMessages((prev) => ({ ...prev, [source]: "중단을 요청했습니다." }));
+    } catch (err) {
+      setSourceMessages((prev) => ({
+        ...prev,
+        [source]: err instanceof Error ? err.message : "중단 요청에 실패했습니다.",
+      }));
+    } finally {
+      setCancellingSource(null);
+    }
+  }
+
+  async function handleBackfill() {
+    if (
+      !window.confirm(
+        "기존 아임웹 회원 전체를 발송 없이 '발송됨' 상태로 저장합니다. 계속할까요?",
+      )
+    ) {
+      return;
+    }
+    setBackfilling(true);
+    setBackfillMessage("");
+    try {
+      const result = await backfillImwebExistingMembers();
+      setBackfillMessage(
+        `기존 회원 ${result.processed}건 확인, ${result.created}건 신규 저장(발송됨 처리)`,
+      );
+      await load();
+    } catch (err) {
+      setBackfillMessage(err instanceof Error ? err.message : "백필에 실패했습니다.");
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
+  async function handleResetAndBackfill() {
+    if (
+      !window.confirm(
+        "저장된 아임웹 고객 데이터를 모두 삭제한 뒤 가입일 순서대로 다시 백필합니다. 계속할까요?",
+      )
+    ) {
+      return;
+    }
+    setBackfilling(true);
+    setBackfillMessage("");
+    try {
+      const del = await deleteKakaoLeadsBySource("imweb");
+      const result = await backfillImwebExistingMembers();
+      setBackfillMessage(
+        `기존 데이터 ${del.deleted}건 삭제 후 재백필: ${result.processed}건 확인, ${result.created}건 저장`,
+      );
+      await load();
+    } catch (err) {
+      setBackfillMessage(err instanceof Error ? err.message : "재정렬에 실패했습니다.");
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className="border border-border rounded-sm p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-foreground">아임웹/인스타 개별 실행</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          아임웹 또는 인스타 한쪽만 개별로 신규 리드를 확인해 발송합니다(문제 진단용).
+        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {states.map((state) => (
+          <div key={state.source} className="border border-border rounded-sm p-3 text-xs space-y-1">
             <div className="flex items-center justify-between gap-2">
               <p className="font-semibold text-foreground">{SOURCE_LABELS[state.source]}</p>
               <div className="flex gap-1.5">
@@ -1273,7 +1326,7 @@ function SyncStateCard() {
                 <button
                   type="button"
                   onClick={() => void handleRunNowOne(state.source)}
-                  disabled={runningSource === state.source || running}
+                  disabled={runningSource === state.source}
                   className="px-2 py-1 text-[11px] font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
                 >
                   {runningSource === state.source ? "발송 중..." : "이 경로만 발송"}
@@ -1282,23 +1335,12 @@ function SyncStateCard() {
             </div>
             <p className="text-muted-foreground">마지막 동기화: {formatDate(state.lastSyncedAt)}</p>
             <p className="text-muted-foreground">마지막 실행: {formatDate(state.lastRunAt)}</p>
-            <p
-              className={
-                state.lastRunStatus === "error" ? "text-destructive" : "text-muted-foreground"
-              }
-            >
-              상태: {state.lastRunStatus === "ok" ? "정상" : state.lastRunStatus === "error" ? "오류" : "미실행"}
-            </p>
-            {state.lastErrorMessage && (
-              <p className="text-destructive">{state.lastErrorMessage}</p>
-            )}
             {sourceMessages[state.source] && (
               <p className="text-muted-foreground">{sourceMessages[state.source]}</p>
             )}
           </div>
         ))}
       </div>
-      {runMessage && <p className="text-xs text-muted-foreground">{runMessage}</p>}
       <div className="border-t border-border pt-3 flex items-center justify-between gap-3">
         <p className="text-[11px] text-muted-foreground">
           이미 Make로 알림톡을 발송한 기존 아임웹 회원을 발송 없이 &quot;발송됨&quot; 상태로만 채워넣습니다(1회성).
@@ -1446,7 +1488,12 @@ export function KakaoNotifyPanel() {
 
   async function handleDeleteSelected() {
     if (checkedIds.size === 0) return;
-    if (!window.confirm(`선택한 고객 ${checkedIds.size}명을 삭제합니다. 되돌릴 수 없습니다. 계속할까요?`)) {
+    const input = window.prompt(
+      `선택한 고객 ${checkedIds.size}명을 삭제합니다. 되돌릴 수 없습니다.\n계속하려면 인원수(${checkedIds.size})를 정확히 입력해 주세요.`,
+    );
+    if (input === null) return;
+    if (input.trim() !== String(checkedIds.size)) {
+      alert("입력한 숫자가 일치하지 않아 삭제를 취소했습니다.");
       return;
     }
     setDeleting(true);
@@ -1466,6 +1513,8 @@ export function KakaoNotifyPanel() {
     void load();
   }
 
+  const [activeTab, setActiveTab] = useState<"basic" | "advanced">("basic");
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -1475,13 +1524,47 @@ export function KakaoNotifyPanel() {
         </p>
       </div>
 
-      <TemplateSettingsCard />
-      <TestSendCard />
-      <InstagramSheetConfigCard />
-      <SyncStateCard />
+      <div className="flex gap-1 border-b border-border">
+        <button
+          type="button"
+          onClick={() => setActiveTab("basic")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+            activeTab === "basic"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          기본
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("advanced")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+            activeTab === "advanced"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          세부설정
+        </button>
+      </div>
+
+      {activeTab === "basic" ? (
+        <>
+          <TemplateSettingsCard />
+          <AutoSendControlCard />
+        </>
+      ) : (
+        <>
+          <TestSendCard />
+          <InstagramSheetConfigCard />
+          <AdvancedSyncCard />
+        </>
+      )}
 
       <div className="border border-border rounded-sm">
-        <div className="flex flex-wrap items-center gap-2 p-4 border-b border-border">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={source}
             onChange={(e) => {
@@ -1548,16 +1631,19 @@ export function KakaoNotifyPanel() {
               >
                 선택 발송 ({checkedIds.size})
               </button>
-              <button
-                type="button"
-                onClick={() => void handleDeleteSelected()}
-                disabled={deleting}
-                className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-destructive text-destructive-foreground disabled:opacity-50"
-              >
-                {deleting ? "삭제 중..." : `선택 삭제 (${checkedIds.size})`}
-              </button>
             </>
           )}
+        </div>
+        {checkedIds.size > 0 && (
+          <button
+            type="button"
+            onClick={() => void handleDeleteSelected()}
+            disabled={deleting}
+            className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-destructive/50 text-destructive hover:bg-destructive/5 disabled:opacity-50"
+          >
+            {deleting ? "삭제 중..." : `선택 삭제 (${checkedIds.size})`}
+          </button>
+        )}
         </div>
 
         {loading ? (
