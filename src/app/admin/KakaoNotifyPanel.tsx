@@ -27,6 +27,9 @@ import {
   fetchInstagramSheetConfig,
   updateInstagramSheetConfig,
   backfillInstagramExistingRows,
+  isScheduledDispatch,
+  fetchKakaoScheduledDispatches,
+  cancelKakaoScheduledDispatch,
   type KakaoLead,
   type KakaoLeadSource,
   type KakaoLeadStatus,
@@ -35,6 +38,8 @@ import {
   type SolapiTemplate,
   type KakaoLeadFieldOption,
   type KakaoBulkSendResult,
+  type KakaoScheduledDispatch,
+  type KakaoScheduledDispatchStatus,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<KakaoLeadStatus, string> = {
@@ -310,6 +315,54 @@ function extractTemplateVars(template: SolapiTemplate): string[] {
   return Array.from(new Set(names));
 }
 
+/** datetime-local 입력에 넣을 "지금부터 minMinutes 뒤" 기본값(로컬 시각 기준) */
+function defaultScheduleInputValue(minMinutes = 10): string {
+  const d = new Date(Date.now() + minMinutes * 60_000);
+  d.setSeconds(0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** datetime-local 문자열(로컬 시각)을 그대로 Date로 해석해 ISO 문자열로 변환 */
+function scheduleInputToISOString(value: string): string {
+  return new Date(value).toISOString();
+}
+
+function ScheduleToggle({
+  scheduled,
+  onToggle,
+  value,
+  onChange,
+}: {
+  scheduled: boolean;
+  onToggle: (v: boolean) => void;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 border border-border rounded-sm p-2.5 bg-secondary/10">
+      <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer select-none shrink-0">
+        <input
+          type="checkbox"
+          checked={scheduled}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="w-3.5 h-3.5"
+        />
+        예약 발송
+      </label>
+      {scheduled && (
+        <input
+          type="datetime-local"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          min={defaultScheduleInputValue(1)}
+          className="px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
+        />
+      )}
+    </div>
+  );
+}
+
 function TestSendCard() {
   const [phone, setPhone] = useState("");
   const [templateCode, setTemplateCode] = useState("");
@@ -319,7 +372,10 @@ function TestSendCard() {
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<KakaoDispatchLog | null>(null);
+  const [scheduleResult, setScheduleResult] = useState<KakaoScheduledDispatch | null>(null);
   const [error, setError] = useState("");
+  const [scheduled, setScheduled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState(() => defaultScheduleInputValue());
 
   useEffect(() => {
     fetchKakaoTemplates()
@@ -356,14 +412,21 @@ function TestSendCard() {
     setSending(true);
     setError("");
     setResult(null);
+    setScheduleResult(null);
     try {
-      const log = await sendKakaoTestMessage({
+      const res = await sendKakaoTestMessage({
         name: varValues["회원명"] ?? varValues["이름"] ?? "",
         phone,
         templateCode,
+        templateName: selectedTemplate?.name,
         variables: varValues,
+        scheduledAt: scheduled ? scheduleInputToISOString(scheduledAt) : undefined,
       });
-      setResult(log);
+      if (isScheduledDispatch(res)) {
+        setScheduleResult(res);
+      } else {
+        setResult(res);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "테스트 발송에 실패했습니다.");
     } finally {
@@ -436,13 +499,20 @@ function TestSendCard() {
         </div>
       )}
 
+      <ScheduleToggle
+        scheduled={scheduled}
+        onToggle={setScheduled}
+        value={scheduledAt}
+        onChange={setScheduledAt}
+      />
+
       <button
         type="button"
         onClick={() => void handleSend()}
         disabled={sending}
         className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
       >
-        {sending ? "발송 중..." : "테스트 발송"}
+        {sending ? "처리 중..." : scheduled ? "예약 등록" : "테스트 발송"}
       </button>
 
       {templatesError && <p className="text-xs text-destructive">{templatesError}</p>}
@@ -456,6 +526,12 @@ function TestSendCard() {
           }`}
         >
           {result.result === "success" ? "발송 성공" : `발송 실패: ${result.errorMessage ?? "알 수 없는 오류"}`}
+        </div>
+      )}
+      {scheduleResult && (
+        <div className="text-xs rounded-sm px-3 py-2 border bg-blue-50 text-blue-700 border-blue-200">
+          {new Date(scheduleResult.scheduledAt).toLocaleString("ko-KR")}에 발송되도록 예약했습니다.
+          예약 탭에서 확인·취소할 수 있습니다.
         </div>
       )}
       </div>
@@ -484,7 +560,10 @@ function BulkSendModal({
   const [loadError, setLoadError] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<KakaoBulkSendResult | null>(null);
+  const [scheduleResult, setScheduleResult] = useState<KakaoScheduledDispatch | null>(null);
   const [error, setError] = useState("");
+  const [scheduled, setScheduled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState(() => defaultScheduleInputValue());
 
   useEffect(() => {
     Promise.all([fetchKakaoTemplates(), fetchKakaoLeadFields()])
@@ -529,7 +608,10 @@ function BulkSendModal({
       setError("템플릿을 선택해 주세요.");
       return;
     }
-    if (!window.confirm(`선택한 고객 ${leadIds.length}명에게 알림톡을 발송합니다. 계속할까요?`)) {
+    const confirmMessage = scheduled
+      ? `선택한 고객 ${leadIds.length}명에게 예약된 시각에 알림톡을 발송하도록 등록합니다. 계속할까요?`
+      : `선택한 고객 ${leadIds.length}명에게 알림톡을 발송합니다. 계속할까요?`;
+    if (!window.confirm(confirmMessage)) {
       return;
     }
     setSending(true);
@@ -538,10 +620,16 @@ function BulkSendModal({
       const res = await bulkSendKakaoLeads({
         ids: leadIds,
         templateCode,
+        templateName: selectedTemplate?.name,
         variables: varValues,
         templateNameVar: nameVar,
+        scheduledAt: scheduled ? scheduleInputToISOString(scheduledAt) : undefined,
       });
-      setResult(res);
+      if (isScheduledDispatch(res)) {
+        setScheduleResult(res);
+      } else {
+        setResult(res);
+      }
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "발송에 실패했습니다.");
@@ -633,6 +721,15 @@ function BulkSendModal({
           </div>
         )}
 
+        {!loading && !loadError && !result && !scheduleResult && (
+          <ScheduleToggle
+            scheduled={scheduled}
+            onToggle={setScheduled}
+            value={scheduledAt}
+            onChange={setScheduledAt}
+          />
+        )}
+
         {error && (
           <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-sm px-3 py-2">
             {error}
@@ -647,15 +744,24 @@ function BulkSendModal({
           </div>
         )}
 
+        {scheduleResult && (
+          <div className="text-xs border border-blue-200 bg-blue-50 text-blue-700 rounded-sm p-3 space-y-0.5">
+            <p className="font-semibold">
+              {new Date(scheduleResult.scheduledAt).toLocaleString("ko-KR")}에 {leadIds.length}명 발송 예약 완료
+            </p>
+            <p>예약 탭에서 확인·취소할 수 있습니다.</p>
+          </div>
+        )}
+
         <div className="flex gap-2">
-          {!result && (
+          {!result && !scheduleResult && (
             <button
               type="button"
               onClick={() => void handleSend()}
               disabled={sending || loading}
               className="flex-1 px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
             >
-              {sending ? "발송 중..." : `${leadIds.length}명에게 발송`}
+              {sending ? "처리 중..." : scheduled ? `${leadIds.length}명 예약 등록` : `${leadIds.length}명에게 발송`}
             </button>
           )}
           <button
@@ -1369,6 +1475,193 @@ function AdvancedSyncCard() {
   );
 }
 
+const SCHEDULE_STATUS_LABELS: Record<KakaoScheduledDispatchStatus, string> = {
+  scheduled: "대기중",
+  sent: "발송완료",
+  canceled: "취소됨",
+  failed: "실패",
+};
+
+const SCHEDULE_STATUS_STYLES: Record<KakaoScheduledDispatchStatus, string> = {
+  scheduled: "bg-blue-50 text-blue-700 border-blue-200",
+  sent: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  canceled: "bg-secondary text-muted-foreground border-border",
+  failed: "bg-destructive/5 text-destructive border-destructive/30",
+};
+
+function ScheduledDispatchesTab() {
+  const [items, setItems] = useState<KakaoScheduledDispatch[]>([]);
+  const [total, setTotal] = useState(0);
+  const [status, setStatus] = useState<KakaoScheduledDispatchStatus | "">("");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const pageSize = 20;
+
+  const load = useCallback(() => {
+    setLoading(true);
+    return fetchKakaoScheduledDispatches({ status: status || undefined, page, pageSize })
+      .then((res) => {
+        setItems(res.items);
+        setTotal(res.total);
+      })
+      .catch(() => {
+        setItems([]);
+        setTotal(0);
+      })
+      .finally(() => setLoading(false));
+  }, [status, page]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // 대기중 예약건이 있으면 시각이 지나 처리됐는지 주기적으로 갱신해서 보여준다.
+  useEffect(() => {
+    const timer = setInterval(() => void load(), 20_000);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  async function handleCancel(id: string) {
+    if (!window.confirm("이 예약을 취소할까요?")) return;
+    setCancelingId(id);
+    try {
+      await cancelKakaoScheduledDispatch(id);
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "예약 취소에 실패했습니다.");
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  return (
+    <div className="border border-border rounded-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-border">
+        <div>
+          <h3 className="text-sm font-bold text-foreground">예약 발송 목록</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            선택 발송·테스트 발송에서 예약한 건들을 확인하고 대기중인 예약을 취소할 수 있습니다.
+          </p>
+        </div>
+        <select
+          value={status}
+          onChange={(e) => {
+            setPage(1);
+            setStatus(e.target.value as KakaoScheduledDispatchStatus | "");
+          }}
+          className="px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
+        >
+          <option value="">전체 상태</option>
+          {(Object.keys(SCHEDULE_STATUS_LABELS) as KakaoScheduledDispatchStatus[]).map((s) => (
+            <option key={s} value={s}>
+              {SCHEDULE_STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-left text-muted-foreground">
+              <th className="px-3 py-2 font-medium">예약 시각</th>
+              <th className="px-3 py-2 font-medium">종류</th>
+              <th className="px-3 py-2 font-medium">대상</th>
+              <th className="px-3 py-2 font-medium">템플릿</th>
+              <th className="px-3 py-2 font-medium">상태</th>
+              <th className="px-3 py-2 font-medium">등록자</th>
+              <th className="px-3 py-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                  불러오는 중...
+                </td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                  예약된 발송이 없습니다.
+                </td>
+              </tr>
+            ) : (
+              items.map((item) => (
+                <tr key={item.id} className="border-b border-border last:border-0">
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {new Date(item.scheduledAt).toLocaleString("ko-KR")}
+                  </td>
+                  <td className="px-3 py-2">{item.kind === "bulk" ? "선택발송" : "테스트"}</td>
+                  <td className="px-3 py-2">
+                    {item.kind === "bulk" ? `${item.targetCount}명` : item.testPhone}
+                  </td>
+                  <td className="px-3 py-2">{item.templateName || item.templateCode}</td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-sm border text-[11px] ${SCHEDULE_STATUS_STYLES[item.status]}`}
+                    >
+                      {SCHEDULE_STATUS_LABELS[item.status]}
+                    </span>
+                    {item.status === "sent" && (
+                      <span className="ml-1.5 text-muted-foreground">
+                        성공 {item.successCount ?? 0}/실패 {item.failedCount ?? 0}
+                      </span>
+                    )}
+                    {item.status === "failed" && item.errorMessage && (
+                      <span className="ml-1.5 text-destructive">{item.errorMessage}</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">{item.createdByAdmin}</td>
+                  <td className="px-3 py-2 text-right">
+                    {item.status === "scheduled" && (
+                      <button
+                        type="button"
+                        onClick={() => void handleCancel(item.id)}
+                        disabled={cancelingId === item.id}
+                        className="px-2 py-1 text-[11px] font-medium rounded-sm border border-destructive/40 text-destructive hover:bg-destructive/5 disabled:opacity-50"
+                      >
+                        {cancelingId === item.id ? "취소 중..." : "예약 취소"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 p-3 border-t border-border text-xs">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="px-2 py-1 rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+          >
+            이전
+          </button>
+          <span className="text-muted-foreground">
+            {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="px-2 py-1 rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+          >
+            다음
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function KakaoNotifyPanel() {
   const [leads, setLeads] = useState<KakaoLead[]>([]);
   const [total, setTotal] = useState(0);
@@ -1513,7 +1806,7 @@ export function KakaoNotifyPanel() {
     void load();
   }
 
-  const [activeTab, setActiveTab] = useState<"basic" | "advanced">("basic");
+  const [activeTab, setActiveTab] = useState<"basic" | "scheduled" | "advanced">("basic");
 
   return (
     <div className="p-6 space-y-6">
@@ -1538,6 +1831,17 @@ export function KakaoNotifyPanel() {
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab("scheduled")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+            activeTab === "scheduled"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          예약
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab("advanced")}
           className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "advanced"
@@ -1549,19 +1853,22 @@ export function KakaoNotifyPanel() {
         </button>
       </div>
 
-      {activeTab === "basic" ? (
+      {activeTab === "basic" && (
         <>
           <TemplateSettingsCard />
           <AutoSendControlCard />
         </>
-      ) : (
+      )}
+      {activeTab === "advanced" && (
         <>
           <TestSendCard />
           <InstagramSheetConfigCard />
           <AdvancedSyncCard />
         </>
       )}
+      {activeTab === "scheduled" && <ScheduledDispatchesTab />}
 
+      {activeTab !== "scheduled" && (
       <div className="border border-border rounded-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
@@ -1780,6 +2087,7 @@ export function KakaoNotifyPanel() {
           </div>
         )}
       </div>
+      )}
 
       {selectedLeadId && (
         <LeadDetailPanel

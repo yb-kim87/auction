@@ -1534,7 +1534,7 @@ export interface KakaoDispatchLog {
   responsePayload: string;
   result: "success" | "failed";
   errorMessage: string | null;
-  triggeredBy: "auto" | "manual_retry" | "test" | "bulk_manual";
+  triggeredBy: "auto" | "manual_retry" | "test" | "bulk_manual" | "scheduled";
   triggeredByAdmin: string | null;
   sentAt: string;
 }
@@ -1629,9 +1629,11 @@ export async function sendKakaoTestMessage(input: {
   name: string;
   phone: string;
   templateCode?: string;
+  templateName?: string;
   variables?: Record<string, string>;
   source?: KakaoLeadSource;
-}): Promise<KakaoDispatchLog> {
+  scheduledAt?: string;
+}): Promise<KakaoDispatchLog | KakaoScheduledDispatch> {
   const res = await fetch(`${API_BASE}/kakao-notify/test-send`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
@@ -1865,12 +1867,46 @@ export interface KakaoBulkSendResult {
   failed: number;
 }
 
+export type KakaoScheduledDispatchStatus = "scheduled" | "sent" | "canceled" | "failed";
+export type KakaoScheduledDispatchKind = "bulk" | "test";
+
+export interface KakaoScheduledDispatch {
+  id: string;
+  kind: KakaoScheduledDispatchKind;
+  leadIdsJson: string;
+  testPhone: string;
+  testName: string;
+  templateCode: string;
+  templateName: string;
+  variablesJson: string;
+  templateNameVar: string;
+  scheduledAt: string;
+  status: KakaoScheduledDispatchStatus;
+  targetCount: number;
+  successCount: number | null;
+  failedCount: number | null;
+  errorMessage: string | null;
+  createdByAdmin: string;
+  createdAt: string;
+  processedAt: string | null;
+}
+
+function isScheduledDispatch(
+  result: KakaoBulkSendResult | KakaoDispatchLog | KakaoScheduledDispatch,
+): result is KakaoScheduledDispatch {
+  return typeof (result as KakaoScheduledDispatch).status === "string";
+}
+
+export { isScheduledDispatch };
+
 export async function bulkSendKakaoLeads(input: {
   ids: string[];
   templateCode: string;
+  templateName?: string;
   variables: Record<string, string>;
   templateNameVar?: string;
-}): Promise<KakaoBulkSendResult> {
+  scheduledAt?: string;
+}): Promise<KakaoBulkSendResult | KakaoScheduledDispatch> {
   const res = await fetch(`${API_BASE}/kakao-notify/leads/bulk-send`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
@@ -1879,6 +1915,40 @@ export async function bulkSendKakaoLeads(input: {
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "일괄 발송에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchKakaoScheduledDispatches(params: {
+  status?: KakaoScheduledDispatchStatus;
+  page?: number;
+  pageSize?: number;
+}): Promise<PagedResult<KakaoScheduledDispatch>> {
+  const query = new URLSearchParams();
+  if (params.status) query.set("status", params.status);
+  query.set("page", String(params.page ?? 1));
+  query.set("pageSize", String(params.pageSize ?? 20));
+
+  const res = await fetch(`${API_BASE}/kakao-notify/scheduled-dispatches?${query.toString()}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "예약 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function cancelKakaoScheduledDispatch(
+  id: string,
+): Promise<KakaoScheduledDispatch> {
+  const res = await fetch(`${API_BASE}/kakao-notify/scheduled-dispatches/${id}/cancel`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "예약 취소에 실패했습니다.");
   }
   return readJsonResponse(res);
 }
