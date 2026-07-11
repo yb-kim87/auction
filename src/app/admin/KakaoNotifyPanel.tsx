@@ -1399,12 +1399,9 @@ export function KakaoNotifyPanel() {
     void load();
   }, [load]);
 
-  // 필터/검색이 바뀌면 선택 상태를 초기화한다(다른 조건의 선택이 남아있으면 혼란스러우므로).
-  // 페이지 이동만으로는 초기화하지 않아, 여러 페이지에 걸쳐 선택을 유지할 수 있다.
-  useEffect(() => {
-    setCheckedIds(new Set());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, status, search]);
+  // 필터/검색/페이지를 바꿔도 선택 상태를 유지한다. 검색으로 특정 인원만
+  // 찾아 선택 해제하는 식의 사용을 지원하기 위함. 선택 초기화는 명시적으로
+  // "선택 해제" 버튼을 누르거나 발송/삭제가 완료됐을 때만 일어난다.
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const allCurrentPageChecked = leads.length > 0 && leads.every((l) => checkedIds.has(l.id));
