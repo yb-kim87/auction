@@ -1516,7 +1516,7 @@ export function KakaoNotifyPanel() {
               setPage(1);
               setSearch(e.target.value);
             }}
-            className="flex-1 min-w-[160px] px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
+            className="w-40 px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
           />
           <span className="text-xs text-muted-foreground">총 {total}건</span>
           {total > 0 && checkedIds.size < total && (
