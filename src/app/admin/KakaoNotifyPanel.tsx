@@ -1522,7 +1522,7 @@ export function KakaoNotifyPanel() {
             className="flex-1 min-w-[160px] px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
           />
           <span className="text-xs text-muted-foreground">총 {total}건</span>
-          {allCurrentPageChecked && checkedIds.size < total && (
+          {total > 0 && checkedIds.size < total && (
             <button
               type="button"
               onClick={() => void handleSelectAllMatching()}
