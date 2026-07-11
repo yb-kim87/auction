@@ -1490,7 +1490,7 @@ export function KakaoNotifyPanel() {
             }}
             className="px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
           >
-            <option value="">전체 유입경로</option>
+            <option value="">유입경로</option>
             <option value="imweb">아임웹</option>
             <option value="instagram">인스타</option>
           </select>
@@ -1502,7 +1502,7 @@ export function KakaoNotifyPanel() {
             }}
             className="px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
           >
-            <option value="">전체 상태</option>
+            <option value="">상태</option>
             <option value="pending">대기</option>
             <option value="sent">발송성공</option>
             <option value="failed">발송실패</option>
