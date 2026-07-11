@@ -1529,7 +1529,7 @@ export function KakaoNotifyPanel() {
               disabled={selectingAll}
               className="px-2 py-1 text-[11px] font-medium rounded-sm border border-primary/40 text-primary hover:bg-primary/5 disabled:opacity-50"
             >
-              {selectingAll ? "선택 중..." : `현재 조건 전체(${total}건) 선택`}
+              {selectingAll ? "선택 중..." : "전체선택"}
             </button>
           )}
           {checkedIds.size > 0 && (
