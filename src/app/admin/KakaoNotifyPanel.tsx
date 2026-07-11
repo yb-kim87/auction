@@ -155,6 +155,26 @@ function LeadDetailPanel({
                 <p className="font-medium text-foreground truncate">{lead.email || "-"}</p>
               </div>
               <div>
+                <p className="text-muted-foreground">성별</p>
+                <p className="font-medium text-foreground">{lead.gender || "-"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">생년월일</p>
+                <p className="font-medium text-foreground">{lead.birthDate || "-"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">주소</p>
+                <p className="font-medium text-foreground truncate" title={lead.address}>
+                  {lead.address || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">유입소재</p>
+                <p className="font-medium text-foreground truncate" title={lead.adName}>
+                  {lead.adName || "-"}
+                </p>
+              </div>
+              <div>
                 <p className="text-muted-foreground">가입일</p>
                 <p className="font-medium text-foreground">{formatDate(lead.joinedAt)}</p>
               </div>
@@ -1228,7 +1248,20 @@ export function KakaoNotifyPanel() {
           <p className="text-sm text-muted-foreground p-6 text-center">고객 데이터가 없습니다.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-xs border-collapse table-fixed">
+              <colgroup>
+                <col className="w-8" />
+                <col className="w-20" />
+                <col className="w-28" />
+                <col className="w-14" />
+                <col className="w-10" />
+                <col className="w-20" />
+                <col className="w-16" />
+                <col className="w-16" />
+                <col className="w-16" />
+                <col className="w-32" />
+                <col className="w-32" />
+              </colgroup>
               <thead className="bg-secondary/80">
                 <tr className="border-b border-border">
                   <th className="px-3 py-2.5 text-left">
@@ -1265,15 +1298,27 @@ export function KakaoNotifyPanel() {
                         onChange={() => toggleChecked(lead.id)}
                       />
                     </td>
-                    <td className="px-3 py-2.5">{lead.name || "-"}</td>
-                    <td className="px-3 py-2.5 font-mono">{maskPhone(lead.phone)}</td>
-                    <td className="px-3 py-2.5">{SOURCE_LABELS[lead.source]}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{lead.gender || "-"}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{lead.birthDate || "-"}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground max-w-[160px] truncate" title={lead.address}>
+                    <td className="px-3 py-2.5 overflow-hidden text-ellipsis whitespace-nowrap">
+                      {lead.name || "-"}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono whitespace-nowrap">{maskPhone(lead.phone)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{SOURCE_LABELS[lead.source]}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                      {lead.gender || "-"}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                      {lead.birthDate || "-"}
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                      title={lead.address}
+                    >
                       {lead.address || "-"}
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground max-w-[160px] truncate" title={lead.adName}>
+                    <td
+                      className="px-3 py-2.5 text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                      title={lead.adName}
+                    >
                       {lead.adName || "-"}
                     </td>
                     <td className="px-3 py-2.5">
@@ -1283,8 +1328,12 @@ export function KakaoNotifyPanel() {
                         {STATUS_LABELS[lead.status]}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{formatDate(lead.joinedAt)}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{formatDate(lead.createdAt)}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                      {formatDate(lead.joinedAt)}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                      {formatDate(lead.createdAt)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
