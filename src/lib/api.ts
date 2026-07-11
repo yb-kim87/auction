@@ -1534,7 +1534,7 @@ export interface KakaoDispatchLog {
   responsePayload: string;
   result: "success" | "failed";
   errorMessage: string | null;
-  triggeredBy: "auto" | "manual_retry" | "test";
+  triggeredBy: "auto" | "manual_retry" | "test" | "bulk_manual";
   triggeredByAdmin: string | null;
   sentAt: string;
 }
