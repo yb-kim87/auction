@@ -328,6 +328,20 @@ function scheduleInputToISOString(value: string): string {
   return new Date(value).toISOString();
 }
 
+/** datetime-local 값을 "7월 12일(일) 오후 5:42"처럼 요일 포함해 보여준다(브라우저 위젯의 요일 표시가 잘리는 문제 보완) */
+function formatScheduleDisplay(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("ko-KR", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 function ScheduleToggle({
   scheduled,
   onToggle,
@@ -351,13 +365,20 @@ function ScheduleToggle({
         예약 발송
       </label>
       {scheduled && (
-        <input
-          type="datetime-local"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          min={defaultScheduleInputValue(1)}
-          className="px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="datetime-local"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            min={defaultScheduleInputValue(1)}
+            className="px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
+          />
+          {value && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {formatScheduleDisplay(value)}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
