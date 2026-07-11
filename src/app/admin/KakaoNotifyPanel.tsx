@@ -371,7 +371,7 @@ function ScheduleToggle({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             min={defaultScheduleInputValue(1)}
-            className="schedule-datetime-input px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
+            className="px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
           />
           {value && (
             <span className="text-xs text-muted-foreground whitespace-nowrap">
