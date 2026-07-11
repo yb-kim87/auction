@@ -66,3 +66,9 @@
     text-wrap: balance;
   }
 }
+
+/* datetime-local 위젯 내부의 요일 필드는 갱신되지 않는 빈 괄호로 표시되는
+   브라우저(WebKit 계열)가 있어 숨긴다. 요일은 옆의 텍스트 표시로 대신 보여준다. */
+.schedule-datetime-input::-webkit-datetime-edit-weekday-field {
+  display: none;
+}

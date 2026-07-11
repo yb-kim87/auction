@@ -367,17 +367,11 @@ function ScheduleToggle({
       {scheduled && (
         <div className="flex items-center gap-2">
           <input
-            type="date"
-            value={value.slice(0, 10)}
-            min={defaultScheduleInputValue(1).slice(0, 10)}
-            onChange={(e) => onChange(`${e.target.value}T${value.slice(11, 16) || "00:00"}`)}
-            className="px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
-          />
-          <input
-            type="time"
-            value={value.slice(11, 16)}
-            onChange={(e) => onChange(`${value.slice(0, 10)}T${e.target.value}`)}
-            className="px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
+            type="datetime-local"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            min={defaultScheduleInputValue(1)}
+            className="schedule-datetime-input px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
           />
           {value && (
             <span className="text-xs text-muted-foreground whitespace-nowrap">
