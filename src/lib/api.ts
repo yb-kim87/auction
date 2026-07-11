@@ -1838,6 +1838,30 @@ export async function deleteKakaoLeadsByIds(ids: string[]): Promise<{ deleted: n
   return readJsonResponse(res);
 }
 
+export interface KakaoBulkSendResult {
+  total: number;
+  success: number;
+  failed: number;
+}
+
+export async function bulkSendKakaoLeads(input: {
+  ids: string[];
+  templateCode: string;
+  variables: Record<string, string>;
+  templateNameVar?: string;
+}): Promise<KakaoBulkSendResult> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/bulk-send`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "일괄 발송에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export interface InstagramSheetConfig {
   spreadsheetId: string;
   sheetRange: string;

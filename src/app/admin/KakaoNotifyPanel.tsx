@@ -18,6 +18,7 @@ import {
   backfillImwebExistingMembers,
   deleteKakaoLeadsBySource,
   deleteKakaoLeadsByIds,
+  bulkSendKakaoLeads,
   fetchKakaoTemplates,
   fetchKakaoSettings,
   updateKakaoSetting,
@@ -32,6 +33,7 @@ import {
   type KakaoSyncState,
   type SolapiTemplate,
   type KakaoLeadFieldOption,
+  type KakaoBulkSendResult,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<KakaoLeadStatus, string> = {
@@ -256,7 +258,14 @@ function LeadDetailPanel({
                         <span
                           className={`font-semibold ${log.result === "success" ? "text-emerald-700" : "text-destructive"}`}
                         >
-                          {log.result === "success" ? "성공" : "실패"} · {log.triggeredBy === "auto" ? "자동" : log.triggeredBy === "manual_retry" ? "재발송" : "테스트"}
+                          {log.result === "success" ? "성공" : "실패"} ·{" "}
+                          {log.triggeredBy === "auto"
+                            ? "자동"
+                            : log.triggeredBy === "manual_retry"
+                              ? "재발송"
+                              : log.triggeredBy === "bulk_manual"
+                                ? "일괄발송"
+                                : "테스트"}
                         </span>
                         <span className="text-muted-foreground">{formatDate(log.sentAt)}</span>
                       </div>
@@ -450,6 +459,211 @@ function TestSendCard() {
 
 const FIELD_REF_PREFIX = "$field:";
 const CUSTOM_VALUE = "__custom__";
+
+function BulkSendModal({
+  leadIds,
+  onClose,
+  onDone,
+}: {
+  leadIds: string[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
+  const [leadFields, setLeadFields] = useState<KakaoLeadFieldOption[]>([]);
+  const [templateCode, setTemplateCode] = useState("");
+  const [varValues, setVarValues] = useState<Record<string, string>>({});
+  const [nameVar, setNameVar] = useState("회원명");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<KakaoBulkSendResult | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    Promise.all([fetchKakaoTemplates(), fetchKakaoLeadFields()])
+      .then(([tmpl, fields]) => {
+        setTemplates(tmpl);
+        setLeadFields(fields);
+      })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "템플릿 목록을 불러오지 못했습니다."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const selectedTemplate = templates.find((t) => t.templateId === templateCode);
+  const templateVarNames = selectedTemplate ? extractTemplateVars(selectedTemplate) : [];
+
+  function handleSelectTemplate(id: string) {
+    const tmpl = templates.find((t) => t.templateId === id);
+    setTemplateCode(id);
+    const vars = tmpl ? extractTemplateVars(tmpl) : [];
+    const autoNameVar = vars.find((v) => v.includes("회원명") || v.includes("이름"));
+    setVarValues(
+      Object.fromEntries(vars.map((v) => [v, v === autoNameVar ? `${FIELD_REF_PREFIX}name` : ""])),
+    );
+    setNameVar(autoNameVar ?? "회원명");
+    setError("");
+  }
+
+  function fieldRefValue(varName: string): string {
+    const value = varValues[varName] ?? "";
+    return value.startsWith(FIELD_REF_PREFIX) ? value.slice(FIELD_REF_PREFIX.length) : CUSTOM_VALUE;
+  }
+
+  function handleSelectChange(varName: string, selected: string) {
+    if (selected === CUSTOM_VALUE) {
+      setVarValues((prev) => ({ ...prev, [varName]: "" }));
+    } else {
+      setVarValues((prev) => ({ ...prev, [varName]: `${FIELD_REF_PREFIX}${selected}` }));
+    }
+  }
+
+  async function handleSend() {
+    if (!templateCode) {
+      setError("템플릿을 선택해 주세요.");
+      return;
+    }
+    if (!window.confirm(`선택한 고객 ${leadIds.length}명에게 알림톡을 발송합니다. 계속할까요?`)) {
+      return;
+    }
+    setSending(true);
+    setError("");
+    try {
+      const res = await bulkSendKakaoLeads({
+        ids: leadIds,
+        templateCode,
+        variables: varValues,
+        templateNameVar: nameVar,
+      });
+      setResult(res);
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "발송에 실패했습니다.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45" onClick={onClose}>
+      <div
+        className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto bg-card border border-border rounded-sm shadow-xl p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div>
+          <h3 className="text-base font-bold text-foreground">선택 발송</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            선택한 고객 {leadIds.length}명에게 지정한 템플릿으로 알림톡을 즉시 발송합니다.
+          </p>
+        </div>
+
+        {loading ? (
+          <p className="text-xs text-muted-foreground">불러오는 중...</p>
+        ) : loadError ? (
+          <p className="text-xs text-destructive">{loadError}</p>
+        ) : (
+          <div className="space-y-3">
+            <select
+              value={templateCode}
+              onChange={(e) => handleSelectTemplate(e.target.value)}
+              className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
+            >
+              <option value="">템플릿 선택</option>
+              {templates.map((t) => (
+                <option key={t.templateId} value={t.templateId}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+
+            {selectedTemplate && (
+              <div className="border border-border rounded-sm p-3 space-y-2 bg-secondary/20">
+                <p className="text-[11px] font-semibold text-muted-foreground">템플릿 원문</p>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                  {selectedTemplate.content}
+                </p>
+
+                {templateVarNames.length > 0 && (
+                  <div className="grid grid-cols-1 gap-2 pt-1">
+                    {templateVarNames.map((varName) => {
+                      const selectValue = fieldRefValue(varName);
+                      const isCustom = selectValue === CUSTOM_VALUE;
+                      return (
+                        <div key={varName} className="flex items-center gap-1.5">
+                          <label className="text-xs text-muted-foreground w-20 shrink-0">
+                            #{varName}
+                          </label>
+                          <select
+                            value={selectValue}
+                            onChange={(e) => handleSelectChange(varName, e.target.value)}
+                            className="shrink-0 w-[92px] px-1.5 py-1.5 text-xs border border-border rounded-sm bg-card"
+                          >
+                            <option value={CUSTOM_VALUE}>직접입력</option>
+                            {leadFields.map((f) => (
+                              <option key={f.field} value={f.field}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={isCustom ? (varValues[varName] ?? "") : ""}
+                            onChange={(e) =>
+                              setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
+                            }
+                            placeholder={
+                              isCustom ? "" : `${leadFields.find((f) => f.field === selectValue)?.label ?? ""} 값으로 자동 대체됨`
+                            }
+                            disabled={!isCustom}
+                            className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-sm px-3 py-2">
+            {error}
+          </p>
+        )}
+
+        {result && (
+          <div className="text-xs border border-border rounded-sm p-3 space-y-0.5">
+            <p className="font-semibold text-foreground">
+              발송 완료: 총 {result.total}건 중 성공 {result.success}건, 실패 {result.failed}건
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {!result && (
+            <button
+              type="button"
+              onClick={() => void handleSend()}
+              disabled={sending || loading}
+              className="flex-1 px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+            >
+              {sending ? "발송 중..." : `${leadIds.length}명에게 발송`}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TemplateSettingsCard() {
   const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
@@ -1123,6 +1337,7 @@ export function KakaoNotifyPanel() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
@@ -1220,6 +1435,11 @@ export function KakaoNotifyPanel() {
     }
   }
 
+  function handleBulkSendDone() {
+    setCheckedIds(new Set());
+    void load();
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -1274,14 +1494,23 @@ export function KakaoNotifyPanel() {
           />
           <span className="text-xs text-muted-foreground">총 {total}건</span>
           {checkedIds.size > 0 && (
-            <button
-              type="button"
-              onClick={() => void handleDeleteSelected()}
-              disabled={deleting}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-destructive text-destructive-foreground disabled:opacity-50"
-            >
-              {deleting ? "삭제 중..." : `선택 삭제 (${checkedIds.size})`}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setBulkSendOpen(true)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
+              >
+                선택 발송 ({checkedIds.size})
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteSelected()}
+                disabled={deleting}
+                className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-destructive text-destructive-foreground disabled:opacity-50"
+              >
+                {deleting ? "삭제 중..." : `선택 삭제 (${checkedIds.size})`}
+              </button>
+            </>
           )}
         </div>
 
@@ -1425,6 +1654,14 @@ export function KakaoNotifyPanel() {
           leadId={selectedLeadId}
           onClose={() => setSelectedLeadId(null)}
           onResent={() => void load()}
+        />
+      )}
+
+      {bulkSendOpen && (
+        <BulkSendModal
+          leadIds={Array.from(checkedIds)}
+          onClose={() => setBulkSendOpen(false)}
+          onDone={handleBulkSendDone}
         />
       )}
     </div>
