@@ -1116,7 +1116,7 @@ export function KakaoNotifyPanel() {
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
-    32, 72, 108, 64, 48, 84, 100, 100, 64, 120, 120,
+    32, 72, 108, 64, 48, 84, 100, 76, 76, 120, 120,
   ]);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
@@ -1359,9 +1359,9 @@ export function KakaoNotifyPanel() {
                     >
                       {lead.adName || "-"}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <span
-                        className={`inline-flex px-2 py-0.5 text-[11px] font-semibold rounded-sm border ${STATUS_STYLES[lead.status]}`}
+                        className={`inline-flex whitespace-nowrap px-2 py-0.5 text-[11px] font-semibold rounded-sm border ${STATUS_STYLES[lead.status]}`}
                       >
                         {STATUS_LABELS[lead.status]}
                       </span>
