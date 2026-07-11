@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchKakaoLeads,
   fetchKakaoLeadDetail,
@@ -1115,6 +1115,39 @@ export function KakaoNotifyPanel() {
   const [deleting, setDeleting] = useState(false);
   const pageSize = 20;
 
+  const [colWidths, setColWidths] = useState<number[]>([
+    32, 72, 108, 64, 48, 84, 100, 100, 64, 120, 120,
+  ]);
+  const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
+
+  const handleResizeStart = useCallback((index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { index, startX: e.clientX, startWidth: colWidths[index] };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const resizing = resizingRef.current;
+      if (!resizing) return;
+      const delta = moveEvent.clientX - resizing.startX;
+      const newWidth = Math.max(32, resizing.startWidth + delta);
+      setColWidths((prev) => {
+        const next = [...prev];
+        next[resizing.index] = newWidth;
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colWidths]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -1248,23 +1281,15 @@ export function KakaoNotifyPanel() {
           <p className="text-sm text-muted-foreground p-6 text-center">고객 데이터가 없습니다.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse table-fixed">
+            <table className="text-xs border-collapse table-fixed" style={{ width: colWidths.reduce((a, b) => a + b, 0) }}>
               <colgroup>
-                <col className="w-8" />
-                <col className="w-20" />
-                <col className="w-28" />
-                <col className="w-14" />
-                <col className="w-10" />
-                <col className="w-20" />
-                <col className="w-16" />
-                <col className="w-16" />
-                <col className="w-16" />
-                <col className="w-32" />
-                <col className="w-32" />
+                {colWidths.map((w, i) => (
+                  <col key={i} style={{ width: w }} />
+                ))}
               </colgroup>
               <thead className="bg-secondary/80">
                 <tr className="border-b border-border">
-                  <th className="px-3 py-2.5 text-left">
+                  <th className="relative px-3 py-2.5 text-left overflow-hidden">
                     <input
                       type="checkbox"
                       checked={leads.length > 0 && checkedIds.size === leads.length}
@@ -1272,16 +1297,29 @@ export function KakaoNotifyPanel() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   </th>
-                  <th className="px-3 py-2.5 text-left font-semibold">이름</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">전화번호</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">유입경로</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">성별</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">생년월일</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">주소</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">유입소재</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">상태</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">가입일</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">수집시각</th>
+                  {[
+                    "이름",
+                    "전화번호",
+                    "유입경로",
+                    "성별",
+                    "생년월일",
+                    "주소",
+                    "유입소재",
+                    "상태",
+                    "가입일",
+                    "수집시각",
+                  ].map((label, i) => (
+                    <th
+                      key={label}
+                      className="relative px-3 py-2.5 text-left font-semibold whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
+                      {label}
+                      <span
+                        onMouseDown={(e) => handleResizeStart(i + 1, e)}
+                        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/40"
+                      />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
