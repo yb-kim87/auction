@@ -1499,3 +1499,433 @@ export async function cafeImportArticle(options: {
   }
   return readJsonResponse(res);
 }
+
+// ─── 알림톡 관리(kakao-notify) ─────────────────────────────────────────────
+
+export type KakaoLeadSource = "imweb" | "instagram";
+export type KakaoLeadStatus = "pending" | "sent" | "failed" | "skipped_duplicate";
+
+export interface KakaoLead {
+  id: string;
+  source: KakaoLeadSource;
+  sourceRefId: string;
+  name: string;
+  phone: string;
+  email: string;
+  gender: string;
+  birthDate: string;
+  address: string;
+  adName: string;
+  joinedAt: string | null;
+  rawPayload: string;
+  status: KakaoLeadStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KakaoDispatchLog {
+  id: string;
+  leadId: string | null;
+  attemptNo: number;
+  templateCode: string;
+  requestPayload: string;
+  responsePayload: string;
+  result: "success" | "failed";
+  errorMessage: string | null;
+  triggeredBy: "auto" | "manual_retry" | "test";
+  triggeredByAdmin: string | null;
+  sentAt: string;
+}
+
+export interface KakaoSyncState {
+  source: KakaoLeadSource;
+  lastSyncedAt: string | null;
+  lastCursor: string | null;
+  lastRunAt: string | null;
+  lastRunStatus: "ok" | "error" | "never_run";
+  lastErrorMessage: string | null;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function fetchKakaoLeads(params: {
+  source?: KakaoLeadSource;
+  status?: KakaoLeadStatus;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<PagedResult<KakaoLead>> {
+  const query = new URLSearchParams();
+  if (params.source) query.set("source", params.source);
+  if (params.status) query.set("status", params.status);
+  if (params.search) query.set("search", params.search);
+  query.set("page", String(params.page ?? 1));
+  query.set("pageSize", String(params.pageSize ?? 20));
+
+  const res = await fetch(`${API_BASE}/kakao-notify/leads?${query.toString()}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "고객 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchKakaoLeadDetail(
+  id: string,
+): Promise<{ lead: KakaoLead; logs: KakaoDispatchLog[]; otherApplications: KakaoLead[] }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "고객 상세 정보를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function resendKakaoLead(id: string): Promise<KakaoDispatchLog> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}/resend`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "재발송에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function sendKakaoTestMessage(input: {
+  name: string;
+  phone: string;
+  templateCode?: string;
+  variables?: Record<string, string>;
+  source?: KakaoLeadSource;
+}): Promise<KakaoDispatchLog> {
+  const res = await fetch(`${API_BASE}/kakao-notify/test-send`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "테스트 발송에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchKakaoDispatchLogs(params: {
+  result?: "success" | "failed";
+  page?: number;
+  pageSize?: number;
+}): Promise<PagedResult<KakaoDispatchLog>> {
+  const query = new URLSearchParams();
+  if (params.result) query.set("result", params.result);
+  query.set("page", String(params.page ?? 1));
+  query.set("pageSize", String(params.pageSize ?? 20));
+
+  const res = await fetch(`${API_BASE}/kakao-notify/dispatch-logs?${query.toString()}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "발송 이력을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchKakaoSyncState(): Promise<KakaoSyncState[]> {
+  const res = await fetch(`${API_BASE}/kakao-notify/sync-state`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "동기화 상태를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface KakaoSyncRunResult {
+  processed: number;
+  created: number;
+}
+
+export interface KakaoSyncRunAllResult {
+  imweb: KakaoSyncRunResult | { error: string };
+  instagram: KakaoSyncRunResult | { error: string };
+}
+
+/** 알림톡 자동발송(아임웹+인스타 신규 리드 수집 및 발송)을 동시에 실행한다. */
+export async function runKakaoAutoSend(): Promise<KakaoSyncRunAllResult> {
+  const res = await fetch(`${API_BASE}/kakao-notify/sync/run-now`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "자동발송 실행에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function cancelKakaoAutoSend(): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/sync/cancel`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "중단 요청에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+/** 아임웹 또는 인스타 한쪽만 개별로 신규 리드 수집+발송을 실행한다. */
+export async function runKakaoAutoSendOne(
+  source: KakaoLeadSource,
+): Promise<KakaoSyncRunResult> {
+  const res = await fetch(`${API_BASE}/kakao-notify/sync/run-now/${source}`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "자동발송 실행에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function cancelKakaoAutoSendOne(
+  source: KakaoLeadSource,
+): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/sync/cancel/${source}`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "중단 요청에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchKakaoSchedulerStatus(): Promise<{ enabled: boolean }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/scheduler/status`, {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "자동발송 상태를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function toggleKakaoScheduler(enabled: boolean): Promise<{ enabled: boolean }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/scheduler/toggle`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "자동발송 설정 변경에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface KakaoSyncRunState {
+  running: boolean;
+  processed: number;
+  cancelRequested: boolean;
+  startedAt: string | null;
+}
+
+export async function fetchKakaoAutoSendStatus(): Promise<{
+  imweb: KakaoSyncRunState;
+  instagram: KakaoSyncRunState;
+}> {
+  const res = await fetch(`${API_BASE}/kakao-notify/sync/status`, {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "진행 상태를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function backfillImwebExistingMembers(): Promise<{
+  processed: number;
+  created: number;
+}> {
+  const res = await fetch(`${API_BASE}/kakao-notify/imweb/backfill-existing`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "기존 회원 백필에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function backfillInstagramExistingRows(): Promise<{
+  processed: number;
+  created: number;
+}> {
+  const res = await fetch(`${API_BASE}/kakao-notify/instagram/backfill-existing`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "기존 인스타 리드 백필에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteKakaoLeadsBySource(
+  source: KakaoLeadSource,
+): Promise<{ deleted: number }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/delete-by-source/${source}`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "고객 데이터 삭제에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteKakaoLeadsByIds(ids: string[]): Promise<{ deleted: number }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/delete`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "선택한 고객 삭제에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface InstagramSheetConfig {
+  spreadsheetId: string;
+  sheetRange: string;
+}
+
+export async function fetchInstagramSheetConfig(): Promise<InstagramSheetConfig> {
+  const res = await fetch(`${API_BASE}/kakao-notify/instagram/sheet-config`, {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "구글시트 설정을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateInstagramSheetConfig(
+  input: InstagramSheetConfig,
+): Promise<InstagramSheetConfig> {
+  const res = await fetch(`${API_BASE}/kakao-notify/instagram/sheet-config`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "구글시트 설정 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface SolapiTemplateButton {
+  buttonType?: string;
+  buttonName?: string;
+  linkAnd?: string;
+  linkIos?: string;
+  linkPc?: string;
+  linkMo?: string;
+}
+
+export interface SolapiTemplate {
+  templateId: string;
+  name: string;
+  status: string;
+  content: string;
+  buttons: SolapiTemplateButton[];
+}
+
+export async function fetchKakaoTemplates(): Promise<SolapiTemplate[]> {
+  const res = await fetch(`${API_BASE}/kakao-notify/templates`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "템플릿 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface KakaoNotifySetting {
+  key: "default";
+  templateCode: string;
+  templateName: string;
+  variablesJson: string;
+  templateNameVar: string;
+}
+
+export async function fetchKakaoSettings(): Promise<KakaoNotifySetting> {
+  const res = await fetch(`${API_BASE}/kakao-notify/settings`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "알림톡 설정을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateKakaoSetting(input: {
+  templateCode: string;
+  templateName: string;
+  variables: Record<string, string>;
+  templateNameVar?: string;
+}): Promise<KakaoNotifySetting> {
+  const res = await fetch(`${API_BASE}/kakao-notify/settings`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "알림톡 설정 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface KakaoLeadFieldOption {
+  field: string;
+  label: string;
+}
+
+export async function fetchKakaoLeadFields(): Promise<KakaoLeadFieldOption[]> {
+  const res = await fetch(`${API_BASE}/kakao-notify/lead-fields`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "리드 필드 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}

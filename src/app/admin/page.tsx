@@ -34,6 +34,7 @@ import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { LoanPolicyTab } from "./LoanPolicyTab";
 import { AiPlatformPanel } from "./AiPlatformPanel";
+import { KakaoNotifyPanel } from "./KakaoNotifyPanel";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -73,7 +74,14 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
   );
 }
 
-type AdminTab = "data" | "crawler" | "users" | "knowledge" | "loanPolicy" | "aiPlatform";
+type AdminTab =
+  | "data"
+  | "crawler"
+  | "users"
+  | "knowledge"
+  | "loanPolicy"
+  | "aiPlatform"
+  | "kakaoNotify";
 type AiPlatformSubTab = "normalizer" | "feature" | "tag";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
@@ -83,6 +91,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "users", label: "회원권한 관리" },
   { id: "loanPolicy", label: "대출정책" },
   { id: "aiPlatform", label: "AI Platform" },
+  { id: "kakaoNotify", label: "알림톡 관리" },
 ];
 
 const AI_PLATFORM_SUB_TABS: { id: AiPlatformSubTab; label: string }[] = [
@@ -845,6 +854,8 @@ export default function AdminPage() {
           {activeTab === "knowledge" && <KnowledgePanel />}
 
           {activeTab === "loanPolicy" && <LoanPolicyTab />}
+
+          {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}
 
           {activeTab === "aiPlatform" && (
             <div>
