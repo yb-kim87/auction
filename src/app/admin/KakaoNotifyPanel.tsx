@@ -14,6 +14,7 @@ import {
   fetchKakaoAutoSendStatus,
   fetchKakaoSchedulerStatus,
   toggleKakaoScheduler,
+  updateKakaoSchedulerInterval,
   backfillImwebExistingMembers,
   deleteKakaoLeadsBySource,
   deleteKakaoLeadsByIds,
@@ -738,6 +739,10 @@ function SyncStateCard() {
   const [schedulerEnabled, setSchedulerEnabled] = useState(false);
   const [schedulerLoading, setSchedulerLoading] = useState(true);
   const [schedulerToggling, setSchedulerToggling] = useState(false);
+  const [intervalMinutes, setIntervalMinutes] = useState(5);
+  const [intervalInput, setIntervalInput] = useState("5");
+  const [intervalSaving, setIntervalSaving] = useState(false);
+  const [intervalMessage, setIntervalMessage] = useState("");
 
   const load = useCallback(() => {
     return fetchKakaoSyncState()
@@ -752,7 +757,11 @@ function SyncStateCard() {
 
   useEffect(() => {
     fetchKakaoSchedulerStatus()
-      .then((s) => setSchedulerEnabled(s.enabled))
+      .then((s) => {
+        setSchedulerEnabled(s.enabled);
+        setIntervalMinutes(s.intervalMinutes);
+        setIntervalInput(String(s.intervalMinutes));
+      })
       .catch(() => {})
       .finally(() => setSchedulerLoading(false));
   }, []);
@@ -766,6 +775,26 @@ function SyncStateCard() {
       setRunMessage(err instanceof Error ? err.message : "설정 변경에 실패했습니다.");
     } finally {
       setSchedulerToggling(false);
+    }
+  }
+
+  async function handleSaveInterval() {
+    const minutes = Number(intervalInput);
+    if (!Number.isFinite(minutes) || minutes < 1) {
+      setIntervalMessage("1 이상의 숫자를 입력해 주세요.");
+      return;
+    }
+    setIntervalSaving(true);
+    setIntervalMessage("");
+    try {
+      const result = await updateKakaoSchedulerInterval(minutes);
+      setIntervalMinutes(result.intervalMinutes);
+      setIntervalInput(String(result.intervalMinutes));
+      setIntervalMessage("저장되었습니다.");
+    } catch (err) {
+      setIntervalMessage(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setIntervalSaving(false);
     }
   }
 
@@ -937,7 +966,7 @@ function SyncStateCard() {
             자동 반복 발송 {schedulerEnabled ? "켜짐" : "꺼짐"}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            켜두면 서버가 5분 간격으로 계속 신규 고객을 확인해 자동 발송합니다.
+            켜두면 서버가 {intervalMinutes}분 간격으로 계속 신규 고객을 확인해 자동 발송합니다.
           </p>
         </div>
         <button
@@ -956,6 +985,26 @@ function SyncStateCard() {
             }`}
           />
         </button>
+      </div>
+      <div className="flex items-center gap-2 rounded-sm border border-border px-3 py-2">
+        <label className="text-xs text-muted-foreground shrink-0">확인 간격(분)</label>
+        <input
+          type="number"
+          min={1}
+          max={180}
+          value={intervalInput}
+          onChange={(e) => setIntervalInput(e.target.value)}
+          className="w-20 px-2 py-1 text-xs border border-border rounded-sm bg-card"
+        />
+        <button
+          type="button"
+          onClick={() => void handleSaveInterval()}
+          disabled={intervalSaving}
+          className="px-2 py-1 text-[11px] font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+        >
+          {intervalSaving ? "저장 중..." : "저장"}
+        </button>
+        {intervalMessage && <span className="text-[11px] text-muted-foreground">{intervalMessage}</span>}
       </div>
       <p className="text-[11px] text-muted-foreground">
         아임웹·인스타 인스턴트에서 신규로 확인된 고객에게 알림톡을 자동으로 발송합니다.

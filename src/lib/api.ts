@@ -1716,7 +1716,10 @@ export async function cancelKakaoAutoSendOne(
   return readJsonResponse(res);
 }
 
-export async function fetchKakaoSchedulerStatus(): Promise<{ enabled: boolean }> {
+export async function fetchKakaoSchedulerStatus(): Promise<{
+  enabled: boolean;
+  intervalMinutes: number;
+}> {
   const res = await fetch(`${API_BASE}/kakao-notify/scheduler/status`, {
     credentials: FETCH_CREDENTIALS,
     cache: "no-store",
@@ -1736,6 +1739,21 @@ export async function toggleKakaoScheduler(enabled: boolean): Promise<{ enabled:
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "자동발송 설정 변경에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateKakaoSchedulerInterval(
+  intervalMinutes: number,
+): Promise<{ intervalMinutes: number }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/scheduler/interval`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ intervalMinutes }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "간격 설정 변경에 실패했습니다.");
   }
   return readJsonResponse(res);
 }
