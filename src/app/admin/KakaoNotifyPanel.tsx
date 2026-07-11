@@ -1242,6 +1242,10 @@ export function KakaoNotifyPanel() {
                   <th className="px-3 py-2.5 text-left font-semibold">이름</th>
                   <th className="px-3 py-2.5 text-left font-semibold">전화번호</th>
                   <th className="px-3 py-2.5 text-left font-semibold">유입경로</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">성별</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">생년월일</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">주소</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">유입소재</th>
                   <th className="px-3 py-2.5 text-left font-semibold">상태</th>
                   <th className="px-3 py-2.5 text-left font-semibold">가입일</th>
                   <th className="px-3 py-2.5 text-left font-semibold">수집시각</th>
@@ -1264,6 +1268,14 @@ export function KakaoNotifyPanel() {
                     <td className="px-3 py-2.5">{lead.name || "-"}</td>
                     <td className="px-3 py-2.5 font-mono">{maskPhone(lead.phone)}</td>
                     <td className="px-3 py-2.5">{SOURCE_LABELS[lead.source]}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{lead.gender || "-"}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{lead.birthDate || "-"}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground max-w-[160px] truncate" title={lead.address}>
+                      {lead.address || "-"}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground max-w-[160px] truncate" title={lead.adName}>
+                      {lead.adName || "-"}
+                    </td>
                     <td className="px-3 py-2.5">
                       <span
                         className={`inline-flex px-2 py-0.5 text-[11px] font-semibold rounded-sm border ${STATUS_STYLES[lead.status]}`}
