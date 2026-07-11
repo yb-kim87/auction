@@ -1346,7 +1346,17 @@ export function KakaoNotifyPanel() {
                       />
                     </td>
                     <td className="px-3 py-2.5 overflow-hidden text-ellipsis whitespace-nowrap">
-                      {lead.name || "-"}
+                      <span className="inline-flex items-center gap-1">
+                        {lead.name || "-"}
+                        {lead.hasDuplicateApplications && (
+                          <span
+                            title="같은 번호의 다른 신청 이력이 있습니다"
+                            className="inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-sm border bg-amber-50 text-amber-700 border-amber-200 shrink-0"
+                          >
+                            중복
+                          </span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-3 py-2.5 font-mono whitespace-nowrap">{maskPhone(lead.phone)}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">{SOURCE_LABELS[lead.source]}</td>

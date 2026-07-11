@@ -1521,6 +1521,8 @@ export interface KakaoLead {
   status: KakaoLeadStatus;
   createdAt: string;
   updatedAt: string;
+  /** 목록 조회(fetchKakaoLeads) 시에만 포함됨: 같은 전화번호의 다른 신청 이력 존재 여부 */
+  hasDuplicateApplications?: boolean;
 }
 
 export interface KakaoDispatchLog {
