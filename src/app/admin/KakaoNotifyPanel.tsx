@@ -623,7 +623,7 @@ function TemplateSettingsCard() {
             disabled={saving}
             className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
           >
-            {saving ? "저장 중..." : "저장"}
+            {saving ? "적용 중..." : "적용"}
           </button>
         </div>
       )}
@@ -728,7 +728,7 @@ function InstagramSheetConfigCard() {
           disabled={saving}
           className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
         >
-          {saving ? "저장 중..." : "저장"}
+          {saving ? "적용 중..." : "적용"}
         </button>
         <button
           type="button"
@@ -1022,7 +1022,7 @@ function SyncStateCard() {
           disabled={intervalSaving}
           className="px-2 py-1 text-[11px] font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
         >
-          {intervalSaving ? "저장 중..." : "저장"}
+          {intervalSaving ? "적용 중..." : "적용"}
         </button>
         {intervalMessage && <span className="text-[11px] text-muted-foreground">{intervalMessage}</span>}
       </div>
