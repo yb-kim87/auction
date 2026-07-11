@@ -1579,6 +1579,27 @@ export async function fetchKakaoLeads(params: {
   return readJsonResponse(res);
 }
 
+/** 필터/검색 조건에 맞는 리드 전체의 ID만 조회한다("전체선택"용, 페이징 없음). */
+export async function fetchKakaoLeadIds(params: {
+  source?: KakaoLeadSource;
+  status?: KakaoLeadStatus;
+  search?: string;
+}): Promise<string[]> {
+  const query = new URLSearchParams();
+  if (params.source) query.set("source", params.source);
+  if (params.status) query.set("status", params.status);
+  if (params.search) query.set("search", params.search);
+
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/ids?${query.toString()}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "고객 ID 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchKakaoLeadDetail(
   id: string,
 ): Promise<{ lead: KakaoLead; logs: KakaoDispatchLog[]; otherApplications: KakaoLead[] }> {

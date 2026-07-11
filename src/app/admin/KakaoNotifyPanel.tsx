@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchKakaoLeads,
+  fetchKakaoLeadIds,
   fetchKakaoLeadDetail,
   resendKakaoLead,
   sendKakaoTestMessage,
@@ -1336,6 +1337,7 @@ export function KakaoNotifyPanel() {
   const [search, setSearch] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [selectingAll, setSelectingAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const pageSize = 20;
@@ -1397,11 +1399,15 @@ export function KakaoNotifyPanel() {
     void load();
   }, [load]);
 
+  // 필터/검색이 바뀌면 선택 상태를 초기화한다(다른 조건의 선택이 남아있으면 혼란스러우므로).
+  // 페이지 이동만으로는 초기화하지 않아, 여러 페이지에 걸쳐 선택을 유지할 수 있다.
   useEffect(() => {
     setCheckedIds(new Set());
-  }, [leads]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, status, search]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const allCurrentPageChecked = leads.length > 0 && leads.every((l) => checkedIds.has(l.id));
 
   function toggleChecked(id: string) {
     setCheckedIds((prev) => {
@@ -1412,10 +1418,33 @@ export function KakaoNotifyPanel() {
     });
   }
 
+  async function handleSelectAllMatching() {
+    setSelectingAll(true);
+    try {
+      const ids = await fetchKakaoLeadIds({
+        source: source || undefined,
+        status: status || undefined,
+        search: search || undefined,
+      });
+      setCheckedIds(new Set(ids));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "전체 선택에 실패했습니다.");
+    } finally {
+      setSelectingAll(false);
+    }
+  }
+
   function toggleCheckAll() {
-    setCheckedIds((prev) =>
-      prev.size === leads.length ? new Set() : new Set(leads.map((l) => l.id)),
-    );
+    setCheckedIds((prev) => {
+      if (allCurrentPageChecked) {
+        const next = new Set(prev);
+        leads.forEach((l) => next.delete(l.id));
+        return next;
+      }
+      const next = new Set(prev);
+      leads.forEach((l) => next.add(l.id));
+      return next;
+    });
   }
 
   async function handleDeleteSelected() {
@@ -1493,8 +1522,28 @@ export function KakaoNotifyPanel() {
             className="flex-1 min-w-[160px] px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
           />
           <span className="text-xs text-muted-foreground">총 {total}건</span>
+          {allCurrentPageChecked && checkedIds.size < total && (
+            <button
+              type="button"
+              onClick={() => void handleSelectAllMatching()}
+              disabled={selectingAll}
+              className="px-2 py-1 text-[11px] font-medium rounded-sm border border-primary/40 text-primary hover:bg-primary/5 disabled:opacity-50"
+            >
+              {selectingAll ? "선택 중..." : `현재 조건 전체(${total}건) 선택`}
+            </button>
+          )}
           {checkedIds.size > 0 && (
             <>
+              <span className="text-xs font-medium text-foreground">
+                {checkedIds.size}건 선택됨
+              </span>
+              <button
+                type="button"
+                onClick={() => setCheckedIds(new Set())}
+                className="px-2 py-1 text-[11px] font-medium rounded-sm border border-border hover:bg-secondary"
+              >
+                선택 해제
+              </button>
               <button
                 type="button"
                 onClick={() => setBulkSendOpen(true)}
@@ -1531,7 +1580,7 @@ export function KakaoNotifyPanel() {
                   <th className="relative px-3 py-2.5 text-left overflow-hidden">
                     <input
                       type="checkbox"
-                      checked={leads.length > 0 && checkedIds.size === leads.length}
+                      checked={allCurrentPageChecked}
                       onChange={toggleCheckAll}
                       onClick={(e) => e.stopPropagation()}
                     />
