@@ -175,7 +175,7 @@ function LeadDetailPanel({
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">가입일</p>
+                <p className="text-muted-foreground">가입시각</p>
                 <p className="font-medium text-foreground">{formatDate(lead.joinedAt)}</p>
               </div>
               <div>
@@ -1116,7 +1116,7 @@ export function KakaoNotifyPanel() {
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
-    32, 72, 108, 64, 48, 84, 100, 76, 76, 120, 120,
+    32, 72, 108, 64, 48, 84, 100, 76, 76, 120,
   ]);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
@@ -1306,8 +1306,7 @@ export function KakaoNotifyPanel() {
                     "주소",
                     "유입소재",
                     "상태",
-                    "가입일",
-                    "수집시각",
+                    "가입시각",
                   ].map((label, i) => (
                     <th
                       key={label}
@@ -1368,9 +1367,6 @@ export function KakaoNotifyPanel() {
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
                       {formatDate(lead.joinedAt)}
-                    </td>
-                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
-                      {formatDate(lead.createdAt)}
                     </td>
                   </tr>
                 ))}
