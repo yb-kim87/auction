@@ -63,6 +63,16 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString("ko-KR");
 }
 
+/**
+ * "(잠재_인스턴트) 경매코치_영상_3" 같은 유입소재명에서 앞의
+ * "(구분) 캠페인명_" 접두어를 잘라내고 "영상_3"만 남긴다. 패턴이
+ * 맞지 않으면 원문을 그대로 반환한다.
+ */
+function shortenAdName(adName: string): string {
+  const match = adName.match(/^\([^)]*\)\s*[^_]+_(.+)$/);
+  return match ? match[1] : adName;
+}
+
 function LeadDetailPanel({
   leadId,
   onClose,
@@ -171,7 +181,7 @@ function LeadDetailPanel({
               <div>
                 <p className="text-muted-foreground">유입소재</p>
                 <p className="font-medium text-foreground truncate" title={lead.adName}>
-                  {lead.adName || "-"}
+                  {lead.adName ? shortenAdName(lead.adName) : "-"}
                 </p>
               </div>
               <div>
@@ -1356,7 +1366,7 @@ export function KakaoNotifyPanel() {
                       className="px-3 py-2.5 text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
                       title={lead.adName}
                     >
-                      {lead.adName || "-"}
+                      {lead.adName ? shortenAdName(lead.adName) : "-"}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span
