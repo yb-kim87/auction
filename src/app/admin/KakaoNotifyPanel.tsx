@@ -1383,7 +1383,8 @@ function DailyStatsCard() {
         <div className="overflow-x-auto">
           <div className="flex items-end gap-1.5 h-40 min-w-fit pt-2">
             {stats.map((s) => {
-              const barHeight = (s.total / maxTotal) * 100;
+              const chartAreaPx = 140;
+              const barHeightPx = Math.max(s.total > 0 ? 3 : 0, (s.total / maxTotal) * chartAreaPx);
               const imwebRatio = s.total > 0 ? s.imweb / s.total : 0;
               return (
                 <div
@@ -1391,10 +1392,10 @@ function DailyStatsCard() {
                   className="flex flex-col items-center gap-1 w-6 shrink-0"
                   title={`${s.date}\n총 ${s.total}건 (아임웹 ${s.imweb} / 인스타 ${s.instagram})`}
                 >
-                  <div className="flex-1 w-full flex items-end">
+                  <div className="w-full flex items-end" style={{ height: chartAreaPx }}>
                     <div
                       className="w-full rounded-t-sm overflow-hidden flex flex-col-reverse"
-                      style={{ height: `${Math.max(2, barHeight)}%` }}
+                      style={{ height: barHeightPx }}
                     >
                       <div
                         className="w-full bg-blue-400"
@@ -2162,10 +2163,9 @@ export function KakaoNotifyPanel() {
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
-    32, 72, 108, 64, 48, 84, 100, 76, 76, 120, 64,
+    32, 72, 108, 64, 48, 84, 100, 76, 76, 120,
   ]);
   const [adCreativeMap, setAdCreativeMap] = useState<Record<string, KakaoAdCreative>>({});
-  const [togglingExclusionId, setTogglingExclusionId] = useState<string | null>(null);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
   const handleResizeStart = useCallback((index: number, e: React.MouseEvent) => {
@@ -2225,20 +2225,6 @@ export function KakaoNotifyPanel() {
       .then((list) => setAdCreativeMap(Object.fromEntries(list.map((c) => [c.adName, c]))))
       .catch(() => setAdCreativeMap({}));
   }, []);
-
-  async function handleToggleExclusion(lead: KakaoLead) {
-    setTogglingExclusionId(lead.id);
-    try {
-      await setKakaoLeadBulkExclusion(lead.id, !lead.excludedFromBulk);
-      setLeads((prev) =>
-        prev.map((l) => (l.id === lead.id ? { ...l, excludedFromBulk: !lead.excludedFromBulk } : l)),
-      );
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "알림톡 제외 설정에 실패했습니다.");
-    } finally {
-      setTogglingExclusionId(null);
-    }
-  }
 
   // 필터/검색/페이지를 바꿔도 선택 상태를 유지한다. 검색으로 특정 인원만
   // 찾아 선택 해제하는 식의 사용을 지원하기 위함. 선택 초기화는 명시적으로
@@ -2495,7 +2481,6 @@ export function KakaoNotifyPanel() {
                       />
                     </th>
                   ))}
-                  <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">제외</th>
                 </tr>
               </thead>
               <tbody>
@@ -2563,21 +2548,6 @@ export function KakaoNotifyPanel() {
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
                       {formatDate(lead.joinedAt)}
-                    </td>
-                    <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => void handleToggleExclusion(lead)}
-                        disabled={togglingExclusionId === lead.id}
-                        title={lead.excludedFromBulk ? "선택발송 제외됨 (클릭해서 해제)" : "선택발송에서 제외"}
-                        className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border disabled:opacity-50 ${
-                          lead.excludedFromBulk
-                            ? "bg-destructive/10 text-destructive border-destructive/30"
-                            : "border-border text-muted-foreground hover:bg-secondary"
-                        }`}
-                      >
-                        {lead.excludedFromBulk ? "제외됨" : "제외"}
-                      </button>
                     </td>
                   </tr>
                 ))}
