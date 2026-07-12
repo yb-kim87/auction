@@ -108,9 +108,12 @@ function AlimtalkPreview({
             <p className="text-[11px] text-[#8b8b8b] leading-[1.4]">{template.emphasizeSubtitle}</p>
           )}
           {template.emphasizeTitle && (
-            <p className="text-[14px] font-bold text-[#151515] leading-[1.4] pb-1">
-              {template.emphasizeTitle}
-            </p>
+            <>
+              <p className="text-[14px] font-bold text-[#151515] leading-[1.4] pb-1">
+                {template.emphasizeTitle}
+              </p>
+              <hr className="border-t border-[#e5e5e5] my-1.5" />
+            </>
           )}
           <p className="text-[12px] text-[#151515] whitespace-pre-wrap leading-[1.55]">{content}</p>
           {template.extra && (
