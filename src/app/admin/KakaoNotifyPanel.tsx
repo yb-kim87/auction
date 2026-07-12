@@ -2119,21 +2119,36 @@ function ScheduledDispatchDetailPanel({
   onClose: () => void;
 }) {
   const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
+  const [leadFields, setLeadFields] = useState<KakaoLeadFieldOption[]>([]);
 
   useEffect(() => {
     fetchKakaoTemplates()
       .then(setTemplates)
       .catch(() => setTemplates([]));
+    fetchKakaoLeadFields()
+      .then(setLeadFields)
+      .catch(() => setLeadFields([]));
   }, []);
 
   const template = templates.find((t) => t.templateId === item.templateCode);
-  const variables = (() => {
+  const rawVariables = (() => {
     try {
       return JSON.parse(item.variablesJson) as Record<string, string>;
     } catch {
       return {};
     }
   })();
+  // 선택발송 예약은 "$field:xxx" 형태로 발송 시점에 리드 필드값으로 치환될 참조를
+  // 저장해둔다. 아직 발송 전이라 실제 값이 없으므로, 사람이 읽기 좋은 필드명으로
+  // 바꿔서 "{회원명}"처럼 어떤 값이 들어갈지 알 수 있게 보여준다.
+  const variables = Object.fromEntries(
+    Object.entries(rawVariables).map(([k, v]) => [
+      k,
+      v.startsWith(FIELD_REF_PREFIX)
+        ? `{${leadFields.find((f) => f.field === v.slice(FIELD_REF_PREFIX.length))?.label ?? v.slice(FIELD_REF_PREFIX.length)}}`
+        : v,
+    ]),
+  );
   const leadIds = (() => {
     try {
       return JSON.parse(item.leadIdsJson) as string[];
