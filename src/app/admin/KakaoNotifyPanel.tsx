@@ -2879,14 +2879,6 @@ export function KakaoNotifyPanel() {
                             중복
                           </span>
                         )}
-                        {lead.groupLabel && (
-                          <span
-                            title={`그룹: ${lead.groupLabel}`}
-                            className="inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-sm border bg-indigo-50 text-indigo-700 border-indigo-200 shrink-0"
-                          >
-                            {lead.groupLabel}
-                          </span>
-                        )}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 font-mono whitespace-nowrap">{maskPhone(lead.phone)}</td>
