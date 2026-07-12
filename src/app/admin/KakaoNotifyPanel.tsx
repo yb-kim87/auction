@@ -95,24 +95,110 @@ function shortenAdName(adName: string): string {
 function AdCreativeHoverLabel({
   adName,
   creative,
+  onRegistered,
 }: {
   adName: string;
   creative: KakaoAdCreative | undefined;
+  onRegistered: (creative: KakaoAdCreative) => void;
 }) {
-  if (!creative) {
-    return <span title={adName}>{shortenAdName(adName)}</span>;
+  const [editing, setEditing] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaType, setMediaType] = useState<"image" | "video">("image");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  if (creative) {
+    return (
+      <a
+        href={creative.mediaUrl}
+        target="_blank"
+        rel="noreferrer"
+        title={`${adName} — 등록된 ${creative.mediaType === "video" ? "영상" : "이미지"} 열기`}
+        className="block max-w-full truncate underline decoration-dotted text-primary hover:decoration-solid"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {shortenAdName(adName)}
+      </a>
+    );
   }
+
+  if (editing) {
+    async function handleSave() {
+      if (!mediaUrl.trim()) return;
+      setSaving(true);
+      setError("");
+      try {
+        const saved = await upsertKakaoAdCreative({
+          adName: shortenAdName(adName),
+          mediaUrl: mediaUrl.trim(),
+          mediaType,
+        });
+        onRegistered(saved);
+        setEditing(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "등록에 실패했습니다.");
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    return (
+      <span
+        className="inline-flex items-center gap-1 flex-wrap"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <select
+          value={mediaType}
+          onChange={(e) => setMediaType(e.target.value === "video" ? "video" : "image")}
+          className="px-1 py-0.5 text-[10px] border border-border rounded-sm bg-card"
+        >
+          <option value="image">이미지</option>
+          <option value="video">영상</option>
+        </select>
+        <input
+          type="text"
+          autoFocus
+          placeholder="이미지/영상 URL"
+          value={mediaUrl}
+          onChange={(e) => setMediaUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void handleSave();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="w-32 px-1 py-0.5 text-[10px] border border-border rounded-sm bg-card"
+        />
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="px-1.5 py-0.5 text-[10px] font-medium rounded-sm border border-primary/40 text-primary hover:bg-primary/5 disabled:opacity-50"
+        >
+          저장
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          취소
+        </button>
+        {error && <span className="text-[10px] text-destructive w-full">{error}</span>}
+      </span>
+    );
+  }
+
   return (
-    <a
-      href={creative.mediaUrl}
-      target="_blank"
-      rel="noreferrer"
-      title={`${adName} — 등록된 ${creative.mediaType === "video" ? "영상" : "이미지"} 열기`}
-      className="underline decoration-dotted text-primary hover:decoration-solid"
-      onClick={(e) => e.stopPropagation()}
+    <button
+      type="button"
+      title={`${adName} — 클릭해서 참고 이미지/영상 등록`}
+      onClick={(e) => {
+        e.stopPropagation();
+        setEditing(true);
+      }}
+      className="max-w-full truncate underline decoration-dotted decoration-muted-foreground/50 hover:text-foreground"
     >
       {shortenAdName(adName)}
-    </a>
+    </button>
   );
 }
 
@@ -2911,7 +2997,7 @@ export function KakaoNotifyPanel() {
                       {lead.address || "-"}
                     </td>
                     <td
-                      className="px-3 py-2.5 text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                      className="px-3 py-2.5 text-muted-foreground relative"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {lead.adName ? (
@@ -2919,6 +3005,9 @@ export function KakaoNotifyPanel() {
                           adName={lead.adName}
                           creative={
                             adCreativeMap[lead.adName] ?? adCreativeMap[shortenAdName(lead.adName)]
+                          }
+                          onRegistered={(creative) =>
+                            setAdCreativeMap((prev) => ({ ...prev, [creative.adName]: creative }))
                           }
                         />
                       ) : (
