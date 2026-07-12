@@ -97,34 +97,36 @@ function AlimtalkPreview({
   content: string;
 }) {
   return (
-    <div className="w-[240px] rounded-[10px] overflow-hidden font-['Malgun_Gothic',sans-serif]">
-      <div className="bg-[#f9de00] text-[#3a2929] text-[13px] font-bold px-3 py-2 flex items-center">
-        알림톡 도착
-        <span className="ml-auto text-[11px] font-semibold text-[#3a2929]">kakao</span>
-      </div>
-      <div className="bg-white px-3 pt-2.5 pb-3 space-y-1.5">
-        {template.emphasizeSubtitle && (
-          <p className="text-[11px] text-[#8b8b8b] leading-[1.4]">{template.emphasizeSubtitle}</p>
-        )}
-        {template.emphasizeTitle && (
-          <p className="text-[14px] font-bold text-[#151515] leading-[1.4] pb-1">
-            {template.emphasizeTitle}
-          </p>
-        )}
-        <p className="text-[12px] text-[#151515] whitespace-pre-wrap leading-[1.55]">{content}</p>
-        {template.extra && (
-          <p className="text-[11px] text-[#8b8b8b] whitespace-pre-wrap leading-[1.4] pt-1">
-            {template.extra}
-          </p>
-        )}
-        {template.buttons.map((btn, i) => (
-          <div
-            key={i}
-            className="bg-[#f2f2f2] text-[12px] font-medium text-center text-[#151515] rounded-[6px] py-2 mt-2"
-          >
-            {btn.buttonName}
-          </div>
-        ))}
+    <div className="bg-[#b2c7e0] p-3 rounded-[10px] inline-block">
+      <div className="w-[240px] rounded-[10px] overflow-hidden font-['Malgun_Gothic',sans-serif]">
+        <div className="bg-[#f9de00] text-[#3a2929] text-[13px] font-bold px-3 py-2 flex items-center">
+          알림톡 도착
+          <span className="ml-auto text-[11px] font-semibold text-[#3a2929]">kakao</span>
+        </div>
+        <div className="bg-white px-3 pt-2.5 pb-3 space-y-1.5">
+          {template.emphasizeSubtitle && (
+            <p className="text-[11px] text-[#8b8b8b] leading-[1.4]">{template.emphasizeSubtitle}</p>
+          )}
+          {template.emphasizeTitle && (
+            <p className="text-[14px] font-bold text-[#151515] leading-[1.4] pb-1">
+              {template.emphasizeTitle}
+            </p>
+          )}
+          <p className="text-[12px] text-[#151515] whitespace-pre-wrap leading-[1.55]">{content}</p>
+          {template.extra && (
+            <p className="text-[11px] text-[#8b8b8b] whitespace-pre-wrap leading-[1.4] pt-1">
+              {template.extra}
+            </p>
+          )}
+          {template.buttons.map((btn, i) => (
+            <div
+              key={i}
+              className="bg-[#f2f2f2] text-[12px] font-medium text-center text-[#151515] rounded-[6px] py-2 mt-2"
+            >
+              {btn.buttonName}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
