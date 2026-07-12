@@ -228,6 +228,7 @@ function LeadDetailPanel({
   const [error, setError] = useState("");
   const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [togglingExclusion, setTogglingExclusion] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -268,6 +269,21 @@ function LeadDetailPanel({
     }
   }
 
+  async function handleToggleExclusion() {
+    if (!lead) return;
+    setTogglingExclusion(true);
+    setError("");
+    try {
+      const updated = await setKakaoLeadBulkExclusion(leadId, !lead.excludedFromBulk);
+      setLead(updated);
+      onResent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "알림톡 제외 설정에 실패했습니다.");
+    } finally {
+      setTogglingExclusion(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45" onClick={onClose}>
       <div
@@ -283,11 +299,18 @@ function LeadDetailPanel({
                 <h3 className="text-base font-bold text-foreground">{lead.name || "(이름없음)"}</h3>
                 <p className="text-sm text-muted-foreground mt-0.5">{lead.phone}</p>
               </div>
-              <span
-                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-sm border ${STATUS_STYLES[lead.status]}`}
-              >
-                {STATUS_LABELS[lead.status]}
-              </span>
+              <div className="flex flex-col items-end gap-1">
+                <span
+                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-sm border ${STATUS_STYLES[lead.status]}`}
+                >
+                  {STATUS_LABELS[lead.status]}
+                </span>
+                {lead.excludedFromBulk && (
+                  <span className="inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-sm border bg-destructive/10 text-destructive border-destructive/30">
+                    알림톡 제외됨
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
@@ -358,6 +381,26 @@ function LeadDetailPanel({
             >
               {resending ? "재발송 중..." : "알림톡 재발송"}
             </button>
+
+            <button
+              type="button"
+              onClick={() => void handleToggleExclusion()}
+              disabled={togglingExclusion}
+              className={`w-full px-4 py-2 text-sm font-medium rounded-sm border disabled:opacity-50 ${
+                lead.excludedFromBulk
+                  ? "border-border text-foreground hover:bg-secondary"
+                  : "border-destructive/40 text-destructive hover:bg-destructive/5"
+              }`}
+            >
+              {togglingExclusion
+                ? "처리 중..."
+                : lead.excludedFromBulk
+                  ? "알림톡 제외 해제"
+                  : "알림톡 제외"}
+            </button>
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              선택 발송(일괄발송) 대상에서만 제외됩니다. 자동발송·개별 재발송에는 영향이 없습니다.
+            </p>
 
             {otherApplications.length > 0 && (
               <div className="border-t border-border pt-3">
