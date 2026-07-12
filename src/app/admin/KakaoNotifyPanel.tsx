@@ -1236,27 +1236,48 @@ function AutoSendControlCard() {
             type="button"
             onClick={() => void handleRunNow()}
             disabled={running}
-            className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+            title="자동 반복 주기를 기다리지 않고 지금 바로 한 번 확인합니다."
+            className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
           >
             {running ? (
               <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-primary-foreground animate-pulse" />
+                <span className="inline-block w-2 h-2 rounded-full bg-foreground animate-pulse" />
                 발송 중...
               </span>
             ) : (
-              "알림톡 자동발송"
+              "지금 바로 확인"
             )}
           </button>
         </div>
       </div>
-      <div className="flex items-center justify-between gap-3 rounded-sm border border-border bg-secondary/20 px-3 py-2">
-        <div>
-          <p className="text-xs font-semibold text-foreground">
-            자동 반복 발송 {schedulerEnabled ? "켜짐" : "꺼짐"}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            켜두면 서버가 {intervalMinutes}분 간격으로 계속 신규 고객을 확인해 자동 발송합니다.
-          </p>
+      <div
+        className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 transition-colors ${
+          schedulerEnabled
+            ? "border-emerald-300 bg-emerald-50"
+            : "border-border bg-secondary/20"
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {schedulerEnabled ? (
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+          ) : (
+            <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-muted-foreground/40" />
+          )}
+          <div>
+            <p
+              className={`text-xs font-semibold ${schedulerEnabled ? "text-emerald-700" : "text-foreground"}`}
+            >
+              {schedulerEnabled ? "자동 반복 발송 작동 중" : "자동 반복 발송 꺼짐"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {schedulerEnabled
+                ? `서버가 ${intervalMinutes}분 간격으로 계속 신규 고객을 확인해 자동 발송하고 있습니다.`
+                : "켜두면 서버가 신규 고객을 주기적으로 확인해 자동 발송합니다. 지금은 자동으로 발송되지 않습니다."}
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -1265,7 +1286,7 @@ function AutoSendControlCard() {
           role="switch"
           aria-checked={schedulerEnabled}
           className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-            schedulerEnabled ? "bg-primary" : "bg-secondary border border-border"
+            schedulerEnabled ? "bg-emerald-500" : "bg-secondary border border-border"
           }`}
         >
           <span
