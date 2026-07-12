@@ -1519,6 +1519,7 @@ export interface KakaoLead {
   joinedAt: string | null;
   rawPayload: string;
   status: KakaoLeadStatus;
+  excludedFromBulk: boolean;
   createdAt: string;
   updatedAt: string;
   /** 목록 조회(fetchKakaoLeads) 시에만 포함됨: 같은 전화번호의 다른 신청 이력 존재 여부 */
@@ -1865,6 +1866,7 @@ export interface KakaoBulkSendResult {
   total: number;
   success: number;
   failed: number;
+  excluded: number;
 }
 
 export type KakaoScheduledDispatchStatus = "scheduled" | "sent" | "canceled" | "failed";
@@ -2064,6 +2066,88 @@ export async function fetchKakaoLeadFields(): Promise<KakaoLeadFieldOption[]> {
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "리드 필드 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface KakaoDailyStat {
+  date: string;
+  imweb: number;
+  instagram: number;
+  total: number;
+}
+
+export async function fetchKakaoDailyStats(days = 14): Promise<KakaoDailyStat[]> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/daily-stats?days=${days}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "일자별 통계를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function setKakaoLeadBulkExclusion(
+  id: string,
+  excluded: boolean,
+): Promise<KakaoLead> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}/bulk-exclusion`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ excluded }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "알림톡 제외 설정에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface KakaoAdCreative {
+  id: string;
+  adName: string;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+  createdAt: string;
+}
+
+export async function fetchKakaoAdCreatives(): Promise<KakaoAdCreative[]> {
+  const res = await fetch(`${API_BASE}/kakao-notify/ad-creatives`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "유입소재 이미지 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function upsertKakaoAdCreative(input: {
+  adName: string;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+}): Promise<KakaoAdCreative> {
+  const res = await fetch(`${API_BASE}/kakao-notify/ad-creatives`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "유입소재 이미지 등록에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteKakaoAdCreative(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/ad-creatives/${id}/delete`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "유입소재 이미지 삭제에 실패했습니다.");
   }
   return readJsonResponse(res);
 }

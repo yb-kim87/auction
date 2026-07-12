@@ -30,6 +30,11 @@ import {
   isScheduledDispatch,
   fetchKakaoScheduledDispatches,
   cancelKakaoScheduledDispatch,
+  fetchKakaoDailyStats,
+  setKakaoLeadBulkExclusion,
+  fetchKakaoAdCreatives,
+  upsertKakaoAdCreative,
+  deleteKakaoAdCreative,
   type KakaoLead,
   type KakaoLeadSource,
   type KakaoLeadStatus,
@@ -40,6 +45,8 @@ import {
   type KakaoBulkSendResult,
   type KakaoScheduledDispatch,
   type KakaoScheduledDispatchStatus,
+  type KakaoDailyStat,
+  type KakaoAdCreative,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<KakaoLeadStatus, string> = {
@@ -79,6 +86,41 @@ function formatDate(value: string | null): string {
 function shortenAdName(adName: string): string {
   const match = adName.match(/^\([^)]*\)\s*[^_]+_(.+)$/);
   return match ? match[1] : adName;
+}
+
+/** 목록의 유입소재 셀. 등록된 참고 이미지/영상이 있으면 마우스오버 시 미리보기를 띄운다. */
+function AdCreativeHoverLabel({
+  adName,
+  creative,
+}: {
+  adName: string;
+  creative: KakaoAdCreative | undefined;
+}) {
+  const [hovering, setHovering] = useState(false);
+  return (
+    <span
+      className="relative inline-block"
+      title={!creative ? adName : undefined}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      <span className={creative ? "underline decoration-dotted cursor-help" : undefined}>
+        {shortenAdName(adName)}
+      </span>
+      {hovering && creative && (
+        <span className="absolute z-50 left-0 top-full mt-1 block w-[220px] rounded-sm border border-border bg-card shadow-lg p-2">
+          {creative.mediaType === "video" ? (
+            <video src={creative.mediaUrl} controls className="w-full rounded-sm" />
+          ) : (
+            <img src={creative.mediaUrl} alt={adName} className="w-full rounded-sm object-cover" />
+          )}
+          <span className="block mt-1 text-[10px] text-muted-foreground whitespace-normal break-words">
+            {adName}
+          </span>
+        </span>
+      )}
+    </span>
+  );
 }
 
 /** 템플릿 본문의 #{변수명}을 실제 발송 변수값으로 치환해 최종 발송 텍스트를 만든다 */
@@ -1241,6 +1283,99 @@ function InstagramSheetConfigCard() {
   );
 }
 
+function DailyStatsCard() {
+  const [stats, setStats] = useState<KakaoDailyStat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(14);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchKakaoDailyStats(days)
+      .then(setStats)
+      .catch(() => setStats([]))
+      .finally(() => setLoading(false));
+  }, [days]);
+
+  const maxTotal = Math.max(1, ...stats.map((s) => s.total));
+  const totalSum = stats.reduce((sum, s) => sum + s.total, 0);
+  const imwebSum = stats.reduce((sum, s) => sum + s.imweb, 0);
+  const instagramSum = stats.reduce((sum, s) => sum + s.instagram, 0);
+
+  return (
+    <div className="border border-border rounded-sm p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-foreground">일자별 수집 현황</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            최근 {days}일간 신규로 쌓인 고객 DB 건수입니다.
+          </p>
+        </div>
+        <div className="flex gap-1">
+          {[14, 30].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDays(d)}
+              className={`px-2 py-1 text-[11px] font-medium rounded-sm border ${
+                days === d
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border hover:bg-secondary"
+              }`}
+            >
+              {d}일
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-4 text-xs">
+        <span className="text-foreground font-semibold">총 {totalSum}건</span>
+        <span className="text-blue-600">아임웹 {imwebSum}건</span>
+        <span className="text-fuchsia-600">인스타 {instagramSum}건</span>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-muted-foreground">불러오는 중...</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="flex items-end gap-1.5 h-40 min-w-fit pt-2">
+            {stats.map((s) => {
+              const barHeight = (s.total / maxTotal) * 100;
+              const imwebRatio = s.total > 0 ? s.imweb / s.total : 0;
+              return (
+                <div
+                  key={s.date}
+                  className="flex flex-col items-center gap-1 w-6 shrink-0"
+                  title={`${s.date}\n총 ${s.total}건 (아임웹 ${s.imweb} / 인스타 ${s.instagram})`}
+                >
+                  <div className="flex-1 w-full flex items-end">
+                    <div
+                      className="w-full rounded-t-sm overflow-hidden flex flex-col-reverse"
+                      style={{ height: `${Math.max(2, barHeight)}%` }}
+                    >
+                      <div
+                        className="w-full bg-blue-400"
+                        style={{ height: `${imwebRatio * 100}%` }}
+                      />
+                      <div
+                        className="w-full bg-fuchsia-400"
+                        style={{ height: `${(1 - imwebRatio) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                    {s.date.slice(5).replace("-", "/")}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AutoSendControlCard() {
   const [states, setStates] = useState<KakaoSyncState[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1478,6 +1613,131 @@ function AutoSendControlCard() {
         ))}
       </div>
       {runMessage && <p className="text-xs text-muted-foreground">{runMessage}</p>}
+    </div>
+  );
+}
+
+function AdCreativeManagerCard() {
+  const [creatives, setCreatives] = useState<KakaoAdCreative[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adName, setAdName] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaType, setMediaType] = useState<"image" | "video">("image");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    return fetchKakaoAdCreatives()
+      .then(setCreatives)
+      .catch(() => setCreatives([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function handleSave() {
+    setError("");
+    if (!adName.trim() || !mediaUrl.trim()) {
+      setError("유입소재명과 이미지/영상 URL을 모두 입력해 주세요.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await upsertKakaoAdCreative({ adName: adName.trim(), mediaUrl: mediaUrl.trim(), mediaType });
+      setAdName("");
+      setMediaUrl("");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "등록에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("이 소재 이미지 등록을 삭제할까요?")) return;
+    try {
+      await deleteKakaoAdCreative(id);
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "삭제에 실패했습니다.");
+    }
+  }
+
+  return (
+    <div className="border border-border rounded-sm p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-foreground">유입소재 이미지 등록</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          여기 등록한 소재명과 정확히 일치하는 유입소재를 가진 고객 목록에서, 소재명에 마우스를
+          올리면 이미지/영상 미리보기가 표시됩니다.
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          placeholder="유입소재명(고객 목록의 '유입소재' 값과 정확히 일치해야 함)"
+          value={adName}
+          onChange={(e) => setAdName(e.target.value)}
+          className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-card"
+        />
+        <select
+          value={mediaType}
+          onChange={(e) => setMediaType(e.target.value === "video" ? "video" : "image")}
+          className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+        >
+          <option value="image">이미지</option>
+          <option value="video">영상</option>
+        </select>
+      </div>
+      <input
+        type="text"
+        placeholder="이미지/영상 URL"
+        value={mediaUrl}
+        onChange={(e) => setMediaUrl(e.target.value)}
+        className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card"
+      />
+      <button
+        type="button"
+        onClick={() => void handleSave()}
+        disabled={saving}
+        className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+      >
+        {saving ? "저장 중..." : "등록"}
+      </button>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      {loading ? (
+        <p className="text-xs text-muted-foreground">불러오는 중...</p>
+      ) : creatives.length === 0 ? (
+        <p className="text-xs text-muted-foreground">등록된 소재 이미지가 없습니다.</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
+          {creatives.map((c) => (
+            <div key={c.id} className="border border-border rounded-sm p-2 space-y-1 text-xs">
+              {c.mediaType === "video" ? (
+                <video src={c.mediaUrl} controls className="w-full h-20 object-cover rounded-sm" />
+              ) : (
+                <img src={c.mediaUrl} alt={c.adName} className="w-full h-20 object-cover rounded-sm" />
+              )}
+              <p className="truncate text-muted-foreground" title={c.adName}>
+                {c.adName}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleDelete(c.id)}
+                className="w-full px-2 py-1 text-[11px] font-medium rounded-sm border border-destructive/40 text-destructive hover:bg-destructive/5"
+              >
+                삭제
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1859,8 +2119,10 @@ export function KakaoNotifyPanel() {
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
-    32, 72, 108, 64, 48, 84, 100, 76, 76, 120,
+    32, 72, 108, 64, 48, 84, 100, 76, 76, 120, 64,
   ]);
+  const [adCreativeMap, setAdCreativeMap] = useState<Record<string, KakaoAdCreative>>({});
+  const [togglingExclusionId, setTogglingExclusionId] = useState<string | null>(null);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
   const handleResizeStart = useCallback((index: number, e: React.MouseEvent) => {
@@ -1914,6 +2176,26 @@ export function KakaoNotifyPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    fetchKakaoAdCreatives()
+      .then((list) => setAdCreativeMap(Object.fromEntries(list.map((c) => [c.adName, c]))))
+      .catch(() => setAdCreativeMap({}));
+  }, []);
+
+  async function handleToggleExclusion(lead: KakaoLead) {
+    setTogglingExclusionId(lead.id);
+    try {
+      await setKakaoLeadBulkExclusion(lead.id, !lead.excludedFromBulk);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === lead.id ? { ...l, excludedFromBulk: !lead.excludedFromBulk } : l)),
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "알림톡 제외 설정에 실패했습니다.");
+    } finally {
+      setTogglingExclusionId(null);
+    }
+  }
 
   // 필터/검색/페이지를 바꿔도 선택 상태를 유지한다. 검색으로 특정 인원만
   // 찾아 선택 해제하는 식의 사용을 지원하기 위함. 선택 초기화는 명시적으로
@@ -2038,12 +2320,14 @@ export function KakaoNotifyPanel() {
         <>
           <TemplateSettingsCard />
           <AutoSendControlCard />
+          <DailyStatsCard />
         </>
       )}
       {activeTab === "advanced" && (
         <>
           <TestSendCard />
           <InstagramSheetConfigCard />
+          <AdCreativeManagerCard />
           <AdvancedSyncCard />
         </>
       )}
@@ -2122,16 +2406,6 @@ export function KakaoNotifyPanel() {
             </>
           )}
         </div>
-        {checkedIds.size > 0 && (
-          <button
-            type="button"
-            onClick={() => void handleDeleteSelected()}
-            disabled={deleting}
-            className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-destructive/50 text-destructive hover:bg-destructive/5 disabled:opacity-50"
-          >
-            {deleting ? "삭제 중..." : `선택 삭제 (${checkedIds.size})`}
-          </button>
-        )}
         </div>
 
         {loading ? (
@@ -2178,6 +2452,7 @@ export function KakaoNotifyPanel() {
                       />
                     </th>
                   ))}
+                  <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">제외</th>
                 </tr>
               </thead>
               <tbody>
@@ -2185,7 +2460,9 @@ export function KakaoNotifyPanel() {
                   <tr
                     key={lead.id}
                     onClick={() => setSelectedLeadId(lead.id)}
-                    className="border-b border-border hover:bg-secondary/20 cursor-pointer"
+                    className={`border-b border-border hover:bg-secondary/20 cursor-pointer ${
+                      lead.excludedFromBulk ? "opacity-50" : ""
+                    }`}
                   >
                     <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -2223,9 +2500,16 @@ export function KakaoNotifyPanel() {
                     </td>
                     <td
                       className="px-3 py-2.5 text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
-                      title={lead.adName}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      {lead.adName ? shortenAdName(lead.adName) : "-"}
+                      {lead.adName ? (
+                        <AdCreativeHoverLabel
+                          adName={lead.adName}
+                          creative={adCreativeMap[lead.adName]}
+                        />
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span
@@ -2236,6 +2520,21 @@ export function KakaoNotifyPanel() {
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
                       {formatDate(lead.joinedAt)}
+                    </td>
+                    <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleExclusion(lead)}
+                        disabled={togglingExclusionId === lead.id}
+                        title={lead.excludedFromBulk ? "선택발송 제외됨 (클릭해서 해제)" : "선택발송에서 제외"}
+                        className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border disabled:opacity-50 ${
+                          lead.excludedFromBulk
+                            ? "bg-destructive/10 text-destructive border-destructive/30"
+                            : "border-border text-muted-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        {lead.excludedFromBulk ? "제외됨" : "제외"}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -2264,6 +2563,22 @@ export function KakaoNotifyPanel() {
               className="px-3 py-1.5 text-xs border border-border rounded-sm disabled:opacity-40"
             >
               다음
+            </button>
+          </div>
+        )}
+
+        {checkedIds.size > 0 && (
+          <div className="flex items-center justify-end gap-2 p-3 border-t border-border bg-destructive/[0.03]">
+            <span className="text-[11px] text-muted-foreground mr-1">
+              선택한 {checkedIds.size}건을 완전히 삭제하려면
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleDeleteSelected()}
+              disabled={deleting}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-destructive/50 text-destructive hover:bg-destructive/5 disabled:opacity-50"
+            >
+              {deleting ? "삭제 중..." : `선택 삭제 (${checkedIds.size})`}
             </button>
           </div>
         )}
