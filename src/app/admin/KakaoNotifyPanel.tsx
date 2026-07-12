@@ -1236,7 +1236,7 @@ function AutoSendControlCard() {
             type="button"
             onClick={() => void handleRunNow()}
             disabled={running}
-            title="자동 반복 주기를 기다리지 않고 지금 바로 한 번 확인합니다."
+            title="자동 반복 주기를 기다리지 않고 지금 바로 신규 고객을 확인해 발송합니다."
             className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
           >
             {running ? (
@@ -1245,7 +1245,7 @@ function AutoSendControlCard() {
                 발송 중...
               </span>
             ) : (
-              "지금 바로 확인"
+              "지금 바로 발송"
             )}
           </button>
         </div>
