@@ -88,6 +88,48 @@ function renderTemplateContent(content: string, variables: Record<string, string
   );
 }
 
+/** 솔라피 알림톡 미리보기와 동일한 형태로 템플릿을 렌더링한다(발송 이력 상세, 템플릿 선택 미리보기 공용) */
+function AlimtalkPreview({
+  template,
+  content,
+}: {
+  template: SolapiTemplate;
+  content: string;
+}) {
+  return (
+    <div className="w-[300px] rounded-[10px] overflow-hidden font-['Malgun_Gothic',sans-serif]">
+      <div className="bg-[#f9de00] text-[#3a2929] text-[14px] font-bold px-4 py-2.5 flex items-center">
+        알림톡 도착
+        <span className="ml-auto text-[12px] font-semibold text-[#3a2929]">kakao</span>
+      </div>
+      <div className="bg-[#a8b6cc] px-4 pt-3 pb-4 space-y-1.5">
+        {template.emphasizeSubtitle && (
+          <p className="text-[12px] text-[#45505f] leading-[1.4]">{template.emphasizeSubtitle}</p>
+        )}
+        {template.emphasizeTitle && (
+          <p className="text-[15px] font-bold text-[#151515] leading-[1.4] pb-1">
+            {template.emphasizeTitle}
+          </p>
+        )}
+        <p className="text-[13px] text-[#151515] whitespace-pre-wrap leading-[1.55]">{content}</p>
+        {template.extra && (
+          <p className="text-[12px] text-[#151515] whitespace-pre-wrap leading-[1.4] pt-1">
+            {template.extra}
+          </p>
+        )}
+        {template.buttons.map((btn, i) => (
+          <div
+            key={i}
+            className="bg-white text-[13px] font-medium text-center text-[#151515] rounded-[6px] py-2.5 mt-2"
+          >
+            {btn.buttonName}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DispatchLogDetail({ log, templates }: { log: KakaoDispatchLog; templates: SolapiTemplate[] }) {
   const parsed = (() => {
     try {
@@ -102,39 +144,8 @@ function DispatchLogDetail({ log, templates }: { log: KakaoDispatchLog; template
 
   return (
     <div className="mt-2 space-y-2">
-      {template ? (
-        <div className="rounded-sm overflow-hidden border border-border max-w-[280px]">
-          <div className="bg-[#f9e000] text-[#3c1e1e] text-xs font-bold px-3 py-2 flex items-center gap-1.5">
-            알림톡 도착
-            <span className="ml-auto text-[10px] font-semibold bg-black/10 rounded px-1.5 py-0.5">
-              kakao
-            </span>
-          </div>
-          <div className="bg-[#b7c3d8] px-3 py-3 space-y-2">
-            {template.emphasizeSubtitle && (
-              <p className="text-[11px] text-[#4a5468]">{template.emphasizeSubtitle}</p>
-            )}
-            {template.emphasizeTitle && (
-              <p className="text-sm font-bold text-foreground bg-white/70 rounded-sm px-2 py-1 inline-block">
-                {template.emphasizeTitle}
-              </p>
-            )}
-            <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
-              {renderedContent}
-            </p>
-            {template.extra && (
-              <p className="text-[11px] text-[#4a5468] whitespace-pre-wrap">{template.extra}</p>
-            )}
-            {template.buttons.map((btn, i) => (
-              <div
-                key={i}
-                className="bg-white text-xs font-medium text-center rounded-sm py-2 border border-border/60"
-              >
-                {btn.buttonName}
-              </div>
-            ))}
-          </div>
-        </div>
+      {template && renderedContent !== null ? (
+        <AlimtalkPreview template={template} content={renderedContent} />
       ) : (
         <p className="text-xs text-muted-foreground">
           템플릿 정보를 찾을 수 없습니다(코드: {log.templateCode}).
@@ -588,10 +599,13 @@ function TestSendCard() {
       </div>
 
       {selectedTemplate && (
-        <div className="border border-border rounded-sm p-3 space-y-2 bg-secondary/20">
-          <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-            {selectedTemplate.content}
-          </p>
+        <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
+          <div className="flex justify-center">
+            <AlimtalkPreview
+              template={selectedTemplate}
+              content={renderTemplateContent(selectedTemplate.content, varValues)}
+            />
+          </div>
           {templateVarNames.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               {templateVarNames.map((varName) => (
@@ -786,11 +800,24 @@ function BulkSendModal({
             </select>
 
             {selectedTemplate && (
-              <div className="border border-border rounded-sm p-3 space-y-2 bg-secondary/20">
-                <p className="text-[11px] font-semibold text-muted-foreground">템플릿 원문</p>
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                  {selectedTemplate.content}
-                </p>
+              <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
+                <p className="text-[11px] font-semibold text-muted-foreground">템플릿 미리보기</p>
+                <div className="flex justify-center">
+                  <AlimtalkPreview
+                    template={selectedTemplate}
+                    content={renderTemplateContent(
+                      selectedTemplate.content,
+                      Object.fromEntries(
+                        Object.entries(varValues).map(([k, v]) => [
+                          k,
+                          v.startsWith(FIELD_REF_PREFIX)
+                            ? `{${leadFields.find((f) => f.field === v.slice(FIELD_REF_PREFIX.length))?.label ?? v.slice(FIELD_REF_PREFIX.length)}}`
+                            : v,
+                        ]),
+                      ),
+                    )}
+                  />
+                </div>
 
                 {templateVarNames.length > 0 && (
                   <div className="grid grid-cols-1 gap-2 pt-1">
@@ -1020,11 +1047,24 @@ function TemplateSettingsCard() {
           </select>
 
           {selectedTemplate && (
-            <div className="border border-border rounded-sm p-3 space-y-2 bg-secondary/20">
-              <p className="text-[11px] font-semibold text-muted-foreground">템플릿 원문</p>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                {selectedTemplate.content}
-              </p>
+            <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
+              <p className="text-[11px] font-semibold text-muted-foreground">템플릿 미리보기</p>
+              <div className="flex justify-center">
+                <AlimtalkPreview
+                  template={selectedTemplate}
+                  content={renderTemplateContent(
+                    selectedTemplate.content,
+                    Object.fromEntries(
+                      Object.entries(varValues).map(([k, v]) => [
+                        k,
+                        v.startsWith(FIELD_REF_PREFIX)
+                          ? `{${leadFields.find((f) => f.field === v.slice(FIELD_REF_PREFIX.length))?.label ?? v.slice(FIELD_REF_PREFIX.length)}}`
+                          : v,
+                      ]),
+                    ),
+                  )}
+                />
+              </div>
 
               {templateVarNames.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
