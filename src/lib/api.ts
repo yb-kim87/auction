@@ -1520,6 +1520,7 @@ export interface KakaoLead {
   rawPayload: string;
   status: KakaoLeadStatus;
   excludedFromBulk: boolean;
+  groupLabel: string;
   createdAt: string;
   updatedAt: string;
   /** 목록 조회(fetchKakaoLeads) 시에만 포함됨: 같은 전화번호의 다른 신청 이력 존재 여부 */
@@ -1560,6 +1561,9 @@ export async function fetchKakaoLeads(params: {
   source?: KakaoLeadSource;
   status?: KakaoLeadStatus;
   search?: string;
+  group?: string;
+  joinedFrom?: string;
+  joinedTo?: string;
   page?: number;
   pageSize?: number;
 }): Promise<PagedResult<KakaoLead>> {
@@ -1567,6 +1571,9 @@ export async function fetchKakaoLeads(params: {
   if (params.source) query.set("source", params.source);
   if (params.status) query.set("status", params.status);
   if (params.search) query.set("search", params.search);
+  if (params.group) query.set("group", params.group);
+  if (params.joinedFrom) query.set("joinedFrom", params.joinedFrom);
+  if (params.joinedTo) query.set("joinedTo", params.joinedTo);
   query.set("page", String(params.page ?? 1));
   query.set("pageSize", String(params.pageSize ?? 20));
 
@@ -1585,11 +1592,17 @@ export async function fetchKakaoLeadIds(params: {
   source?: KakaoLeadSource;
   status?: KakaoLeadStatus;
   search?: string;
+  group?: string;
+  joinedFrom?: string;
+  joinedTo?: string;
 }): Promise<string[]> {
   const query = new URLSearchParams();
   if (params.source) query.set("source", params.source);
   if (params.status) query.set("status", params.status);
   if (params.search) query.set("search", params.search);
+  if (params.group) query.set("group", params.group);
+  if (params.joinedFrom) query.set("joinedFrom", params.joinedFrom);
+  if (params.joinedTo) query.set("joinedTo", params.joinedTo);
 
   const res = await fetch(`${API_BASE}/kakao-notify/leads/ids?${query.toString()}`, {
     cache: "no-store",
@@ -1597,6 +1610,46 @@ export async function fetchKakaoLeadIds(params: {
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "고객 ID 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchKakaoGroupLabels(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/groups`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "그룹 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function setKakaoLeadGroup(id: string, groupLabel: string): Promise<KakaoLead> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}/group`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ groupLabel }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "그룹 지정에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function setKakaoLeadGroupBulk(
+  ids: string[],
+  groupLabel: string,
+): Promise<{ updated: number }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/group-bulk`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ ids, groupLabel }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "일괄 그룹 지정에 실패했습니다.");
   }
   return readJsonResponse(res);
 }
@@ -2077,8 +2130,17 @@ export interface KakaoDailyStat {
   total: number;
 }
 
-export async function fetchKakaoDailyStats(days = 14): Promise<KakaoDailyStat[]> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/daily-stats?days=${days}`, {
+export async function fetchKakaoDailyStats(
+  params: { days: number } | { from: string; to: string },
+): Promise<KakaoDailyStat[]> {
+  const query = new URLSearchParams();
+  if ("from" in params) {
+    query.set("from", params.from);
+    query.set("to", params.to);
+  } else {
+    query.set("days", String(params.days));
+  }
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/daily-stats?${query.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });

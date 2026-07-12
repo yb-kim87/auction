@@ -35,6 +35,9 @@ import {
   fetchKakaoAdCreatives,
   upsertKakaoAdCreative,
   deleteKakaoAdCreative,
+  fetchKakaoGroupLabels,
+  setKakaoLeadGroup,
+  setKakaoLeadGroupBulk,
   type KakaoLead,
   type KakaoLeadSource,
   type KakaoLeadStatus,
@@ -88,7 +91,7 @@ function shortenAdName(adName: string): string {
   return match ? match[1] : adName;
 }
 
-/** 목록의 유입소재 셀. 등록된 참고 이미지/영상이 있으면 마우스오버 시 미리보기를 띄운다. */
+/** 목록의 유입소재 셀. 등록된 참고 이미지/영상이 있으면 클릭 시 원본을 새 탭에서 연다. */
 function AdCreativeHoverLabel({
   adName,
   creative,
@@ -96,50 +99,20 @@ function AdCreativeHoverLabel({
   adName: string;
   creative: KakaoAdCreative | undefined;
 }) {
-  const [hovering, setHovering] = useState(false);
-  const [imgError, setImgError] = useState(false);
+  if (!creative) {
+    return <span title={adName}>{shortenAdName(adName)}</span>;
+  }
   return (
-    <span
-      className="relative inline-block"
-      title={!creative ? adName : undefined}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
+    <a
+      href={creative.mediaUrl}
+      target="_blank"
+      rel="noreferrer"
+      title={`${adName} — 등록된 ${creative.mediaType === "video" ? "영상" : "이미지"} 열기`}
+      className="underline decoration-dotted text-primary hover:decoration-solid"
+      onClick={(e) => e.stopPropagation()}
     >
-      <span className={creative ? "underline decoration-dotted cursor-help" : undefined}>
-        {shortenAdName(adName)}
-      </span>
-      {hovering && creative && (
-        <span className="absolute z-50 left-0 top-full mt-1 block w-[220px] rounded-sm border border-border bg-card shadow-lg p-2">
-          {creative.mediaType === "video" ? (
-            <video src={creative.mediaUrl} controls className="w-full rounded-sm" />
-          ) : imgError ? (
-            <span className="block text-[10px] text-destructive p-2">
-              이미지를 불러올 수 없습니다. URL을 확인해 주세요.
-              <br />
-              <a
-                href={creative.mediaUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="underline break-all"
-              >
-                {creative.mediaUrl}
-              </a>
-            </span>
-          ) : (
-            <img
-              src={creative.mediaUrl}
-              alt={adName}
-              referrerPolicy="no-referrer"
-              onError={() => setImgError(true)}
-              className="w-full rounded-sm object-cover"
-            />
-          )}
-          <span className="block mt-1 text-[10px] text-muted-foreground whitespace-normal break-words">
-            {adName}
-          </span>
-        </span>
-      )}
-    </span>
+      {shortenAdName(adName)}
+    </a>
   );
 }
 
@@ -249,6 +222,8 @@ function LeadDetailPanel({
   const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [togglingExclusion, setTogglingExclusion] = useState(false);
+  const [groupInput, setGroupInput] = useState("");
+  const [savingGroup, setSavingGroup] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -258,6 +233,7 @@ function LeadDetailPanel({
       setLead(data.lead);
       setLogs(data.logs);
       setOtherApplications(data.otherApplications);
+      setGroupInput(data.lead.groupLabel);
     } catch (err) {
       setError(err instanceof Error ? err.message : "상세 정보를 불러오지 못했습니다.");
     } finally {
@@ -286,6 +262,20 @@ function LeadDetailPanel({
       setError(err instanceof Error ? err.message : "재발송에 실패했습니다.");
     } finally {
       setResending(false);
+    }
+  }
+
+  async function handleSaveGroup() {
+    setSavingGroup(true);
+    setError("");
+    try {
+      const updated = await setKakaoLeadGroup(leadId, groupInput);
+      setLead(updated);
+      onResent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "그룹 지정에 실패했습니다.");
+    } finally {
+      setSavingGroup(false);
     }
   }
 
@@ -385,6 +375,25 @@ function LeadDetailPanel({
                 <p className="text-muted-foreground">최근 갱신</p>
                 <p className="font-medium text-foreground">{formatDate(lead.updatedAt)}</p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                list="kakao-group-label-options"
+                value={groupInput}
+                onChange={(e) => setGroupInput(e.target.value)}
+                placeholder="그룹명 (예: 2월 세미나)"
+                className="flex-1 px-3 py-1.5 text-xs border border-border rounded-sm bg-card"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSaveGroup()}
+                disabled={savingGroup || groupInput === lead.groupLabel}
+                className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+              >
+                {savingGroup ? "저장 중..." : "그룹 저장"}
+              </button>
             </div>
 
             {error && (
@@ -780,6 +789,66 @@ function TestSendCard() {
 
 const FIELD_REF_PREFIX = "$field:";
 const CUSTOM_VALUE = "__custom__";
+
+function GroupAssignModal({
+  count,
+  existingGroups,
+  onClose,
+  onAssign,
+}: {
+  count: number;
+  existingGroups: string[];
+  onClose: () => void;
+  onAssign: (groupLabel: string) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45" onClick={onClose}>
+      <div
+        className="relative w-full max-w-sm bg-card border border-border rounded-sm shadow-xl p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div>
+          <h3 className="text-base font-bold text-foreground">그룹 지정</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            선택한 고객 {count}명에게 그룹명을 지정합니다(예: &quot;2월 세미나&quot;). 빈 값으로
+            저장하면 그룹이 해제됩니다.
+          </p>
+        </div>
+        <input
+          type="text"
+          list="kakao-group-label-options"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="그룹명 입력 또는 선택"
+          className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card"
+        />
+        <datalist id="kakao-group-label-options">
+          {existingGroups.map((g) => (
+            <option key={g} value={g} />
+          ))}
+        </datalist>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onAssign(value)}
+            className="flex-1 px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground"
+          >
+            {count}명에게 지정
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
+          >
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BulkSendModal({
   leadIds,
@@ -1349,15 +1418,31 @@ function InstagramSheetConfigCard() {
 function DailyStatsCard() {
   const [stats, setStats] = useState<KakaoDailyStat[]>([]);
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(14);
+  const [days, setDays] = useState<number | null>(14);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [rangeError, setRangeError] = useState("");
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    if (days === null) {
+      if (!customFrom || !customTo) return;
+      if (customFrom > customTo) {
+        setRangeError("시작일이 종료일보다 늦습니다.");
+        return;
+      }
+    }
+    setRangeError("");
     setLoading(true);
-    fetchKakaoDailyStats(days)
+    const params = days !== null ? { days } : { from: customFrom, to: customTo };
+    fetchKakaoDailyStats(params)
       .then(setStats)
       .catch(() => setStats([]))
       .finally(() => setLoading(false));
-  }, [days]);
+  }, [days, customFrom, customTo]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const maxTotal = Math.max(1, ...stats.map((s) => s.total));
   const totalSum = stats.reduce((sum, s) => sum + s.total, 0);
@@ -1366,30 +1451,56 @@ function DailyStatsCard() {
 
   return (
     <div className="border border-border rounded-sm p-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-foreground">일자별 가입 현황</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            최근 {days}일간 실제 가입/신청일 기준 고객 DB 건수입니다.
+            {days !== null
+              ? `최근 ${days}일간 실제 가입/신청일 기준 고객 DB 건수입니다.`
+              : "지정한 기간의 실제 가입/신청일 기준 고객 DB 건수입니다."}
           </p>
         </div>
-        <div className="flex gap-1">
-          {[14, 30].map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setDays(d)}
-              className={`px-2 py-1 text-[11px] font-medium rounded-sm border ${
-                days === d
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "border-border hover:bg-secondary"
-              }`}
-            >
-              {d}일
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1">
+            {[14, 30].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDays(d)}
+                className={`px-2 py-1 text-[11px] font-medium rounded-sm border ${
+                  days === d
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border hover:bg-secondary"
+                }`}
+              >
+                {d}일
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => {
+                setCustomFrom(e.target.value);
+                setDays(null);
+              }}
+              className="px-1.5 py-1 text-[11px] border border-border rounded-sm bg-card"
+            />
+            <span className="text-[11px] text-muted-foreground">~</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => {
+                setCustomTo(e.target.value);
+                setDays(null);
+              }}
+              className="px-1.5 py-1 text-[11px] border border-border rounded-sm bg-card"
+            />
+          </div>
         </div>
       </div>
+      {rangeError && <p className="text-[11px] text-destructive">{rangeError}</p>}
 
       <div className="flex gap-4 text-xs">
         <span className="text-foreground font-semibold">총 {totalSum}건</span>
@@ -2000,6 +2111,141 @@ const SCHEDULE_STATUS_STYLES: Record<KakaoScheduledDispatchStatus, string> = {
   failed: "bg-destructive/5 text-destructive border-destructive/30",
 };
 
+function ScheduledDispatchDetailPanel({
+  item,
+  onClose,
+}: {
+  item: KakaoScheduledDispatch;
+  onClose: () => void;
+}) {
+  const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
+
+  useEffect(() => {
+    fetchKakaoTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
+  }, []);
+
+  const template = templates.find((t) => t.templateId === item.templateCode);
+  const variables = (() => {
+    try {
+      return JSON.parse(item.variablesJson) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  })();
+  const leadIds = (() => {
+    try {
+      return JSON.parse(item.leadIdsJson) as string[];
+    } catch {
+      return [];
+    }
+  })();
+  const renderedContent = template ? renderTemplateContent(template.content, variables) : null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45" onClick={onClose}>
+      <div
+        className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto bg-card border border-border rounded-sm shadow-xl p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-base font-bold text-foreground">
+              {item.kind === "bulk" ? "선택발송 예약" : "테스트발송 예약"}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {new Date(item.scheduledAt).toLocaleString("ko-KR")}
+            </p>
+          </div>
+          <span
+            className={`inline-block px-2 py-1 rounded-sm border text-xs font-semibold ${SCHEDULE_STATUS_STYLES[item.status]}`}
+          >
+            {SCHEDULE_STATUS_LABELS[item.status]}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-muted-foreground">대상</p>
+            <p className="font-medium text-foreground">
+              {item.kind === "bulk" ? `${item.targetCount}명` : `${item.testName} (${item.testPhone})`}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">템플릿</p>
+            <p className="font-medium text-foreground">{item.templateName || item.templateCode}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">등록자</p>
+            <p className="font-medium text-foreground">{item.createdByAdmin}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">등록시각</p>
+            <p className="font-medium text-foreground">{new Date(item.createdAt).toLocaleString("ko-KR")}</p>
+          </div>
+          {item.processedAt && (
+            <div>
+              <p className="text-muted-foreground">처리시각</p>
+              <p className="font-medium text-foreground">
+                {new Date(item.processedAt).toLocaleString("ko-KR")}
+              </p>
+            </div>
+          )}
+          {item.status === "sent" && (
+            <div>
+              <p className="text-muted-foreground">발송 결과</p>
+              <p className="font-medium text-foreground">
+                성공 {item.successCount ?? 0} / 실패 {item.failedCount ?? 0}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {item.status === "failed" && item.errorMessage && (
+          <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-sm px-3 py-2">
+            {item.errorMessage}
+          </p>
+        )}
+
+        {item.kind === "bulk" && leadIds.length > 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            대상 고객 ID {leadIds.length}건 (상세 목록은 발송 이력에서 개별 확인 가능)
+          </p>
+        )}
+
+        <div>
+          <p className="text-xs font-semibold text-foreground mb-2">발송 내용 미리보기</p>
+          {template && renderedContent !== null ? (
+            <AlimtalkPreview template={template} content={renderedContent} />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              템플릿 정보를 찾을 수 없습니다(코드: {item.templateCode}).
+            </p>
+          )}
+          {Object.keys(variables).length > 0 && (
+            <div className="text-[11px] text-muted-foreground space-y-0.5 mt-2">
+              {Object.entries(variables).map(([k, v]) => (
+                <p key={k}>
+                  #{k} → {v || "(빈 값)"}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
+        >
+          닫기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ScheduledDispatchesTab() {
   const [items, setItems] = useState<KakaoScheduledDispatch[]>([]);
   const [total, setTotal] = useState(0);
@@ -2007,6 +2253,7 @@ function ScheduledDispatchesTab() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<KakaoScheduledDispatch | null>(null);
   const pageSize = 20;
 
   const load = useCallback(() => {
@@ -2102,7 +2349,11 @@ function ScheduledDispatchesTab() {
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.id} className="border-b border-border last:border-0">
+                <tr
+                  key={item.id}
+                  onClick={() => setSelectedItem(item)}
+                  className="border-b border-border last:border-0 hover:bg-secondary/20 cursor-pointer"
+                >
                   <td className="px-3 py-2 whitespace-nowrap">
                     {new Date(item.scheduledAt).toLocaleString("ko-KR")}
                   </td>
@@ -2127,7 +2378,7 @@ function ScheduledDispatchesTab() {
                     )}
                   </td>
                   <td className="px-3 py-2">{item.createdByAdmin}</td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                     {item.status === "scheduled" && (
                       <button
                         type="button"
@@ -2169,6 +2420,10 @@ function ScheduledDispatchesTab() {
           </button>
         </div>
       )}
+
+      {selectedItem && (
+        <ScheduledDispatchDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
     </div>
   );
 }
@@ -2181,11 +2436,16 @@ export function KakaoNotifyPanel() {
   const [source, setSource] = useState<KakaoLeadSource | "">("");
   const [status, setStatus] = useState<KakaoLeadStatus | "">("");
   const [search, setSearch] = useState("");
+  const [group, setGroup] = useState("");
+  const [joinedFrom, setJoinedFrom] = useState("");
+  const [joinedTo, setJoinedTo] = useState("");
+  const [groupLabels, setGroupLabels] = useState<string[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [selectingAll, setSelectingAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
@@ -2229,6 +2489,9 @@ export function KakaoNotifyPanel() {
         source: source || undefined,
         status: status || undefined,
         search: search || undefined,
+        group: group || undefined,
+        joinedFrom: joinedFrom || undefined,
+        joinedTo: joinedTo || undefined,
         page,
         pageSize,
       });
@@ -2240,11 +2503,21 @@ export function KakaoNotifyPanel() {
     } finally {
       setLoading(false);
     }
-  }, [source, status, search, page]);
+  }, [source, status, search, group, joinedFrom, joinedTo, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadGroupLabels = useCallback(() => {
+    fetchKakaoGroupLabels()
+      .then(setGroupLabels)
+      .catch(() => setGroupLabels([]));
+  }, []);
+
+  useEffect(() => {
+    loadGroupLabels();
+  }, [loadGroupLabels]);
 
   useEffect(() => {
     fetchKakaoAdCreatives()
@@ -2275,12 +2548,26 @@ export function KakaoNotifyPanel() {
         source: source || undefined,
         status: status || undefined,
         search: search || undefined,
+        group: group || undefined,
+        joinedFrom: joinedFrom || undefined,
+        joinedTo: joinedTo || undefined,
       });
       setCheckedIds(new Set(ids));
     } catch (err) {
       alert(err instanceof Error ? err.message : "전체 선택에 실패했습니다.");
     } finally {
       setSelectingAll(false);
+    }
+  }
+
+  async function handleAssignGroup(groupLabel: string) {
+    try {
+      await setKakaoLeadGroupBulk(Array.from(checkedIds), groupLabel);
+      setGroupModalOpen(false);
+      loadGroupLabels();
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "그룹 지정에 실패했습니다.");
     }
   }
 
@@ -2418,6 +2705,21 @@ export function KakaoNotifyPanel() {
             <option value="failed">발송실패</option>
             <option value="skipped_duplicate">중복제외</option>
           </select>
+          <select
+            value={group}
+            onChange={(e) => {
+              setPage(1);
+              setGroup(e.target.value);
+            }}
+            className="px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
+          >
+            <option value="">그룹</option>
+            {groupLabels.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
           <input
             type="text"
             placeholder="이름 또는 전화번호 검색"
@@ -2428,6 +2730,40 @@ export function KakaoNotifyPanel() {
             }}
             className="w-40 px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
           />
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={joinedFrom}
+              onChange={(e) => {
+                setPage(1);
+                setJoinedFrom(e.target.value);
+              }}
+              className="px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
+            />
+            <span className="text-xs text-muted-foreground">~</span>
+            <input
+              type="date"
+              value={joinedTo}
+              onChange={(e) => {
+                setPage(1);
+                setJoinedTo(e.target.value);
+              }}
+              className="px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
+            />
+            {(joinedFrom || joinedTo) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPage(1);
+                  setJoinedFrom("");
+                  setJoinedTo("");
+                }}
+                className="px-1.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                초기화
+              </button>
+            )}
+          </div>
           <span className="text-xs text-muted-foreground">총 {total}건</span>
           {total > 0 && checkedIds.size < total && (
             <button
@@ -2457,6 +2793,13 @@ export function KakaoNotifyPanel() {
                 className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
               >
                 선택 발송 ({checkedIds.size})
+              </button>
+              <button
+                type="button"
+                onClick={() => setGroupModalOpen(true)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-border hover:bg-secondary"
+              >
+                그룹 지정
               </button>
             </>
           )}
@@ -2534,6 +2877,14 @@ export function KakaoNotifyPanel() {
                             className="inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-sm border bg-amber-50 text-amber-700 border-amber-200 shrink-0"
                           >
                             중복
+                          </span>
+                        )}
+                        {lead.groupLabel && (
+                          <span
+                            title={`그룹: ${lead.groupLabel}`}
+                            className="inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-sm border bg-indigo-50 text-indigo-700 border-indigo-200 shrink-0"
+                          >
+                            {lead.groupLabel}
                           </span>
                         )}
                       </span>
@@ -2639,6 +2990,15 @@ export function KakaoNotifyPanel() {
           leadIds={Array.from(checkedIds)}
           onClose={() => setBulkSendOpen(false)}
           onDone={handleBulkSendDone}
+        />
+      )}
+
+      {groupModalOpen && (
+        <GroupAssignModal
+          count={checkedIds.size}
+          existingGroups={groupLabels}
+          onClose={() => setGroupModalOpen(false)}
+          onAssign={(groupLabel) => void handleAssignGroup(groupLabel)}
         />
       )}
     </div>
