@@ -81,6 +81,50 @@ function shortenAdName(adName: string): string {
   return match ? match[1] : adName;
 }
 
+/** 템플릿 본문의 #{변수명}을 실제 발송 변수값으로 치환해 최종 발송 텍스트를 만든다 */
+function renderTemplateContent(content: string, variables: Record<string, string>): string {
+  return content.replace(/#\{([^}]+)\}/g, (match, varName) =>
+    Object.prototype.hasOwnProperty.call(variables, varName) ? variables[varName] : match,
+  );
+}
+
+function DispatchLogDetail({ log, templates }: { log: KakaoDispatchLog; templates: SolapiTemplate[] }) {
+  const parsed = (() => {
+    try {
+      return JSON.parse(log.requestPayload) as { toPhone?: string; variables?: Record<string, string> };
+    } catch {
+      return null;
+    }
+  })();
+  const template = templates.find((t) => t.templateId === log.templateCode);
+  const variables = parsed?.variables ?? {};
+  const renderedContent = template ? renderTemplateContent(template.content, variables) : null;
+
+  return (
+    <div className="mt-2 space-y-2">
+      {template ? (
+        <div className="border border-border rounded-sm p-3 bg-secondary/10 space-y-1.5">
+          <p className="text-[11px] font-semibold text-muted-foreground">{template.name}</p>
+          <p className="text-xs text-foreground whitespace-pre-wrap">{renderedContent}</p>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          템플릿 정보를 찾을 수 없습니다(코드: {log.templateCode}).
+        </p>
+      )}
+      {Object.keys(variables).length > 0 && (
+        <div className="text-[11px] text-muted-foreground space-y-0.5">
+          {Object.entries(variables).map(([k, v]) => (
+            <p key={k}>
+              #{k} → {v || "(빈 값)"}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LeadDetailPanel({
   leadId,
   onClose,
@@ -96,6 +140,8 @@ function LeadDetailPanel({
   const [loading, setLoading] = useState(true);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
+  const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +161,12 @@ function LeadDetailPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    fetchKakaoTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
+  }, []);
 
   async function handleResend() {
     setResending(true);
@@ -255,34 +307,48 @@ function LeadDetailPanel({
                 <p className="text-xs text-muted-foreground">발송 이력이 없습니다.</p>
               ) : (
                 <ul className="space-y-2">
-                  {logs.map((log) => (
-                    <li
-                      key={log.id}
-                      className="text-xs border border-border rounded-sm px-3 py-2 space-y-0.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`font-semibold ${log.result === "success" ? "text-emerald-700" : "text-destructive"}`}
-                        >
-                          {log.result === "success" ? "성공" : "실패"} ·{" "}
-                          {log.triggeredBy === "auto"
-                            ? "자동"
-                            : log.triggeredBy === "manual_retry"
-                              ? "재발송"
-                              : log.triggeredBy === "bulk_manual"
-                                ? "일괄발송"
-                                : "테스트"}
-                        </span>
-                        <span className="text-muted-foreground">{formatDate(log.sentAt)}</span>
-                      </div>
-                      {log.errorMessage && (
-                        <p className="text-destructive">{log.errorMessage}</p>
-                      )}
-                      {log.triggeredByAdmin && (
-                        <p className="text-muted-foreground">처리자: {log.triggeredByAdmin}</p>
-                      )}
-                    </li>
-                  ))}
+                  {logs.map((log) => {
+                    const expanded = expandedLogId === log.id;
+                    return (
+                      <li
+                        key={log.id}
+                        className="text-xs border border-border rounded-sm px-3 py-2 space-y-0.5 cursor-pointer hover:bg-secondary/20"
+                        onClick={() => setExpandedLogId(expanded ? null : log.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`font-semibold ${log.result === "success" ? "text-emerald-700" : "text-destructive"}`}
+                          >
+                            {log.result === "success" ? "성공" : "실패"} ·{" "}
+                            {log.triggeredBy === "auto"
+                              ? "자동"
+                              : log.triggeredBy === "manual_retry"
+                                ? "재발송"
+                                : log.triggeredBy === "bulk_manual"
+                                  ? "일괄발송"
+                                  : log.triggeredBy === "scheduled"
+                                    ? "예약발송"
+                                    : "테스트"}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {formatDate(log.sentAt)}
+                            <span className="ml-1.5">{expanded ? "▲" : "▼"}</span>
+                          </span>
+                        </div>
+                        {log.errorMessage && (
+                          <p className="text-destructive">{log.errorMessage}</p>
+                        )}
+                        {log.triggeredByAdmin && (
+                          <p className="text-muted-foreground">처리자: {log.triggeredByAdmin}</p>
+                        )}
+                        {expanded && (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <DispatchLogDetail log={log} templates={templates} />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
