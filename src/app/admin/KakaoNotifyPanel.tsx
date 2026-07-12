@@ -1348,9 +1348,9 @@ function DailyStatsCard() {
     <div className="border border-border rounded-sm p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-foreground">일자별 수집 현황</h3>
+          <h3 className="text-sm font-bold text-foreground">일자별 가입 현황</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            최근 {days}일간 신규로 쌓인 고객 DB 건수입니다.
+            최근 {days}일간 실제 가입/신청일 기준 고객 DB 건수입니다.
           </p>
         </div>
         <div className="flex gap-1">
@@ -1716,8 +1716,9 @@ function AdCreativeManagerCard() {
       <div>
         <h3 className="text-sm font-bold text-foreground">유입소재 이미지 등록</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          여기 등록한 소재명과 정확히 일치하는 유입소재를 가진 고객 목록에서, 소재명에 마우스를
-          올리면 이미지/영상 미리보기가 표시됩니다.
+          목록에 표시되는 축약된 소재명(예: &quot;이미지_10&quot;) 또는 원본 전체 소재명 중
+          하나와 정확히 일치하게 등록하면, 고객 목록에서 해당 소재명에 마우스를 올렸을 때
+          이미지/영상 미리보기가 표시됩니다.
         </p>
       </div>
 
@@ -2533,7 +2534,9 @@ export function KakaoNotifyPanel() {
                       {lead.adName ? (
                         <AdCreativeHoverLabel
                           adName={lead.adName}
-                          creative={adCreativeMap[lead.adName]}
+                          creative={
+                            adCreativeMap[lead.adName] ?? adCreativeMap[shortenAdName(lead.adName)]
+                          }
                         />
                       ) : (
                         "-"
