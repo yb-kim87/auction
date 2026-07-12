@@ -103,9 +103,37 @@ function DispatchLogDetail({ log, templates }: { log: KakaoDispatchLog; template
   return (
     <div className="mt-2 space-y-2">
       {template ? (
-        <div className="border border-border rounded-sm p-3 bg-secondary/10 space-y-1.5">
-          <p className="text-[11px] font-semibold text-muted-foreground">{template.name}</p>
-          <p className="text-xs text-foreground whitespace-pre-wrap">{renderedContent}</p>
+        <div className="rounded-sm overflow-hidden border border-border max-w-[280px]">
+          <div className="bg-[#f9e000] text-[#3c1e1e] text-xs font-bold px-3 py-2 flex items-center gap-1.5">
+            알림톡 도착
+            <span className="ml-auto text-[10px] font-semibold bg-black/10 rounded px-1.5 py-0.5">
+              kakao
+            </span>
+          </div>
+          <div className="bg-[#b7c3d8] px-3 py-3 space-y-2">
+            {template.emphasizeSubtitle && (
+              <p className="text-[11px] text-[#4a5468]">{template.emphasizeSubtitle}</p>
+            )}
+            {template.emphasizeTitle && (
+              <p className="text-sm font-bold text-foreground bg-white/70 rounded-sm px-2 py-1 inline-block">
+                {template.emphasizeTitle}
+              </p>
+            )}
+            <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+              {renderedContent}
+            </p>
+            {template.extra && (
+              <p className="text-[11px] text-[#4a5468] whitespace-pre-wrap">{template.extra}</p>
+            )}
+            {template.buttons.map((btn, i) => (
+              <div
+                key={i}
+                className="bg-white text-xs font-medium text-center rounded-sm py-2 border border-border/60"
+              >
+                {btn.buttonName}
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">

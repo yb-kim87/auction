@@ -1999,6 +1999,9 @@ export interface SolapiTemplate {
   status: string;
   content: string;
   buttons: SolapiTemplateButton[];
+  emphasizeTitle: string | null;
+  emphasizeSubtitle: string | null;
+  extra: string | null;
 }
 
 export async function fetchKakaoTemplates(): Promise<SolapiTemplate[]> {
