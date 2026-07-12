@@ -97,6 +97,7 @@ function AdCreativeHoverLabel({
   creative: KakaoAdCreative | undefined;
 }) {
   const [hovering, setHovering] = useState(false);
+  const [imgError, setImgError] = useState(false);
   return (
     <span
       className="relative inline-block"
@@ -111,8 +112,27 @@ function AdCreativeHoverLabel({
         <span className="absolute z-50 left-0 top-full mt-1 block w-[220px] rounded-sm border border-border bg-card shadow-lg p-2">
           {creative.mediaType === "video" ? (
             <video src={creative.mediaUrl} controls className="w-full rounded-sm" />
+          ) : imgError ? (
+            <span className="block text-[10px] text-destructive p-2">
+              이미지를 불러올 수 없습니다. URL을 확인해 주세요.
+              <br />
+              <a
+                href={creative.mediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline break-all"
+              >
+                {creative.mediaUrl}
+              </a>
+            </span>
           ) : (
-            <img src={creative.mediaUrl} alt={adName} className="w-full rounded-sm object-cover" />
+            <img
+              src={creative.mediaUrl}
+              alt={adName}
+              referrerPolicy="no-referrer"
+              onError={() => setImgError(true)}
+              className="w-full rounded-sm object-cover"
+            />
           )}
           <span className="block mt-1 text-[10px] text-muted-foreground whitespace-normal break-words">
             {adName}
@@ -1767,7 +1787,12 @@ function AdCreativeManagerCard() {
               {c.mediaType === "video" ? (
                 <video src={c.mediaUrl} controls className="w-full h-20 object-cover rounded-sm" />
               ) : (
-                <img src={c.mediaUrl} alt={c.adName} className="w-full h-20 object-cover rounded-sm" />
+                <img
+                  src={c.mediaUrl}
+                  alt={c.adName}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-20 object-cover rounded-sm"
+                />
               )}
               <p className="truncate text-muted-foreground" title={c.adName}>
                 {c.adName}
