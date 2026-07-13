@@ -1662,7 +1662,12 @@ export async function setKakaoLeadGroupBulk(
 
 export async function fetchKakaoLeadDetail(
   id: string,
-): Promise<{ lead: KakaoLead; logs: KakaoDispatchLog[]; otherApplications: KakaoLead[] }> {
+): Promise<{
+  lead: KakaoLead;
+  logs: KakaoDispatchLog[];
+  otherApplications: KakaoLead[];
+  landingVisit: { landingUrl: string; referrer: string } | null;
+}> {
   const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,

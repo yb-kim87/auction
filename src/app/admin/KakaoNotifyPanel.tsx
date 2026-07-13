@@ -302,6 +302,7 @@ function LeadDetailPanel({
   const [lead, setLead] = useState<KakaoLead | null>(null);
   const [logs, setLogs] = useState<KakaoDispatchLog[]>([]);
   const [otherApplications, setOtherApplications] = useState<KakaoLead[]>([]);
+  const [landingVisit, setLandingVisit] = useState<{ landingUrl: string; referrer: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
@@ -319,6 +320,7 @@ function LeadDetailPanel({
       setLead(data.lead);
       setLogs(data.logs);
       setOtherApplications(data.otherApplications);
+      setLandingVisit(data.landingVisit);
       setGroupInput(data.lead.groupLabel);
     } catch (err) {
       setError(err instanceof Error ? err.message : "상세 정보를 불러오지 못했습니다.");
@@ -488,6 +490,26 @@ function LeadDetailPanel({
                 <p className="font-medium text-foreground">{formatDate(lead.updatedAt)}</p>
               </div>
             </div>
+
+            {landingVisit && (
+              <div className="text-xs border-t border-border pt-3">
+                <p className="text-muted-foreground mb-1">
+                  랜딩 방문 원본 URL(진단용)
+                  <span title="유입 캠페인 매칭에 사용된 원본 방문 URL입니다. 소재ID가 어떤 파라미터로 오는지 확인할 때 참고하세요.">
+                    {" "}
+                    ⓘ
+                  </span>
+                </p>
+                <p className="font-mono text-[11px] text-foreground break-all bg-muted/40 rounded-sm p-2">
+                  {landingVisit.landingUrl || "-"}
+                </p>
+                {landingVisit.referrer && (
+                  <p className="font-mono text-[11px] text-muted-foreground break-all mt-1">
+                    referrer: {landingVisit.referrer}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <input
