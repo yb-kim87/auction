@@ -2564,7 +2564,7 @@ export function KakaoNotifyPanel() {
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
-    32, 72, 108, 64, 48, 84, 100, 76, 76, 120,
+    32, 72, 108, 64, 48, 84, 100, 100, 76, 76, 120,
   ]);
   const [adCreativeMap, setAdCreativeMap] = useState<Record<string, KakaoAdCreative>>({});
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
@@ -2951,6 +2951,7 @@ export function KakaoNotifyPanel() {
                     "생년월일",
                     "주소",
                     "유입소재",
+                    "유입캠페인",
                     "상태",
                     "가입시각",
                   ].map((label, i) => (
@@ -3027,6 +3028,18 @@ export function KakaoNotifyPanel() {
                       ) : (
                         "-"
                       )}
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+                      title={
+                        lead.utmSource || lead.utmCampaign
+                          ? `${lead.utmSource}${lead.utmCampaign ? " / " + lead.utmCampaign : ""} (추정치)`
+                          : undefined
+                      }
+                    >
+                      {lead.utmSource || lead.utmCampaign
+                        ? [lead.utmSource, lead.utmCampaign].filter(Boolean).join(" / ")
+                        : "-"}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span
