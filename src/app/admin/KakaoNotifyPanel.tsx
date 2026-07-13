@@ -464,6 +464,18 @@ function LeadDetailPanel({
                 </div>
               )}
               <div>
+                <p className="text-muted-foreground">
+                  카톡방 버튼 클릭
+                  <span title="가입완료 페이지의 '카톡방 참여하기' 버튼 클릭 여부만 확인 가능합니다. 실제로 오픈채팅방에 입장했는지는 카카오 쪽에서 확인할 방법이 없습니다.">
+                    {" "}
+                    ⓘ
+                  </span>
+                </p>
+                <p className="font-medium text-foreground">
+                  {lead.kakaoRoomClickedAt ? formatDate(lead.kakaoRoomClickedAt) : "클릭 안 함"}
+                </p>
+              </div>
+              <div>
                 <p className="text-muted-foreground">가입시각</p>
                 <p className="font-medium text-foreground">{formatDate(lead.joinedAt)}</p>
               </div>
