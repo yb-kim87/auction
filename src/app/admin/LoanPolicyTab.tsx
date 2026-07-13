@@ -29,6 +29,7 @@ export function LoanPolicyTab() {
   const [regionMessage, setRegionMessage] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [customInput, setCustomInput] = useState("");
   const districtOptions = selectedCity ? getDistricts(selectedCity) : [];
 
   useEffect(() => {
@@ -40,26 +41,39 @@ export function LoanPolicyTab() {
       .finally(() => setRegionsLoading(false));
   }, []);
 
-  async function handleAddRegion() {
-    // 구/군을 선택하면 그 구/군만, 선택하지 않으면 시/도 전체를 규제지역으로 등록.
-    const name = selectedDistrict || shortCityLabel(selectedCity);
-    if (!name) return;
+  async function saveRegionName(name: string) {
+    if (!name.trim()) return;
     setRegionSaving(true);
     setRegionMessage(null);
     try {
-      const added = await addRegulatedRegion(name);
+      const added = await addRegulatedRegion(name.trim());
       setRegions((prev) =>
         prev.some((r) => r.id === added.id)
           ? prev
           : [...prev, added].sort((a, b) => a.name.localeCompare(b.name, "ko")),
       );
-      setSelectedCity("");
-      setSelectedDistrict("");
+      return true;
     } catch (err) {
       setRegionMessage(err instanceof Error ? err.message : "규제지역 추가에 실패했습니다.");
+      return false;
     } finally {
       setRegionSaving(false);
     }
+  }
+
+  async function handleAddRegion() {
+    // 구/군을 선택하면 그 구/군만, 선택하지 않으면 시/도 전체를 규제지역으로 등록.
+    const name = selectedDistrict || shortCityLabel(selectedCity);
+    const ok = await saveRegionName(name);
+    if (ok) {
+      setSelectedCity("");
+      setSelectedDistrict("");
+    }
+  }
+
+  async function handleAddCustomRegion() {
+    const ok = await saveRegionName(customInput);
+    if (ok) setCustomInput("");
   }
 
   async function handleRemoveRegion(id: string) {
@@ -157,6 +171,31 @@ export function LoanPolicyTab() {
         </div>
         <p className="text-xs text-muted-foreground mt-1.5">
           구/군을 선택하지 않으면 해당 시/도 전체가 규제지역으로 등록됩니다.
+        </p>
+
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="text"
+            placeholder="목록에 없는 동/지역명 직접 입력(예: 동탄)"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleAddCustomRegion();
+            }}
+            className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-card"
+          />
+          <button
+            type="button"
+            onClick={() => void handleAddCustomRegion()}
+            disabled={regionSaving || !customInput.trim()}
+            className="px-4 py-2 text-sm font-semibold rounded-sm border border-border bg-card hover:bg-secondary/40 disabled:opacity-50 shrink-0"
+          >
+            추가
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          동탄처럼 구/군 목록에 없는 세부 지역명은 여기에 직접 입력해 등록하세요. 입력한
+          텍스트가 물건 주소에 포함되면 규제지역으로 판정됩니다.
         </p>
 
         {regionsLoading ? (
