@@ -895,13 +895,13 @@ function TestSendCard() {
                   <label className="text-xs text-muted-foreground w-20 shrink-0">
                     #{varName}
                   </label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={2}
                     value={varValues[varName] ?? ""}
                     onChange={(e) =>
                       setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
                     }
-                    className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
+                    className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card resize-y"
                   />
                 </div>
               ))}
@@ -1183,8 +1183,8 @@ function BulkSendModal({
                               </option>
                             ))}
                           </select>
-                          <input
-                            type="text"
+                          <textarea
+                            rows={isCustom ? 3 : 1}
                             value={isCustom ? (varValues[varName] ?? "") : ""}
                             onChange={(e) =>
                               setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
@@ -1193,7 +1193,7 @@ function BulkSendModal({
                               isCustom ? "" : `${leadFields.find((f) => f.field === selectValue)?.label ?? ""} 값으로 자동 대체됨`
                             }
                             disabled={!isCustom}
-                            className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
+                            className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card disabled:opacity-50 resize-y"
                           />
                         </div>
                       );
@@ -1430,8 +1430,8 @@ function TemplateSettingsCard() {
                             </option>
                           ))}
                         </select>
-                        <input
-                          type="text"
+                        <textarea
+                          rows={isCustom ? 3 : 1}
                           value={isCustom ? (varValues[varName] ?? "") : ""}
                           onChange={(e) =>
                             setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
@@ -1440,7 +1440,7 @@ function TemplateSettingsCard() {
                             isCustom ? "" : `${leadFields.find((f) => f.field === selectValue)?.label ?? ""} 값으로 자동 대체됨`
                           }
                           disabled={!isCustom}
-                          className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
+                          className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card disabled:opacity-50 resize-y"
                         />
                       </div>
                     );
