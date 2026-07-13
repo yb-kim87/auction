@@ -11,14 +11,30 @@ export function AuctionFieldInput({
   onChange,
 }: {
   field: FieldDef;
-  value: string | number | null;
+  value: string | number | boolean | null;
   onChange: (v: string) => void;
 }) {
+  if (field.type === "checkbox") {
+    return (
+      <label className="flex items-center gap-2 h-[38px]">
+        <input
+          type="checkbox"
+          checked={value === true || value === "true"}
+          onChange={(e) => onChange(e.target.checked ? "true" : "false")}
+          className="w-4 h-4"
+        />
+        <span className="text-sm text-muted-foreground">규제지역이면 체크</span>
+      </label>
+    );
+  }
+
+  const textValue = value == null ? "" : String(value);
+
   if (field.type === "textarea" || field.full) {
     return (
       <textarea
         rows={field.full ? 3 : 2}
-        value={value ?? ""}
+        value={textValue}
         onChange={(e) => onChange(e.target.value)}
         className={fieldInputClassName}
       />
@@ -29,7 +45,7 @@ export function AuctionFieldInput({
     <input
       type="text"
       inputMode={field.type === "number" ? "numeric" : "text"}
-      value={value ?? ""}
+      value={textValue}
       onChange={(e) => onChange(e.target.value)}
       className={fieldInputClassName}
     />

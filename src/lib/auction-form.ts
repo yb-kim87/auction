@@ -4,7 +4,7 @@ import { displayTenantDetail } from "@/lib/tenant-status";
 export type FieldDef = {
   key: keyof UpdateAuctionPayload;
   label: string;
-  type?: "text" | "number" | "textarea";
+  type?: "text" | "number" | "textarea" | "checkbox";
   full?: boolean;
 };
 
@@ -34,6 +34,7 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "appraisedValue", label: "감정가", type: "number" },
       { key: "minPrice", label: "최저가", type: "number" },
+      { key: "regulatedArea", label: "규제지역 여부", type: "checkbox" },
       { key: "naverPrice", label: "네이버 호가", type: "number" },
       { key: "officialLandPrice", label: "공시가", type: "number" },
       { key: "salePrice", label: "낙찰가", type: "number" },
@@ -73,6 +74,7 @@ export const EMPTY_AUCTION_FORM: UpdateAuctionPayload = {
   bidDate: "",
   appraisedValue: 0,
   minPrice: 0,
+  regulatedArea: false,
   salePrice: null,
   naverPrice: 0,
   naverId: "",
@@ -142,6 +144,7 @@ export function toPayload(form: UpdateAuctionPayload): UpdateAuctionPayload {
     builtYear: parseBuiltYearInput(form.builtYear),
     appraisedValue: num(form.appraisedValue),
     minPrice: num(form.minPrice),
+    regulatedArea: String(form.regulatedArea) === "true",
     salePrice: numOrNull(form.salePrice),
     naverPrice: num(form.naverPrice),
     officialLandPrice: num(form.officialLandPrice),

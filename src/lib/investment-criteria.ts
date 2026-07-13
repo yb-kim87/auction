@@ -4,27 +4,74 @@ import type { LoanPolicy } from "@/lib/api";
 
 /** 정책 API 로드 전 사용하는 기본값 (관리자페이지 초기값과 동일) */
 export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
-  { id: "first_time", label: "생애최초 (무주택 + 생애최초)", loanRatio: 0.9, sortOrder: 0 },
-  { id: "no_house", label: "무주택 일반", loanRatio: 0.8, sortOrder: 1 },
-  { id: "one_house", label: "1주택", loanRatio: 0.7, sortOrder: 2 },
-  { id: "multi_house", label: "2주택 이상", loanRatio: 0.7, sortOrder: 3 },
+  {
+    id: "regulated_no_house",
+    label: "규제지역 · 무주택(생애최초 포함)",
+    loanRatio: 10,
+    appraisalRatio: 0.4,
+    regulatedArea: true,
+    loanUnavailable: false,
+    businessLoanOnly: false,
+    sortOrder: 0,
+  },
+  {
+    id: "regulated_owner",
+    label: "규제지역 · 1주택 이상",
+    loanRatio: 0,
+    appraisalRatio: 0,
+    regulatedArea: true,
+    loanUnavailable: true,
+    businessLoanOnly: false,
+    sortOrder: 1,
+  },
+  {
+    id: "unregulated_first_time",
+    label: "비규제지역 · 생애최초",
+    loanRatio: 0.9,
+    appraisalRatio: 0.9,
+    regulatedArea: false,
+    loanUnavailable: false,
+    businessLoanOnly: false,
+    sortOrder: 2,
+  },
+  {
+    id: "unregulated_no_house",
+    label: "비규제지역 · 무주택 일반",
+    loanRatio: 0.8,
+    appraisalRatio: 0.7,
+    regulatedArea: false,
+    loanUnavailable: false,
+    businessLoanOnly: false,
+    sortOrder: 3,
+  },
+  {
+    id: "unregulated_owner",
+    label: "비규제지역 · 1주택 이상(사업자대출)",
+    loanRatio: 0.7,
+    appraisalRatio: 0.7,
+    regulatedArea: false,
+    loanUnavailable: false,
+    businessLoanOnly: true,
+    sortOrder: 4,
+  },
 ];
 
-/** 회원정보(주택수·생애최초 여부)로 적용할 대출 정책을 선택 */
+/** 회원정보(주택수·생애최초 여부)와 물건의 규제지역 여부로 적용할 대출 정책을 선택 */
 export function selectLoanPolicy(
   criteria: { housingCount: number; firstTimeBuyer: boolean },
+  regulatedArea: boolean,
   policies: LoanPolicy[],
 ): LoanPolicy {
   const byId = (id: string) => policies.find((p) => p.id === id);
   let policy: LoanPolicy | undefined;
-  if (criteria.housingCount <= 0) {
-    policy = criteria.firstTimeBuyer ? byId("first_time") : byId("no_house");
-  } else if (criteria.housingCount === 1) {
-    policy = byId("one_house");
+  if (regulatedArea) {
+    policy = criteria.housingCount <= 0 ? byId("regulated_no_house") : byId("regulated_owner");
+  } else if (criteria.housingCount <= 0) {
+    policy = criteria.firstTimeBuyer ? byId("unregulated_first_time") : byId("unregulated_no_house");
   } else {
-    policy = byId("multi_house");
+    policy = byId("unregulated_owner");
   }
-  return policy ?? DEFAULT_LOAN_POLICIES[1];
+  return policy ?? DEFAULT_LOAN_POLICIES[3];
 }
 
 export interface InvestmentCriteria {
@@ -93,36 +140,42 @@ export function validateCriteriaForRecommend(
   return { ok: true, criteria, investableWon };
 }
 
-/** 최저가 기준 필요 자기자금 */
-export function requiredEquityForMinPrice(minPrice: number, loanRatio: number): number {
+/**
+ * 감정가×감정가비율과 낙찰가(최저가)×낙찰가비율 중 더 낮은 금액이 실제 대출한도다
+ * (경매 대출의 일반적인 산정 방식). 대출 불가 정책이면 한도 0.
+ */
+export function maxLoanAmount(minPrice: number, appraisedValue: number, policy: LoanPolicy): number {
+  if (policy.loanUnavailable) return 0;
   if (!minPrice || minPrice <= 0) return 0;
-  return Math.ceil(minPrice * (1 - loanRatio));
+  const byMinPrice = minPrice * policy.loanRatio;
+  const byAppraisal = appraisedValue > 0 ? appraisedValue * policy.appraisalRatio : Infinity;
+  return Math.max(0, Math.floor(Math.min(byMinPrice, byAppraisal)));
 }
 
-/** 투자가능자금으로 감당 가능한 최대 최저가 */
-export function maxAffordableMinPrice(investableWon: number, loanRatio: number): number {
-  if (investableWon <= 0) return 0;
-  const equityRatio = 1 - loanRatio;
-  if (equityRatio <= 0) return Infinity;
-  return Math.floor(investableWon / equityRatio);
+/** 물건(감정가·최저가)과 정책 기준 필요 자기자금 */
+export function requiredEquityForItem(
+  minPrice: number,
+  appraisedValue: number,
+  policy: LoanPolicy,
+): number {
+  if (!minPrice || minPrice <= 0) return 0;
+  return Math.max(0, minPrice - maxLoanAmount(minPrice, appraisedValue, policy));
 }
 
 export function matchesInvestmentRecommend(
   item: AuctionItem,
   investableWon: number,
-  loanRatio: number,
+  criteria: { housingCount: number; firstTimeBuyer: boolean },
+  policies: LoanPolicy[],
 ): boolean {
   if (!item.minPrice || item.minPrice <= 0) return false;
-  return requiredEquityForMinPrice(item.minPrice, loanRatio) <= investableWon;
+  const policy = selectLoanPolicy(criteria, item.regulatedArea, policies);
+  if (policy.loanUnavailable) return false;
+  return requiredEquityForItem(item.minPrice, item.appraisedValue, policy) <= investableWon;
 }
 
-export function buildRecommendSummary(
-  investableWon: number,
-  matchCount: number,
-  policy: LoanPolicy,
-): string {
-  const maxPrice = maxAffordableMinPrice(investableWon, policy.loanRatio);
-  return `${policy.label} 대출 ${Math.round(policy.loanRatio * 100)}% 적용 · 자기자금 ${formatWonShort(investableWon)} 최저가 ${formatWonShort(maxPrice)}이하 투자 가능 · 추천 ${matchCount}건`;
+export function buildRecommendSummary(matchCount: number): string {
+  return `물건별 규제지역 여부에 따라 대출 정책이 다르게 적용됩니다 · 추천 ${matchCount}건`;
 }
 
 export function criteriaFieldsChanged(a: InvestmentCriteria, b: InvestmentCriteria): boolean {

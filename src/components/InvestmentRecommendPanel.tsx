@@ -19,7 +19,6 @@ import {
   criteriaFieldsChanged,
   criteriaFromProfile,
   normalizeCriteriaInput,
-  selectLoanPolicy,
   type InvestmentCriteria,
   validateCriteriaForRecommend,
   type InvestmentCriteriaInput,
@@ -142,13 +141,8 @@ export function InvestmentRecommendPanel({
     setSaveMessage("");
   }
 
-  const appliedPolicy =
-    appliedCriteria != null ? selectLoanPolicy(appliedCriteria, loanPolicies) : null;
-
   const summary =
-    recommendEnabled && appliedInvestableWon != null && appliedPolicy != null
-      ? buildRecommendSummary(appliedInvestableWon, matchCount, appliedPolicy)
-      : null;
+    recommendEnabled && appliedInvestableWon != null ? buildRecommendSummary(matchCount) : null;
 
   return (
     <div className="bg-card border border-border rounded-sm shadow-sm">

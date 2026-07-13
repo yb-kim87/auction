@@ -1,6 +1,8 @@
 import type { AuctionItem } from "@/types/auction";
 
-export const MOCK_DATA: AuctionItem[] = [
+type MockAuctionItem = Omit<AuctionItem, "regulatedArea">;
+
+const RAW_MOCK_DATA: MockAuctionItem[] = [
   {
     id: "1", memo: "입지 좋음", link: "https://www.courtauction.go.kr", views: 342,
     auctionNo: "2024타경12345", address: "서울특별시 강남구 대치동 은마아파트 101동 502호",
@@ -98,3 +100,8 @@ export const MOCK_DATA: AuctionItem[] = [
     recordTime: "2025-02-03 10:10", city: "경기도", district: "성남시", propType: "빌라", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
 ];
+
+export const MOCK_DATA: AuctionItem[] = RAW_MOCK_DATA.map((item) => ({
+  ...item,
+  regulatedArea: false,
+}));

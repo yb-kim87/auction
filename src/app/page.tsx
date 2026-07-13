@@ -31,7 +31,13 @@ import {
   ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
 import { formatWonShort } from "@/lib/investment-money";
-import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
+
+type LoanInfo = {
+  loanRatio: number;
+  appraisalRatio: number;
+  loanPolicyLabel: string;
+  requiredEquity: number;
+};
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
 import { CITIES } from "@/data/korea-regions";
 import { PROPERTY_TYPE_OPTIONS, matchesPropertyType } from "@/data/property-type-options";
@@ -438,22 +444,22 @@ function InvestmentInfoModal({
 
 function RecommendCard({
   item,
-  loanRatio,
-  loanPolicyLabel,
+  loanInfo,
   isFavorite,
   favoriteBusy,
   onToggleFavorite,
   onOpen,
 }: {
   item: AuctionItem;
-  loanRatio: number | null;
-  loanPolicyLabel: string | null;
+  loanInfo: LoanInfo | undefined;
   isFavorite: boolean;
   favoriteBusy: boolean;
   onToggleFavorite: () => void;
   onOpen: () => void;
 }) {
-  const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : null;
+  const requiredEquity = loanInfo?.requiredEquity ?? null;
+  const loanRatio = loanInfo?.loanRatio ?? null;
+  const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
@@ -581,22 +587,22 @@ function RecommendCard({
 
 function RecommendListRow({
   item,
-  loanRatio,
-  loanPolicyLabel,
+  loanInfo,
   isFavorite,
   favoriteBusy,
   onToggleFavorite,
   onOpen,
 }: {
   item: AuctionItem;
-  loanRatio: number | null;
-  loanPolicyLabel: string | null;
+  loanInfo: LoanInfo | undefined;
   isFavorite: boolean;
   favoriteBusy: boolean;
   onToggleFavorite: () => void;
   onOpen: () => void;
 }) {
-  const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : null;
+  const requiredEquity = loanInfo?.requiredEquity ?? null;
+  const loanRatio = loanInfo?.loanRatio ?? null;
+  const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
@@ -717,10 +723,9 @@ type SortOption = (typeof SORT_OPTIONS)[number];
 function sortRecommendItems(
   items: AuctionItem[],
   sortBy: SortOption,
-  loanRatio: number | null,
+  loanInfoByItemId: Record<string, LoanInfo>,
 ): AuctionItem[] {
-  const withEquity = (item: AuctionItem) =>
-    loanRatio != null ? requiredEquityForMinPrice(item.minPrice, loanRatio) : item.minPrice;
+  const withEquity = (item: AuctionItem) => loanInfoByItemId[item.id]?.requiredEquity ?? item.minPrice;
   const bidTime = (item: AuctionItem) => {
     const parsed = parseBidDate(item.bidDate ?? "");
     return parsed ? parsed.getTime() : Infinity;
@@ -750,8 +755,7 @@ export default function HomePage() {
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [favoriteBusy, setFavoriteBusy] = useState(false);
-  const [loanRatio, setLoanRatio] = useState<number | null>(null);
-  const [loanPolicyLabel, setLoanPolicyLabel] = useState<string | null>(null);
+  const [loanInfoByItemId, setLoanInfoByItemId] = useState<Record<string, LoanInfo>>({});
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -791,8 +795,7 @@ export default function HomePage() {
     fetchRecommendations(budget)
       .then((res) => {
         setItems(res.items);
-        setLoanRatio(res.loanRatio);
-        setLoanPolicyLabel(res.loanPolicyLabel);
+        setLoanInfoByItemId(res.loanInfoByItemId);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "추천 물건을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
@@ -854,7 +857,7 @@ export default function HomePage() {
       return true;
     }),
     sortBy,
-    loanRatio,
+    loanInfoByItemId,
   );
 
   const activeFilterCount =
@@ -1050,8 +1053,7 @@ export default function HomePage() {
               <RecommendCard
                 key={item.id}
                 item={item}
-                loanRatio={loanRatio}
-                loanPolicyLabel={loanPolicyLabel}
+                loanInfo={loanInfoByItemId[item.id]}
                 isFavorite={favoriteIds.has(item.id)}
                 favoriteBusy={favoriteBusy}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
@@ -1068,8 +1070,7 @@ export default function HomePage() {
               <RecommendListRow
                 key={item.id}
                 item={item}
-                loanRatio={loanRatio}
-                loanPolicyLabel={loanPolicyLabel}
+                loanInfo={loanInfoByItemId[item.id]}
                 isFavorite={favoriteIds.has(item.id)}
                 favoriteBusy={favoriteBusy}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
@@ -1096,8 +1097,13 @@ export default function HomePage() {
         onAiAnalysisClick={(row) =>
           logUserAction({ itemId: row.id, actionType: "ai_analysis_click", metadata: { recommended: true } })
         }
-        loanRatio={loanRatio}
-        loanPolicyLabel={loanPolicyLabel}
+        loanRatio={selectedItem ? loanInfoByItemId[selectedItem.id]?.loanRatio ?? null : null}
+        loanPolicyLabel={
+          selectedItem ? loanInfoByItemId[selectedItem.id]?.loanPolicyLabel ?? null : null
+        }
+        requiredEquity={
+          selectedItem ? loanInfoByItemId[selectedItem.id]?.requiredEquity ?? null : null
+        }
         aiAnalysisLimit={profile?.aiAnalysisLimit}
         aiAnalysisUsed={profile?.aiAnalysisUsed}
         onAiAnalysisUsed={() =>

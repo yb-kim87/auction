@@ -541,7 +541,13 @@ export async function updateMyProfile(input: {
 export type LoanPolicy = {
   id: string;
   label: string;
+  /** 낙찰가(최저가) 대비 대출 비율 */
   loanRatio: number;
+  /** 감정가 대비 대출 비율. 실제 대출한도는 min(감정가×이 비율, 낙찰가×loanRatio) */
+  appraisalRatio: number;
+  regulatedArea: boolean;
+  loanUnavailable: boolean;
+  businessLoanOnly: boolean;
   sortOrder: number;
 };
 
@@ -558,12 +564,15 @@ export async function fetchLoanPolicies(): Promise<LoanPolicy[]> {
   return readJsonResponse(res);
 }
 
-export async function updateLoanPolicy(id: string, loanRatio: number): Promise<LoanPolicy> {
+export async function updateLoanPolicy(
+  id: string,
+  input: { loanRatio: number; appraisalRatio: number },
+): Promise<LoanPolicy> {
   const res = await fetch(`${API_BASE}/loan-policies/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
-    body: JSON.stringify({ loanRatio }),
+    body: JSON.stringify(input),
   });
   if (!res.ok) {
     throw new Error(
@@ -719,6 +728,10 @@ export async function fetchRecommendations(budget?: string): Promise<{
   hasCriteria: boolean;
   loanRatio: number | null;
   loanPolicyLabel: string | null;
+  loanInfoByItemId: Record<
+    string,
+    { loanRatio: number; appraisalRatio: number; loanPolicyLabel: string; requiredEquity: number }
+  >;
 }> {
   const qs = budget ? `?budget=${encodeURIComponent(budget)}` : "";
   const res = await fetch(`${API_BASE}/recommendations${qs}`, {

@@ -17,7 +17,6 @@ import { AuctionAnalysisPanel } from "@/components/AuctionAnalysisPanel";
 import { TenantStatusPanel } from "@/components/TenantStatusPanel";
 import { displayTenantDetail } from "@/lib/tenant-status";
 import { getFailureRateRatio } from "@/lib/failure-rate";
-import { requiredEquityForMinPrice } from "@/lib/investment-criteria";
 import { formatWonShort } from "@/lib/investment-money";
 
 const LIST_TEXT = "text-[15px] leading-snug";
@@ -1441,6 +1440,7 @@ export function AuctionDetailModal({
   onReviewed,
   loanRatio = null,
   loanPolicyLabel = null,
+  requiredEquity: requiredEquityOverride = null,
   isAdmin = false,
   aiAnalysisLimit,
   aiAnalysisUsed,
@@ -1460,6 +1460,7 @@ export function AuctionDetailModal({
   onReviewed?: (item: AuctionItem) => void;
   loanRatio?: number | null;
   loanPolicyLabel?: string | null;
+  requiredEquity?: number | null;
   isAdmin?: boolean;
   aiAnalysisLimit?: number;
   aiAnalysisUsed?: number;
@@ -1560,7 +1561,9 @@ export function AuctionDetailModal({
   const appraisedValue = parsePreviewNumber(form.appraisedValue);
   const failureRate = getFailureRateRatio(minPrice, appraisedValue);
   const isNewCase = failureRate === 100;
-  const requiredEquity = loanRatio != null ? requiredEquityForMinPrice(minPrice, loanRatio) : null;
+  const requiredEquity =
+    requiredEquityOverride ??
+    (loanRatio != null ? Math.ceil(minPrice * (1 - loanRatio)) : null);
   const salePriceRaw = form.salePrice;
   const salePrice =
     salePriceRaw == null || String(salePriceRaw).trim() === ""
@@ -2119,7 +2122,7 @@ export function AuctionDetailModal({
                   }`}
                 >
                   <StickyNote size={14} />
-                  메모보기
+                  {showMemo ? "메모닫기" : "메모보기"}
                 </button>
                 <span className={`${LABEL_TEXT} text-muted-foreground inline-flex items-center gap-1`}>
                   조회수{" "}
@@ -2409,6 +2412,7 @@ export function AuctionDetailModal({
             AUCTION_FIELD_GROUPS.map((group) => {
               const fields = detailVisibleFields(group).filter((field) => {
                 if (field.key === "owner" || field.key === "tenantInfo") return false;
+                if (field.key === "recordTime" && !isAdmin) return false;
                 if (field.key === "bidInfo") {
                   const bidInfoValue = String(item.bidInfo ?? "").trim();
                   return bidInfoValue && bidInfoValue !== "없음";

@@ -25,7 +25,7 @@ import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, logUserAction, logUserActionsBatch, type LoanPolicy } from "@/lib/api";
 import {
   matchesInvestmentRecommend,
-  requiredEquityForMinPrice,
+  requiredEquityForItem,
   selectLoanPolicy,
   DEFAULT_LOAN_POLICIES,
   type InvestmentCriteria,
@@ -153,7 +153,11 @@ const FILTER_SELECT_YEAR = "w-[6.5rem]";
 const FILTER_SELECT_PROGRESS = "w-full sm:w-[7rem]";
 const AUCTION_CASE_YEARS = getAuctionCaseYears();
 
-const buildColumns = (isAdmin: boolean, recommendPolicy: LoanPolicy | null): ColDef[] => [
+const buildColumns = (
+  isAdmin: boolean,
+  recommendCriteria: InvestmentCriteria | null,
+  loanPolicies: LoanPolicy[],
+): ColDef[] => [
   { key: "memo", label: "메모", defaultWidth: 80, sticky: true, render: (r) => r.memo ? <span className="text-amber-600"><StickyNote size={16} className="inline mr-1" />{r.memo}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "usage", label: "용도", defaultWidth: 96, render: (r) => <span className="whitespace-nowrap">{r.usage}</span> },
   { key: "specialNote", label: "특이사항", defaultWidth: 160, render: (r) => <span className="text-red-600">{r.specialNote}</span> },
@@ -184,7 +188,7 @@ const buildColumns = (isAdmin: boolean, recommendPolicy: LoanPolicy | null): Col
       ? <span className="font-mono whitespace-nowrap">{rate}</span>
       : <span className="text-muted-foreground/40">-</span>;
   } },
-  ...(recommendPolicy
+  ...(recommendCriteria
     ? [
         {
           key: "recommendLoan",
@@ -192,12 +196,14 @@ const buildColumns = (isAdmin: boolean, recommendPolicy: LoanPolicy | null): Col
           defaultWidth: 168,
           render: (r: AuctionItem) => {
             if (!r.minPrice || r.minPrice <= 0) return <span className="text-muted-foreground/40">-</span>;
-            const equity = requiredEquityForMinPrice(r.minPrice, recommendPolicy.loanRatio);
+            const policy = selectLoanPolicy(recommendCriteria, r.regulatedArea, loanPolicies);
+            if (policy.loanUnavailable) {
+              return <span className="text-xs text-destructive font-semibold">대출 불가({policy.label})</span>;
+            }
+            const equity = requiredEquityForItem(r.minPrice, r.appraisedValue, policy);
             return (
               <span className="text-xs leading-snug whitespace-nowrap">
-                <span className="text-primary font-semibold">
-                  {recommendPolicy.label} 대출 {Math.round(recommendPolicy.loanRatio * 100)}% 적용
-                </span>
+                <span className="text-primary font-semibold">{policy.label}</span>
                 <br />
                 <span className="text-muted-foreground">필요 자기자금 약 {fmtEok(equity)}</span>
               </span>
@@ -492,16 +498,22 @@ function getSortValue(row: AuctionItem, key: string): string | number | null {
 function AuctionMobileCard({
   item,
   onClick,
-  recommendPolicy,
+  recommendCriteria,
+  loanPolicies,
 }: {
   item: AuctionItem;
   onClick: () => void;
-  recommendPolicy: LoanPolicy | null;
+  recommendCriteria: InvestmentCriteria | null;
+  loanPolicies: LoanPolicy[];
 }) {
   const rate = fmtFailureRate(item.minPrice, item.appraisedValue);
+  const recommendPolicy =
+    recommendCriteria && item.minPrice
+      ? selectLoanPolicy(recommendCriteria, item.regulatedArea, loanPolicies)
+      : null;
   const equity =
-    recommendPolicy && item.minPrice
-      ? requiredEquityForMinPrice(item.minPrice, recommendPolicy.loanRatio)
+    recommendPolicy && !recommendPolicy.loanUnavailable && item.minPrice
+      ? requiredEquityForItem(item.minPrice, item.appraisedValue, recommendPolicy)
       : null;
 
   return (
@@ -542,7 +554,12 @@ function AuctionMobileCard({
       </div>
       {equity != null && recommendPolicy && (
         <p className="mt-2 text-[12px] text-primary bg-primary/5 border border-primary/15 rounded-sm px-2 py-1">
-          {recommendPolicy.label} 대출 {Math.round(recommendPolicy.loanRatio * 100)}% · 필요 자기자금 약 {fmtEok(equity)}
+          {recommendPolicy.label} · 필요 자기자금 약 {fmtEok(equity)}
+        </p>
+      )}
+      {recommendPolicy?.loanUnavailable && (
+        <p className="mt-2 text-[12px] text-destructive bg-destructive/5 border border-destructive/15 rounded-sm px-2 py-1">
+          대출 불가 ({recommendPolicy.label})
         </p>
       )}
       {item.memo && (
@@ -559,16 +576,21 @@ function AuctionTable({
   data,
   isAdmin,
   onRowClick,
-  recommendPolicy,
+  recommendCriteria,
+  loanPolicies,
 }: {
   data: AuctionItem[];
   isAdmin: boolean;
   onRowClick: (item: AuctionItem) => void;
-  recommendPolicy: LoanPolicy | null;
+  recommendCriteria: InvestmentCriteria | null;
+  loanPolicies: LoanPolicy[];
 }) {
-  const columns = useMemo(() => buildColumns(isAdmin, recommendPolicy), [isAdmin, recommendPolicy]);
+  const columns = useMemo(
+    () => buildColumns(isAdmin, recommendCriteria, loanPolicies),
+    [isAdmin, recommendCriteria, loanPolicies],
+  );
   const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(buildColumns(false, null).map((c) => [c.key, c.defaultWidth]))
+    Object.fromEntries(buildColumns(false, null, []).map((c) => [c.key, c.defaultWidth]))
   );
 
   useEffect(() => {
@@ -958,17 +980,12 @@ export default function Home() {
     return true;
   });
 
-  const appliedPolicy = useMemo(() => {
-    if (!appliedCriteria) return null;
-    return selectLoanPolicy(appliedCriteria, loanPolicies);
-  }, [appliedCriteria, loanPolicies]);
-
   const recommendMatches = useMemo(() => {
-    if (!recommendEnabled || appliedInvestableWon == null || !appliedPolicy) return filtered;
+    if (!recommendEnabled || appliedInvestableWon == null || !appliedCriteria) return filtered;
     return filtered.filter((item) =>
-      matchesInvestmentRecommend(item, appliedInvestableWon, appliedPolicy.loanRatio),
+      matchesInvestmentRecommend(item, appliedInvestableWon, appliedCriteria, loanPolicies),
     );
-  }, [filtered, recommendEnabled, appliedInvestableWon, appliedPolicy]);
+  }, [filtered, recommendEnabled, appliedInvestableWon, appliedCriteria, loanPolicies]);
 
   const displayItems = recommendEnabled ? recommendMatches : filtered;
 
@@ -1277,7 +1294,8 @@ export default function Home() {
                 data={displayItems}
                 isAdmin={isAdmin}
                 onRowClick={handleRowSelect}
-                recommendPolicy={recommendEnabled ? appliedPolicy : null}
+                recommendCriteria={recommendEnabled ? appliedCriteria : null}
+                loanPolicies={loanPolicies}
               />
             </div>
             <div className="md:hidden space-y-2.5">
@@ -1291,7 +1309,8 @@ export default function Home() {
                     key={item.id}
                     item={item}
                     onClick={() => handleRowSelect(item)}
-                    recommendPolicy={recommendEnabled ? appliedPolicy : null}
+                    recommendCriteria={recommendEnabled ? appliedCriteria : null}
+                    loanPolicies={loanPolicies}
                   />
                 ))
               )}

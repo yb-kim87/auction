@@ -20,6 +20,7 @@ export interface AuctionItem {
   bidDate: string;
   appraisedValue: number;
   minPrice: number;
+  regulatedArea: boolean;
   salePrice: number | null;
   naverPrice: number;
   naverPriceFloor?: number | null;
