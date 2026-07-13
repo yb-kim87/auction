@@ -10,7 +10,7 @@ import {
   type LoanPolicy,
   type RegulatedRegion,
 } from "@/lib/api";
-import { CITIES, getDistricts } from "@/data/korea-regions";
+import { CITIES, getDistricts, getWards } from "@/data/korea-regions";
 
 /** 검색 필터와 동일한 시/도 표시명(마지막 "특별시/광역시/도" 등 접미어 제거) */
 function shortCityLabel(city: string): string {
@@ -29,8 +29,30 @@ export function LoanPolicyTab() {
   const [regionMessage, setRegionMessage] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedDistrict, setSelectedDistrict] = useState("");
-  const [customInput, setCustomInput] = useState("");
+  const [selectedWards, setSelectedWards] = useState<Set<string>>(new Set());
+  const [wardOptions, setWardOptions] = useState<string[]>([]);
+  const [wardsLoading, setWardsLoading] = useState(false);
   const districtOptions = selectedCity ? getDistricts(selectedCity) : [];
+
+  function toggleWard(ward: string) {
+    setSelectedWards((prev) => {
+      const next = new Set(prev);
+      if (next.has(ward)) next.delete(ward);
+      else next.add(ward);
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    if (!selectedCity || !selectedDistrict) {
+      setWardOptions([]);
+      return;
+    }
+    setWardsLoading(true);
+    getWards(selectedCity, selectedDistrict)
+      .then(setWardOptions)
+      .finally(() => setWardsLoading(false));
+  }, [selectedCity, selectedDistrict]);
 
   useEffect(() => {
     fetchLoanPolicies()
@@ -42,9 +64,7 @@ export function LoanPolicyTab() {
   }, []);
 
   async function saveRegionName(name: string) {
-    if (!name.trim()) return;
-    setRegionSaving(true);
-    setRegionMessage(null);
+    if (!name.trim()) return true;
     try {
       const added = await addRegulatedRegion(name.trim());
       setRegions((prev) =>
@@ -54,26 +74,32 @@ export function LoanPolicyTab() {
       );
       return true;
     } catch (err) {
-      setRegionMessage(err instanceof Error ? err.message : "규제지역 추가에 실패했습니다.");
+      setRegionMessage(err instanceof Error ? err.message : `"${name}" 추가에 실패했습니다.`);
       return false;
-    } finally {
-      setRegionSaving(false);
     }
   }
 
   async function handleAddRegion() {
-    // 구/군을 선택하면 그 구/군만, 선택하지 않으면 시/도 전체를 규제지역으로 등록.
-    const name = selectedDistrict || shortCityLabel(selectedCity);
-    const ok = await saveRegionName(name);
-    if (ok) {
+    // 읍/면/동을 하나 이상 체크하면 체크된 것들만 각각, 아무것도 체크하지
+    // 않았으면 구/군 전체(또는 구/군도 없으면 시/도 전체)를 등록.
+    const names =
+      selectedWards.size > 0
+        ? [...selectedWards]
+        : [selectedDistrict || shortCityLabel(selectedCity)];
+
+    setRegionSaving(true);
+    setRegionMessage(null);
+    let failed = false;
+    for (const name of names) {
+      const ok = await saveRegionName(name);
+      if (!ok) failed = true;
+    }
+    setRegionSaving(false);
+    if (!failed) {
       setSelectedCity("");
       setSelectedDistrict("");
+      setSelectedWards(new Set());
     }
-  }
-
-  async function handleAddCustomRegion() {
-    const ok = await saveRegionName(customInput);
-    if (ok) setCustomInput("");
   }
 
   async function handleRemoveRegion(id: string) {
@@ -115,12 +141,12 @@ export function LoanPolicyTab() {
   }
 
   return (
-    <div className="p-6 space-y-8 max-w-3xl">
+    <div className="p-6 space-y-8 max-w-4xl">
       <div>
         <h2 className="text-lg font-bold text-foreground">규제지역 목록</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          검색 필터와 동일한 지역 목록에서 시/도와 구/군을 선택해 규제지역을 등록합니다.
-          등록된 지역에 해당하는 물건은 자동으로 규제지역으로 분류됩니다.
+          검색 필터와 동일한 지역 목록에서 시/도, 구/군, 읍/면/동을 선택해 규제지역을
+          등록합니다. 등록된 지역에 해당하는 물건은 자동으로 규제지역으로 분류됩니다.
         </p>
 
         {regionMessage && (
@@ -135,6 +161,7 @@ export function LoanPolicyTab() {
             onChange={(e) => {
               setSelectedCity(e.target.value);
               setSelectedDistrict("");
+              setSelectedWards(new Set());
             }}
             className="px-3 py-2 text-sm border border-border rounded-sm bg-card"
           >
@@ -147,7 +174,10 @@ export function LoanPolicyTab() {
           </select>
           <select
             value={selectedDistrict}
-            onChange={(e) => setSelectedDistrict(e.target.value)}
+            onChange={(e) => {
+              setSelectedDistrict(e.target.value);
+              setSelectedWards(new Set());
+            }}
             disabled={!selectedCity}
             className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-card disabled:opacity-50"
           >
@@ -166,36 +196,41 @@ export function LoanPolicyTab() {
             disabled={regionSaving || !selectedCity}
             className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 shrink-0"
           >
-            추가
+            {regionSaving ? "추가 중..." : "추가"}
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1.5">
-          구/군을 선택하지 않으면 해당 시/도 전체가 규제지역으로 등록됩니다.
-        </p>
 
-        <div className="flex items-center gap-2 mt-3">
-          <input
-            type="text"
-            placeholder="목록에 없는 동/지역명 직접 입력(예: 동탄)"
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleAddCustomRegion();
-            }}
-            className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-card"
-          />
-          <button
-            type="button"
-            onClick={() => void handleAddCustomRegion()}
-            disabled={regionSaving || !customInput.trim()}
-            className="px-4 py-2 text-sm font-semibold rounded-sm border border-border bg-card hover:bg-secondary/40 disabled:opacity-50 shrink-0"
-          >
-            추가
-          </button>
-        </div>
+        {selectedDistrict && (
+          <div className="mt-3 border border-border rounded-sm p-3">
+            <p className="text-xs text-muted-foreground mb-2">
+              {wardsLoading
+                ? "읍/면/동 목록 불러오는 중..."
+                : wardOptions.length === 0
+                  ? "읍/면/동 세부 목록이 없습니다."
+                  : `읍/면/동을 체크하면 체크된 곳만, 아무것도 체크하지 않으면 ${selectedDistrict} 전체가 등록됩니다.`}
+            </p>
+            {wardOptions.length > 0 && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 max-h-40 overflow-y-auto">
+                {wardOptions.map((ward) => (
+                  <label
+                    key={ward}
+                    className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedWards.has(ward)}
+                      onChange={() => toggleWard(ward)}
+                    />
+                    {ward}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <p className="text-xs text-muted-foreground mt-1.5">
-          동탄처럼 구/군 목록에 없는 세부 지역명은 여기에 직접 입력해 등록하세요. 입력한
-          텍스트가 물건 주소에 포함되면 규제지역으로 판정됩니다.
+          구/군을 선택하지 않으면 시/도 전체가, 읍/면/동을 하나도 체크하지 않으면 선택한
+          구/군 전체가 규제지역으로 등록됩니다.
         </p>
 
         {regionsLoading ? (
@@ -242,72 +277,91 @@ export function LoanPolicyTab() {
         </div>
       )}
 
-      <div className="border border-border rounded-sm divide-y divide-border">
-        {policies.map((policy) => (
-          <div key={policy.id} className="flex items-center justify-between gap-4 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                {policy.label}
-                {policy.regulatedArea && (
-                  <span className="inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border bg-red-50 text-red-700 border-red-200">
-                    규제지역
-                  </span>
+      <div className="border border-border rounded-sm overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-border bg-secondary/30 text-left">
+              <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">정책</th>
+              <th className="px-3 py-2.5 font-semibold text-foreground text-right whitespace-nowrap w-28">
+                감정가 비율
+              </th>
+              <th className="px-3 py-2.5 font-semibold text-foreground text-right whitespace-nowrap w-28">
+                낙찰가 비율
+              </th>
+              <th className="px-4 py-2.5 w-20" />
+            </tr>
+          </thead>
+          <tbody>
+            {policies.map((policy) => (
+              <tr key={policy.id} className="border-b border-border last:border-b-0">
+                <td className="px-4 py-3 align-middle">
+                  <p className="text-sm font-semibold text-foreground flex items-center gap-1.5 whitespace-nowrap">
+                    {policy.label}
+                    {policy.regulatedArea && (
+                      <span className="inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border bg-red-50 text-red-700 border-red-200 shrink-0">
+                        규제지역
+                      </span>
+                    )}
+                    {policy.businessLoanOnly && (
+                      <span className="inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border bg-amber-50 text-amber-700 border-amber-200 shrink-0">
+                        사업자대출만 · 단타만 가능
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {policy.loanUnavailable
+                      ? "대출 불가 (비율 지정 불가)"
+                      : "min(감정가비율, 낙찰가비율) 중 낮은 쪽이 최종 적용"}
+                  </p>
+                </td>
+                {policy.loanUnavailable ? (
+                  <td colSpan={3} className="px-4 py-3 text-right align-middle">
+                    <span className="text-sm text-destructive font-semibold">대출 불가</span>
+                  </td>
+                ) : (
+                  <>
+                    <td className="px-3 py-3 align-middle">
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={Math.round(policy.appraisalRatio * 100)}
+                          onChange={(e) => patchLocal(policy.id, "appraisalRatio", e.target.value)}
+                          className="w-16 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
+                        />
+                        <span className="text-sm text-muted-foreground">%</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 align-middle">
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={Math.round(policy.loanRatio * 100)}
+                          onChange={(e) => patchLocal(policy.id, "loanRatio", e.target.value)}
+                          className="w-16 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
+                        />
+                        <span className="text-sm text-muted-foreground">%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 align-middle">
+                      <button
+                        type="button"
+                        onClick={() => void handleSave(policy)}
+                        disabled={savingId === policy.id}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {savingId === policy.id ? "저장 중..." : "저장"}
+                      </button>
+                    </td>
+                  </>
                 )}
-                {policy.businessLoanOnly && (
-                  <span className="inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded-sm border bg-amber-50 text-amber-700 border-amber-200">
-                    사업자대출만 · 단타만 가능
-                  </span>
-                )}
-              </p>
-              {policy.loanUnavailable ? (
-                <p className="text-xs text-muted-foreground mt-0.5">대출 불가 (비율 지정 불가)</p>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  min(감정가비율, 낙찰가비율) 중 낮은 쪽이 최종 적용
-                </p>
-              )}
-            </div>
-
-            {policy.loanUnavailable ? (
-              <span className="text-sm text-destructive font-semibold">대출 불가</span>
-            ) : (
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground w-14">감정가</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={Math.round(policy.appraisalRatio * 100)}
-                    onChange={(e) => patchLocal(policy.id, "appraisalRatio", e.target.value)}
-                    className="w-16 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground w-14">낙찰가</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={Math.round(policy.loanRatio * 100)}
-                    onChange={(e) => patchLocal(policy.id, "loanRatio", e.target.value)}
-                    className="w-16 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void handleSave(policy)}
-                  disabled={savingId === policy.id}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-                >
-                  {savingId === policy.id ? "저장 중..." : "저장"}
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
