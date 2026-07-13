@@ -10,6 +10,12 @@ import {
   type LoanPolicy,
   type RegulatedRegion,
 } from "@/lib/api";
+import { CITIES, getDistricts } from "@/data/korea-regions";
+
+/** 검색 필터와 동일한 시/도 표시명(마지막 "특별시/광역시/도" 등 접미어 제거) */
+function shortCityLabel(city: string): string {
+  return city.replace(/(특별자치시|특별자치도|특별시|광역시|자치도|도)$/u, "");
+}
 
 export function LoanPolicyTab() {
   const [policies, setPolicies] = useState<LoanPolicy[]>([]);
@@ -19,9 +25,11 @@ export function LoanPolicyTab() {
 
   const [regions, setRegions] = useState<RegulatedRegion[]>([]);
   const [regionsLoading, setRegionsLoading] = useState(true);
-  const [regionInput, setRegionInput] = useState("");
   const [regionSaving, setRegionSaving] = useState(false);
   const [regionMessage, setRegionMessage] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState("");
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const districtOptions = selectedCity ? getDistricts(selectedCity) : [];
 
   useEffect(() => {
     fetchLoanPolicies()
@@ -33,7 +41,8 @@ export function LoanPolicyTab() {
   }, []);
 
   async function handleAddRegion() {
-    const name = regionInput.trim();
+    // 구/군을 선택하면 그 구/군만, 선택하지 않으면 시/도 전체를 규제지역으로 등록.
+    const name = selectedDistrict || shortCityLabel(selectedCity);
     if (!name) return;
     setRegionSaving(true);
     setRegionMessage(null);
@@ -44,7 +53,8 @@ export function LoanPolicyTab() {
           ? prev
           : [...prev, added].sort((a, b) => a.name.localeCompare(b.name, "ko")),
       );
-      setRegionInput("");
+      setSelectedCity("");
+      setSelectedDistrict("");
     } catch (err) {
       setRegionMessage(err instanceof Error ? err.message : "규제지역 추가에 실패했습니다.");
     } finally {
@@ -95,9 +105,8 @@ export function LoanPolicyTab() {
       <div>
         <h2 className="text-lg font-bold text-foreground">규제지역 목록</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          여기 등록한 구/시 이름이 물건 주소(시/구)에 포함되면 해당 물건은 자동으로
-          규제지역으로 분류됩니다. 예: &quot;기흥구&quot;를 등록하면 주소에 기흥구가
-          포함된 모든 물건이 규제지역으로 적용됩니다.
+          검색 필터와 동일한 지역 목록에서 시/도와 구/군을 선택해 규제지역을 등록합니다.
+          등록된 지역에 해당하는 물건은 자동으로 규제지역으로 분류됩니다.
         </p>
 
         {regionMessage && (
@@ -107,25 +116,48 @@ export function LoanPolicyTab() {
         )}
 
         <div className="flex items-center gap-2 mt-3">
-          <input
-            type="text"
-            placeholder="예: 기흥구, 서울시"
-            value={regionInput}
-            onChange={(e) => setRegionInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleAddRegion();
+          <select
+            value={selectedCity}
+            onChange={(e) => {
+              setSelectedCity(e.target.value);
+              setSelectedDistrict("");
             }}
-            className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-card"
-          />
+            className="px-3 py-2 text-sm border border-border rounded-sm bg-card"
+          >
+            <option value="">시/도 선택</option>
+            {CITIES.map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </select>
+          <select
+            value={selectedDistrict}
+            onChange={(e) => setSelectedDistrict(e.target.value)}
+            disabled={!selectedCity}
+            className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-card disabled:opacity-50"
+          >
+            <option value="">
+              {selectedCity ? `${shortCityLabel(selectedCity)} 전체(구/군 미선택)` : "구/군 선택"}
+            </option>
+            {districtOptions.map((district) => (
+              <option key={district} value={district}>
+                {district}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => void handleAddRegion()}
-            disabled={regionSaving || !regionInput.trim()}
-            className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+            disabled={regionSaving || !selectedCity}
+            className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 shrink-0"
           >
             추가
           </button>
         </div>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          구/군을 선택하지 않으면 해당 시/도 전체가 규제지역으로 등록됩니다.
+        </p>
 
         {regionsLoading ? (
           <p className="text-sm text-muted-foreground mt-3">불러오는 중...</p>
