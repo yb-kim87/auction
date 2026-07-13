@@ -2617,6 +2617,7 @@ export function KakaoNotifyPanel() {
   const [group, setGroup] = useState("");
   const [joinedFrom, setJoinedFrom] = useState("");
   const [joinedTo, setJoinedTo] = useState("");
+  const [duplicateOnly, setDuplicateOnly] = useState(false);
   const [groupLabels, setGroupLabels] = useState<string[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -2670,6 +2671,7 @@ export function KakaoNotifyPanel() {
         group: group || undefined,
         joinedFrom: joinedFrom || undefined,
         joinedTo: joinedTo || undefined,
+        duplicateOnly: duplicateOnly || undefined,
         page,
         pageSize,
       });
@@ -2681,7 +2683,7 @@ export function KakaoNotifyPanel() {
     } finally {
       setLoading(false);
     }
-  }, [source, status, search, group, joinedFrom, joinedTo, page]);
+  }, [source, status, search, group, joinedFrom, joinedTo, duplicateOnly, page]);
 
   useEffect(() => {
     void load();
@@ -2729,6 +2731,7 @@ export function KakaoNotifyPanel() {
         group: group || undefined,
         joinedFrom: joinedFrom || undefined,
         joinedTo: joinedTo || undefined,
+        duplicateOnly: duplicateOnly || undefined,
       });
       setCheckedIds(new Set(ids));
     } catch (err) {
@@ -2942,6 +2945,17 @@ export function KakaoNotifyPanel() {
               </button>
             )}
           </div>
+          <label className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={duplicateOnly}
+              onChange={(e) => {
+                setPage(1);
+                setDuplicateOnly(e.target.checked);
+              }}
+            />
+            중복만 보기
+          </label>
           <span className="text-xs text-muted-foreground">총 {total}건</span>
           {total > 0 && checkedIds.size < total && (
             <button

@@ -1571,6 +1571,7 @@ export async function fetchKakaoLeads(params: {
   group?: string;
   joinedFrom?: string;
   joinedTo?: string;
+  duplicateOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<PagedResult<KakaoLead>> {
@@ -1581,6 +1582,7 @@ export async function fetchKakaoLeads(params: {
   if (params.group) query.set("group", params.group);
   if (params.joinedFrom) query.set("joinedFrom", params.joinedFrom);
   if (params.joinedTo) query.set("joinedTo", params.joinedTo);
+  if (params.duplicateOnly) query.set("duplicateOnly", "true");
   query.set("page", String(params.page ?? 1));
   query.set("pageSize", String(params.pageSize ?? 20));
 
@@ -1602,6 +1604,7 @@ export async function fetchKakaoLeadIds(params: {
   group?: string;
   joinedFrom?: string;
   joinedTo?: string;
+  duplicateOnly?: boolean;
 }): Promise<string[]> {
   const query = new URLSearchParams();
   if (params.source) query.set("source", params.source);
@@ -1610,6 +1613,7 @@ export async function fetchKakaoLeadIds(params: {
   if (params.group) query.set("group", params.group);
   if (params.joinedFrom) query.set("joinedFrom", params.joinedFrom);
   if (params.joinedTo) query.set("joinedTo", params.joinedTo);
+  if (params.duplicateOnly) query.set("duplicateOnly", "true");
 
   const res = await fetch(`${API_BASE}/kakao-notify/leads/ids?${query.toString()}`, {
     cache: "no-store",
