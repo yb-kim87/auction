@@ -2627,7 +2627,7 @@ export function KakaoNotifyPanel() {
   const pageSize = 20;
 
   const [colWidths, setColWidths] = useState<number[]>([
-    32, 72, 108, 64, 48, 84, 100, 100, 76, 76, 120,
+    32, 72, 108, 64, 48, 84, 100, 100, 76, 120,
   ]);
   const [adCreativeMap, setAdCreativeMap] = useState<Record<string, KakaoAdCreative>>({});
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
@@ -3014,7 +3014,6 @@ export function KakaoNotifyPanel() {
                     "생년월일",
                     "주소",
                     "유입소재",
-                    "유입캠페인",
                     "상태",
                     "가입시각",
                   ].map((label, i) => (
@@ -3077,6 +3076,11 @@ export function KakaoNotifyPanel() {
                     <td
                       className="px-3 py-2.5 text-muted-foreground relative"
                       onClick={(e) => e.stopPropagation()}
+                      title={
+                        !lead.adName && lead.utmContent
+                          ? `소재ID: ${lead.utmContent} (추정치)`
+                          : undefined
+                      }
                     >
                       {lead.adName ? (
                         <AdCreativeHoverLabel
@@ -3089,16 +3093,7 @@ export function KakaoNotifyPanel() {
                             setAdCreativeMap((prev) => ({ ...prev, [creative.adName]: creative }))
                           }
                         />
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td
-                      className="px-3 py-2.5 text-muted-foreground relative"
-                      onClick={(e) => e.stopPropagation()}
-                      title={lead.utmContent ? `소재ID: ${lead.utmContent} (추정치)` : undefined}
-                    >
-                      {lead.utmContent ? (
+                      ) : lead.utmContent ? (
                         <AdCreativeHoverLabel
                           displayKey={lead.utmContent}
                           displayLabel={adCreativeMap[lead.utmContent]?.label || lead.utmContent}
