@@ -2181,6 +2181,7 @@ export async function setKakaoLeadBulkExclusion(
 export interface KakaoAdCreative {
   id: string;
   adName: string;
+  label: string;
   mediaUrl: string;
   mediaType: "image" | "video";
   createdAt: string;
@@ -2199,6 +2200,7 @@ export async function fetchKakaoAdCreatives(): Promise<KakaoAdCreative[]> {
 
 export async function upsertKakaoAdCreative(input: {
   adName: string;
+  label?: string;
   mediaUrl: string;
   mediaType: "image" | "video";
 }): Promise<KakaoAdCreative> {

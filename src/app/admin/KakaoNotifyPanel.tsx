@@ -91,33 +91,47 @@ function shortenAdName(adName: string): string {
   return match ? match[1] : adName;
 }
 
-/** 목록의 유입소재 셀. 등록된 참고 이미지/영상이 있으면 클릭 시 원본을 새 탭에서 연다. */
+/**
+ * 유입소재/유입 캠페인(소재ID) 공용 라벨 셀. 등록된 참고 이미지·영상이 있으면
+ * 클릭 시 원본을 새 탭에서 연다. displayKey는 KakaoAdCreative 테이블의
+ * 조회/저장 키(adName 컬럼을 범용 키로 재사용)이고, displayLabel은 화면에
+ * 보여줄 텍스트다(둘이 다를 수 있음 — 예: 유입소재는 축약 표시, 소재ID는
+ * 원본 숫자 그대로).
+ */
 function AdCreativeHoverLabel({
-  adName,
+  displayKey,
+  displayLabel,
   creative,
   onRegistered,
+  showNameInput = false,
 }: {
-  adName: string;
+  displayKey: string;
+  displayLabel: string;
   creative: KakaoAdCreative | undefined;
   onRegistered: (creative: KakaoAdCreative) => void;
+  /** true면 등록 폼에 "소재명" 입력란을 함께 보여준다(소재ID처럼 원본
+   *  텍스트만으로는 알아보기 어려운 경우용). */
+  showNameInput?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   if (creative) {
+    const shownLabel = creative.label || displayLabel;
     return (
       <a
         href={creative.mediaUrl}
         target="_blank"
         rel="noreferrer"
-        title={`${adName} — 등록된 ${creative.mediaType === "video" ? "영상" : "이미지"} 열기`}
+        title={`${shownLabel} — 등록된 ${creative.mediaType === "video" ? "영상" : "이미지"} 열기`}
         className="block max-w-full truncate underline decoration-dotted text-primary hover:decoration-solid"
         onClick={(e) => e.stopPropagation()}
       >
-        {shortenAdName(adName)}
+        {shownLabel}
       </a>
     );
   }
@@ -125,11 +139,13 @@ function AdCreativeHoverLabel({
   if (editing) {
     async function handleSave() {
       if (!mediaUrl.trim()) return;
+      if (showNameInput && !label.trim()) return;
       setSaving(true);
       setError("");
       try {
         const saved = await upsertKakaoAdCreative({
-          adName: shortenAdName(adName),
+          adName: displayKey,
+          label: showNameInput ? label.trim() : undefined,
           mediaUrl: mediaUrl.trim(),
           mediaType,
         });
@@ -155,9 +171,22 @@ function AdCreativeHoverLabel({
           <option value="image">이미지</option>
           <option value="video">영상</option>
         </select>
+        {showNameInput && (
+          <input
+            type="text"
+            autoFocus
+            placeholder="소재명(예: 이미지_10)"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setEditing(false);
+            }}
+            className="w-24 px-1 py-0.5 text-[10px] border border-border rounded-sm bg-card"
+          />
+        )}
         <input
           type="text"
-          autoFocus
+          autoFocus={!showNameInput}
           placeholder="이미지/영상 URL"
           value={mediaUrl}
           onChange={(e) => setMediaUrl(e.target.value)}
@@ -190,14 +219,14 @@ function AdCreativeHoverLabel({
   return (
     <button
       type="button"
-      title={`${adName} — 클릭해서 참고 이미지/영상 등록`}
+      title={`${displayLabel} — 클릭해서 참고 이미지/영상 등록`}
       onClick={(e) => {
         e.stopPropagation();
         setEditing(true);
       }}
       className="max-w-full truncate underline decoration-dotted decoration-muted-foreground/50 hover:text-foreground"
     >
-      {shortenAdName(adName)}
+      {displayLabel}
     </button>
   );
 }
@@ -3051,7 +3080,8 @@ export function KakaoNotifyPanel() {
                     >
                       {lead.adName ? (
                         <AdCreativeHoverLabel
-                          adName={lead.adName}
+                          displayKey={shortenAdName(lead.adName)}
+                          displayLabel={shortenAdName(lead.adName)}
                           creative={
                             adCreativeMap[lead.adName] ?? adCreativeMap[shortenAdName(lead.adName)]
                           }
@@ -3064,16 +3094,23 @@ export function KakaoNotifyPanel() {
                       )}
                     </td>
                     <td
-                      className="px-3 py-2.5 text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
-                      title={
-                        lead.utmSource || lead.utmCampaign
-                          ? `${lead.utmSource}${lead.utmCampaign ? " / " + lead.utmCampaign : ""} (추정치)`
-                          : undefined
-                      }
+                      className="px-3 py-2.5 text-muted-foreground relative"
+                      onClick={(e) => e.stopPropagation()}
+                      title={lead.utmContent ? `소재ID: ${lead.utmContent} (추정치)` : undefined}
                     >
-                      {lead.utmSource || lead.utmCampaign
-                        ? [lead.utmSource, lead.utmCampaign].filter(Boolean).join(" / ")
-                        : "-"}
+                      {lead.utmContent ? (
+                        <AdCreativeHoverLabel
+                          displayKey={lead.utmContent}
+                          displayLabel={adCreativeMap[lead.utmContent]?.label || lead.utmContent}
+                          creative={adCreativeMap[lead.utmContent]}
+                          onRegistered={(creative) =>
+                            setAdCreativeMap((prev) => ({ ...prev, [creative.adName]: creative }))
+                          }
+                          showNameInput
+                        />
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span
