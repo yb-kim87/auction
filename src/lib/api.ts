@@ -1521,6 +1521,10 @@ export interface KakaoLead {
   status: KakaoLeadStatus;
   excludedFromBulk: boolean;
   groupLabel: string;
+  /** 랜딩페이지 방문~가입완료 시각 매칭으로 추정한 유입 캠페인 정보(참고용, 아임웹 소스만 해당) */
+  utmSource: string;
+  utmCampaign: string;
+  utmMedium: string;
   createdAt: string;
   updatedAt: string;
   /** 목록 조회(fetchKakaoLeads) 시에만 포함됨: 같은 전화번호의 다른 신청 이력 존재 여부 */

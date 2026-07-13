@@ -449,6 +449,20 @@ function LeadDetailPanel({
                   {lead.adName ? shortenAdName(lead.adName) : "-"}
                 </p>
               </div>
+              {(lead.utmSource || lead.utmCampaign) && (
+                <div>
+                  <p className="text-muted-foreground">
+                    유입 캠페인(추정)
+                    <span title="랜딩페이지 방문~가입완료 시각 매칭 기반 추정치로, 100% 정확하지 않을 수 있습니다.">
+                      {" "}
+                      ⓘ
+                    </span>
+                  </p>
+                  <p className="font-medium text-foreground truncate">
+                    {[lead.utmSource, lead.utmCampaign].filter(Boolean).join(" / ") || "-"}
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-muted-foreground">가입시각</p>
                 <p className="font-medium text-foreground">{formatDate(lead.joinedAt)}</p>
