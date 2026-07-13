@@ -56,6 +56,14 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
   },
 ];
 
+/** 물건의 city/district 중 하나라도 등록된 규제지역명을 포함하면 규제지역으로 판정 */
+export function isRegulatedArea(city: string, district: string, regionNames: string[]): boolean {
+  if (regionNames.length === 0) return false;
+  return regionNames.some(
+    (name) => (city && city.includes(name)) || (district && district.includes(name)),
+  );
+}
+
 /** 회원정보(주택수·생애최초 여부)와 물건의 규제지역 여부로 적용할 대출 정책을 선택 */
 export function selectLoanPolicy(
   criteria: { housingCount: number; firstTimeBuyer: boolean },
@@ -167,9 +175,11 @@ export function matchesInvestmentRecommend(
   investableWon: number,
   criteria: { housingCount: number; firstTimeBuyer: boolean },
   policies: LoanPolicy[],
+  regionNames: string[],
 ): boolean {
   if (!item.minPrice || item.minPrice <= 0) return false;
-  const policy = selectLoanPolicy(criteria, item.regulatedArea, policies);
+  const regulated = isRegulatedArea(item.city, item.district, regionNames);
+  const policy = selectLoanPolicy(criteria, regulated, policies);
   if (policy.loanUnavailable) return false;
   return requiredEquityForItem(item.minPrice, item.appraisedValue, policy) <= investableWon;
 }

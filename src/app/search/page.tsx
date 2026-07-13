@@ -22,11 +22,12 @@ import {
   progressLabelToStatus,
 } from "@/lib/progress-status-filter";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
-import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, logUserAction, logUserActionsBatch, type LoanPolicy } from "@/lib/api";
+import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, fetchRegulatedRegions, logUserAction, logUserActionsBatch, type LoanPolicy } from "@/lib/api";
 import {
   matchesInvestmentRecommend,
   requiredEquityForItem,
   selectLoanPolicy,
+  isRegulatedArea,
   DEFAULT_LOAN_POLICIES,
   type InvestmentCriteria,
 } from "@/lib/investment-criteria";
@@ -157,6 +158,7 @@ const buildColumns = (
   isAdmin: boolean,
   recommendCriteria: InvestmentCriteria | null,
   loanPolicies: LoanPolicy[],
+  regulatedRegionNames: string[],
 ): ColDef[] => [
   { key: "memo", label: "메모", defaultWidth: 80, sticky: true, render: (r) => r.memo ? <span className="text-amber-600"><StickyNote size={16} className="inline mr-1" />{r.memo}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "usage", label: "용도", defaultWidth: 96, render: (r) => <span className="whitespace-nowrap">{r.usage}</span> },
@@ -196,7 +198,8 @@ const buildColumns = (
           defaultWidth: 168,
           render: (r: AuctionItem) => {
             if (!r.minPrice || r.minPrice <= 0) return <span className="text-muted-foreground/40">-</span>;
-            const policy = selectLoanPolicy(recommendCriteria, r.regulatedArea, loanPolicies);
+            const regulated = isRegulatedArea(r.city, r.district, regulatedRegionNames);
+            const policy = selectLoanPolicy(recommendCriteria, regulated, loanPolicies);
             if (policy.loanUnavailable) {
               return <span className="text-xs text-destructive font-semibold">대출 불가({policy.label})</span>;
             }
@@ -500,16 +503,22 @@ function AuctionMobileCard({
   onClick,
   recommendCriteria,
   loanPolicies,
+  regulatedRegionNames,
 }: {
   item: AuctionItem;
   onClick: () => void;
   recommendCriteria: InvestmentCriteria | null;
   loanPolicies: LoanPolicy[];
+  regulatedRegionNames: string[];
 }) {
   const rate = fmtFailureRate(item.minPrice, item.appraisedValue);
   const recommendPolicy =
     recommendCriteria && item.minPrice
-      ? selectLoanPolicy(recommendCriteria, item.regulatedArea, loanPolicies)
+      ? selectLoanPolicy(
+          recommendCriteria,
+          isRegulatedArea(item.city, item.district, regulatedRegionNames),
+          loanPolicies,
+        )
       : null;
   const equity =
     recommendPolicy && !recommendPolicy.loanUnavailable && item.minPrice
@@ -578,19 +587,21 @@ function AuctionTable({
   onRowClick,
   recommendCriteria,
   loanPolicies,
+  regulatedRegionNames,
 }: {
   data: AuctionItem[];
   isAdmin: boolean;
   onRowClick: (item: AuctionItem) => void;
   recommendCriteria: InvestmentCriteria | null;
   loanPolicies: LoanPolicy[];
+  regulatedRegionNames: string[];
 }) {
   const columns = useMemo(
-    () => buildColumns(isAdmin, recommendCriteria, loanPolicies),
-    [isAdmin, recommendCriteria, loanPolicies],
+    () => buildColumns(isAdmin, recommendCriteria, loanPolicies, regulatedRegionNames),
+    [isAdmin, recommendCriteria, loanPolicies, regulatedRegionNames],
   );
   const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(buildColumns(false, null, []).map((c) => [c.key, c.defaultWidth]))
+    Object.fromEntries(buildColumns(false, null, [], []).map((c) => [c.key, c.defaultWidth]))
   );
 
   useEffect(() => {
@@ -758,12 +769,18 @@ export default function Home() {
   const [appliedCriteria, setAppliedCriteria] = useState<InvestmentCriteria | null>(null);
   const [appliedInvestableWon, setAppliedInvestableWon] = useState<number | null>(null);
   const [loanPolicies, setLoanPolicies] = useState<LoanPolicy[]>(DEFAULT_LOAN_POLICIES);
+  const [regulatedRegionNames, setRegulatedRegionNames] = useState<string[]>([]);
 
   useEffect(() => {
     fetchLoanPolicies()
       .then(setLoanPolicies)
       .catch(() => {
         // 정책 API 실패 시 기본값 유지
+      });
+    fetchRegulatedRegions()
+      .then((regions) => setRegulatedRegionNames(regions.map((r) => r.name)))
+      .catch(() => {
+        // 규제지역 API 실패 시 빈 목록(전부 비규제로 처리) 유지
       });
   }, []);
 
@@ -983,9 +1000,22 @@ export default function Home() {
   const recommendMatches = useMemo(() => {
     if (!recommendEnabled || appliedInvestableWon == null || !appliedCriteria) return filtered;
     return filtered.filter((item) =>
-      matchesInvestmentRecommend(item, appliedInvestableWon, appliedCriteria, loanPolicies),
+      matchesInvestmentRecommend(
+        item,
+        appliedInvestableWon,
+        appliedCriteria,
+        loanPolicies,
+        regulatedRegionNames,
+      ),
     );
-  }, [filtered, recommendEnabled, appliedInvestableWon, appliedCriteria, loanPolicies]);
+  }, [
+    filtered,
+    recommendEnabled,
+    appliedInvestableWon,
+    appliedCriteria,
+    loanPolicies,
+    regulatedRegionNames,
+  ]);
 
   const displayItems = recommendEnabled ? recommendMatches : filtered;
 
@@ -1296,6 +1326,7 @@ export default function Home() {
                 onRowClick={handleRowSelect}
                 recommendCriteria={recommendEnabled ? appliedCriteria : null}
                 loanPolicies={loanPolicies}
+                regulatedRegionNames={regulatedRegionNames}
               />
             </div>
             <div className="md:hidden space-y-2.5">
@@ -1311,6 +1342,7 @@ export default function Home() {
                     onClick={() => handleRowSelect(item)}
                     recommendCriteria={recommendEnabled ? appliedCriteria : null}
                     loanPolicies={loanPolicies}
+                    regulatedRegionNames={regulatedRegionNames}
                   />
                 ))
               )}

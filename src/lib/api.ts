@@ -582,6 +582,47 @@ export async function updateLoanPolicy(
   return readJsonResponse(res);
 }
 
+export type RegulatedRegion = {
+  id: string;
+  name: string;
+  createdAt: string;
+};
+
+export async function fetchRegulatedRegions(): Promise<RegulatedRegion[]> {
+  const res = await fetch(`${API_BASE}/regulated-regions`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "규제지역 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function addRegulatedRegion(name: string): Promise<RegulatedRegion> {
+  const res = await fetch(`${API_BASE}/regulated-regions`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "규제지역 추가에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function removeRegulatedRegion(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/regulated-regions/${id}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "규제지역 삭제에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export type AiPlatformEngineType = "normalizer" | "feature" | "tag";
 export type AiPlatformActionType = "auto_generate" | "manual_update" | "regenerate";
 
