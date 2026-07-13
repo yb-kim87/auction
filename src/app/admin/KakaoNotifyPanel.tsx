@@ -461,7 +461,7 @@ function LeadDetailPanel({
                     </span>
                   </p>
                   <p className="font-medium text-foreground truncate">
-                    {[lead.utmSource, lead.utmCampaign].filter(Boolean).join(" / ") || "-"}
+                    {[lead.utmSource, lead.utmCampaign, lead.utmContent].filter(Boolean).join(" / ") || "-"}
                   </p>
                 </div>
               )}

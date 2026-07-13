@@ -1525,6 +1525,7 @@ export interface KakaoLead {
   utmSource: string;
   utmCampaign: string;
   utmMedium: string;
+  utmContent: string;
   /** 가입완료 페이지의 "카톡방 참여하기" 버튼 클릭 시각(클릭 여부만 확인 가능, 실제 입장 여부는 확인 불가) */
   kakaoRoomClickedAt: string | null;
   createdAt: string;
