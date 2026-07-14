@@ -84,6 +84,14 @@ function shortLoanPolicyLabel(label: string): string {
   return withoutGeneral.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
 }
 
+/** 무주택(0채) 케이스의 카드 표시용 라벨. 규제지역은 정책상 생애최초 여부를
+ *  구분하지 않지만, 화면 표시는 회원의 실제 생애최초 체크 여부를 따른다. */
+function housingLoanLabel(loanInfo: LoanInfo | undefined, firstTimeBuyer: boolean): string {
+  const label = loanInfo?.loanPolicyLabel ?? "";
+  if (/1주택/.test(label)) return shortLoanPolicyLabel(label);
+  return firstTimeBuyer ? "무주택생애최초" : "무주택";
+}
+
 /** 물건의 최종 대출금액(낙찰가 - 필요자기자금). 감정가·낙찰가·소득 기준 중
  *  가장 낮은 값이 이미 반영된 결과다. */
 function finalLoanAmount(item: AuctionItem, loanInfo: LoanInfo | undefined): number | null {
@@ -470,6 +478,7 @@ function InvestmentInfoModal({
 function RecommendCard({
   item,
   loanInfo,
+  firstTimeBuyer,
   isFavorite,
   favoriteBusy,
   onToggleFavorite,
@@ -477,6 +486,7 @@ function RecommendCard({
 }: {
   item: AuctionItem;
   loanInfo: LoanInfo | undefined;
+  firstTimeBuyer: boolean;
   isFavorite: boolean;
   favoriteBusy: boolean;
   onToggleFavorite: () => void;
@@ -484,7 +494,7 @@ function RecommendCard({
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
   const loanAmount = finalLoanAmount(item, loanInfo);
-  const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
+  const loanPolicyLabel = loanInfo ? housingLoanLabel(loanInfo, firstTimeBuyer) : null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
@@ -581,7 +591,7 @@ function RecommendCard({
             </p>
             {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
               <p className="text-[0.67rem] text-primary/50 mt-0.5">
-                {shortLoanPolicyLabel(loanPolicyLabel)} · 예상대출 {formatWonShort(loanAmount)}
+                {loanPolicyLabel} · 예상대출 {formatWonShort(loanAmount)}
               </p>
             )}
           </div>
@@ -626,6 +636,7 @@ function RecommendCard({
 function RecommendListRow({
   item,
   loanInfo,
+  firstTimeBuyer,
   isFavorite,
   favoriteBusy,
   onToggleFavorite,
@@ -633,6 +644,7 @@ function RecommendListRow({
 }: {
   item: AuctionItem;
   loanInfo: LoanInfo | undefined;
+  firstTimeBuyer: boolean;
   isFavorite: boolean;
   favoriteBusy: boolean;
   onToggleFavorite: () => void;
@@ -640,7 +652,7 @@ function RecommendListRow({
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
   const loanAmount = finalLoanAmount(item, loanInfo);
-  const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
+  const loanPolicyLabel = loanInfo ? housingLoanLabel(loanInfo, firstTimeBuyer) : null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
@@ -726,7 +738,7 @@ function RecommendListRow({
 
           {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
             <div className="text-right flex-shrink-0 hidden lg:block">
-              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{shortLoanPolicyLabel(loanPolicyLabel)} 예상대출</p>
+              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{loanPolicyLabel} 예상대출</p>
               <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
                 {formatWonShort(loanAmount)}
               </p>
@@ -1160,6 +1172,7 @@ export default function HomePage() {
                 key={item.id}
                 item={item}
                 loanInfo={loanInfoByItemId[item.id]}
+                firstTimeBuyer={profile?.firstTimeBuyer ?? false}
                 isFavorite={favoriteIds.has(item.id)}
                 favoriteBusy={favoriteBusyId === item.id}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
@@ -1177,6 +1190,7 @@ export default function HomePage() {
                 key={item.id}
                 item={item}
                 loanInfo={loanInfoByItemId[item.id]}
+                firstTimeBuyer={profile?.firstTimeBuyer ?? false}
                 isFavorite={favoriteIds.has(item.id)}
                 favoriteBusy={favoriteBusyId === item.id}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
