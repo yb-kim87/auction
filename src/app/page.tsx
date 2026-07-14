@@ -32,6 +32,7 @@ import {
 } from "@/data/investment-options";
 import { formatWonShort } from "@/lib/investment-money";
 import { housingLoanLabel } from "@/lib/loan-policy-label";
+import { estimateDefaultProfit } from "@/lib/profit-calculator";
 
 type LoanInfo = {
   loanRatio: number;
@@ -488,6 +489,15 @@ function RecommendCard({
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
+  const estimatedProfit = loanInfo
+    ? estimateDefaultProfit({
+        minPrice: item.minPrice,
+        appraisedValue: item.appraisedValue,
+        area: item.area,
+        loanRatioByAppraisal: loanInfo.appraisalRatio,
+        loanRatioByBidPrice: loanInfo.loanRatio,
+      }).finalProfit
+    : null;
 
   const isApartment = item.usage === "아파트";
 
@@ -550,37 +560,53 @@ function RecommendCard({
 
         {requiredEquity != null && (
           <div
-            className="mx-4 mt-3 px-3.5 py-3"
+            className="mx-4 mt-3 px-3.5 py-3 flex items-stretch gap-3"
             style={{
               background: "linear-gradient(135deg, #EEF4FF 0%, #F0F5FF 100%)",
               border: "1px solid rgba(42,82,152,0.15)",
               borderRadius: "0.75rem",
             }}
           >
-            <div className="flex items-center gap-1.5">
-              <p className="text-[0.7rem] font-semibold text-primary/70 tracking-wide uppercase">최소 투자금</p>
-              {loanInfo && (
-                <span
-                  className={`shrink-0 px-1.5 py-0.5 rounded text-[0.6rem] font-semibold ${
-                    loanInfo.regulatedArea
-                      ? "bg-red-50 text-red-600"
-                      : "bg-emerald-50 text-emerald-600"
-                  }`}
-                >
-                  {loanInfo.regulatedArea ? "규제지역" : "비규제지역"}
-                </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[0.7rem] font-semibold text-primary/70 tracking-wide uppercase">최소 투자금</p>
+                {loanInfo && (
+                  <span
+                    className={`shrink-0 px-1.5 py-0.5 rounded text-[0.6rem] font-semibold ${
+                      loanInfo.regulatedArea
+                        ? "bg-red-50 text-red-600"
+                        : "bg-emerald-50 text-emerald-600"
+                    }`}
+                  >
+                    {loanInfo.regulatedArea ? "규제지역" : "비규제지역"}
+                  </span>
+                )}
+              </div>
+              <p
+                className="text-[1.2rem] font-bold text-primary tracking-tight mt-0.5"
+                style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}
+              >
+                {formatWonShort(requiredEquity)}
+              </p>
+              {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
+                <p className="text-[0.67rem] text-primary/50 mt-0.5">
+                  {loanPolicyLabel} · 예상대출 {formatWonShort(loanAmount)}
+                </p>
               )}
             </div>
-            <p
-              className="text-[1.2rem] font-bold text-primary tracking-tight mt-0.5"
-              style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}
-            >
-              {formatWonShort(requiredEquity)}
-            </p>
-            {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
-              <p className="text-[0.67rem] text-primary/50 mt-0.5">
-                {loanPolicyLabel} · 예상대출 {formatWonShort(loanAmount)}
-              </p>
+            {estimatedProfit != null && (
+              <div className="flex-1 min-w-0 pl-3 border-l border-primary/10">
+                <p className="text-[0.7rem] font-semibold text-primary/70 tracking-wide uppercase">추정 수익</p>
+                <p
+                  className={`text-[1.2rem] font-bold tracking-tight mt-0.5 ${
+                    estimatedProfit >= 0 ? "text-blue-600" : "text-red-500"
+                  }`}
+                  style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}
+                >
+                  {formatWonShort(estimatedProfit)}
+                </p>
+                <p className="text-[0.67rem] text-primary/50 mt-0.5">수익계산기 기본값 기준</p>
+              </div>
             )}
           </div>
         )}

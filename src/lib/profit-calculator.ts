@@ -170,3 +170,38 @@ export function isOver85Sqm(area: string | null | undefined): boolean {
   const num = Number.parseFloat(String(area ?? "").match(/[\d.]+/)?.[0] ?? "");
   return Number.isFinite(num) && num > 85;
 }
+
+/**
+ * ProfitCalculatorPanel의 초기 입력값(낙찰가=최저가, 매도가=감정가, 보유4개월,
+ * 인테리어200만·명도비200만·미납관리비100만, 부가세=매도가×10%×50% 등)을 그대로 재현해
+ * "추정 수익"(카드에 노출되는 요약값)을 계산한다. 대출비율은 이 물건에 적용된 대출정책
+ * 값을 그대로 사용한다.
+ */
+export function estimateDefaultProfit(params: {
+  minPrice: number;
+  appraisedValue: number;
+  area: string | null | undefined;
+  loanRatioByAppraisal: number;
+  loanRatioByBidPrice: number;
+}): ProfitCalculatorResult {
+  const { minPrice, appraisedValue, area, loanRatioByAppraisal, loanRatioByBidPrice } = params;
+  const over85 = isOver85Sqm(area);
+  return calculateProfit({
+    minPrice,
+    appraisedValue,
+    bidPrice: minPrice,
+    salePrice: appraisedValue,
+    holdingMonths: 4,
+    loanRatioByAppraisal,
+    loanRatioByBidPrice: Math.min(loanRatioByBidPrice, 1),
+    loanInterestRate: 0.045,
+    earlyRepaymentFeeRate: 0,
+    interiorCost: 2_000_000,
+    evictionCost: 2_000_000,
+    unpaidMaintenanceFee: 1_000_000,
+    extraRealtyFee: 0,
+    isOver85sqm: over85,
+    vatAmount: over85 ? Math.round(appraisedValue * 0.1 * 0.5) : 0,
+    applyProgressiveDeduction: true,
+  });
+}
