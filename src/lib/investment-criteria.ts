@@ -16,7 +16,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
   },
   {
     id: "regulated_no_house",
-    label: "규제지역 · 무주택 일반",
+    label: "규제지역 · 무주택",
     loanRatio: 10,
     appraisalRatio: 0.4,
     regulatedArea: true,
@@ -46,7 +46,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
   },
   {
     id: "unregulated_no_house",
-    label: "비규제지역 · 무주택 일반",
+    label: "비규제지역 · 무주택",
     loanRatio: 0.8,
     appraisalRatio: 0.7,
     regulatedArea: false,
