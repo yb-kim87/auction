@@ -1,4 +1,5 @@
 import { getLawdBySido, getSidoList } from "cronozen-region-codes/lawd";
+import { LEGAL_DONG_OVERRIDES } from "./legal-dong-overrides";
 
 /** cronozen LAWD short name → official full name */
 const SIDO_SHORT_TO_FULL: Record<string, string> = {
@@ -80,6 +81,12 @@ export async function getWards(city: string, district: string): Promise<string[]
     if (!dong.isActive || seen.has(dong.umd)) continue;
     seen.add(dong.umd);
     wards.push(dong.umd);
+  }
+
+  // 패키지 자체에 데이터가 비어있는 일부 시/군/구(최근 행정구역 개편 등)는
+  // 수동 보완 목록으로 대체한다.
+  if (wards.length === 0 && LEGAL_DONG_OVERRIDES[district]) {
+    return [...LEGAL_DONG_OVERRIDES[district]].sort((a, b) => a.localeCompare(b, "ko"));
   }
 
   return wards.sort((a, b) => a.localeCompare(b, "ko"));
