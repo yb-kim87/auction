@@ -1447,6 +1447,9 @@ export function AuctionDetailModal({
   incomeLoanLimit = null,
   existingLoanWon = null,
   firstTimeBuyer = false,
+  housingCount = null,
+  annualNetIncome = null,
+  creditScore = null,
   isAdmin = false,
   aiAnalysisLimit,
   aiAnalysisUsed,
@@ -1472,6 +1475,9 @@ export function AuctionDetailModal({
   incomeLoanLimit?: number | null;
   existingLoanWon?: number | null;
   firstTimeBuyer?: boolean;
+  housingCount?: number | null;
+  annualNetIncome?: string | null;
+  creditScore?: string | null;
   isAdmin?: boolean;
   aiAnalysisLimit?: number;
   aiAnalysisUsed?: number;
@@ -2522,9 +2528,23 @@ export function AuctionDetailModal({
                   {formatWonShort(requiredEquity)}
                 </p>
                 {loanPolicyLabel && (
-                  <p className="text-[0.68rem] text-primary/50">
-                    {housingLoanLabel(loanPolicyLabel, firstTimeBuyer)}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+                    <span className="text-[0.68rem] text-primary/50">
+                      {housingLoanLabel(loanPolicyLabel, firstTimeBuyer)}
+                      {housingCount != null && ` (주택수 ${housingCount})`}
+                    </span>
+                    {annualNetIncome && (
+                      <span className="text-[0.68rem] text-primary/35">· 소득 {annualNetIncome}</span>
+                    )}
+                    {existingLoanWon != null && (
+                      <span className="text-[0.68rem] text-primary/35">
+                        · 기존대출 {existingLoanWon > 0 ? formatWonShort(existingLoanWon) : "0원"}
+                      </span>
+                    )}
+                    {creditScore && (
+                      <span className="text-[0.68rem] text-primary/35">· 신용 {creditScore}</span>
+                    )}
+                  </div>
                 )}
                 {(() => {
                   const byAppraisal =
