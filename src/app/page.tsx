@@ -30,7 +30,7 @@ import {
   CREDIT_SCORE_OPTIONS,
   ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
-import { formatWonShort } from "@/lib/investment-money";
+import { formatWonShort, parseMoneyToWon } from "@/lib/investment-money";
 import { housingLoanLabel } from "@/lib/loan-policy-label";
 import { estimateDefaultProfit } from "@/lib/profit-calculator";
 
@@ -126,13 +126,26 @@ function toApiFilters(
 }
 
 // city/propType/maxFailureRate/progressStatus/search는 이제 서버에서 필터링된
-// 결과로 오므로, 여기서는 즉시 반영이 필요한 favoritesOnly만 클라이언트에서 걸러낸다.
+// 결과로 오므로, 여기서는 즉시 반영이 필요한 favoritesOnly와, 클라이언트에서만 계산
+// 가능한 추정 수익(목표수익 이상 필터)을 걸러낸다.
 function matchesRecommendFilters(
   item: AuctionItem,
   filters: RecommendFilters,
   favoriteIds: Set<string>,
+  loanInfo: LoanInfo | undefined,
+  targetReturnWon: number | null,
 ): boolean {
   if (filters.favoritesOnly && !favoriteIds.has(item.id)) return false;
+  if (targetReturnWon != null && loanInfo) {
+    const estimatedProfit = estimateDefaultProfit({
+      minPrice: item.minPrice,
+      appraisedValue: item.appraisedValue,
+      area: item.area,
+      loanRatioByAppraisal: loanInfo.appraisalRatio,
+      loanRatioByBidPrice: loanInfo.loanRatio,
+    }).finalProfit;
+    if (estimatedProfit < targetReturnWon) return false;
+  }
   return true;
 }
 
@@ -980,8 +993,17 @@ export default function HomePage() {
     }
   }
 
+  const targetReturnWon = profile?.targetReturn ? parseMoneyToWon(profile.targetReturn) : null;
   const filteredItems = sortRecommendItems(
-    items.filter((item) => matchesRecommendFilters(item, filters, favoriteIds)),
+    items.filter((item) =>
+      matchesRecommendFilters(
+        item,
+        filters,
+        favoriteIds,
+        loanInfoByItemId[item.id],
+        targetReturnWon,
+      ),
+    ),
     sortBy,
     loanInfoByItemId,
   );
