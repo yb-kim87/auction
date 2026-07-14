@@ -5,14 +5,24 @@ import type { LoanPolicy } from "@/lib/api";
 /** 정책 API 로드 전 사용하는 기본값 (관리자페이지 초기값과 동일) */
 export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
   {
-    id: "regulated_no_house",
-    label: "규제지역 · 무주택(생애최초 포함)",
+    id: "regulated_first_time",
+    label: "규제지역 · 생애최초",
     loanRatio: 10,
     appraisalRatio: 0.4,
     regulatedArea: true,
     loanUnavailable: false,
     businessLoanOnly: false,
     sortOrder: 0,
+  },
+  {
+    id: "regulated_no_house",
+    label: "규제지역 · 무주택 일반",
+    loanRatio: 10,
+    appraisalRatio: 0.4,
+    regulatedArea: true,
+    loanUnavailable: false,
+    businessLoanOnly: false,
+    sortOrder: 1,
   },
   {
     id: "regulated_owner",
@@ -22,7 +32,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: true,
     loanUnavailable: true,
     businessLoanOnly: false,
-    sortOrder: 1,
+    sortOrder: 2,
   },
   {
     id: "unregulated_first_time",
@@ -32,7 +42,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: false,
     loanUnavailable: false,
     businessLoanOnly: false,
-    sortOrder: 2,
+    sortOrder: 3,
   },
   {
     id: "unregulated_no_house",
@@ -42,7 +52,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: false,
     loanUnavailable: false,
     businessLoanOnly: false,
-    sortOrder: 3,
+    sortOrder: 4,
   },
   {
     id: "unregulated_owner",
@@ -52,7 +62,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: false,
     loanUnavailable: false,
     businessLoanOnly: true,
-    sortOrder: 4,
+    sortOrder: 5,
   },
 ];
 
@@ -73,13 +83,17 @@ export function selectLoanPolicy(
   const byId = (id: string) => policies.find((p) => p.id === id);
   let policy: LoanPolicy | undefined;
   if (regulatedArea) {
-    policy = criteria.housingCount <= 0 ? byId("regulated_no_house") : byId("regulated_owner");
+    if (criteria.housingCount > 0) {
+      policy = byId("regulated_owner");
+    } else {
+      policy = criteria.firstTimeBuyer ? byId("regulated_first_time") : byId("regulated_no_house");
+    }
   } else if (criteria.housingCount <= 0) {
     policy = criteria.firstTimeBuyer ? byId("unregulated_first_time") : byId("unregulated_no_house");
   } else {
     policy = byId("unregulated_owner");
   }
-  return policy ?? DEFAULT_LOAN_POLICIES[3];
+  return policy ?? byId("unregulated_no_house") ?? DEFAULT_LOAN_POLICIES[4];
 }
 
 export interface InvestmentCriteria {

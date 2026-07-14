@@ -6,8 +6,8 @@ export function shortLoanPolicyLabel(label: string): string {
   return withoutGeneral.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
 }
 
-/** 무주택(0채) 케이스의 카드 표시용 라벨. 규제지역은 정책상 생애최초 여부를
- *  구분하지 않지만, 화면 표시는 회원의 실제 생애최초 체크 여부를 따른다. */
+/** 무주택(0채) 케이스의 카드 표시용 라벨. 규제/비규제 모두 회원의 실제
+ *  생애최초 체크 여부에 따라 "무주택" 또는 "무주택생애최초"로 표시한다. */
 export function housingLoanLabel(
   loanPolicyLabel: string | null | undefined,
   firstTimeBuyer: boolean,
