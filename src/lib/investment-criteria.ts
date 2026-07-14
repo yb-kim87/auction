@@ -1,5 +1,5 @@
 import type { AuctionItem, UserProfile } from "@/types/auction";
-import { parseMoneyToWon, formatWonShort } from "@/lib/investment-money";
+import { parseMoneyToWon, parseIncomeToWon, formatWonShort } from "@/lib/investment-money";
 import type { LoanPolicy } from "@/lib/api";
 
 /** 정책 API 로드 전 사용하는 기본값 (관리자페이지 초기값과 동일) */
@@ -168,10 +168,10 @@ export function maxLoanAmount(
   if (!minPrice || minPrice <= 0) return 0;
   const byMinPrice = minPrice * policy.loanRatio;
   const byAppraisal = appraisedValue > 0 ? appraisedValue * policy.appraisalRatio : Infinity;
+  // 0원(소득없음)도 유효한 입력이라 그대로 반영한다. 소득 정보 자체가 없을
+  // 때(undefined/null)만 소득 기준을 적용하지 않는다.
   const byIncome =
-    annualIncomeWon != null && annualIncomeWon > 0
-      ? annualIncomeWon * (incomeLoanMultiplier ?? 7)
-      : Infinity;
+    annualIncomeWon != null ? Math.max(0, annualIncomeWon) * (incomeLoanMultiplier ?? 7) : Infinity;
   return Math.max(0, Math.floor(Math.min(byMinPrice, byAppraisal, byIncome)));
 }
 
@@ -228,7 +228,7 @@ export function matchesInvestmentRecommend(
   const regulated = isRegulatedArea(item.city, item.district, regionNames);
   const policy = selectLoanPolicy(criteria, regulated, policies);
   if (policy.loanUnavailable) return false;
-  const annualIncomeWon = parseMoneyToWon(criteria.annualNetIncome ?? "") ?? undefined;
+  const annualIncomeWon = parseIncomeToWon(criteria.annualNetIncome) ?? undefined;
   const existingLoanWon = parseMoneyToWon(criteria.existingLoanAmount ?? "") ?? 0;
   return (
     requiredEquityForItem(

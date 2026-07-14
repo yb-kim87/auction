@@ -48,6 +48,17 @@ export function parseMoneyToWon(raw: string): number | null {
   return null;
 }
 
+/**
+ * 연소득 전용 파싱. parseMoneyToWon과 달리 "0"(소득없음)을 유효한 값으로
+ * 인정한다 — 소득은 0원이 실제로 "대출 전혀 불가"를 뜻하는 유의미한
+ * 입력이기 때문이다.
+ */
+export function parseIncomeToWon(raw: string | undefined): number | null {
+  const trimmed = raw?.trim();
+  if (trimmed === "0") return 0;
+  return parseMoneyToWon(raw ?? "");
+}
+
 export function formatWonShort(won: number): string {
   const abs = Math.abs(won);
   if (abs >= 100_000_000) {

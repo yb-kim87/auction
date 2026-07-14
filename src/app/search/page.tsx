@@ -32,7 +32,7 @@ import {
   type InvestmentCriteria,
 } from "@/lib/investment-criteria";
 import { InvestmentRecommendPanel } from "@/components/InvestmentRecommendPanel";
-import { parseMoneyToWon } from "@/lib/investment-money";
+import { parseMoneyToWon, parseIncomeToWon } from "@/lib/investment-money";
 import type { UserProfile } from "@/types/auction";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { formatTenantStatusSummary } from "@/lib/tenant-status";
@@ -205,8 +205,7 @@ const buildColumns = (
             if (policy.loanUnavailable) {
               return <span className="text-xs text-destructive font-semibold">대출 불가({policy.label})</span>;
             }
-            const annualIncomeWon =
-              parseMoneyToWon(recommendCriteria.annualNetIncome ?? "") ?? undefined;
+            const annualIncomeWon = parseIncomeToWon(recommendCriteria.annualNetIncome) ?? undefined;
             const existingLoanWon = parseMoneyToWon(recommendCriteria.existingLoanAmount ?? "") ?? 0;
             const equity = requiredEquityForItem(
               r.minPrice,
@@ -535,7 +534,7 @@ function AuctionMobileCard({
         )
       : null;
   const annualIncomeWon = recommendCriteria
-    ? parseMoneyToWon(recommendCriteria.annualNetIncome ?? "") ?? undefined
+    ? parseIncomeToWon(recommendCriteria.annualNetIncome) ?? undefined
     : undefined;
   const existingLoanWon = recommendCriteria
     ? parseMoneyToWon(recommendCriteria.existingLoanAmount ?? "") ?? 0
