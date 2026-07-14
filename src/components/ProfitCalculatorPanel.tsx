@@ -87,7 +87,7 @@ export function ProfitCalculatorPanel({
 }) {
   const [bidPrice, setBidPrice] = useState(item.minPrice);
   const [salePrice, setSalePrice] = useState(item.appraisedValue);
-  const [holdingMonths, setHoldingMonths] = useState(6);
+  const [holdingMonths, setHoldingMonths] = useState(4);
   const [loanRatioByAppraisal, setLoanRatioByAppraisal] = useState(
     Math.round((appraisalRatio ?? 0.7) * 100),
   );
@@ -96,11 +96,12 @@ export function ProfitCalculatorPanel({
   );
   const [loanInterestRate, setLoanInterestRate] = useState(4.5);
   const [earlyRepaymentFeeRate, setEarlyRepaymentFeeRate] = useState(0);
-  const [interiorCost, setInteriorCost] = useState(3_000_000);
-  const [evictionCost, setEvictionCost] = useState(0);
-  const [unpaidMaintenanceFee, setUnpaidMaintenanceFee] = useState(0);
+  const [interiorCost, setInteriorCost] = useState(2_000_000);
+  const [evictionCost, setEvictionCost] = useState(2_000_000);
+  const [unpaidMaintenanceFee, setUnpaidMaintenanceFee] = useState(1_000_000);
   const [extraRealtyFee, setExtraRealtyFee] = useState(0);
   const [vatAmount, setVatAmount] = useState(0);
+  const [applyProgressiveDeduction, setApplyProgressiveDeduction] = useState(true);
 
   const over85 = isOver85Sqm(item.area);
 
@@ -120,6 +121,7 @@ export function ProfitCalculatorPanel({
     extraRealtyFee,
     isOver85sqm: over85,
     vatAmount,
+    applyProgressiveDeduction,
   };
 
   const result = useMemo(() => calculateProfit(input), [
@@ -137,6 +139,7 @@ export function ProfitCalculatorPanel({
     unpaidMaintenanceFee,
     extraRealtyFee,
     vatAmount,
+    applyProgressiveDeduction,
   ]);
 
   return (
@@ -155,7 +158,6 @@ export function ProfitCalculatorPanel({
         style={{ background: "linear-gradient(135deg,#EEF4FF,#F0F5FF)", border: "1px solid rgba(42,82,152,0.15)" }}
       >
         <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-          <ResultRow label="입찰가율" value={`${(result.bidRatio * 100).toFixed(1)}%`} />
           <ResultRow label="대출금(LTV)" value={formatWonShort(result.loanAmount)} />
           <ResultRow label="실투자금(내자본금)" value={formatWonShort(result.equity)} />
           <ResultRow
@@ -262,12 +264,27 @@ export function ProfitCalculatorPanel({
       </div>
 
       <div className="rounded-lg border border-border p-3 space-y-1">
-        <p className="text-[12px] font-semibold text-foreground mb-1.5">계산 상세</p>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[12px] font-semibold text-foreground">계산 상세</p>
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={applyProgressiveDeduction}
+              onChange={(e) => setApplyProgressiveDeduction(e.target.checked)}
+              className="w-3.5 h-3.5"
+            />
+            누진공제 적용
+          </label>
+        </div>
         <ResultRow label="취득금액합계" value={formatWonShort(result.totalAcquisitionCost)} />
         <ResultRow label="대출이자" value={formatWonShort(result.loanInterest)} />
         <ResultRow label="매매차익" value={formatWonShort(result.saleMargin)} />
         <ResultRow
-          label={`양도세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 ${formatWonShort(result.capitalGainsTaxDeduction)})`}
+          label={
+            applyProgressiveDeduction
+              ? `양도세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 ${formatWonShort(result.capitalGainsTaxDeduction)})`
+              : `양도세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 미적용)`
+          }
           value={`-${formatWonShort(result.capitalGainsTax)}`}
         />
       </div>

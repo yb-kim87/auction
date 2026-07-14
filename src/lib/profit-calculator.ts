@@ -62,6 +62,7 @@ export interface ProfitCalculatorInput {
   extraRealtyFee: number; // 부동산 추가수수료, 기본 0
   isOver85sqm: boolean; // 85㎡ 초과 여부(부가세 적용 대상)
   vatAmount: number; // 부가세(85㎡ 초과 물건에 한해 직접 입력, 기본 0)
+  applyProgressiveDeduction: boolean; // 양도세 계산 시 구간별 누진공제 적용 여부(기본 true)
 }
 
 export interface ProfitCalculatorResult {
@@ -101,6 +102,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     unpaidMaintenanceFee,
     extraRealtyFee,
     vatAmount,
+    applyProgressiveDeduction,
   } = input;
 
   const bidRatio = minPrice > 0 ? bidPrice / minPrice : 0;
@@ -131,8 +133,10 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
   const equity = Math.max(0, totalAcquisitionCost - loanAmount);
 
   const saleMargin = salePrice - totalAcquisitionCost;
-  const { rate: capitalGainsTaxRate, deduction: capitalGainsTaxDeduction } =
-    capitalGainsTaxBracket(Math.max(0, saleMargin));
+  const { rate: capitalGainsTaxRate, deduction: bracketDeduction } = capitalGainsTaxBracket(
+    Math.max(0, saleMargin),
+  );
+  const capitalGainsTaxDeduction = applyProgressiveDeduction ? bracketDeduction : 0;
   const capitalGainsTax =
     saleMargin > 0 ? Math.max(0, Math.round(saleMargin * capitalGainsTaxRate - capitalGainsTaxDeduction)) : 0;
 
