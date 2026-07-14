@@ -473,7 +473,13 @@ function RecommendCard({
   onOpen: () => void;
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
-  const loanRatio = loanInfo?.loanRatio ?? null;
+  // 정책의 raw loanRatio(낙찰가 비율)만 보여주면 실제로는 감정가·소득 기준이
+  // 더 낮게 걸려 적용됐을 때 잘못된 비율을 표시하게 된다. min(감정가비율,
+  // 낙찰가비율, 소득기준)이 반영된 실제 결과(최저가 대비)를 역산해서 보여준다.
+  const loanRatio =
+    loanInfo && item.minPrice > 0
+      ? (item.minPrice - loanInfo.requiredEquity) / item.minPrice
+      : null;
   const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
@@ -619,7 +625,13 @@ function RecommendListRow({
   onOpen: () => void;
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
-  const loanRatio = loanInfo?.loanRatio ?? null;
+  // 정책의 raw loanRatio(낙찰가 비율)만 보여주면 실제로는 감정가·소득 기준이
+  // 더 낮게 걸려 적용됐을 때 잘못된 비율을 표시하게 된다. min(감정가비율,
+  // 낙찰가비율, 소득기준)이 반영된 실제 결과(최저가 대비)를 역산해서 보여준다.
+  const loanRatio =
+    loanInfo && item.minPrice > 0
+      ? (item.minPrice - loanInfo.requiredEquity) / item.minPrice
+      : null;
   const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
