@@ -21,8 +21,9 @@ function shortCityLabel(city: string): string {
 
 export function LoanPolicyTab() {
   const [policies, setPolicies] = useState<LoanPolicy[]>([]);
+  const [originalPolicies, setOriginalPolicies] = useState<Record<string, LoanPolicy>>({});
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const [incomeMultiplier, setIncomeMultiplier] = useState<number | null>(null);
@@ -63,7 +64,10 @@ export function LoanPolicyTab() {
 
   useEffect(() => {
     fetchLoanPolicies()
-      .then(setPolicies)
+      .then((data) => {
+        setPolicies(data);
+        setOriginalPolicies(Object.fromEntries(data.map((p) => [p.id, p])));
+      })
       .finally(() => setLoading(false));
     fetchRegulatedRegions()
       .then(setRegions)
@@ -150,20 +154,40 @@ export function LoanPolicyTab() {
     setMessage(null);
   }
 
-  async function handleSave(policy: LoanPolicy) {
-    setSavingId(policy.id);
+  function isDirty(policy: LoanPolicy): boolean {
+    const original = originalPolicies[policy.id];
+    if (!original) return false;
+    return (
+      original.loanRatio !== policy.loanRatio || original.appraisalRatio !== policy.appraisalRatio
+    );
+  }
+
+  const dirtyPolicies = policies.filter((p) => !p.loanUnavailable && isDirty(p));
+
+  async function handleSaveAll() {
+    if (dirtyPolicies.length === 0) return;
+    setSaving(true);
     setMessage(null);
     try {
-      const updated = await updateLoanPolicy(policy.id, {
-        loanRatio: policy.loanRatio,
-        appraisalRatio: policy.appraisalRatio,
+      const updated = await Promise.all(
+        dirtyPolicies.map((policy) =>
+          updateLoanPolicy(policy.id, {
+            loanRatio: policy.loanRatio,
+            appraisalRatio: policy.appraisalRatio,
+          }),
+        ),
+      );
+      setPolicies((prev) => prev.map((p) => updated.find((u) => u.id === p.id) ?? p));
+      setOriginalPolicies((prev) => {
+        const next = { ...prev };
+        for (const u of updated) next[u.id] = u;
+        return next;
       });
-      setPolicies((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setMessage(`"${policy.label}" 정책이 저장되었습니다.`);
+      setMessage(`${updated.length}개 정책이 저장되었습니다.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "저장 실패");
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   }
 
@@ -352,12 +376,16 @@ export function LoanPolicyTab() {
               <th className="px-3 py-2.5 font-semibold text-foreground text-right whitespace-nowrap w-28">
                 낙찰가 비율
               </th>
-              <th className="px-4 py-2.5 w-20" />
             </tr>
           </thead>
           <tbody>
             {policies.map((policy) => (
-              <tr key={policy.id} className="border-b border-border last:border-b-0">
+              <tr
+                key={policy.id}
+                className={`border-b border-border last:border-b-0 ${
+                  isDirty(policy) ? "bg-amber-50/60" : ""
+                }`}
+              >
                 <td className="px-4 py-3 align-middle">
                   <p className="text-sm font-semibold text-foreground flex items-center gap-1.5 whitespace-nowrap">
                     {policy.label}
@@ -379,7 +407,7 @@ export function LoanPolicyTab() {
                   </p>
                 </td>
                 {policy.loanUnavailable ? (
-                  <td colSpan={3} className="px-4 py-3 text-right align-middle">
+                  <td colSpan={2} className="px-4 py-3 text-right align-middle">
                     <span className="text-sm text-destructive font-semibold">대출 불가</span>
                   </td>
                 ) : (
@@ -410,22 +438,28 @@ export function LoanPolicyTab() {
                         <span className="text-sm text-muted-foreground">%</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 align-middle">
-                      <button
-                        type="button"
-                        onClick={() => void handleSave(policy)}
-                        disabled={savingId === policy.id}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 whitespace-nowrap"
-                      >
-                        {savingId === policy.id ? "저장 중..." : "저장"}
-                      </button>
-                    </td>
                   </>
                 )}
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex items-center justify-end gap-2">
+        {dirtyPolicies.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            변경된 정책 {dirtyPolicies.length}개
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => void handleSaveAll()}
+          disabled={saving || dirtyPolicies.length === 0}
+          className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+        >
+          {saving ? "저장 중..." : "변경사항 저장"}
+        </button>
       </div>
     </div>
   );
