@@ -816,6 +816,8 @@ export async function fetchRecommendations(
       loanPolicyLabel: string;
       requiredEquity: number;
       regulatedArea: boolean;
+      incomeLoanLimit: number | null;
+      existingLoanWon: number;
     }
   >;
   total: number;

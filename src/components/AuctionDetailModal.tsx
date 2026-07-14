@@ -1443,6 +1443,8 @@ export function AuctionDetailModal({
   loanPolicyLabel = null,
   requiredEquity: requiredEquityOverride = null,
   regulatedArea = null,
+  incomeLoanLimit = null,
+  existingLoanWon = null,
   isAdmin = false,
   aiAnalysisLimit,
   aiAnalysisUsed,
@@ -1465,6 +1467,8 @@ export function AuctionDetailModal({
   loanPolicyLabel?: string | null;
   requiredEquity?: number | null;
   regulatedArea?: boolean | null;
+  incomeLoanLimit?: number | null;
+  existingLoanWon?: number | null;
   isAdmin?: boolean;
   aiAnalysisLimit?: number;
   aiAnalysisUsed?: number;
@@ -2542,6 +2546,25 @@ export function AuctionDetailModal({
                       </span>
                       <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
                         {formatWonShort(Math.floor(minPrice * loanRatio))}
+                      </span>
+                    </div>
+                  )}
+                  {incomeLoanLimit != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[0.72rem] text-primary/60">소득적용대출</span>
+                      <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
+                        {formatWonShort(incomeLoanLimit)}
+                      </span>
+                    </div>
+                  )}
+                  {existingLoanWon != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[0.72rem] text-primary/60">기존대출</span>
+                      <span
+                        className={`text-[0.8rem] font-semibold ${existingLoanWon > 0 ? "text-red-500" : "text-primary/70"}`}
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                      >
+                        {existingLoanWon > 0 ? `-${formatWonShort(existingLoanWon)}` : "0원"}
                       </span>
                     </div>
                   )}

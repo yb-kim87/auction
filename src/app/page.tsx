@@ -38,6 +38,8 @@ type LoanInfo = {
   loanPolicyLabel: string;
   requiredEquity: number;
   regulatedArea: boolean;
+  incomeLoanLimit: number | null;
+  existingLoanWon: number;
 };
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
 import { CITIES } from "@/data/korea-regions";
@@ -1239,6 +1241,12 @@ export default function HomePage() {
         }
         regulatedArea={
           selectedItem ? loanInfoByItemId[selectedItem.id]?.regulatedArea ?? null : null
+        }
+        incomeLoanLimit={
+          selectedItem ? loanInfoByItemId[selectedItem.id]?.incomeLoanLimit ?? null : null
+        }
+        existingLoanWon={
+          selectedItem ? loanInfoByItemId[selectedItem.id]?.existingLoanWon ?? null : null
         }
         aiAnalysisLimit={profile?.aiAnalysisLimit}
         aiAnalysisUsed={profile?.aiAnalysisUsed}
