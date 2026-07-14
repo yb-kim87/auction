@@ -559,6 +559,9 @@ function RecommendCard({
             {loanPolicyLabel && loanRatio != null && (
               <p className="text-[0.67rem] text-primary/50 mt-0.5">
                 {shortLoanPolicyLabel(loanPolicyLabel)} 대출{Math.round(loanRatio * 100)}%
+                {item.minPrice > requiredEquity && (
+                  <> · 예상 대출 {formatWonShort(item.minPrice - requiredEquity)}</>
+                )}
               </p>
             )}
           </div>
@@ -693,6 +696,15 @@ function RecommendListRow({
               <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{shortLoanPolicyLabel(loanPolicyLabel)} 대출</p>
               <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
                 {Math.round(loanRatio * 100)}%
+              </p>
+            </div>
+          )}
+
+          {requiredEquity != null && item.minPrice > requiredEquity && (
+            <div className="text-right flex-shrink-0 hidden lg:block">
+              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">예상 대출금액</p>
+              <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+                {formatWonShort(item.minPrice - requiredEquity)}
               </p>
             </div>
           )}

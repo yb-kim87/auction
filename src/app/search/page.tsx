@@ -220,6 +220,14 @@ const buildColumns = (
                 <span className="text-primary font-semibold">{policy.label}</span>
                 <br />
                 <span className="text-muted-foreground">필요 자기자금 약 {fmtEok(equity)}</span>
+                {r.minPrice > equity && (
+                  <>
+                    <br />
+                    <span className="text-muted-foreground">
+                      예상 대출 약 {fmtEok(r.minPrice - equity)}
+                    </span>
+                  </>
+                )}
               </span>
             );
           },
@@ -590,6 +598,7 @@ function AuctionMobileCard({
       {equity != null && recommendPolicy && (
         <p className="mt-2 text-[12px] text-primary bg-primary/5 border border-primary/15 rounded-sm px-2 py-1">
           {recommendPolicy.label} · 필요 자기자금 약 {fmtEok(equity)}
+          {item.minPrice > equity && ` · 예상 대출 약 ${fmtEok(item.minPrice - equity)}`}
         </p>
       )}
       {recommendPolicy?.loanUnavailable && (
