@@ -774,7 +774,7 @@ export default function HomePage() {
   const [loadError, setLoadError] = useState("");
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [favoriteBusyId, setFavoriteBusyId] = useState<string | null>(null);
   const [loanInfoByItemId, setLoanInfoByItemId] = useState<Record<string, LoanInfo>>({});
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -898,7 +898,7 @@ export default function HomePage() {
   };
 
   async function handleToggleFavorite(auctionId: string, next: boolean) {
-    setFavoriteBusy(true);
+    setFavoriteBusyId(auctionId);
     try {
       if (next) {
         await addFavorite(auctionId);
@@ -912,7 +912,7 @@ export default function HomePage() {
         });
       }
     } finally {
-      setFavoriteBusy(false);
+      setFavoriteBusyId(null);
     }
   }
 
@@ -1117,7 +1117,7 @@ export default function HomePage() {
                 item={item}
                 loanInfo={loanInfoByItemId[item.id]}
                 isFavorite={favoriteIds.has(item.id)}
-                favoriteBusy={favoriteBusy}
+                favoriteBusy={favoriteBusyId === item.id}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
                 onOpen={() => {
                   logUserAction({ itemId: item.id, actionType: "click", metadata: { recommended: true } });
@@ -1134,7 +1134,7 @@ export default function HomePage() {
                 item={item}
                 loanInfo={loanInfoByItemId[item.id]}
                 isFavorite={favoriteIds.has(item.id)}
-                favoriteBusy={favoriteBusy}
+                favoriteBusy={favoriteBusyId === item.id}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
                 onOpen={() => {
                   logUserAction({ itemId: item.id, actionType: "click", metadata: { recommended: true } });
@@ -1162,7 +1162,7 @@ export default function HomePage() {
         editable={false}
         isAdmin={isAdmin}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
-        favoriteBusy={favoriteBusy}
+        favoriteBusy={selectedItem ? favoriteBusyId === selectedItem.id : false}
         onToggleFavorite={
           selectedItem ? (next) => handleToggleFavorite(selectedItem.id, next) : undefined
         }
