@@ -77,9 +77,12 @@ function formatAreaLabel(area: string | null | undefined): string {
 }
 
 function shortLoanPolicyLabel(label: string): string {
-  const match = label.match(/\(([^)]+)\)/);
-  const inner = match?.[1] ?? label;
-  return inner.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
+  const withoutAreaPrefix = label.replace(/^(규제지역|비규제지역)\s*·\s*/, "");
+  const withoutBiz = withoutAreaPrefix.replace(/\(사업자대출\)/, "");
+  if (/^무주택\s*\(생애최초\s*포함\)$/.test(withoutBiz.trim())) {
+    return "무주택생애최초";
+  }
+  return withoutBiz.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
 }
 
 /** 물건의 최종 대출금액(낙찰가 - 필요자기자금). 감정가·낙찰가·소득 기준 중
@@ -557,7 +560,7 @@ function RecommendCard({
               borderRadius: "0.75rem",
             }}
           >
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
               <p className="text-[0.7rem] font-semibold text-primary/70 tracking-wide uppercase">최소 투자금</p>
               {loanInfo && (
                 <span
@@ -579,7 +582,7 @@ function RecommendCard({
             </p>
             {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
               <p className="text-[0.67rem] text-primary/50 mt-0.5">
-                {shortLoanPolicyLabel(loanPolicyLabel)} · 대출 {formatWonShort(loanAmount)}
+                {shortLoanPolicyLabel(loanPolicyLabel)} · 예상대출 {formatWonShort(loanAmount)}
               </p>
             )}
           </div>
@@ -724,7 +727,7 @@ function RecommendListRow({
 
           {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
             <div className="text-right flex-shrink-0 hidden lg:block">
-              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{shortLoanPolicyLabel(loanPolicyLabel)} 대출</p>
+              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{shortLoanPolicyLabel(loanPolicyLabel)} 예상대출</p>
               <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
                 {formatWonShort(loanAmount)}
               </p>
