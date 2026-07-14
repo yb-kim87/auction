@@ -40,10 +40,9 @@ type LoanInfo = {
 };
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
 import { CITIES } from "@/data/korea-regions";
-import { PROPERTY_TYPE_OPTIONS, matchesPropertyType } from "@/data/property-type-options";
+import { PROPERTY_TYPE_OPTIONS } from "@/data/property-type-options";
 import {
   parseBidDate,
-  matchesProgressStatus,
   progressLabelToStatus,
   isBidDateEnded,
   PROGRESS_STATUS_LABELS,
@@ -98,19 +97,35 @@ const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
   progressStatus: PROGRESS_STATUS_LABELS.active,
 };
 
+// favoritesOnly는 토글 즉시 반영을 위해 서버로 보내지 않고 클라이언트에서만
+// 필터링한다(나머지는 서버에서 걸러 정확히 PAGE_SIZE만큼 채워서 온다).
+function toApiFilters(
+  filters: RecommendFilters,
+  searchText: string,
+): {
+  city?: string;
+  propType?: string;
+  maxFailureRate?: string;
+  progressStatus?: "all" | "active" | "ended";
+  search?: string;
+} {
+  return {
+    city: filters.city || undefined,
+    propType: filters.propType || undefined,
+    maxFailureRate: filters.maxFailureRate || undefined,
+    progressStatus: progressLabelToStatus(filters.progressStatus),
+    search: searchText.trim() || undefined,
+  };
+}
+
+// city/propType/maxFailureRate/progressStatus/search는 이제 서버에서 필터링된
+// 결과로 오므로, 여기서는 즉시 반영이 필요한 favoritesOnly만 클라이언트에서 걸러낸다.
 function matchesRecommendFilters(
   item: AuctionItem,
   filters: RecommendFilters,
   favoriteIds: Set<string>,
 ): boolean {
-  if (filters.city && item.city !== filters.city) return false;
-  if (filters.propType && !matchesPropertyType(item, filters.propType)) return false;
-  if (filters.maxFailureRate) {
-    const rate = getFailureRateRatio(item.minPrice, item.appraisedValue);
-    if (rate == null || rate > Number(filters.maxFailureRate)) return false;
-  }
   if (filters.favoritesOnly && !favoriteIds.has(item.id)) return false;
-  if (!matchesProgressStatus(item.bidDate, progressLabelToStatus(filters.progressStatus))) return false;
   return true;
 }
 
@@ -763,6 +778,7 @@ export default function HomePage() {
   const [loanInfoByItemId, setLoanInfoByItemId] = useState<Record<string, LoanInfo>>({});
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearchText, setDebouncedSearchText] = useState("");
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filters, setFilters] = useState<RecommendFilters>(EMPTY_RECOMMEND_FILTERS);
   const [sortBy, setSortBy] = useState<SortOption>("입찰기일순");
@@ -798,7 +814,11 @@ export default function HomePage() {
     setLoading(true);
     setLoadError("");
     setCurrentBudget(budget);
-    fetchRecommendations(budget, { limit: PAGE_SIZE, offset: 0 })
+    fetchRecommendations(
+      budget,
+      { limit: PAGE_SIZE, offset: 0 },
+      toApiFilters(filters, debouncedSearchText),
+    )
       .then((res) => {
         setItems(res.items);
         setLoanInfoByItemId((prev) => ({ ...prev, ...res.loanInfoByItemId }));
@@ -811,7 +831,11 @@ export default function HomePage() {
   function loadMoreRecommendations() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
-    fetchRecommendations(currentBudget, { limit: PAGE_SIZE, offset: items.length })
+    fetchRecommendations(
+      currentBudget,
+      { limit: PAGE_SIZE, offset: items.length },
+      toApiFilters(filters, debouncedSearchText),
+    )
       .then((res) => {
         setItems((prev) => [...prev, ...res.items]);
         setLoanInfoByItemId((prev) => ({ ...prev, ...res.loanInfoByItemId }));
@@ -823,10 +847,19 @@ export default function HomePage() {
       .finally(() => setLoadingMore(false));
   }
 
+  // 검색어 입력은 타이핑마다 서버에 요청하지 않도록 디바운스한다.
   useEffect(() => {
-    loadRecommendations();
+    const timer = setTimeout(() => setDebouncedSearchText(searchText), 400);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  // 최초 진입 시, 그리고 필터/검색어가 바뀔 때마다 서버에 새 조건으로 첫
+  // 페이지부터 다시 요청한다(currentBudget은 의도적으로 deps에서 제외 —
+  // 예산 변경은 handleApplyRecommend 등에서 loadRecommendations를 직접 호출).
+  useEffect(() => {
+    loadRecommendations(currentBudget);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filters, debouncedSearchText]);
 
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
   const loadMoreRef = useRef(loadMoreRecommendations);
@@ -884,30 +917,10 @@ export default function HomePage() {
   }
 
   const filteredItems = sortRecommendItems(
-    items.filter((item) => {
-      if (!matchesRecommendFilters(item, filters, favoriteIds)) return false;
-      if (searchText.trim()) {
-        const q = searchText.trim().toLowerCase();
-        const matchesText =
-          item.address?.toLowerCase().includes(q) || item.auctionNo?.toLowerCase().includes(q);
-        if (!matchesText) return false;
-      }
-      return true;
-    }),
+    items.filter((item) => matchesRecommendFilters(item, filters, favoriteIds)),
     sortBy,
     loanInfoByItemId,
   );
-
-  // 클라이언트 필터(예: 진행중만 보기)로 걸러진 뒤 화면에 보이는 건수가 한
-  // 페이지 분량보다 적으면, 스크롤을 내리지 않아도 자동으로 다음 페이지를
-  // 마저 당겨와 채운다(안 그러면 서버가 준 30건 중 상당수가 필터로
-  // 걸러졌을 때 스크롤할 내용 자체가 없어 무한 스크롤이 멈춰 보인다).
-  useEffect(() => {
-    if (loading || loadingMore || !hasMore) return;
-    if (filteredItems.length >= PAGE_SIZE) return;
-    loadMoreRecommendations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, loadingMore, hasMore, filteredItems.length]);
 
   const activeFilterCount =
     (filters.city ? 1 : 0) +

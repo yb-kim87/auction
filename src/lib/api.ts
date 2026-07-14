@@ -764,9 +764,19 @@ export async function updateAiManualTags(
   return readJsonResponse(res);
 }
 
+export type RecommendationFilters = {
+  city?: string;
+  propType?: string;
+  maxFailureRate?: string;
+  favoritesOnly?: boolean;
+  progressStatus?: "all" | "active" | "ended";
+  search?: string;
+};
+
 export async function fetchRecommendations(
   budget?: string,
   page?: { limit: number; offset: number },
+  filters?: RecommendationFilters,
 ): Promise<{
   items: AuctionItem[];
   hasCriteria: boolean;
@@ -785,6 +795,12 @@ export async function fetchRecommendations(
     query.set("limit", String(page.limit));
     query.set("offset", String(page.offset));
   }
+  if (filters?.city) query.set("city", filters.city);
+  if (filters?.propType) query.set("propType", filters.propType);
+  if (filters?.maxFailureRate) query.set("maxFailureRate", filters.maxFailureRate);
+  if (filters?.favoritesOnly) query.set("favoritesOnly", "true");
+  if (filters?.progressStatus) query.set("progressStatus", filters.progressStatus);
+  if (filters?.search) query.set("search", filters.search);
   const qs = query.toString();
   const res = await fetch(`${API_BASE}/recommendations${qs ? `?${qs}` : ""}`, {
     cache: "no-store",
