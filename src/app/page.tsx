@@ -79,10 +79,9 @@ function formatAreaLabel(area: string | null | undefined): string {
 function shortLoanPolicyLabel(label: string): string {
   const withoutAreaPrefix = label.replace(/^(규제지역|비규제지역)\s*·\s*/, "");
   const withoutBiz = withoutAreaPrefix.replace(/\(사업자대출\)/, "");
-  if (/^무주택\s*\(생애최초\s*포함\)$/.test(withoutBiz.trim())) {
-    return "무주택생애최초";
-  }
-  return withoutBiz.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
+  const withoutFirstTimeIncluded = withoutBiz.replace(/\(생애최초\s*포함\)/, "");
+  const withoutGeneral = withoutFirstTimeIncluded.replace(/무주택\s*일반/, "무주택");
+  return withoutGeneral.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
 }
 
 /** 물건의 최종 대출금액(낙찰가 - 필요자기자금). 감정가·낙찰가·소득 기준 중
