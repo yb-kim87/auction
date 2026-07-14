@@ -810,7 +810,13 @@ export async function fetchRecommendations(
   loanPolicyLabel: string | null;
   loanInfoByItemId: Record<
     string,
-    { loanRatio: number; appraisalRatio: number; loanPolicyLabel: string; requiredEquity: number }
+    {
+      loanRatio: number;
+      appraisalRatio: number;
+      loanPolicyLabel: string;
+      requiredEquity: number;
+      regulatedArea: boolean;
+    }
   >;
   total: number;
   hasMore: boolean;

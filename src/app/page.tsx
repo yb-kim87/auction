@@ -37,6 +37,7 @@ type LoanInfo = {
   appraisalRatio: number;
   loanPolicyLabel: string;
   requiredEquity: number;
+  regulatedArea: boolean;
 };
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
 import { CITIES } from "@/data/korea-regions";
@@ -555,7 +556,20 @@ function RecommendCard({
               borderRadius: "0.75rem",
             }}
           >
-            <p className="text-[0.7rem] font-semibold text-primary/70 tracking-wide uppercase">최소 투자금</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[0.7rem] font-semibold text-primary/70 tracking-wide uppercase">최소 투자금</p>
+              {loanInfo && (
+                <span
+                  className={`shrink-0 px-1.5 py-0.5 rounded text-[0.6rem] font-semibold ${
+                    loanInfo.regulatedArea
+                      ? "bg-red-50 text-red-600"
+                      : "bg-emerald-50 text-emerald-600"
+                  }`}
+                >
+                  {loanInfo.regulatedArea ? "규제지역" : "비규제지역"}
+                </span>
+              )}
+            </div>
             <p
               className="text-[1.2rem] font-bold text-primary tracking-tight mt-0.5"
               style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}
@@ -696,7 +710,20 @@ function RecommendListRow({
                 borderRadius: "0.75rem",
               }}
             >
-              <p className="text-[0.62rem] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">최소 투자금</p>
+              <div className="flex items-center justify-end gap-1 mb-0.5">
+                {loanInfo && (
+                  <span
+                    className={`px-1 py-0.5 rounded text-[0.55rem] font-semibold ${
+                      loanInfo.regulatedArea
+                        ? "bg-red-50 text-red-600"
+                        : "bg-emerald-50 text-emerald-600"
+                    }`}
+                  >
+                    {loanInfo.regulatedArea ? "규제지역" : "비규제지역"}
+                  </span>
+                )}
+                <p className="text-[0.62rem] font-semibold text-muted-foreground uppercase tracking-wide">최소 투자금</p>
+              </div>
               <p className="font-bold text-primary text-sm" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
                 {formatWonShort(requiredEquity)}
               </p>
