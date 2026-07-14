@@ -1239,7 +1239,6 @@ export default function HomePage() {
           selectedItem ? loanInfoByItemId[selectedItem.id]?.existingLoanWon ?? null : null
         }
         firstTimeBuyer={profile?.firstTimeBuyer ?? false}
-        housingCount={profile?.housingCount ?? null}
         annualNetIncome={profile?.annualNetIncome ?? null}
         creditScore={profile?.creditScore ?? null}
         aiAnalysisLimit={profile?.aiAnalysisLimit}

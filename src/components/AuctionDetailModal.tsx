@@ -1447,7 +1447,6 @@ export function AuctionDetailModal({
   incomeLoanLimit = null,
   existingLoanWon = null,
   firstTimeBuyer = false,
-  housingCount = null,
   annualNetIncome = null,
   creditScore = null,
   isAdmin = false,
@@ -1475,7 +1474,6 @@ export function AuctionDetailModal({
   incomeLoanLimit?: number | null;
   existingLoanWon?: number | null;
   firstTimeBuyer?: boolean;
-  housingCount?: number | null;
   annualNetIncome?: string | null;
   creditScore?: string | null;
   isAdmin?: boolean;
@@ -2531,7 +2529,6 @@ export function AuctionDetailModal({
                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
                     <span className="text-[0.68rem] text-primary/50">
                       {housingLoanLabel(loanPolicyLabel, firstTimeBuyer)}
-                      {housingCount != null && ` (주택수 ${housingCount})`}
                     </span>
                     {annualNetIncome && (
                       <span className="text-[0.68rem] text-primary/35">· 소득 {annualNetIncome}</span>
