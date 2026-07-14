@@ -34,6 +34,7 @@ import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { LoanPolicyTab } from "./LoanPolicyTab";
 import { TagRulesTab } from "./TagRulesTab";
+import { StrategyTagsTab } from "./StrategyTagsTab";
 import { AiPlatformPanel } from "./AiPlatformPanel";
 import { KakaoNotifyPanel } from "./KakaoNotifyPanel";
 
@@ -82,6 +83,7 @@ type AdminTab =
   | "knowledge"
   | "loanPolicy"
   | "tagRules"
+  | "strategyTags"
   | "aiPlatform"
   | "kakaoNotify";
 type AiPlatformSubTab = "normalizer" | "feature" | "tag";
@@ -93,6 +95,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "users", label: "회원권한 관리" },
   { id: "loanPolicy", label: "대출정책" },
   { id: "tagRules", label: "태그 관리" },
+  { id: "strategyTags", label: "Strategy 태그" },
   { id: "aiPlatform", label: "AI Platform" },
   { id: "kakaoNotify", label: "알림톡 관리" },
 ];
@@ -859,6 +862,8 @@ export default function AdminPage() {
           {activeTab === "loanPolicy" && <LoanPolicyTab />}
 
           {activeTab === "tagRules" && <TagRulesTab />}
+
+          {activeTab === "strategyTags" && <StrategyTagsTab />}
 
           {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}
 

@@ -611,12 +611,29 @@ export async function updateIncomeLoanMultiplier(value: number): Promise<number>
 export type TagRule = {
   id: string;
   tagName: string;
+  tagCode: string;
   category: "fact" | "strategy";
   field: string;
   operator: string;
   value: string;
   active: boolean;
   sortOrder: number;
+};
+
+export type StrategyRule = {
+  id: string;
+  strategyCode: string;
+  requiredFactCodes: string[];
+  active: boolean;
+  sortOrder: number;
+};
+
+export type StrategyLabel = {
+  id: string;
+  strategyCode: string;
+  label: string;
+  description: string;
+  icon: string;
 };
 
 export type TagRuleFieldDef = { key: string; label: string; type: "number" | "string" | "boolean" };
@@ -708,6 +725,102 @@ export async function backfillTagRules(): Promise<{ total: number; updated: numb
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "태그 재계산에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchStrategyRules(): Promise<StrategyRule[]> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "Strategy 규칙을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function createStrategyRule(input: {
+  strategyCode: string;
+  requiredFactCodes: string[];
+  active?: boolean;
+  sortOrder?: number;
+}): Promise<StrategyRule> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "Strategy 규칙 생성에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateStrategyRule(
+  id: string,
+  input: Partial<{ strategyCode: string; requiredFactCodes: string[]; active: boolean; sortOrder: number }>,
+): Promise<StrategyRule> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules/${id}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "Strategy 규칙 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function removeStrategyRule(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules/${id}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "Strategy 규칙 삭제에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchStrategyLabels(): Promise<StrategyLabel[]> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "Strategy 문구를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function upsertStrategyLabel(input: {
+  strategyCode: string;
+  label: string;
+  description?: string;
+  icon?: string;
+}): Promise<StrategyLabel> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "Strategy 문구 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function removeStrategyLabel(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels/${id}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "Strategy 문구 삭제에 실패했습니다.");
   }
   return readJsonResponse(res);
 }

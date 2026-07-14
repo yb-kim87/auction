@@ -6,6 +6,13 @@ export type UserRole =
   | "member";
 export type AuctionStatus = "pending" | "approved" | "rejected";
 
+export interface StrategyTagItem {
+  code: string;
+  label: string;
+  description: string;
+  icon: string;
+}
+
 export interface AuctionItem {
   id: string;
   memo: string;
@@ -47,8 +54,7 @@ export interface AuctionItem {
   city: string;
   district: string;
   propType: "아파트" | "빌라";
-  factTagsList?: string[];
-  strategyTagsList?: string[];
+  strategyTagsList?: StrategyTagItem[];
   status: AuctionStatus;
   submittedBy: string;
   isUpdated: boolean;

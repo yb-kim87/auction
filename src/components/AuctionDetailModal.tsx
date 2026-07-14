@@ -2091,15 +2091,27 @@ export function AuctionDetailModal({
                       {hasNote && (
                         <p className="text-[0.82rem] font-semibold text-red-600 mb-3">{noteText}</p>
                       )}
-                      {preview.factTagsList && preview.factTagsList.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {preview.factTagsList.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-2 py-0.5 rounded-md text-[0.72rem] font-medium bg-primary/5 text-primary/70 border border-primary/10"
+                      {preview.strategyTagsList && preview.strategyTagsList.length > 0 && (
+                        <div className="space-y-2 mb-4">
+                          {preview.strategyTagsList.map((tag) => (
+                            <div
+                              key={tag.code}
+                              className="rounded-xl px-3.5 py-3"
+                              style={{
+                                background: "linear-gradient(135deg,#F5F0FF,#FBF6FF)",
+                                border: "1px solid rgba(147,51,234,0.15)",
+                              }}
                             >
-                              {tag}
-                            </span>
+                              <p className="text-[0.8rem] font-bold text-purple-700 flex items-center gap-1.5">
+                                <span aria-hidden>💎</span>
+                                {tag.label}
+                              </p>
+                              {tag.description && (
+                                <p className="text-[0.72rem] text-purple-900/60 mt-1 leading-relaxed">
+                                  {tag.description}
+                                </p>
+                              )}
+                            </div>
                           ))}
                         </div>
                       )}

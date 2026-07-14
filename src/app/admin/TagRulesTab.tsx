@@ -103,9 +103,10 @@ export function TagRulesTab() {
       <div>
         <h2 className="text-lg font-bold text-foreground">태그 관리 (Fact Tag)</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          물건 데이터를 기준으로 자동 태그를 생성하는 규칙입니다. 조건(필드·연산자·값)에
-          해당하면 태그명이 물건에 자동으로 부여됩니다. 향후 AI가 이 Fact Tag들을 종합해
-          투자 전략(Strategy Tag)을 별도로 생성할 예정입니다.
+          물건 데이터를 기준으로 내부 판단용 사실(Fact)을 자동 계산하는 규칙입니다. 여기서
+          만든 Fact 태그는 <b className="text-foreground">사용자에게 직접 노출되지 않습니다</b> —
+          "Strategy 태그 관리" 탭에서 이 Fact들을 조합해 사용자에게 보여줄 투자 전략 문구를
+          만드세요. 각 규칙의 회색 코드값(예: AREA_OVER_85)을 Strategy 규칙에서 참조합니다.
         </p>
       </div>
 
@@ -194,8 +195,9 @@ export function TagRulesTab() {
                   operators.find((op) => op.key === rule.operator)?.label ?? rule.operator;
                 return (
                   <tr key={rule.id} className="border-b border-border last:border-b-0">
-                    <td className="px-4 py-3 align-middle font-semibold text-foreground whitespace-nowrap">
-                      {rule.tagName}
+                    <td className="px-4 py-3 align-middle whitespace-nowrap">
+                      <p className="font-semibold text-foreground">{rule.tagName}</p>
+                      <p className="text-[0.68rem] text-muted-foreground mt-0.5">{rule.tagCode}</p>
                     </td>
                     <td className="px-3 py-3 align-middle text-muted-foreground whitespace-nowrap">
                       {fieldLabel} {operatorLabel} {rule.value}
