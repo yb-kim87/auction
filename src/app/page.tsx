@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, Heart, Calendar, SlidersHorizontal, Search, Wallet, X, LayoutGrid, List, ChevronDown } from "lucide-react";
@@ -751,6 +751,9 @@ export default function HomePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [items, setItems] = useState<AuctionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentBudget, setCurrentBudget] = useState<string | undefined>(undefined);
   const [loadError, setLoadError] = useState("");
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
@@ -789,21 +792,57 @@ export default function HomePage() {
     }
   }
 
+  const PAGE_SIZE = 30;
+
   function loadRecommendations(budget?: string) {
     setLoading(true);
     setLoadError("");
-    fetchRecommendations(budget)
+    setCurrentBudget(budget);
+    fetchRecommendations(budget, { limit: PAGE_SIZE, offset: 0 })
       .then((res) => {
         setItems(res.items);
-        setLoanInfoByItemId(res.loanInfoByItemId);
+        setLoanInfoByItemId((prev) => ({ ...prev, ...res.loanInfoByItemId }));
+        setHasMore(res.hasMore);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "추천 물건을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
   }
 
+  function loadMoreRecommendations() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    fetchRecommendations(currentBudget, { limit: PAGE_SIZE, offset: items.length })
+      .then((res) => {
+        setItems((prev) => [...prev, ...res.items]);
+        setLoanInfoByItemId((prev) => ({ ...prev, ...res.loanInfoByItemId }));
+        setHasMore(res.hasMore);
+      })
+      .catch(() => {
+        // 추가 로드 실패는 조용히 무시(다음 스크롤에서 재시도 가능하도록 hasMore 유지)
+      })
+      .finally(() => setLoadingMore(false));
+  }
+
   useEffect(() => {
     loadRecommendations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef(loadMoreRecommendations);
+  loadMoreRef.current = loadMoreRecommendations;
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreRef.current();
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -1080,6 +1119,16 @@ export default function HomePage() {
                 }}
               />
             ))}
+          </div>
+        )}
+
+        {!loading && filteredItems.length > 0 && (
+          <div ref={sentinelRef} className="py-8 text-center">
+            {loadingMore ? (
+              <p className="text-sm text-muted-foreground">더 불러오는 중...</p>
+            ) : !hasMore ? (
+              <p className="text-sm text-muted-foreground">모든 추천 물건을 불러왔습니다.</p>
+            ) : null}
           </div>
         )}
       </main>

@@ -764,7 +764,10 @@ export async function updateAiManualTags(
   return readJsonResponse(res);
 }
 
-export async function fetchRecommendations(budget?: string): Promise<{
+export async function fetchRecommendations(
+  budget?: string,
+  page?: { limit: number; offset: number },
+): Promise<{
   items: AuctionItem[];
   hasCriteria: boolean;
   loanRatio: number | null;
@@ -773,9 +776,17 @@ export async function fetchRecommendations(budget?: string): Promise<{
     string,
     { loanRatio: number; appraisalRatio: number; loanPolicyLabel: string; requiredEquity: number }
   >;
+  total: number;
+  hasMore: boolean;
 }> {
-  const qs = budget ? `?budget=${encodeURIComponent(budget)}` : "";
-  const res = await fetch(`${API_BASE}/recommendations${qs}`, {
+  const query = new URLSearchParams();
+  if (budget) query.set("budget", budget);
+  if (page) {
+    query.set("limit", String(page.limit));
+    query.set("offset", String(page.offset));
+  }
+  const qs = query.toString();
+  const res = await fetch(`${API_BASE}/recommendations${qs ? `?${qs}` : ""}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
