@@ -88,6 +88,8 @@ export interface InvestmentCriteria {
   housingCount: number;
   investmentGoal: string;
   firstTimeBuyer: boolean;
+  annualNetIncome?: string;
+  creditScore?: string;
 }
 
 export type InvestmentCriteriaInput = Omit<InvestmentCriteria, "housingCount"> & {
@@ -101,6 +103,8 @@ export function criteriaFromProfile(profile: UserProfile): InvestmentCriteria {
     housingCount: profile.housingCount ?? 0,
     investmentGoal: profile.investmentGoal?.trim() ?? "",
     firstTimeBuyer: profile.firstTimeBuyer ?? false,
+    annualNetIncome: profile.annualNetIncome?.trim() ?? "",
+    creditScore: profile.creditScore?.trim() ?? "",
   };
 }
 
@@ -149,39 +153,93 @@ export function validateCriteriaForRecommend(
 }
 
 /**
- * 감정가×감정가비율과 낙찰가(최저가)×낙찰가비율 중 더 낮은 금액이 실제 대출한도다
- * (경매 대출의 일반적인 산정 방식). 대출 불가 정책이면 한도 0.
+ * 감정가×감정가비율, 낙찰가(최저가)×낙찰가비율, 연소득×소득배수(소득 기준 상한) 중
+ * 가장 낮은 금액이 대출한도다. 대출 불가 정책이면 한도 0. 소득 정보가 없으면
+ * 소득 기준은 적용하지 않는다.
  */
-export function maxLoanAmount(minPrice: number, appraisedValue: number, policy: LoanPolicy): number {
+export function maxLoanAmount(
+  minPrice: number,
+  appraisedValue: number,
+  policy: LoanPolicy,
+  annualIncomeWon?: number,
+  incomeLoanMultiplier?: number,
+): number {
   if (policy.loanUnavailable) return 0;
   if (!minPrice || minPrice <= 0) return 0;
   const byMinPrice = minPrice * policy.loanRatio;
   const byAppraisal = appraisedValue > 0 ? appraisedValue * policy.appraisalRatio : Infinity;
-  return Math.max(0, Math.floor(Math.min(byMinPrice, byAppraisal)));
+  const byIncome =
+    annualIncomeWon != null && annualIncomeWon > 0
+      ? annualIncomeWon * (incomeLoanMultiplier ?? 7)
+      : Infinity;
+  return Math.max(0, Math.floor(Math.min(byMinPrice, byAppraisal, byIncome)));
 }
 
-/** 물건(감정가·최저가)과 정책 기준 필요 자기자금 */
+/**
+ * 물건(감정가·최저가)과 정책 기준 필요 자기자금. 대출한도에서 기존대출액만큼
+ * 추가로 차감한다(기존 대출이 있으면 신규 대출 여력이 줄어듦).
+ */
 export function requiredEquityForItem(
   minPrice: number,
   appraisedValue: number,
   policy: LoanPolicy,
+  annualIncomeWon?: number,
+  existingLoanWon?: number,
+  incomeLoanMultiplier?: number,
 ): number {
   if (!minPrice || minPrice <= 0) return 0;
-  return Math.max(0, minPrice - maxLoanAmount(minPrice, appraisedValue, policy));
+  const loanLimit = maxLoanAmount(minPrice, appraisedValue, policy, annualIncomeWon, incomeLoanMultiplier);
+  const availableLoan = Math.max(0, loanLimit - (existingLoanWon ?? 0));
+  return Math.max(0, minPrice - availableLoan);
+}
+
+/** 신용점수 문자열("750~799점", "900점 이상", "350점 미만" 등)에서 하한값을 파싱 */
+export function parseCreditScoreLowerBound(raw: string | undefined): number | null {
+  if (!raw?.trim()) return null;
+  const text = raw.trim();
+  if (text.includes("미만")) {
+    const match = text.match(/(\d+)/);
+    return match ? Number(match[1]) - 1 : null;
+  }
+  const match = text.match(/(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+/** 신용점수 750점 미만이면 대출 확인이 필요하다고 경고. 정보 없으면 경고하지 않음 */
+export function needsCreditScoreWarning(creditScore: string | undefined): boolean {
+  const lower = parseCreditScoreLowerBound(creditScore);
+  return lower != null && lower < 750;
 }
 
 export function matchesInvestmentRecommend(
   item: AuctionItem,
   investableWon: number,
-  criteria: { housingCount: number; firstTimeBuyer: boolean },
+  criteria: {
+    housingCount: number;
+    firstTimeBuyer: boolean;
+    annualNetIncome?: string;
+    existingLoanAmount?: string;
+  },
   policies: LoanPolicy[],
   regionNames: string[],
+  incomeLoanMultiplier?: number,
 ): boolean {
   if (!item.minPrice || item.minPrice <= 0) return false;
   const regulated = isRegulatedArea(item.city, item.district, regionNames);
   const policy = selectLoanPolicy(criteria, regulated, policies);
   if (policy.loanUnavailable) return false;
-  return requiredEquityForItem(item.minPrice, item.appraisedValue, policy) <= investableWon;
+  const annualIncomeWon = parseMoneyToWon(criteria.annualNetIncome ?? "") ?? undefined;
+  const existingLoanWon = parseMoneyToWon(criteria.existingLoanAmount ?? "") ?? 0;
+  return (
+    requiredEquityForItem(
+      item.minPrice,
+      item.appraisedValue,
+      policy,
+      annualIncomeWon,
+      existingLoanWon,
+      incomeLoanMultiplier,
+    ) <= investableWon
+  );
 }
 
 export function buildRecommendSummary(matchCount: number): string {
@@ -194,6 +252,8 @@ export function criteriaFieldsChanged(a: InvestmentCriteria, b: InvestmentCriter
     a.existingLoanAmount !== b.existingLoanAmount ||
     a.housingCount !== b.housingCount ||
     a.investmentGoal !== b.investmentGoal ||
-    a.firstTimeBuyer !== b.firstTimeBuyer
+    a.firstTimeBuyer !== b.firstTimeBuyer ||
+    (a.annualNetIncome ?? "") !== (b.annualNetIncome ?? "") ||
+    (a.creditScore ?? "") !== (b.creditScore ?? "")
   );
 }

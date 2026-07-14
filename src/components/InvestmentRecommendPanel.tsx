@@ -106,7 +106,11 @@ export function InvestmentRecommendPanel({
         syncDraftFromProfile(next);
         setSaveMessage("투자 조건이 회원정보에 저장되었습니다.");
       } else {
-        onApply(check.criteria, check.investableWon, mode);
+        onApply(
+          { ...check.criteria, annualNetIncome, creditScore },
+          check.investableWon,
+          mode,
+        );
         onRecommendEnabledChange(true);
       }
     } catch (err) {

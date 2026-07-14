@@ -22,7 +22,7 @@ import {
   progressLabelToStatus,
 } from "@/lib/progress-status-filter";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
-import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, fetchRegulatedRegions, logUserAction, logUserActionsBatch, type LoanPolicy } from "@/lib/api";
+import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, fetchRegulatedRegions, fetchIncomeLoanMultiplier, logUserAction, logUserActionsBatch, type LoanPolicy } from "@/lib/api";
 import {
   matchesInvestmentRecommend,
   requiredEquityForItem,
@@ -32,6 +32,7 @@ import {
   type InvestmentCriteria,
 } from "@/lib/investment-criteria";
 import { InvestmentRecommendPanel } from "@/components/InvestmentRecommendPanel";
+import { parseMoneyToWon } from "@/lib/investment-money";
 import type { UserProfile } from "@/types/auction";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { formatTenantStatusSummary } from "@/lib/tenant-status";
@@ -159,6 +160,7 @@ const buildColumns = (
   recommendCriteria: InvestmentCriteria | null,
   loanPolicies: LoanPolicy[],
   regulatedRegionNames: string[],
+  incomeLoanMultiplier: number | undefined,
 ): ColDef[] => [
   { key: "memo", label: "메모", defaultWidth: 80, sticky: true, render: (r) => r.memo ? <span className="text-amber-600"><StickyNote size={16} className="inline mr-1" />{r.memo}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "usage", label: "용도", defaultWidth: 96, render: (r) => <span className="whitespace-nowrap">{r.usage}</span> },
@@ -203,7 +205,17 @@ const buildColumns = (
             if (policy.loanUnavailable) {
               return <span className="text-xs text-destructive font-semibold">대출 불가({policy.label})</span>;
             }
-            const equity = requiredEquityForItem(r.minPrice, r.appraisedValue, policy);
+            const annualIncomeWon =
+              parseMoneyToWon(recommendCriteria.annualNetIncome ?? "") ?? undefined;
+            const existingLoanWon = parseMoneyToWon(recommendCriteria.existingLoanAmount ?? "") ?? 0;
+            const equity = requiredEquityForItem(
+              r.minPrice,
+              r.appraisedValue,
+              policy,
+              annualIncomeWon,
+              existingLoanWon,
+              incomeLoanMultiplier,
+            );
             return (
               <span className="text-xs leading-snug whitespace-nowrap">
                 <span className="text-primary font-semibold">{policy.label}</span>
@@ -504,12 +516,14 @@ function AuctionMobileCard({
   recommendCriteria,
   loanPolicies,
   regulatedRegionNames,
+  incomeLoanMultiplier,
 }: {
   item: AuctionItem;
   onClick: () => void;
   recommendCriteria: InvestmentCriteria | null;
   loanPolicies: LoanPolicy[];
   regulatedRegionNames: string[];
+  incomeLoanMultiplier: number | undefined;
 }) {
   const rate = fmtFailureRate(item.minPrice, item.appraisedValue);
   const recommendPolicy =
@@ -520,9 +534,22 @@ function AuctionMobileCard({
           loanPolicies,
         )
       : null;
+  const annualIncomeWon = recommendCriteria
+    ? parseMoneyToWon(recommendCriteria.annualNetIncome ?? "") ?? undefined
+    : undefined;
+  const existingLoanWon = recommendCriteria
+    ? parseMoneyToWon(recommendCriteria.existingLoanAmount ?? "") ?? 0
+    : 0;
   const equity =
     recommendPolicy && !recommendPolicy.loanUnavailable && item.minPrice
-      ? requiredEquityForItem(item.minPrice, item.appraisedValue, recommendPolicy)
+      ? requiredEquityForItem(
+          item.minPrice,
+          item.appraisedValue,
+          recommendPolicy,
+          annualIncomeWon,
+          existingLoanWon,
+          incomeLoanMultiplier,
+        )
       : null;
 
   return (
@@ -588,6 +615,7 @@ function AuctionTable({
   recommendCriteria,
   loanPolicies,
   regulatedRegionNames,
+  incomeLoanMultiplier,
 }: {
   data: AuctionItem[];
   isAdmin: boolean;
@@ -595,13 +623,17 @@ function AuctionTable({
   recommendCriteria: InvestmentCriteria | null;
   loanPolicies: LoanPolicy[];
   regulatedRegionNames: string[];
+  incomeLoanMultiplier: number | undefined;
 }) {
   const columns = useMemo(
-    () => buildColumns(isAdmin, recommendCriteria, loanPolicies, regulatedRegionNames),
-    [isAdmin, recommendCriteria, loanPolicies, regulatedRegionNames],
+    () =>
+      buildColumns(isAdmin, recommendCriteria, loanPolicies, regulatedRegionNames, incomeLoanMultiplier),
+    [isAdmin, recommendCriteria, loanPolicies, regulatedRegionNames, incomeLoanMultiplier],
   );
   const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(buildColumns(false, null, [], []).map((c) => [c.key, c.defaultWidth]))
+    Object.fromEntries(
+      buildColumns(false, null, [], [], undefined).map((c) => [c.key, c.defaultWidth]),
+    )
   );
 
   useEffect(() => {
@@ -770,6 +802,7 @@ export default function Home() {
   const [appliedInvestableWon, setAppliedInvestableWon] = useState<number | null>(null);
   const [loanPolicies, setLoanPolicies] = useState<LoanPolicy[]>(DEFAULT_LOAN_POLICIES);
   const [regulatedRegionNames, setRegulatedRegionNames] = useState<string[]>([]);
+  const [incomeLoanMultiplier, setIncomeLoanMultiplier] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     fetchLoanPolicies()
@@ -781,6 +814,11 @@ export default function Home() {
       .then((regions) => setRegulatedRegionNames(regions.map((r) => r.name)))
       .catch(() => {
         // 규제지역 API 실패 시 빈 목록(전부 비규제로 처리) 유지
+      });
+    fetchIncomeLoanMultiplier()
+      .then(setIncomeLoanMultiplier)
+      .catch(() => {
+        // 실패 시 기본값(7배)으로 계산되도록 undefined 유지
       });
   }, []);
 
@@ -1006,6 +1044,7 @@ export default function Home() {
         appliedCriteria,
         loanPolicies,
         regulatedRegionNames,
+        incomeLoanMultiplier,
       ),
     );
   }, [
@@ -1015,6 +1054,7 @@ export default function Home() {
     appliedCriteria,
     loanPolicies,
     regulatedRegionNames,
+    incomeLoanMultiplier,
   ]);
 
   const displayItems = recommendEnabled ? recommendMatches : filtered;
@@ -1327,6 +1367,7 @@ export default function Home() {
                 recommendCriteria={recommendEnabled ? appliedCriteria : null}
                 loanPolicies={loanPolicies}
                 regulatedRegionNames={regulatedRegionNames}
+                incomeLoanMultiplier={incomeLoanMultiplier}
               />
             </div>
             <div className="md:hidden space-y-2.5">
@@ -1343,6 +1384,7 @@ export default function Home() {
                     recommendCriteria={recommendEnabled ? appliedCriteria : null}
                     loanPolicies={loanPolicies}
                     regulatedRegionNames={regulatedRegionNames}
+                    incomeLoanMultiplier={incomeLoanMultiplier}
                   />
                 ))
               )}

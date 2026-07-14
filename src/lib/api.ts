@@ -582,6 +582,32 @@ export async function updateLoanPolicy(
   return readJsonResponse(res);
 }
 
+export async function fetchIncomeLoanMultiplier(): Promise<number> {
+  const res = await fetch(`${API_BASE}/loan-policies/income-multiplier`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "소득 대비 대출 배수를 불러오지 못했습니다.");
+  }
+  const data = await readJsonResponse<{ value: number }>(res);
+  return data.value;
+}
+
+export async function updateIncomeLoanMultiplier(value: number): Promise<number> {
+  const res = await fetch(`${API_BASE}/loan-policies/income-multiplier`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ value }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "소득 대비 대출 배수 저장에 실패했습니다.");
+  }
+  const data = await readJsonResponse<{ value: number }>(res);
+  return data.value;
+}
+
 export type RegulatedRegion = {
   id: string;
   name: string;
@@ -788,6 +814,7 @@ export async function fetchRecommendations(
   >;
   total: number;
   hasMore: boolean;
+  creditScoreWarning: boolean;
 }> {
   const query = new URLSearchParams();
   if (budget) query.set("budget", budget);

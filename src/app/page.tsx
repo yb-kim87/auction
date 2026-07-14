@@ -771,6 +771,7 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [currentBudget, setCurrentBudget] = useState<string | undefined>(undefined);
+  const [creditScoreWarning, setCreditScoreWarning] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
@@ -823,6 +824,7 @@ export default function HomePage() {
         setItems(res.items);
         setLoanInfoByItemId((prev) => ({ ...prev, ...res.loanInfoByItemId }));
         setHasMore(res.hasMore);
+        setCreditScoreWarning(res.creditScoreWarning);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "추천 물건을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
@@ -1050,6 +1052,12 @@ export default function HomePage() {
       </div>
 
       <main className="max-w-[1400px] mx-auto px-4 py-6 space-y-4">
+        {creditScoreWarning && (
+          <div className="text-sm px-4 py-3 rounded-sm border border-amber-200 bg-amber-50 text-amber-800">
+            신용점수가 750점 미만으로 등록되어 있습니다. 아래 추천 물건은 대출 비율 기준으로
+            계산된 것이며, 실제 대출 승인은 신용점수에 따라 제한되거나 불가능할 수 있습니다.
+          </div>
+        )}
         <div className="flex sm:hidden items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground shrink-0">
             총 <span className="font-semibold text-foreground">{filteredItems.length}</span>건

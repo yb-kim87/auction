@@ -7,6 +7,8 @@ import {
   fetchRegulatedRegions,
   addRegulatedRegion,
   removeRegulatedRegion,
+  fetchIncomeLoanMultiplier,
+  updateIncomeLoanMultiplier,
   type LoanPolicy,
   type RegulatedRegion,
 } from "@/lib/api";
@@ -22,6 +24,11 @@ export function LoanPolicyTab() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const [incomeMultiplier, setIncomeMultiplier] = useState<number | null>(null);
+  const [incomeMultiplierInput, setIncomeMultiplierInput] = useState("");
+  const [incomeMultiplierSaving, setIncomeMultiplierSaving] = useState(false);
+  const [incomeMultiplierMessage, setIncomeMultiplierMessage] = useState<string | null>(null);
 
   const [regions, setRegions] = useState<RegulatedRegion[]>([]);
   const [regionsLoading, setRegionsLoading] = useState(true);
@@ -61,7 +68,31 @@ export function LoanPolicyTab() {
     fetchRegulatedRegions()
       .then(setRegions)
       .finally(() => setRegionsLoading(false));
+    fetchIncomeLoanMultiplier().then((value) => {
+      setIncomeMultiplier(value);
+      setIncomeMultiplierInput(String(value));
+    });
   }, []);
+
+  async function handleSaveIncomeMultiplier() {
+    const value = Number(incomeMultiplierInput);
+    if (!Number.isFinite(value) || value <= 0) {
+      setIncomeMultiplierMessage("0보다 큰 숫자를 입력해 주세요.");
+      return;
+    }
+    setIncomeMultiplierSaving(true);
+    setIncomeMultiplierMessage(null);
+    try {
+      const saved = await updateIncomeLoanMultiplier(value);
+      setIncomeMultiplier(saved);
+      setIncomeMultiplierInput(String(saved));
+      setIncomeMultiplierMessage("저장되었습니다.");
+    } catch (err) {
+      setIncomeMultiplierMessage(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setIncomeMultiplierSaving(false);
+    }
+  }
 
   async function saveRegionName(name: string) {
     if (!name.trim()) return true;
@@ -260,14 +291,47 @@ export function LoanPolicyTab() {
       </div>
 
       <div>
+        <h2 className="text-lg font-bold text-foreground">소득 대비 대출 배수</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          연소득의 몇 배까지 대출이 가능하다고 볼지 설정합니다(DSR 근사치). 감정가·낙찰가
+          기준 대출한도가 더 높더라도, 이 소득 기준 한도를 넘지 못합니다.
+        </p>
+        {incomeMultiplierMessage && (
+          <div className="text-sm px-3 py-2 mt-3 rounded-sm border border-border bg-secondary/30">
+            {incomeMultiplierMessage}
+          </div>
+        )}
+        <div className="flex items-center gap-2 mt-3">
+          <span className="text-sm text-muted-foreground">연소득 ×</span>
+          <input
+            type="number"
+            min={1}
+            step={0.5}
+            value={incomeMultiplierInput}
+            onChange={(e) => setIncomeMultiplierInput(e.target.value)}
+            className="w-20 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
+          />
+          <span className="text-sm text-muted-foreground">배</span>
+          <button
+            type="button"
+            onClick={() => void handleSaveIncomeMultiplier()}
+            disabled={incomeMultiplierSaving || incomeMultiplier == null}
+            className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+          >
+            {incomeMultiplierSaving ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
+
+      <div>
         <h2 className="text-lg font-bold text-foreground">대출 정책 관리</h2>
         <p className="text-sm text-muted-foreground mt-1">
           회원정보(주택수·생애최초 여부)와 위 규제지역 목록 매칭 결과에 따라 추천 서비스에
           자동 적용되는 대출 비율입니다. 실제 대출한도는{" "}
           <span className="font-medium text-foreground">
-            min(감정가 × 감정가비율, 낙찰가 × 낙찰가비율)
+            min(감정가 × 감정가비율, 낙찰가 × 낙찰가비율, 연소득 × 소득배수)
           </span>
-          로 계산됩니다(더 낮은 쪽이 적용).
+          에서 기존대출을 뺀 값으로 계산됩니다.
         </p>
       </div>
 
