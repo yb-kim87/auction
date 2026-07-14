@@ -2505,22 +2505,15 @@ export function AuctionDetailModal({
                   <span className="text-[0.68rem] font-bold text-primary/60 uppercase tracking-wider" style={{ fontFamily: "'Inter', sans-serif" }}>
                     최소 투자금
                   </span>
-                  <div className="flex items-center gap-1">
-                    {regulatedArea != null && (
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[0.6rem] font-semibold ${
-                          regulatedArea ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
-                        }`}
-                      >
-                        {regulatedArea ? "규제지역" : "비규제지역"}
-                      </span>
-                    )}
-                    {failureRate != null && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-600 text-[0.65rem] font-bold border border-blue-200">
-                        {failureRate}%
-                      </span>
-                    )}
-                  </div>
+                  {regulatedArea != null && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[0.6rem] font-semibold ${
+                        regulatedArea ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                      }`}
+                    >
+                      {regulatedArea ? "규제지역" : "비규제지역"}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[1.5rem] font-bold text-primary leading-none mt-1 mb-0.5" style={{ fontFamily: "'Inter', sans-serif" }}>
                   {formatWonShort(requiredEquity)}
@@ -2528,71 +2521,115 @@ export function AuctionDetailModal({
                 {loanPolicyLabel && (
                   <p className="text-[0.68rem] text-primary/50">{loanPolicyLabel}</p>
                 )}
-                <div className="mt-3 pt-3 border-t border-primary/10 space-y-2">
-                  {appraisalRatio != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-[0.72rem] text-primary/60">
-                        감정가 {Math.round(appraisalRatio * 100)}%
-                      </span>
-                      <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
-                        {formatWonShort(Math.floor(appraisedValue * appraisalRatio))}
-                      </span>
+                {(() => {
+                  const byAppraisal =
+                    appraisalRatio != null ? Math.floor(appraisedValue * appraisalRatio) : null;
+                  const byMinPrice = loanRatio != null ? Math.floor(minPrice * loanRatio) : null;
+                  const limits = [byAppraisal, byMinPrice, incomeLoanLimit].filter(
+                    (v): v is number => v != null,
+                  );
+                  const lowestLimit = limits.length > 0 ? Math.min(...limits) : null;
+                  const finalLoanAmount = Math.max(0, minPrice - requiredEquity);
+
+                  const LimitRow = ({
+                    label,
+                    value,
+                  }: {
+                    label: string;
+                    value: number;
+                  }) => {
+                    const isLowest = lowestLimit != null && value === lowestLimit;
+                    return (
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-[0.7rem] ${isLowest ? "font-semibold text-primary" : "text-primary/55"}`}
+                        >
+                          {label}
+                        </span>
+                        <span
+                          className={`text-[0.8rem] font-semibold ${isLowest ? "text-primary" : "text-primary/55"}`}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                        >
+                          {formatWonShort(value)}
+                          {isLowest && (
+                            <span className="ml-1 text-[0.58rem] font-bold text-blue-500 align-middle">
+                              최저
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <div className="mt-3 pt-3 border-t border-primary/10 space-y-3">
+                      {limits.length > 0 && (
+                        <div className="rounded-lg bg-white/60 border border-primary/10 px-3 py-2.5 space-y-1.5">
+                          <p className="text-[0.62rem] font-bold text-primary/40 uppercase tracking-wider mb-1.5">
+                            대출 기준액 비교
+                          </p>
+                          {byAppraisal != null && appraisalRatio != null && (
+                            <LimitRow
+                              label={`감정가 ${Math.round(appraisalRatio * 100)}%`}
+                              value={byAppraisal}
+                            />
+                          )}
+                          {byMinPrice != null && loanRatio != null && (
+                            <LimitRow
+                              label={`낙찰가 ${Math.round(loanRatio * 100)}%`}
+                              value={byMinPrice}
+                            />
+                          )}
+                          {incomeLoanLimit != null && (
+                            <LimitRow label="소득적용대출" value={incomeLoanLimit} />
+                          )}
+                        </div>
+                      )}
+
+                      {existingLoanWon != null && existingLoanWon > 0 && (
+                        <div className="flex items-center justify-center gap-1.5 text-[0.68rem] text-red-500">
+                          <span>기존대출 차감</span>
+                          <span className="font-semibold">-{formatWonShort(existingLoanWon)}</span>
+                        </div>
+                      )}
+
+                      <div className="rounded-lg px-3 py-2.5 space-y-1.5" style={{ background: "rgba(42,82,152,0.08)" }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[0.72rem] font-semibold text-primary/70">최종대출금</span>
+                          <span className="text-[0.95rem] font-bold text-primary" style={{ fontFamily: "'Inter', sans-serif" }}>
+                            {formatWonShort(finalLoanAmount)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[0.72rem] font-semibold text-primary/70">최소투자금</span>
+                          <span className="text-[0.95rem] font-bold text-primary" style={{ fontFamily: "'Inter', sans-serif" }}>
+                            {formatWonShort(requiredEquity)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[0.72rem] text-primary/60 flex items-center gap-1">
+                          최저입찰가
+                          {failureRate != null && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-600 text-[0.6rem] font-bold border border-blue-200">
+                              {failureRate}%
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[0.8rem] font-semibold text-primary" style={{ fontFamily: "'Inter', sans-serif" }}>
+                          {fmtEok(minPrice)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[0.72rem] text-primary/60">감정가</span>
+                        <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
+                          {fmtEok(appraisedValue)}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  {loanRatio != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-[0.72rem] text-primary/60">
-                        낙찰가 {Math.round(loanRatio * 100)}%
-                      </span>
-                      <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
-                        {formatWonShort(Math.floor(minPrice * loanRatio))}
-                      </span>
-                    </div>
-                  )}
-                  {incomeLoanLimit != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-[0.72rem] text-primary/60">소득적용대출</span>
-                      <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
-                        {formatWonShort(incomeLoanLimit)}
-                      </span>
-                    </div>
-                  )}
-                  {existingLoanWon != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-[0.72rem] text-primary/60">기존대출</span>
-                      <span
-                        className={`text-[0.8rem] font-semibold ${existingLoanWon > 0 ? "text-red-500" : "text-primary/70"}`}
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                      >
-                        {existingLoanWon > 0 ? `-${formatWonShort(existingLoanWon)}` : "0원"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[0.72rem] text-primary/60">최종대출금</span>
-                    <span className="text-[0.8rem] font-semibold text-primary" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      {formatWonShort(Math.max(0, minPrice - requiredEquity))}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[0.72rem] text-primary/60">최소투자금</span>
-                    <span className="text-[0.8rem] font-semibold text-primary" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      {formatWonShort(requiredEquity)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-primary/10">
-                    <span className="text-[0.72rem] text-primary/60">최저입찰가</span>
-                    <span className="text-[0.8rem] font-semibold text-primary" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      {fmtEok(minPrice)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[0.72rem] text-primary/60">감정가</span>
-                    <span className="text-[0.8rem] font-semibold text-primary/70" style={{ fontFamily: "'Inter', sans-serif" }}>
-                      {fmtEok(appraisedValue)}
-                    </span>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
             )}
 
