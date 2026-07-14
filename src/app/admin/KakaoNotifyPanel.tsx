@@ -1401,7 +1401,7 @@ function TemplateSettingsCard() {
                         k,
                         v.startsWith(FIELD_REF_PREFIX)
                           ? `{${leadFields.find((f) => f.field === v.slice(FIELD_REF_PREFIX.length))?.label ?? v.slice(FIELD_REF_PREFIX.length)}}`
-                          : v,
+                          : v || `#{${k}}`,
                       ]),
                     ),
                   )}
