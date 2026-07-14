@@ -606,7 +606,7 @@ function RecommendCard({
                 >
                   {formatWonShort(estimatedProfit)}
                 </p>
-                <p className="text-[0.67rem] text-primary/50 mt-0.5">수익계산기 기본값 기준</p>
+                <p className="text-[0.67rem] text-primary/50 mt-0.5">최저가 입찰기준</p>
               </div>
             )}
           </div>
