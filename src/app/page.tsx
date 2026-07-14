@@ -82,6 +82,13 @@ function shortLoanPolicyLabel(label: string): string {
   return inner.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
 }
 
+/** 물건의 최종 대출금액(낙찰가 - 필요자기자금). 감정가·낙찰가·소득 기준 중
+ *  가장 낮은 값이 이미 반영된 결과다. */
+function finalLoanAmount(item: AuctionItem, loanInfo: LoanInfo | undefined): number | null {
+  if (!loanInfo) return null;
+  return item.minPrice - loanInfo.requiredEquity;
+}
+
 type RecommendFilters = {
   city: string;
   propType: string;
@@ -474,13 +481,7 @@ function RecommendCard({
   onOpen: () => void;
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
-  // 정책의 raw loanRatio(낙찰가 비율)만 보여주면 실제로는 감정가·소득 기준이
-  // 더 낮게 걸려 적용됐을 때 잘못된 비율을 표시하게 된다. min(감정가비율,
-  // 낙찰가비율, 소득기준)이 반영된 실제 결과(최저가 대비)를 역산해서 보여준다.
-  const loanRatio =
-    loanInfo && item.minPrice > 0
-      ? (item.minPrice - loanInfo.requiredEquity) / item.minPrice
-      : null;
+  const loanAmount = finalLoanAmount(item, loanInfo);
   const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
@@ -576,12 +577,9 @@ function RecommendCard({
             >
               {formatWonShort(requiredEquity)}
             </p>
-            {loanPolicyLabel && loanRatio != null && (
+            {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
               <p className="text-[0.67rem] text-primary/50 mt-0.5">
-                {shortLoanPolicyLabel(loanPolicyLabel)} 대출{Math.round(loanRatio * 100)}%
-                {item.minPrice > requiredEquity && (
-                  <> · 예상 대출 {formatWonShort(item.minPrice - requiredEquity)}</>
-                )}
+                {shortLoanPolicyLabel(loanPolicyLabel)} · 대출 {formatWonShort(loanAmount)}
               </p>
             )}
           </div>
@@ -639,13 +637,7 @@ function RecommendListRow({
   onOpen: () => void;
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
-  // 정책의 raw loanRatio(낙찰가 비율)만 보여주면 실제로는 감정가·소득 기준이
-  // 더 낮게 걸려 적용됐을 때 잘못된 비율을 표시하게 된다. min(감정가비율,
-  // 낙찰가비율, 소득기준)이 반영된 실제 결과(최저가 대비)를 역산해서 보여준다.
-  const loanRatio =
-    loanInfo && item.minPrice > 0
-      ? (item.minPrice - loanInfo.requiredEquity) / item.minPrice
-      : null;
+  const loanAmount = finalLoanAmount(item, loanInfo);
   const loanPolicyLabel = loanInfo?.loanPolicyLabel ?? null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
@@ -730,20 +722,11 @@ function RecommendListRow({
             </div>
           )}
 
-          {loanPolicyLabel && loanRatio != null && (
+          {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
             <div className="text-right flex-shrink-0 hidden lg:block">
               <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{shortLoanPolicyLabel(loanPolicyLabel)} 대출</p>
               <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
-                {Math.round(loanRatio * 100)}%
-              </p>
-            </div>
-          )}
-
-          {requiredEquity != null && item.minPrice > requiredEquity && (
-            <div className="text-right flex-shrink-0 hidden lg:block">
-              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">예상 대출금액</p>
-              <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
-                {formatWonShort(item.minPrice - requiredEquity)}
+                {formatWonShort(loanAmount)}
               </p>
             </div>
           )}
@@ -1234,6 +1217,12 @@ export default function HomePage() {
         }
         requiredEquity={
           selectedItem ? loanInfoByItemId[selectedItem.id]?.requiredEquity ?? null : null
+        }
+        appraisalRatio={
+          selectedItem ? loanInfoByItemId[selectedItem.id]?.appraisalRatio ?? null : null
+        }
+        regulatedArea={
+          selectedItem ? loanInfoByItemId[selectedItem.id]?.regulatedArea ?? null : null
         }
         aiAnalysisLimit={profile?.aiAnalysisLimit}
         aiAnalysisUsed={profile?.aiAnalysisUsed}
