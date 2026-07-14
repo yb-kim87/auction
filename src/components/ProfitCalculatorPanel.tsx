@@ -80,10 +80,14 @@ export function ProfitCalculatorPanel({
   item,
   loanRatio,
   appraisalRatio,
+  incomeLoanLimit,
+  existingLoanWon,
 }: {
   item: AuctionItem;
   loanRatio?: number | null;
   appraisalRatio?: number | null;
+  incomeLoanLimit?: number | null;
+  existingLoanWon?: number | null;
 }) {
   const [bidPrice, setBidPrice] = useState(item.minPrice);
   const [salePrice, setSalePrice] = useState(item.appraisedValue);
@@ -104,6 +108,7 @@ export function ProfitCalculatorPanel({
   const [vatAmount, setVatAmount] = useState(over85 ? Math.round(item.appraisedValue * 0.1 * 0.5) : 0);
   const [vatEdited, setVatEdited] = useState(false);
   const [applyProgressiveDeduction, setApplyProgressiveDeduction] = useState(true);
+  const [existingIncome, setExistingIncome] = useState(0);
 
   // 매도가가 바뀌면 부가세(매도가×10%×50%)도 자동으로 따라간다. 단, 사용자가 부가세를
   // 직접 수정한 뒤에는 더 이상 자동 갱신하지 않는다.
@@ -121,6 +126,8 @@ export function ProfitCalculatorPanel({
     holdingMonths,
     loanRatioByAppraisal: loanRatioByAppraisal / 100,
     loanRatioByBidPrice: loanRatioByBidPrice / 100,
+    incomeLoanLimit: incomeLoanLimit ?? null,
+    existingLoanWon: existingLoanWon ?? 0,
     loanInterestRate: loanInterestRate / 100,
     earlyRepaymentFeeRate: earlyRepaymentFeeRate / 100,
     interiorCost,
@@ -130,6 +137,7 @@ export function ProfitCalculatorPanel({
     isOver85sqm: over85,
     vatAmount,
     applyProgressiveDeduction,
+    existingIncome,
   };
 
   const result = useMemo(() => calculateProfit(input), [
@@ -140,8 +148,11 @@ export function ProfitCalculatorPanel({
     holdingMonths,
     loanRatioByAppraisal,
     loanRatioByBidPrice,
+    incomeLoanLimit,
+    existingLoanWon,
     loanInterestRate,
     earlyRepaymentFeeRate,
+    existingIncome,
     interiorCost,
     evictionCost,
     unpaidMaintenanceFee,
@@ -290,6 +301,13 @@ export function ProfitCalculatorPanel({
         <ResultRow label="취득금액합계" value={formatWonShort(result.totalAcquisitionCost)} />
         <ResultRow label="대출이자" value={formatWonShort(result.loanInterest)} />
         <ResultRow label="매매차익" value={formatWonShort(result.saleMargin)} />
+        <NumberField
+          label="기존소득(연간)"
+          value={existingIncome}
+          onChange={setExistingIncome}
+          suffix="원"
+          helper="입력한 기존소득과 매매차익을 합산해 양도세율 구간을 판정합니다"
+        />
         <ResultRow
           label={
             applyProgressiveDeduction

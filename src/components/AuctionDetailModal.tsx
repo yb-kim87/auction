@@ -2070,6 +2070,8 @@ export function AuctionDetailModal({
                 item={item}
                 loanRatio={loanRatio}
                 appraisalRatio={appraisalRatio}
+                incomeLoanLimit={incomeLoanLimit}
+                existingLoanWon={existingLoanWon}
               />
             )
           ) : (

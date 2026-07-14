@@ -497,6 +497,8 @@ function RecommendCard({
         area: item.area,
         loanRatioByAppraisal: loanInfo.appraisalRatio,
         loanRatioByBidPrice: loanInfo.loanRatio,
+        incomeLoanLimit: loanInfo.incomeLoanLimit,
+        existingLoanWon: loanInfo.existingLoanWon,
       }).finalProfit
     : null;
 
