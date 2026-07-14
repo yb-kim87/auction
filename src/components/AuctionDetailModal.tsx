@@ -2091,6 +2091,18 @@ export function AuctionDetailModal({
                       {hasNote && (
                         <p className="text-[0.82rem] font-semibold text-red-600 mb-3">{noteText}</p>
                       )}
+                      {preview.factTagsList && preview.factTagsList.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {preview.factTagsList.map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-2 py-0.5 rounded-md text-[0.72rem] font-medium bg-primary/5 text-primary/70 border border-primary/10"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <p className="text-sm font-medium text-foreground mb-4 flex items-start gap-2">
                         <MapPin size={15} className="shrink-0 mt-0.5 text-muted-foreground" />
                         <span>{preview.address || "-"}</span>

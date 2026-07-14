@@ -33,6 +33,7 @@ import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBa
 import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { LoanPolicyTab } from "./LoanPolicyTab";
+import { TagRulesTab } from "./TagRulesTab";
 import { AiPlatformPanel } from "./AiPlatformPanel";
 import { KakaoNotifyPanel } from "./KakaoNotifyPanel";
 
@@ -80,6 +81,7 @@ type AdminTab =
   | "users"
   | "knowledge"
   | "loanPolicy"
+  | "tagRules"
   | "aiPlatform"
   | "kakaoNotify";
 type AiPlatformSubTab = "normalizer" | "feature" | "tag";
@@ -90,6 +92,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "knowledge", label: "경매지식" },
   { id: "users", label: "회원권한 관리" },
   { id: "loanPolicy", label: "대출정책" },
+  { id: "tagRules", label: "태그 관리" },
   { id: "aiPlatform", label: "AI Platform" },
   { id: "kakaoNotify", label: "알림톡 관리" },
 ];
@@ -854,6 +857,8 @@ export default function AdminPage() {
           {activeTab === "knowledge" && <KnowledgePanel />}
 
           {activeTab === "loanPolicy" && <LoanPolicyTab />}
+
+          {activeTab === "tagRules" && <TagRulesTab />}
 
           {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}
 

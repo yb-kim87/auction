@@ -47,6 +47,8 @@ export interface AuctionItem {
   city: string;
   district: string;
   propType: "아파트" | "빌라";
+  factTagsList?: string[];
+  strategyTagsList?: string[];
   status: AuctionStatus;
   submittedBy: string;
   isUpdated: boolean;

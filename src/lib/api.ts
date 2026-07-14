@@ -608,6 +608,110 @@ export async function updateIncomeLoanMultiplier(value: number): Promise<number>
   return data.value;
 }
 
+export type TagRule = {
+  id: string;
+  tagName: string;
+  category: "fact" | "strategy";
+  field: string;
+  operator: string;
+  value: string;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type TagRuleFieldDef = { key: string; label: string; type: "number" | "string" | "boolean" };
+export type TagRuleOperatorDef = { key: string; label: string; types: string[] };
+
+export async function fetchTagRules(): Promise<TagRule[]> {
+  const res = await fetch(`${API_BASE}/tag-rules`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "태그 규칙을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchTagRuleFields(): Promise<{
+  fields: TagRuleFieldDef[];
+  operators: TagRuleOperatorDef[];
+}> {
+  const res = await fetch(`${API_BASE}/tag-rules/fields`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "태그 필드 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function createTagRule(input: {
+  tagName: string;
+  field: string;
+  operator: string;
+  value: string;
+  active?: boolean;
+  sortOrder?: number;
+}): Promise<TagRule> {
+  const res = await fetch(`${API_BASE}/tag-rules`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "태그 규칙 생성에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateTagRule(
+  id: string,
+  input: Partial<{
+    tagName: string;
+    field: string;
+    operator: string;
+    value: string;
+    active: boolean;
+    sortOrder: number;
+  }>,
+): Promise<TagRule> {
+  const res = await fetch(`${API_BASE}/tag-rules/${id}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "태그 규칙 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function removeTagRule(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/tag-rules/${id}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "태그 규칙 삭제에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function backfillTagRules(): Promise<{ total: number; updated: number }> {
+  const res = await fetch(`${API_BASE}/tag-rules/backfill`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "태그 재계산에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export type RegulatedRegion = {
   id: string;
   name: string;
