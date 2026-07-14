@@ -2526,20 +2526,26 @@ export function AuctionDetailModal({
                   {formatWonShort(requiredEquity)}
                 </p>
                 {loanPolicyLabel && (
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
-                    <span className="text-[0.68rem] text-primary/50">
-                      {housingLoanLabel(loanPolicyLabel, firstTimeBuyer)}
-                    </span>
+                  <p className="text-[0.68rem] text-primary/50">
+                    {housingLoanLabel(loanPolicyLabel, firstTimeBuyer)}
+                  </p>
+                )}
+                {(annualNetIncome || existingLoanWon != null || creditScore) && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
                     {annualNetIncome && (
-                      <span className="text-[0.68rem] text-primary/35">· 소득 {annualNetIncome}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-primary/5 text-[0.62rem] text-primary/60">
+                        소득 {annualNetIncome}
+                      </span>
                     )}
                     {existingLoanWon != null && (
-                      <span className="text-[0.68rem] text-primary/35">
-                        · 기존대출 {existingLoanWon > 0 ? formatWonShort(existingLoanWon) : "0원"}
+                      <span className="px-1.5 py-0.5 rounded bg-primary/5 text-[0.62rem] text-primary/60">
+                        기존대출 {existingLoanWon > 0 ? formatWonShort(existingLoanWon) : "0원"}
                       </span>
                     )}
                     {creditScore && (
-                      <span className="text-[0.68rem] text-primary/35">· 신용 {creditScore}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-primary/5 text-[0.62rem] text-primary/60">
+                        신용 {creditScore}
+                      </span>
                     )}
                   </div>
                 )}
