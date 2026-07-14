@@ -2609,7 +2609,7 @@ export function AuctionDetailModal({
                             />
                           )}
                           {incomeLoanLimit != null && (
-                            <LimitRow label="소득적용대출" value={incomeLoanLimit} />
+                            <LimitRow label="소득적용DSR" value={incomeLoanLimit} />
                           )}
                         </div>
                       )}
