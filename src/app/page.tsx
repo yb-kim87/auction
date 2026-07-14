@@ -717,6 +717,8 @@ function RecommendListRow({
   );
 }
 
+const PAGE_SIZE = 30;
+
 const SORT_OPTIONS = ["최신순", "실투자금낮은순", "입찰기일순", "최저가낮은순", "감정가높은순"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
 
@@ -791,8 +793,6 @@ export default function HomePage() {
       window.localStorage.setItem(`welcomeGuideSeen:${profile.id}`, "1");
     }
   }
-
-  const PAGE_SIZE = 30;
 
   function loadRecommendations(budget?: string) {
     setLoading(true);
@@ -897,6 +897,17 @@ export default function HomePage() {
     sortBy,
     loanInfoByItemId,
   );
+
+  // 클라이언트 필터(예: 진행중만 보기)로 걸러진 뒤 화면에 보이는 건수가 한
+  // 페이지 분량보다 적으면, 스크롤을 내리지 않아도 자동으로 다음 페이지를
+  // 마저 당겨와 채운다(안 그러면 서버가 준 30건 중 상당수가 필터로
+  // 걸러졌을 때 스크롤할 내용 자체가 없어 무한 스크롤이 멈춰 보인다).
+  useEffect(() => {
+    if (loading || loadingMore || !hasMore) return;
+    if (filteredItems.length >= PAGE_SIZE) return;
+    loadMoreRecommendations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadingMore, hasMore, filteredItems.length]);
 
   const activeFilterCount =
     (filters.city ? 1 : 0) +
