@@ -1759,8 +1759,8 @@ export function AuctionDetailModal({
             <img
               src={
                 preview.usage === "아파트"
-                  ? "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&h=500&fit=crop&auto=format"
-                  : "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=500&fit=crop&auto=format"
+                  ? "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=500&fit=crop&auto=format"
+                  : "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&h=500&fit=crop&auto=format"
               }
               alt={preview.usage || "물건"}
               className="w-full h-full object-cover"
