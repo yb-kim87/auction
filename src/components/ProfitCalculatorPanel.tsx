@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AuctionItem } from "@/types/auction";
 import { formatWonShort } from "@/lib/investment-money";
 import { calculateProfit, isOver85Sqm, type ProfitCalculatorInput } from "@/lib/profit-calculator";
@@ -100,10 +100,18 @@ export function ProfitCalculatorPanel({
   const [evictionCost, setEvictionCost] = useState(2_000_000);
   const [unpaidMaintenanceFee, setUnpaidMaintenanceFee] = useState(1_000_000);
   const [extraRealtyFee, setExtraRealtyFee] = useState(0);
-  const [vatAmount, setVatAmount] = useState(0);
+  const over85 = isOver85Sqm(item.area);
+  const [vatAmount, setVatAmount] = useState(over85 ? Math.round(item.appraisedValue * 0.1 * 0.5) : 0);
+  const [vatEdited, setVatEdited] = useState(false);
   const [applyProgressiveDeduction, setApplyProgressiveDeduction] = useState(true);
 
-  const over85 = isOver85Sqm(item.area);
+  // 매도가가 바뀌면 부가세(매도가×10%×50%)도 자동으로 따라간다. 단, 사용자가 부가세를
+  // 직접 수정한 뒤에는 더 이상 자동 갱신하지 않는다.
+  useEffect(() => {
+    if (!over85 || vatEdited) return;
+    setVatAmount(Math.round(salePrice * 0.1 * 0.5));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salePrice, over85]);
 
   const input: ProfitCalculatorInput = {
     minPrice: item.minPrice,
@@ -255,9 +263,12 @@ export function ProfitCalculatorPanel({
             <NumberField
               label="부가세"
               value={vatAmount}
-              onChange={setVatAmount}
+              onChange={(next) => {
+                setVatEdited(true);
+                setVatAmount(next);
+              }}
               suffix="원"
-              helper="전용 85㎡ 초과 물건이라 부가세 입력이 필요할 수 있습니다"
+              helper="전용 85㎡ 초과 물건: 매도가의 10%×50%를 기본값으로 자동 계산(직접 수정 가능)"
             />
           )}
         </div>
