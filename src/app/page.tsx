@@ -500,9 +500,7 @@ function RecommendCard({
         <div className="relative h-32 overflow-hidden bg-secondary">
           <img
             src={
-              isApartment
-                ? "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=480&h=200&fit=crop&auto=format"
-                : "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=480&h=200&fit=crop&auto=format"
+              isApartment ? "/thumb-apartment.jpg" : "/thumb-villa.jpg"
             }
             alt={item.usage || "물건"}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -660,9 +658,7 @@ function RecommendListRow({
         <div className="w-20 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-secondary">
           <img
             src={
-              isApartment
-                ? "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=480&h=200&fit=crop&auto=format"
-                : "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=480&h=200&fit=crop&auto=format"
+              isApartment ? "/thumb-apartment.jpg" : "/thumb-villa.jpg"
             }
             alt={item.usage || "물건"}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
