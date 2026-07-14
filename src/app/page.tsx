@@ -31,6 +31,7 @@ import {
   ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
 import { formatWonShort } from "@/lib/investment-money";
+import { housingLoanLabel } from "@/lib/loan-policy-label";
 
 type LoanInfo = {
   loanRatio: number;
@@ -78,21 +79,6 @@ function formatAreaLabel(area: string | null | undefined): string {
   return `건물 전용${pyeong}평(${num}㎡)`;
 }
 
-function shortLoanPolicyLabel(label: string): string {
-  const withoutAreaPrefix = label.replace(/^(규제지역|비규제지역)\s*·\s*/, "");
-  const withoutBiz = withoutAreaPrefix.replace(/\(사업자대출\)/, "");
-  const withoutFirstTimeIncluded = withoutBiz.replace(/\(생애최초\s*포함\)/, "");
-  const withoutGeneral = withoutFirstTimeIncluded.replace(/무주택\s*일반/, "무주택");
-  return withoutGeneral.replace(/\s*\+\s*/g, "+").replace(/\s+/g, "");
-}
-
-/** 무주택(0채) 케이스의 카드 표시용 라벨. 규제지역은 정책상 생애최초 여부를
- *  구분하지 않지만, 화면 표시는 회원의 실제 생애최초 체크 여부를 따른다. */
-function housingLoanLabel(loanInfo: LoanInfo | undefined, firstTimeBuyer: boolean): string {
-  const label = loanInfo?.loanPolicyLabel ?? "";
-  if (/1주택/.test(label)) return shortLoanPolicyLabel(label);
-  return firstTimeBuyer ? "무주택생애최초" : "무주택";
-}
 
 /** 물건의 최종 대출금액(낙찰가 - 필요자기자금). 감정가·낙찰가·소득 기준 중
  *  가장 낮은 값이 이미 반영된 결과다. */
@@ -496,7 +482,9 @@ function RecommendCard({
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
   const loanAmount = finalLoanAmount(item, loanInfo);
-  const loanPolicyLabel = loanInfo ? housingLoanLabel(loanInfo, firstTimeBuyer) : null;
+  const loanPolicyLabel = loanInfo
+    ? housingLoanLabel(loanInfo.loanPolicyLabel, firstTimeBuyer)
+    : null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
@@ -654,7 +642,9 @@ function RecommendListRow({
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
   const loanAmount = finalLoanAmount(item, loanInfo);
-  const loanPolicyLabel = loanInfo ? housingLoanLabel(loanInfo, firstTimeBuyer) : null;
+  const loanPolicyLabel = loanInfo
+    ? housingLoanLabel(loanInfo.loanPolicyLabel, firstTimeBuyer)
+    : null;
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
@@ -1248,6 +1238,7 @@ export default function HomePage() {
         existingLoanWon={
           selectedItem ? loanInfoByItemId[selectedItem.id]?.existingLoanWon ?? null : null
         }
+        firstTimeBuyer={profile?.firstTimeBuyer ?? false}
         aiAnalysisLimit={profile?.aiAnalysisLimit}
         aiAnalysisUsed={profile?.aiAnalysisUsed}
         onAiAnalysisUsed={() =>

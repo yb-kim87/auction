@@ -18,6 +18,7 @@ import { TenantStatusPanel } from "@/components/TenantStatusPanel";
 import { displayTenantDetail } from "@/lib/tenant-status";
 import { getFailureRateRatio } from "@/lib/failure-rate";
 import { formatWonShort } from "@/lib/investment-money";
+import { housingLoanLabel } from "@/lib/loan-policy-label";
 
 const LIST_TEXT = "text-[15px] leading-snug";
 const LABEL_TEXT = "text-[14px] leading-snug";
@@ -1445,6 +1446,7 @@ export function AuctionDetailModal({
   regulatedArea = null,
   incomeLoanLimit = null,
   existingLoanWon = null,
+  firstTimeBuyer = false,
   isAdmin = false,
   aiAnalysisLimit,
   aiAnalysisUsed,
@@ -1469,6 +1471,7 @@ export function AuctionDetailModal({
   regulatedArea?: boolean | null;
   incomeLoanLimit?: number | null;
   existingLoanWon?: number | null;
+  firstTimeBuyer?: boolean;
   isAdmin?: boolean;
   aiAnalysisLimit?: number;
   aiAnalysisUsed?: number;
@@ -2519,7 +2522,9 @@ export function AuctionDetailModal({
                   {formatWonShort(requiredEquity)}
                 </p>
                 {loanPolicyLabel && (
-                  <p className="text-[0.68rem] text-primary/50">{loanPolicyLabel}</p>
+                  <p className="text-[0.68rem] text-primary/50">
+                    {housingLoanLabel(loanPolicyLabel, firstTimeBuyer)}
+                  </p>
                 )}
                 {(() => {
                   const byAppraisal =
