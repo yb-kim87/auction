@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, Calculator } from "lucide-react";
 import type { AuctionItem, UpdateAuctionPayload } from "@/types/auction";
 import {
   AUCTION_FIELD_GROUPS,
@@ -19,6 +19,7 @@ import { displayTenantDetail } from "@/lib/tenant-status";
 import { getFailureRateRatio } from "@/lib/failure-rate";
 import { formatWonShort } from "@/lib/investment-money";
 import { housingLoanLabel } from "@/lib/loan-policy-label";
+import { ProfitCalculatorPanel } from "@/components/ProfitCalculatorPanel";
 
 const LIST_TEXT = "text-[15px] leading-snug";
 const LABEL_TEXT = "text-[14px] leading-snug";
@@ -1489,7 +1490,7 @@ export function AuctionDetailModal({
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
   const [showMemo, setShowMemo] = useState(false);
-  const [activeTab, setActiveTab] = useState<"info" | "ai">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "ai" | "profit">("info");
   const [editingViews, setEditingViews] = useState(false);
   const auctionNoInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLTextAreaElement>(null);
@@ -2036,6 +2037,20 @@ export function AuctionDetailModal({
               <Brain size={14} />
               AI에게 물어보기
             </button>
+            {!editable && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("profit")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 text-sm font-semibold border-b-2 -mb-px transition-all ${
+                  activeTab === "profit"
+                    ? "border-primary text-primary bg-primary/[0.02]"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                }`}
+              >
+                <Calculator size={14} />
+                수익계산기
+              </button>
+            )}
           </div>
 
           <div className="bg-card px-5 py-5 space-y-6">
@@ -2047,6 +2062,14 @@ export function AuctionDetailModal({
                 aiAnalysisLimit={aiAnalysisLimit}
                 aiAnalysisUsed={aiAnalysisUsed}
                 onAnalysisUsed={onAiAnalysisUsed}
+              />
+            )
+          ) : activeTab === "profit" ? (
+            item && (
+              <ProfitCalculatorPanel
+                item={item}
+                loanRatio={loanRatio}
+                appraisalRatio={appraisalRatio}
               />
             )
           ) : (
