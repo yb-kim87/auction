@@ -828,22 +828,21 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
   const loadMoreRef = useRef(loadMoreRecommendations);
   loadMoreRef.current = loadMoreRecommendations;
 
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
+    if (!sentinelEl) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) loadMoreRef.current();
       },
       { rootMargin: "400px" },
     );
-    observer.observe(el);
+    observer.observe(sentinelEl);
     return () => observer.disconnect();
-  }, []);
+  }, [sentinelEl]);
 
   useEffect(() => {
     if (items.length === 0) return;
@@ -1123,7 +1122,7 @@ export default function HomePage() {
         )}
 
         {!loading && filteredItems.length > 0 && (
-          <div ref={sentinelRef} className="py-8 text-center">
+          <div ref={setSentinelEl} className="py-8 text-center">
             {loadingMore ? (
               <p className="text-sm text-muted-foreground">더 불러오는 중...</p>
             ) : !hasMore ? (
