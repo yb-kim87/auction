@@ -503,7 +503,11 @@ function LeadDetailPanel({
                   </span>
                 </p>
                 <p className="font-medium text-foreground">
-                  {lead.kakaoRoomClickedAt ? formatDate(lead.kakaoRoomClickedAt) : "클릭 안 함"}
+                  {lead.kakaoRoomClickedAt
+                    ? lead.kakaoRoomClickCount > 1
+                      ? `${formatDate(lead.kakaoRoomClickedAt)} (총 ${lead.kakaoRoomClickCount}회, 최초 ${formatDate(lead.firstKakaoRoomClickedAt ?? lead.kakaoRoomClickedAt)})`
+                      : formatDate(lead.kakaoRoomClickedAt)
+                    : "클릭 안 함"}
                 </p>
               </div>
               <div>
