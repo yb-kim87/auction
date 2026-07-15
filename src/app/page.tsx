@@ -561,6 +561,26 @@ function RecommendCard({
           </p>
         </div>
 
+        {item.strategyTagsList && item.strategyTagsList.length > 0 && (
+          <div className="px-4 mt-2 flex flex-wrap gap-1.5">
+            {item.strategyTagsList.map((tag) => (
+              <span
+                key={tag.code}
+                title={tag.description}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.68rem] font-semibold"
+                style={{
+                  background: "linear-gradient(135deg,#F5F0FF,#FBF6FF)",
+                  border: "1px solid rgba(147,51,234,0.18)",
+                  color: "#7E22CE",
+                }}
+              >
+                <span aria-hidden>💎</span>
+                {tag.label}
+              </span>
+            ))}
+          </div>
+        )}
+
         {requiredEquity != null && (
           <div
             className="mx-4 mt-3 px-3.5 py-3 flex items-stretch gap-3"
@@ -721,6 +741,25 @@ function RecommendListRow({
               {item.bidDate || "-"}
             </span>
           </p>
+          {item.strategyTagsList && item.strategyTagsList.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {item.strategyTagsList.map((tag) => (
+                <span
+                  key={tag.code}
+                  title={tag.description}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-px rounded-full text-[0.62rem] font-semibold"
+                  style={{
+                    background: "linear-gradient(135deg,#F5F0FF,#FBF6FF)",
+                    border: "1px solid rgba(147,51,234,0.18)",
+                    color: "#7E22CE",
+                  }}
+                >
+                  <span aria-hidden>💎</span>
+                  {tag.label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-5">
