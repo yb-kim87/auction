@@ -11,7 +11,6 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Check,
   Building2,
   Gavel,
 } from "lucide-react";
@@ -193,7 +192,6 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -207,7 +205,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     setError("");
     setLoading(true);
     try {
-      await loginUser(username.trim(), password, remember);
+      await loginUser(username.trim(), password);
       const profile = await fetchMyProfile();
       router.replace(getLoginRedirect(profile.role));
     } catch (err) {
@@ -246,22 +244,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
         <p className="text-[0.82rem] text-destructive font-medium">{error}</p>
       )}
 
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <div
-            onClick={() => setRemember(!remember)}
-            className={`w-4 h-4 rounded flex items-center justify-center border transition-all cursor-pointer ${
-              remember
-                ? "bg-primary border-primary"
-                : "border-border bg-card"
-            }`}
-          >
-            {remember && (
-              <Check className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={3} />
-            )}
-          </div>
-          <span className="text-[0.82rem] text-muted-foreground">로그인 상태 유지</span>
-        </label>
+      <div className="flex items-center justify-end">
         <button
           type="button"
           className="text-[0.82rem] text-primary/70 hover:text-primary transition-colors"

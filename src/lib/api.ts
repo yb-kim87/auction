@@ -59,16 +59,12 @@ async function parseErrorMessage(res: Response) {
   return null;
 }
 
-export async function loginUser(
-  username: string,
-  password: string,
-  remember = false,
-) {
+export async function loginUser(username: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, remember }),
+    body: JSON.stringify({ username, password }),
   });
   if (!res.ok) {
     throw new Error(
@@ -76,6 +72,15 @@ export async function loginUser(
     );
   }
   return readJsonResponse<{ ok: boolean }>(res);
+}
+
+/** access 토큰(30분) 만료 시 refresh 토큰(30일)으로 새 토큰 쌍을 발급받는다. */
+export async function refreshAuthToken(): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  return res.ok;
 }
 
 export async function logoutUser() {
