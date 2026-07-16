@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { analyzeSecurityLogNow, fetchRecentSecurityLog } from "@/lib/api";
+import {
+  analyzeSecurityLogNow,
+  fetchRecentSecurityLog,
+  fetchSecurityLogIpExclusions,
+  addSecurityLogIpExclusion,
+  removeSecurityLogIpExclusion,
+  type SecurityLogIpExclusion,
+} from "@/lib/api";
 
 type LogEntry = {
   ts: string;
@@ -28,6 +35,13 @@ export function SecurityLogTab() {
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  const [exclusions, setExclusions] = useState<SecurityLogIpExclusion[]>([]);
+  const [exclusionsLoading, setExclusionsLoading] = useState(true);
+  const [newIp, setNewIp] = useState("");
+  const [newNote, setNewNote] = useState("");
+  const [addingIp, setAddingIp] = useState(false);
+  const [exclusionMessage, setExclusionMessage] = useState<string | null>(null);
+
   function load() {
     setLoading(true);
     fetchRecentSecurityLog()
@@ -36,7 +50,46 @@ export function SecurityLogTab() {
       .finally(() => setLoading(false));
   }
 
+  function loadExclusions() {
+    setExclusionsLoading(true);
+    fetchSecurityLogIpExclusions()
+      .then(setExclusions)
+      .catch((err) =>
+        setExclusionMessage(err instanceof Error ? err.message : "예외 IP 목록을 불러오지 못했습니다."),
+      )
+      .finally(() => setExclusionsLoading(false));
+  }
+
   useEffect(load, []);
+  useEffect(loadExclusions, []);
+
+  async function handleAddExclusion() {
+    if (!newIp.trim()) {
+      setExclusionMessage("IP를 입력해 주세요.");
+      return;
+    }
+    setAddingIp(true);
+    setExclusionMessage(null);
+    try {
+      await addSecurityLogIpExclusion(newIp.trim(), newNote.trim());
+      setNewIp("");
+      setNewNote("");
+      loadExclusions();
+    } catch (err) {
+      setExclusionMessage(err instanceof Error ? err.message : "예외 IP 추가에 실패했습니다.");
+    } finally {
+      setAddingIp(false);
+    }
+  }
+
+  async function handleRemoveExclusion(id: string) {
+    try {
+      await removeSecurityLogIpExclusion(id);
+      loadExclusions();
+    } catch (err) {
+      setExclusionMessage(err instanceof Error ? err.message : "예외 IP 삭제에 실패했습니다.");
+    }
+  }
 
   async function handleAnalyzeNow() {
     setAnalyzing(true);
@@ -83,6 +136,81 @@ export function SecurityLogTab() {
       >
         {analyzing ? "분석 중..." : "지금 바로 분석 실행"}
       </button>
+
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-1">알림 제외 IP 관리</h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          구글 서비스 계정 등 정상 연동으로 확인된 IP를 등록하면, 해당 IP의 요청은 이상행위
+          분석·알림 대상에서 제외됩니다. 대역이 아니라 정확한 IP 단위로만 등록하세요.
+        </p>
+        {exclusionMessage && (
+          <div className="text-sm px-3 py-2 mb-3 rounded-sm border border-border bg-secondary/30">
+            {exclusionMessage}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2 mb-3">
+          <input
+            type="text"
+            value={newIp}
+            onChange={(e) => setNewIp(e.target.value)}
+            placeholder="IP (예: 35.187.134.139)"
+            className="px-3 py-1.5 text-sm border border-border rounded-sm bg-background w-56"
+          />
+          <input
+            type="text"
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            placeholder="메모 (선택, 예: 구글시트 연동)"
+            className="px-3 py-1.5 text-sm border border-border rounded-sm bg-background w-64"
+          />
+          <button
+            type="button"
+            onClick={() => void handleAddExclusion()}
+            disabled={addingIp}
+            className="px-4 py-1.5 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+          >
+            {addingIp ? "추가 중..." : "IP 추가"}
+          </button>
+        </div>
+        <div className="border border-border rounded-sm overflow-x-auto max-h-64 overflow-y-auto">
+          {exclusionsLoading ? (
+            <p className="text-sm text-muted-foreground p-4">불러오는 중...</p>
+          ) : exclusions.length === 0 ? (
+            <p className="text-sm text-muted-foreground p-4">등록된 예외 IP가 없습니다.</p>
+          ) : (
+            <table className="w-full text-xs border-collapse">
+              <thead className="sticky top-0 bg-secondary/50">
+                <tr className="text-left">
+                  <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">IP</th>
+                  <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">메모</th>
+                  <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">등록일</th>
+                  <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {exclusions.map((ex) => (
+                  <tr key={ex.id} className="border-t border-border">
+                    <td className="px-3 py-1.5 whitespace-nowrap font-mono">{ex.ip}</td>
+                    <td className="px-3 py-1.5">{ex.note || "-"}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
+                      {new Date(ex.createdAt).toLocaleDateString("ko-KR")}
+                    </td>
+                    <td className="px-3 py-1.5 whitespace-nowrap text-right">
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveExclusion(ex.id)}
+                        className="text-xs text-destructive hover:underline"
+                      >
+                        삭제
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
 
       <div>
         <div className="flex items-center justify-between mb-2">

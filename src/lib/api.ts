@@ -756,6 +756,50 @@ export async function fetchRecentSecurityLog(): Promise<{ lines: string[] }> {
   return readJsonResponse(res);
 }
 
+export type SecurityLogIpExclusion = {
+  id: string;
+  ip: string;
+  note: string;
+  createdAt: string;
+};
+
+export async function fetchSecurityLogIpExclusions(): Promise<SecurityLogIpExclusion[]> {
+  const res = await fetch(`${API_BASE}/security-log/ip-exclusions`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "예외 IP 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function addSecurityLogIpExclusion(
+  ip: string,
+  note: string,
+): Promise<SecurityLogIpExclusion> {
+  const res = await fetch(`${API_BASE}/security-log/ip-exclusions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: FETCH_CREDENTIALS,
+    body: JSON.stringify({ ip, note }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "예외 IP 추가에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function removeSecurityLogIpExclusion(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/security-log/ip-exclusions/${id}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "예외 IP 삭제에 실패했습니다.");
+  }
+}
+
 export async function fetchStrategyRules(): Promise<StrategyRule[]> {
   const res = await fetch(`${API_BASE}/tag-rules/strategy-rules`, {
     cache: "no-store",
