@@ -1238,6 +1238,12 @@ export type CrawlerAlgorithmConfig = {
   telegramEnabled: boolean;
 };
 
+/**
+ * v1: 기존 Selenium 전체 경로. v2: HTTPX(목록/상세)+Selenium(네이버) 하이브리드.
+ * v3: 완전 HTTPX(브라우저 없음). 미지정 시 v1(기존 동작).
+ */
+export type CrawlerVersion = "v1" | "v2" | "v3";
+
 export type CrawlerScheduleConfig = {
   enabled: boolean;
   time: string;
@@ -1246,6 +1252,7 @@ export type CrawlerScheduleConfig = {
   excludeDuplicates: boolean;
   repeatDaily: boolean;
   oneTimeCompleted?: boolean;
+  crawlerVersion?: CrawlerVersion;
 };
 
 export type CrawlerCredentialsConfig = {
@@ -1410,6 +1417,7 @@ export async function crawlerManageUrls(body: {
 
 export async function crawlerStart(options?: {
   repeatAfterCollect?: boolean;
+  crawlerVersion?: CrawlerVersion;
 }) {
   const res = await fetch(`${API_BASE}/crawler/start`, {
     method: "POST",

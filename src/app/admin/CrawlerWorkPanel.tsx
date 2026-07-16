@@ -67,8 +67,8 @@ export function CrawlerWorkPanel() {
   const [repeatAfterCollect, setRepeatAfterCollect] = useState(false);
   const [scheduledTime, setScheduledTime] = useState("00:00");
   const [manualUrl, setManualUrl] = useState("");
-  const [tankUserId, setTankUserId] = useState("zgamez");
-  const [tankPassword, setTankPassword] = useState("young1!");
+  const [tankUserId, setTankUserId] = useState("");
+  const [tankPassword, setTankPassword] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -584,6 +584,26 @@ export function CrawlerWorkPanel() {
                       : status?.phase === "crawling"
                         ? "조회 중단"
                         : "조회 시작"}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    Boolean(busy) ||
+                    urls.length === 0 ||
+                    status?.phase === "crawling"
+                  }
+                  title="실험적 기능: 브라우저 없이 HTTPX만으로 목록/상세/네이버부동산을 조회합니다. 아직 자동 스케줄러에는 연결되지 않은 별도 경로입니다."
+                  onClick={() =>
+                    runAction("start-v3", async () => {
+                      await crawlerStart({
+                        repeatAfterCollect,
+                        crawlerVersion: "v3",
+                      });
+                    })
+                  }
+                  className="px-3 py-2 text-sm font-semibold rounded-sm border border-emerald-600 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  {busy === "start-v3" ? "시작 중..." : "완전 HTTPX 테스트"}
                 </button>
               </div>
 

@@ -227,6 +227,31 @@ export function CrawlerAlgorithmTab() {
           />
           수집 후 자동 조회
         </label>
+
+        <label className="text-sm space-y-1 block">
+          <span className="text-muted-foreground">
+            예약 조회 실행 경로
+          </span>
+          <select
+            value={schedule.crawlerVersion ?? "v1"}
+            onChange={(e) =>
+              setSchedule({
+                ...schedule,
+                crawlerVersion: e.target.value as "v1" | "v2" | "v3",
+              })
+            }
+            className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+          >
+            <option value="v1">v1 - 기존 Selenium (기본값)</option>
+            <option value="v2">v2 - 하이브리드 (HTTPX + Selenium 네이버)</option>
+            <option value="v3">v3 - 완전 HTTPX (브라우저 없음, 실험적)</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            v3는 아파트 표본 검증에서 Selenium과 네이버 핵심 지표(호가·갭·단지ID)가
+            일치함을 확인했지만 아직 실험 단계입니다. 예약 조회에 적용하면
+            실제 자동 수집 결과에 영향을 주니 신중히 전환하세요.
+          </p>
+        </label>
       </section>
 
       <button
