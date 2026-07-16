@@ -734,6 +734,28 @@ export async function backfillTagRules(): Promise<{ total: number; updated: numb
   return readJsonResponse(res);
 }
 
+export async function analyzeSecurityLogNow(): Promise<{ ran: boolean; reason?: string }> {
+  const res = await fetch(`${API_BASE}/security-log/analyze-now`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "보안 로그 분석 실행에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchRecentSecurityLog(): Promise<{ lines: string[] }> {
+  const res = await fetch(`${API_BASE}/security-log/recent`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "보안 로그를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchStrategyRules(): Promise<StrategyRule[]> {
   const res = await fetch(`${API_BASE}/tag-rules/strategy-rules`, {
     cache: "no-store",

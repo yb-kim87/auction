@@ -37,6 +37,8 @@ import { TagRulesTab } from "./TagRulesTab";
 import { StrategyTagsTab } from "./StrategyTagsTab";
 import { AiPlatformPanel } from "./AiPlatformPanel";
 import { KakaoNotifyPanel } from "./KakaoNotifyPanel";
+import { CoupangSourcingTab } from "./CoupangSourcingTab";
+import { SecurityLogTab } from "./SecurityLogTab";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -85,7 +87,9 @@ type AdminTab =
   | "tagRules"
   | "strategyTags"
   | "aiPlatform"
-  | "kakaoNotify";
+  | "kakaoNotify"
+  | "coupangSourcing"
+  | "securityLog";
 type AiPlatformSubTab = "normalizer" | "feature" | "tag";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
@@ -98,6 +102,8 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "strategyTags", label: "Strategy 태그" },
   { id: "aiPlatform", label: "AI Platform" },
   { id: "kakaoNotify", label: "알림톡 관리" },
+  { id: "coupangSourcing", label: "쿠팡 소싱" },
+  { id: "securityLog", label: "보안 로그" },
 ];
 
 const AI_PLATFORM_SUB_TABS: { id: AiPlatformSubTab; label: string }[] = [
@@ -866,6 +872,10 @@ export default function AdminPage() {
           {activeTab === "strategyTags" && <StrategyTagsTab />}
 
           {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}
+
+          {activeTab === "coupangSourcing" && <CoupangSourcingTab />}
+
+          {activeTab === "securityLog" && <SecurityLogTab />}
 
           {activeTab === "aiPlatform" && (
             <div>
