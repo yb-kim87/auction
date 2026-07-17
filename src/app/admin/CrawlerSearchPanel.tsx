@@ -875,62 +875,60 @@ export function CrawlerSearchPanel({
 
           <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
             <span className="text-muted-foreground">주소</span>
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={search.regionSiCd ?? ""}
-                  onChange={(e) => {
-                    const nextSiCd = e.target.value;
-                    setSearch({
-                      ...search,
-                      regionSiCd: nextSiCd,
-                      regionGuCd: "",
-                      regionDnCd: "",
-                    });
-                  }}
-                  className="w-32 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {REGION_SI_OPTIONS.map((item) => (
-                    <option key={item.value || "all"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={search.regionGuCd ?? ""}
-                  onChange={(e) => {
-                    const nextGuCd = e.target.value;
-                    setSearch({ ...search, regionGuCd: nextGuCd, regionDnCd: "" });
-                  }}
-                  disabled={!search.regionSiCd}
-                  className="w-32 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
-                >
-                  <option value="">시/군/구 전체</option>
-                  {getTankGuOptions(search.regionSiCd ?? "").map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={search.regionDnCd ?? ""}
-                  onChange={(e) => setSearch({ ...search, regionDnCd: e.target.value })}
-                  disabled={!search.regionGuCd}
-                  className="w-32 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
-                >
-                  <option value="">동/읍/면 전체</option>
-                  {getTankDongOptions(search.regionSiCd ?? "", search.regionGuCd ?? "").map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={search.regionSiCd ?? ""}
+                onChange={(e) => {
+                  const nextSiCd = e.target.value;
+                  setSearch({
+                    ...search,
+                    regionSiCd: nextSiCd,
+                    regionGuCd: "",
+                    regionDnCd: "",
+                  });
+                }}
+                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {REGION_SI_OPTIONS.map((item) => (
+                  <option key={item.value || "all"} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={search.regionGuCd ?? ""}
+                onChange={(e) => {
+                  const nextGuCd = e.target.value;
+                  setSearch({ ...search, regionGuCd: nextGuCd, regionDnCd: "" });
+                }}
+                disabled={!search.regionSiCd}
+                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+              >
+                <option value="">시/군/구</option>
+                {getTankGuOptions(search.regionSiCd ?? "").map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={search.regionDnCd ?? ""}
+                onChange={(e) => setSearch({ ...search, regionDnCd: e.target.value })}
+                disabled={!search.regionGuCd}
+                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+              >
+                <option value="">동/읍/면</option>
+                {getTankDongOptions(search.regionSiCd ?? "", search.regionGuCd ?? "").map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
               <input
                 value={search.addressKeyword ?? ""}
                 onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
-                placeholder="상세주소 (예: 래미안) — 시/군/구 이하 자유 텍스트로 추가 필터링"
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                placeholder="상세주소 (예: 래미안)"
+                className="flex-1 min-w-[10rem] px-3 py-2 border border-border rounded-sm bg-card"
               />
             </div>
           </div>
@@ -1007,6 +1005,14 @@ export function CrawlerSearchPanel({
               options={MIN_PRICE_OPTIONS}
             />
 
+            <RangeInputRow
+              label="대지면적(㎡)"
+              minValue={search.landAreaMin ?? ""}
+              maxValue={search.landAreaMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, landAreaMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, landAreaMax: v })}
+            />
+
             <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="text-muted-foreground">보존등기 (년)</span>
               <input
@@ -1018,14 +1024,6 @@ export function CrawlerSearchPanel({
                 placeholder="2012"
               />
             </div>
-
-            <RangeInputRow
-              label="대지면적(㎡)"
-              minValue={search.landAreaMin ?? ""}
-              maxValue={search.landAreaMax ?? ""}
-              onMinChange={(v) => setSearch({ ...search, landAreaMin: v })}
-              onMaxChange={(v) => setSearch({ ...search, landAreaMax: v })}
-            />
 
             <RangeInputRow
               label="건물면적(㎡)"
