@@ -667,7 +667,73 @@ export function CrawlerSearchPanel({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <label className="text-sm space-y-1 block max-w-sm">
+            <span className="text-muted-foreground">사건번호</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={search.caseYear ?? ""}
+                onChange={(e) => setSearch({ ...search, caseYear: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {CASE_YEAR_OPTIONS.map((item) => (
+                  <option key={item.value || "all"} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <span className="text-muted-foreground shrink-0 select-none">타경</span>
+              <input
+                value={search.caseSerial ?? ""}
+                onChange={(e) => setSearch({ ...search, caseSerial: e.target.value })}
+                placeholder="일련번호"
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              />
+            </div>
+          </label>
+
+          <div className="text-sm space-y-1">
+            <span className="text-muted-foreground">시/도 · 시/군/구·읍/면/동·상세주소</span>
+            <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
+              <select
+                value={search.regionSiCd ?? ""}
+                onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {REGION_SI_OPTIONS.map((item) => (
+                  <option key={item.value || "all"} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={search.addressKeyword ?? ""}
+                onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
+                placeholder="예: 강남구, 래미안 (시/군/구 이하는 코드 대신 자유 텍스트로 필터링)"
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              />
+            </div>
+          </div>
+
+          <div className="text-sm space-y-1 max-w-md">
+            <span className="text-muted-foreground">매각기일</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={search.bidDateFrom ?? ""}
+                onChange={(e) => setSearch({ ...search, bidDateFrom: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              />
+              <span className="text-muted-foreground shrink-0 select-none">~</span>
+              <input
+                type="date"
+                value={search.bidDateTo ?? ""}
+                onChange={(e) => setSearch({ ...search, bidDateTo: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="text-sm space-y-1">
               <span className="text-muted-foreground">물건 구분</span>
               <select
@@ -693,21 +759,6 @@ export function CrawlerSearchPanel({
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
               >
                 {STATUS_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-sm space-y-1">
-              <span className="text-muted-foreground">목록 수</span>
-              <select
-                value={search.pageSize}
-                onChange={(e) => setSearch({ ...search, pageSize: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                {PAGE_SIZE_OPTIONS.map((item) => (
                   <option key={item} value={item}>
                     {item}
                   </option>
@@ -792,49 +843,6 @@ export function CrawlerSearchPanel({
               options={FAIL_COUNT_OPTIONS}
             />
 
-            <div className="text-sm space-y-1 md:col-span-2">
-              <span className="text-muted-foreground">매각기일</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={search.bidDateFrom ?? ""}
-                  onChange={(e) => setSearch({ ...search, bidDateFrom: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-                <span className="text-muted-foreground shrink-0 select-none">~</span>
-                <input
-                  type="date"
-                  value={search.bidDateTo ?? ""}
-                  onChange={(e) => setSearch({ ...search, bidDateTo: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </div>
-            </div>
-
-            <label className="text-sm space-y-1">
-              <span className="text-muted-foreground">사건번호</span>
-              <div className="flex items-center gap-2">
-                <select
-                  value={search.caseYear ?? ""}
-                  onChange={(e) => setSearch({ ...search, caseYear: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {CASE_YEAR_OPTIONS.map((item) => (
-                    <option key={item.value || "all"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-muted-foreground shrink-0 select-none">타경</span>
-                <input
-                  value={search.caseSerial ?? ""}
-                  onChange={(e) => setSearch({ ...search, caseSerial: e.target.value })}
-                  placeholder="일련번호"
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </div>
-            </label>
-
             <label className="text-sm space-y-1">
               <span className="text-muted-foreground">물건번호</span>
               <input
@@ -844,29 +852,6 @@ export function CrawlerSearchPanel({
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
               />
             </label>
-
-            <div className="text-sm space-y-1 md:col-span-2">
-              <span className="text-muted-foreground">시/도 · 시/군/구·읍/면/동·상세주소</span>
-              <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
-                <select
-                  value={search.regionSiCd ?? ""}
-                  onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {REGION_SI_OPTIONS.map((item) => (
-                    <option key={item.value || "all"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={search.addressKeyword ?? ""}
-                  onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
-                  placeholder="예: 강남구, 래미안 (시/군/구 이하는 코드 대신 자유 텍스트로 필터링)"
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </div>
-            </div>
 
             <label className="text-sm space-y-1">
               <span className="text-muted-foreground">경매구분</span>
@@ -898,6 +883,21 @@ export function CrawlerSearchPanel({
               </select>
             </label>
           </div>
+
+          <label className="text-sm space-y-1 block max-w-xs">
+            <span className="text-muted-foreground">목록 수</span>
+            <select
+              value={search.pageSize}
+              onChange={(e) => setSearch({ ...search, pageSize: e.target.value })}
+              className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+            >
+              {PAGE_SIZE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <div>
             <p className="text-sm font-semibold mb-2">물건종류</p>
