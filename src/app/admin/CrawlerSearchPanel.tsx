@@ -667,7 +667,7 @@ export function CrawlerSearchPanel({
             </p>
           </div>
 
-          <label className="text-sm space-y-1 block max-w-sm">
+          <label className="text-sm space-y-1 block max-w-lg">
             <span className="text-muted-foreground">사건번호</span>
             <div className="flex items-center gap-2">
               <select
@@ -687,6 +687,13 @@ export function CrawlerSearchPanel({
                 onChange={(e) => setSearch({ ...search, caseSerial: e.target.value })}
                 placeholder="일련번호"
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              />
+              <span className="text-muted-foreground shrink-0 select-none">물건번호</span>
+              <input
+                value={search.itemNumber ?? ""}
+                onChange={(e) => setSearch({ ...search, itemNumber: e.target.value })}
+                placeholder="1"
+                className="w-16 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
               />
             </div>
           </label>
@@ -842,16 +849,6 @@ export function CrawlerSearchPanel({
               onMaxChange={(v) => setSearch({ ...search, failCountMax: v })}
               options={FAIL_COUNT_OPTIONS}
             />
-
-            <label className="text-sm space-y-1">
-              <span className="text-muted-foreground">물건번호</span>
-              <input
-                value={search.itemNumber ?? ""}
-                onChange={(e) => setSearch({ ...search, itemNumber: e.target.value })}
-                placeholder="예: 1"
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-              />
-            </label>
 
             <label className="text-sm space-y-1">
               <span className="text-muted-foreground">경매구분</span>
