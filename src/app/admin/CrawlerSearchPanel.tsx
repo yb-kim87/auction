@@ -15,16 +15,91 @@ import {
   type TankFavoriteSearch,
 } from "@/lib/api";
 
-const PROPERTY_OPTIONS = [
-  "아파트",
-  "다가구주택",
-  "상가주택",
-  "오피스텔",
-  "연립주택",
-  "다세대주택",
-  "도시형생활주택",
-  "근린상가",
-  "토지",
+// 탱크옥션 ca/caList.php 검색 폼 #ctgr select 옵션 전체를 실측(2026-07-17)한
+// 대분류→하위 물건종류 그룹. presets_httpx.py: PROPERTY_TYPE_CODES 의 키와
+// 정확히 일치해야 한다.
+const PROPERTY_GROUPS: { group: string; items: string[] }[] = [
+  {
+    group: "주거용",
+    items: [
+      "아파트",
+      "연립주택",
+      "다세대주택",
+      "오피스텔(주거)",
+      "단독주택",
+      "다가구주택",
+      "도시형생활주택",
+      "기숙사",
+      "상가주택",
+    ],
+  },
+  {
+    group: "상업 및 산업용",
+    items: [
+      "근린생활시설",
+      "오피스텔(상업)",
+      "근린상가",
+      "숙박시설",
+      "숙박(콘도등)",
+      "목욕탕",
+      "업무시설",
+      "노유자시설",
+      "문화및집회시설",
+      "종교시설",
+      "의료시설",
+      "교육연구시설",
+      "묘지관련시설",
+      "기타시설",
+      "공장",
+      "지식산업센터",
+      "창고시설",
+      "위험물저장및처리",
+      "자동차관련",
+      "동물및식물관련",
+      "분뇨및쓰레기처리",
+    ],
+  },
+  {
+    group: "토지",
+    items: [
+      "전",
+      "답",
+      "과수원",
+      "임야",
+      "대지",
+      "잡종지",
+      "도로",
+      "주차장",
+      "공원",
+      "유원지",
+      "사적지",
+      "묘지",
+      "목장용지",
+      "공장용지",
+      "학교용지",
+      "주유소용지",
+      "창고용지",
+      "철도용지",
+      "수도용지",
+      "체육용지",
+      "종교용지",
+      "제방",
+      "하천",
+      "구거",
+      "광천지",
+      "염전",
+      "유지",
+      "양어장",
+    ],
+  },
+  {
+    group: "차량 및 중장비",
+    items: ["승용차", "승합차", "버스", "화물차", "기타차량", "덤프트럭", "기타중기"],
+  },
+  {
+    group: "기타",
+    items: ["선박", "어업권", "광업권", "기타권리"],
+  },
 ];
 
 const STATUS_OPTIONS = ["진행물건", "기타", "매각", "유찰"];
@@ -45,11 +120,68 @@ const APPRAISAL_OPTIONS = [
   "50억",
 ];
 const PAGE_SIZE_OPTIONS = ["20", "50", "100", "200"];
-const SPECIAL_EXCLUDE = [
-  "위반건축물",
-  "법정지상권",
-  "선순위임차",
-  "대지권미등기",
+
+// 탱크옥션 ca/caList.php 검색 폼 input[name=chkSpl] 체크박스 전체(46개,
+// 6개 그룹)를 실측(2026-07-17)한 특수조건 그룹. presets_httpx.py:
+// SPECIAL_CONDITION_GROUPS 와 라벨/순서가 정확히 일치해야 한다.
+const SPECIAL_CONDITION_GROUPS: { group: string; items: string[] }[] = [
+  {
+    group: "권리",
+    items: ["유치권", "유치권 배제", "법정지상권", "분묘기지권", "선순위 가등기", "선순위 가처분", "지분입찰 물건"],
+  },
+  {
+    group: "임차인",
+    items: [
+      "임차인우선매수신고",
+      "선순위 전세권 설정",
+      "선순위 임차권 설정",
+      "임차권 등기",
+      "대항력 있는 임차인",
+      "전세권만 매각",
+      "HUG 임차권 인수조건변경",
+      "HF 임차권 인수조건변경",
+    ],
+  },
+  {
+    group: "물건현황",
+    items: [
+      "맹지",
+      "위반건축물",
+      "오늘 공고된 신건",
+      "재매각 물건",
+      "반값 경매물건",
+      "토지건물 일괄매각",
+      "대지권미등기",
+      "토지별도등기 있는 물건",
+      "토지별도등기인수조건",
+      "건물만 입찰 물건",
+      "토지만 입찰 물건",
+      "감정시점 1년 지난 물건",
+      "경매/공매 동시 (진행/과거)",
+      "최근 2주 주요변동 물건",
+      "NPL 물건",
+      "공고보다 빠른 신건",
+      "공고임박 예정물건(주소만 검색)",
+    ],
+  },
+  {
+    group: "자격",
+    items: ["공유자우선매수", "농지취득자격증명", "채권자매수청구", "대위변제", "항고사건", "임금채권자"],
+  },
+  {
+    group: "형식적경매",
+    items: ["유치권에 의한 형식적경매", "공유물분할을 위한 형식적경매", "청산을 위한 형식적경매", "기타 형식적경매"],
+  },
+  {
+    group: "공시가격(주거용)",
+    items: ["공시가 1억 이하", "공시가 1~2억 이하", "공시가 2~3억 이하", "공시가 3~4억 이하"],
+  },
+];
+
+const SPECIAL_CONDITION_MODE_OPTIONS: { value: "exclude" | "include-any" | "include-all"; label: string }[] = [
+  { value: "exclude", label: "선택 제외" },
+  { value: "include-any", label: "선택 1개 이상 포함" },
+  { value: "include-all", label: "선택 모두 포함" },
 ];
 
 // 아래 select 옵션들은 탱크옥션 ca/caList.php 검색 폼(#minbAmtBgn,
@@ -721,6 +853,44 @@ export function CrawlerSearchPanel({
             </div>
           </div>
 
+          <div className="text-sm space-y-1">
+            <span className="text-muted-foreground">물건종류</span>
+            <select
+              value=""
+              onChange={(e) => {
+                if (e.target.value) toggleProperty(e.target.value);
+                e.target.value = "";
+              }}
+              className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
+            >
+              <option value="">선택 (복수 선택 가능)</option>
+              {PROPERTY_GROUPS.map(({ group, items }) => (
+                <optgroup key={group} label={group}>
+                  {items.map((type) => (
+                    <option key={type} value={type} disabled={search.propertyTypes.includes(type)}>
+                      {type}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            {search.propertyTypes.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {search.propertyTypes.map((type) => (
+                  <button
+                    type="button"
+                    key={type}
+                    onClick={() => toggleProperty(type)}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
+                  >
+                    {type}
+                    <span className="text-muted-foreground">×</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="text-sm space-y-1 max-w-md">
             <span className="text-muted-foreground">매각기일</span>
             <div className="flex items-center gap-2">
@@ -896,42 +1066,43 @@ export function CrawlerSearchPanel({
             </select>
           </label>
 
-          <div>
-            <p className="text-sm font-semibold mb-2">물건종류</p>
-            <div className="flex flex-wrap gap-2">
-              {PROPERTY_OPTIONS.map((type) => (
-                <label
-                  key={type}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-sm cursor-pointer"
-                >
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">특수조건</p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {SPECIAL_CONDITION_MODE_OPTIONS.map((opt) => (
+                <label key={opt.value} className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
                   <input
-                    type="checkbox"
-                    checked={search.propertyTypes.includes(type)}
-                    onChange={() => toggleProperty(type)}
+                    type="radio"
+                    name="specialConditionMode"
+                    checked={(search.specialConditionMode ?? "exclude") === opt.value}
+                    onChange={() => setSearch({ ...search, specialConditionMode: opt.value })}
                     className="accent-primary"
                   />
-                  {type}
+                  {opt.label}
                 </label>
               ))}
             </div>
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold mb-2">특수조건 (선택제외)</p>
-            <div className="flex flex-wrap gap-2">
-              {SPECIAL_EXCLUDE.map((type) => (
-                <label
-                  key={type}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-sm cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={search.excludeSpecialConditions.includes(type)}
-                    onChange={() => toggleExclude(type)}
-                    className="accent-primary"
-                  />
-                  {type}
-                </label>
+            <div className="space-y-3">
+              {SPECIAL_CONDITION_GROUPS.map(({ group, items }) => (
+                <div key={group} className="text-sm">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">{group}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {items.map((type) => (
+                      <label
+                        key={type}
+                        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-sm cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={search.excludeSpecialConditions.includes(type)}
+                          onChange={() => toggleExclude(type)}
+                          className="accent-primary"
+                        />
+                        {type}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

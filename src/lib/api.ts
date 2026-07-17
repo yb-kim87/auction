@@ -1226,6 +1226,9 @@ export type CrawlerSearchConfig = {
   appraisalMax: string;
   preserveRegistryFrom: string;
   excludeSpecialConditions: string[];
+  /** 특수조건 선택 항목들을 어떻게 적용할지. 탱크옥션 splSrchType과 동일.
+   * 미지정/undefined면 "exclude"(선택 제외, 기존 동작)로 취급한다. */
+  specialConditionMode?: "include-any" | "include-all" | "exclude";
   pageSize: string;
   caseYear?: string;
   caseSerial?: string;
