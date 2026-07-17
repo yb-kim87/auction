@@ -357,34 +357,36 @@ function RangeSelectRow({
   hint?: string;
 }) {
   return (
-    <div className="text-sm space-y-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
       <span className="text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-2">
-        <select
-          value={minValue}
-          onChange={(e) => onMinChange(e.target.value)}
-          className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-        >
-          {options.map((item) => (
-            <option key={item.value || "none"} value={item.value}>
-              {item.value === "" ? "이상" : item.label}
-            </option>
-          ))}
-        </select>
-        <span className="text-muted-foreground shrink-0 select-none">~</span>
-        <select
-          value={maxValue}
-          onChange={(e) => onMaxChange(e.target.value)}
-          className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-        >
-          {options.map((item) => (
-            <option key={item.value || "none"} value={item.value}>
-              {item.value === "" ? "이하" : item.label}
-            </option>
-          ))}
-        </select>
+      <div>
+        <div className="flex items-center gap-2">
+          <select
+            value={minValue}
+            onChange={(e) => onMinChange(e.target.value)}
+            className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+          >
+            {options.map((item) => (
+              <option key={item.value || "none"} value={item.value}>
+                {item.value === "" ? "이상" : item.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-muted-foreground shrink-0 select-none">~</span>
+          <select
+            value={maxValue}
+            onChange={(e) => onMaxChange(e.target.value)}
+            className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+          >
+            {options.map((item) => (
+              <option key={item.value || "none"} value={item.value}>
+                {item.value === "" ? "이하" : item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
       </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -405,7 +407,7 @@ function RangeInputRow({
   onMaxChange: (v: string) => void;
 }) {
   return (
-    <div className="text-sm space-y-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
       <span className="text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
         <input
@@ -740,7 +742,7 @@ export function CrawlerSearchPanel({
                   onClick={handleNewPreset}
                   className="px-3 py-1.5 text-xs rounded-sm border border-border"
                 >
-                  새로 만들기
+                  현재 조건 새로 저장
                 </button>
               )}
             </div>
@@ -799,7 +801,7 @@ export function CrawlerSearchPanel({
             </p>
           </div>
 
-          <label className="text-sm space-y-2 block max-w-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
             <span className="text-muted-foreground">사건번호</span>
             <div className="flex items-center gap-2">
               <select
@@ -828,10 +830,10 @@ export function CrawlerSearchPanel({
                 className="w-16 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
               />
             </div>
-          </label>
+          </div>
 
-          <div className="text-sm space-y-2">
-            <span className="text-muted-foreground">시/도 · 시/군/구·읍/면/동·상세주소</span>
+          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
+            <span className="text-muted-foreground">시/도·주소</span>
             <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
               <select
                 value={search.regionSiCd ?? ""}
@@ -853,47 +855,49 @@ export function CrawlerSearchPanel({
             </div>
           </div>
 
-          <div className="text-sm space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
             <span className="text-muted-foreground">물건종류</span>
-            <select
-              value=""
-              onChange={(e) => {
-                if (e.target.value) toggleProperty(e.target.value);
-                e.target.value = "";
-              }}
-              className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
-            >
-              <option value="">선택 (복수 선택 가능)</option>
-              {PROPERTY_GROUPS.map(({ group, items }) => (
-                <optgroup key={group} label={group}>
-                  {items.map((type) => (
-                    <option key={type} value={type} disabled={search.propertyTypes.includes(type)}>
-                      {type}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            {search.propertyTypes.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {search.propertyTypes.map((type) => (
-                  <button
-                    type="button"
-                    key={type}
-                    onClick={() => toggleProperty(type)}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
-                  >
-                    {type}
-                    <span className="text-muted-foreground">×</span>
-                  </button>
+            <div>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) toggleProperty(e.target.value);
+                  e.target.value = "";
+                }}
+                className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                <option value="">선택 (복수 선택 가능)</option>
+                {PROPERTY_GROUPS.map(({ group, items }) => (
+                  <optgroup key={group} label={group}>
+                    {items.map((type) => (
+                      <option key={type} value={type} disabled={search.propertyTypes.includes(type)}>
+                        {type}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
-              </div>
-            )}
+              </select>
+              {search.propertyTypes.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {search.propertyTypes.map((type) => (
+                    <button
+                      type="button"
+                      key={type}
+                      onClick={() => toggleProperty(type)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
+                    >
+                      {type}
+                      <span className="text-muted-foreground">×</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="text-sm space-y-2 max-w-md">
+          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
             <span className="text-muted-foreground">매각기일</span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 max-w-md">
               <input
                 type="date"
                 value={search.bidDateFrom ?? ""}
@@ -910,8 +914,8 @@ export function CrawlerSearchPanel({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="text-sm space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="text-muted-foreground">물건 구분</span>
               <select
                 value={search.listType}
@@ -926,9 +930,9 @@ export function CrawlerSearchPanel({
                 <option value="auction">경매</option>
                 <option value="public">공매</option>
               </select>
-            </label>
+            </div>
 
-            <label className="text-sm space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="text-muted-foreground">진행상태</span>
               <select
                 value={search.status}
@@ -941,10 +945,10 @@ export function CrawlerSearchPanel({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
             <RangeSelectRow
               label="감정가"
               minValue={search.appraisalMin}
@@ -974,7 +978,7 @@ export function CrawlerSearchPanel({
               />
             </div>
 
-            <label className="text-sm space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="text-muted-foreground">보존등기 (년)</span>
               <input
                 value={search.preserveRegistryFrom}
@@ -984,7 +988,7 @@ export function CrawlerSearchPanel({
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
                 placeholder="2012"
               />
-            </label>
+            </div>
 
             <RangeInputRow
               label="대지면적(㎡)"
@@ -1020,7 +1024,7 @@ export function CrawlerSearchPanel({
               options={FAIL_COUNT_OPTIONS}
             />
 
-            <label className="text-sm space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="text-muted-foreground">경매구분</span>
               <select
                 value={search.auctionType ?? ""}
@@ -1033,9 +1037,9 @@ export function CrawlerSearchPanel({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
-            <label className="text-sm space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="text-muted-foreground">매각구분</span>
               <select
                 value={search.saleDivision ?? ""}
@@ -1048,15 +1052,15 @@ export function CrawlerSearchPanel({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           </div>
 
-          <label className="text-sm space-y-2 block max-w-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
             <span className="text-muted-foreground">목록 수</span>
             <select
               value={search.pageSize}
               onChange={(e) => setSearch({ ...search, pageSize: e.target.value })}
-              className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
             >
               {PAGE_SIZE_OPTIONS.map((item) => (
                 <option key={item} value={item}>
@@ -1064,7 +1068,7 @@ export function CrawlerSearchPanel({
                 </option>
               ))}
             </select>
-          </label>
+          </div>
 
           <div className="space-y-2">
             <p className="text-sm font-semibold">특수조건</p>
