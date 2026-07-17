@@ -967,17 +967,6 @@ export function CrawlerSearchPanel({
               options={MIN_PRICE_OPTIONS}
             />
 
-            <div className="grid grid-cols-2 gap-2">
-              <RangeSelectRow
-                label="최저가율(%)"
-                minValue={search.minPricePctMin ?? ""}
-                maxValue={search.minPricePctMax ?? ""}
-                onMinChange={(v) => setSearch({ ...search, minPricePctMin: v })}
-                onMaxChange={(v) => setSearch({ ...search, minPricePctMax: v })}
-                options={MIN_PRICE_PCT_BGN_OPTIONS}
-              />
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="text-muted-foreground">보존등기 (년)</span>
               <input
@@ -1022,6 +1011,15 @@ export function CrawlerSearchPanel({
               onMinChange={(v) => setSearch({ ...search, failCountMin: v })}
               onMaxChange={(v) => setSearch({ ...search, failCountMax: v })}
               options={FAIL_COUNT_OPTIONS}
+            />
+
+            <RangeSelectRow
+              label="최저가율(%)"
+              minValue={search.minPricePctMin ?? ""}
+              maxValue={search.minPricePctMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, minPricePctMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, minPricePctMax: v })}
+              options={MIN_PRICE_PCT_BGN_OPTIONS}
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
