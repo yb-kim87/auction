@@ -697,74 +697,54 @@ export function CrawlerSearchPanel({
             <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="font-semibold">관심조건</span>
               {savedSearches.length > 0 ? (
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const preset = savedSearches.find((p) => p.id === e.target.value);
-                    if (preset) applyPreset(preset);
-                    e.target.value = "";
-                  }}
-                  className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  <option value="">저장된 관심조건에서 선택...</option>
-                  {savedSearches.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.name}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={activePresetId ?? ""}
+                    onChange={(e) => {
+                      const preset = savedSearches.find((p) => p.id === e.target.value);
+                      if (preset) applyPreset(preset);
+                    }}
+                    className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
+                  >
+                    <option value="" disabled>
+                      저장된 관심조건에서 선택...
                     </option>
-                  ))}
-                </select>
+                    {savedSearches.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </option>
+                    ))}
+                  </select>
+                  {activePresetId && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePreset(activePresetId)}
+                      className="px-2 py-2 text-xs text-muted-foreground border border-border rounded-sm hover:text-destructive shrink-0"
+                    >
+                      삭제
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleNewPreset}
+                    className="px-3 py-2 text-xs rounded-sm border border-border shrink-0 whitespace-nowrap"
+                  >
+                    현재 조건 저장
+                  </button>
+                </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   저장된 관심조건이 없습니다. 아래에서 조건을 설정한 뒤 이름을 붙여 저장하세요.
                 </p>
               )}
             </div>
-            {savedSearches.length > 0 && (
-              <div className="flex flex-wrap gap-2 sm:ml-[calc(6.5rem+0.75rem)]">
-                {savedSearches.map((preset) => (
-                  <div
-                    key={preset.id}
-                    className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs border rounded-sm ${
-                      activePresetId === preset.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => applyPreset(preset)}
-                      className="font-medium"
-                    >
-                      {preset.name}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeletePreset(preset.id)}
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label={`${preset.name} 삭제`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:ml-[calc(6.5rem+0.75rem)]">
               <input
                 value={presetName}
                 onChange={(e) => setPresetName(e.target.value)}
                 placeholder="조건 이름 (예: 강남 아파트) — 비우면 저장 없이 1회성 조회"
                 className="px-3 py-1.5 text-sm border border-border rounded-sm bg-card flex-1 min-w-[220px]"
               />
-              {activePresetId && (
-                <button
-                  type="button"
-                  onClick={handleNewPreset}
-                  className="px-3 py-1.5 text-xs rounded-sm border border-border"
-                >
-                  현재 조건 새로 저장
-                </button>
-              )}
             </div>
           </div>
 
@@ -823,11 +803,11 @@ export function CrawlerSearchPanel({
 
           <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
             <span className="text-muted-foreground">사건번호</span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={search.caseYear ?? ""}
                 onChange={(e) => setSearch({ ...search, caseYear: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
               >
                 {CASE_YEAR_OPTIONS.map((item) => (
                   <option key={item.value || "all"} value={item.value}>
@@ -840,16 +820,51 @@ export function CrawlerSearchPanel({
                 value={search.caseSerial ?? ""}
                 onChange={(e) => setSearch({ ...search, caseSerial: e.target.value })}
                 placeholder="일련번호"
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
               />
               <span className="text-muted-foreground shrink-0 select-none">물건번호</span>
               <input
                 value={search.itemNumber ?? ""}
                 onChange={(e) => setSearch({ ...search, itemNumber: e.target.value })}
                 placeholder="1"
-                className="w-16 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
+                className="w-14 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
               />
+              <span className="text-muted-foreground shrink-0 select-none ml-2">물건종류</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) toggleProperty(e.target.value);
+                  e.target.value = "";
+                }}
+                className="flex-1 min-w-[10rem] px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                <option value="">선택 (복수 선택 가능)</option>
+                {PROPERTY_GROUPS.map(({ group, items }) => (
+                  <optgroup key={group} label={group}>
+                    {items.map((type) => (
+                      <option key={type} value={type} disabled={search.propertyTypes.includes(type)}>
+                        {type}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
+            {search.propertyTypes.length > 0 && (
+              <div className="sm:col-start-2 flex flex-wrap gap-2">
+                {search.propertyTypes.map((type) => (
+                  <button
+                    type="button"
+                    key={type}
+                    onClick={() => toggleProperty(type)}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
+                  >
+                    {type}
+                    <span className="text-muted-foreground">×</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
@@ -872,46 +887,6 @@ export function CrawlerSearchPanel({
                 placeholder="예: 강남구, 래미안 (시/군/구 이하는 코드 대신 자유 텍스트로 필터링)"
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
               />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
-            <span className="text-muted-foreground">물건종류</span>
-            <div>
-              <select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) toggleProperty(e.target.value);
-                  e.target.value = "";
-                }}
-                className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                <option value="">선택 (복수 선택 가능)</option>
-                {PROPERTY_GROUPS.map(({ group, items }) => (
-                  <optgroup key={group} label={group}>
-                    {items.map((type) => (
-                      <option key={type} value={type} disabled={search.propertyTypes.includes(type)}>
-                        {type}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              {search.propertyTypes.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {search.propertyTypes.map((type) => (
-                    <button
-                      type="button"
-                      key={type}
-                      onClick={() => toggleProperty(type)}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
-                    >
-                      {type}
-                      <span className="text-muted-foreground">×</span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
