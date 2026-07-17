@@ -833,41 +833,43 @@ export function CrawlerSearchPanel({
                 className="w-14 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
               />
               <span className="text-muted-foreground shrink-0 select-none ml-2">물건종류</span>
-              <select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) toggleProperty(e.target.value);
-                  e.target.value = "";
-                }}
-                className="flex-1 min-w-[10rem] px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                <option value="">선택 (복수 선택 가능)</option>
-                {PROPERTY_GROUPS.map(({ group, items }) => (
-                  <optgroup key={group} label={group}>
-                    {items.map((type) => (
-                      <option key={type} value={type} disabled={search.propertyTypes.includes(type)}>
+              <div className="flex-1 min-w-[10rem]">
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) toggleProperty(e.target.value);
+                    e.target.value = "";
+                  }}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  <option value="">선택 (복수 선택 가능)</option>
+                  {PROPERTY_GROUPS.map(({ group, items }) => (
+                    <optgroup key={group} label={group}>
+                      {items.map((type) => (
+                        <option key={type} value={type} disabled={search.propertyTypes.includes(type)}>
+                          {type}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                {search.propertyTypes.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {search.propertyTypes.map((type) => (
+                      <button
+                        type="button"
+                        key={type}
+                        onClick={() => toggleProperty(type)}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
+                      >
                         {type}
-                      </option>
+                        <span className="text-muted-foreground">×</span>
+                      </button>
                     ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-            {search.propertyTypes.length > 0 && (
-              <div className="sm:col-start-2 flex flex-wrap gap-2">
-                {search.propertyTypes.map((type) => (
-                  <button
-                    type="button"
-                    key={type}
-                    onClick={() => toggleProperty(type)}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
-                  >
-                    {type}
-                    <span className="text-muted-foreground">×</span>
-                  </button>
-                ))}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
