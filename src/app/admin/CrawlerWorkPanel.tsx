@@ -186,7 +186,7 @@ export function CrawlerWorkPanel() {
 
   const progress =
     status && status.total > 0
-      ? Math.round((status.completed / status.total) * 100)
+      ? Math.min(100, Math.round((status.completed / status.total) * 100))
       : 0;
 
   async function runAction(key: string, fn: () => Promise<void>) {
@@ -209,6 +209,14 @@ export function CrawlerWorkPanel() {
       else next.add(index);
       return next;
     });
+  }
+
+  function toggleSelectAll() {
+    setSelected((prev) =>
+      prev.size === urls.length
+        ? new Set()
+        : new Set(urls.map((_, index) => index)),
+    );
   }
 
   return (
@@ -557,6 +565,17 @@ export function CrawlerWorkPanel() {
                   </p>
                 ) : (
                   <ul className="divide-y divide-border text-xs font-mono">
+                    <li className="flex items-center gap-2 px-3 py-2 bg-secondary/40 sticky top-0">
+                      <input
+                        type="checkbox"
+                        checked={urls.length > 0 && selected.size === urls.length}
+                        onChange={toggleSelectAll}
+                        className="accent-primary"
+                      />
+                      <span className="font-semibold text-foreground/80">
+                        전체 선택 ({selected.size}/{urls.length})
+                      </span>
+                    </li>
                     {urls.map((entry, index) => (
                       <li
                         key={`${entry.url}-${index}`}
