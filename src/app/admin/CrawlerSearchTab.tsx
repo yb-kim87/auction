@@ -47,6 +47,27 @@ const SPECIAL_EXCLUDE = [
   "대지권미등기",
 ];
 
+// 탱크옥션 ca/caList.php 검색 폼의 #siCd select 옵션을 그대로 실측(2026-07-17).
+const REGION_SI_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "전체" },
+  { value: "11", label: "서울" },
+  { value: "26", label: "부산" },
+  { value: "27", label: "대구" },
+  { value: "28", label: "인천" },
+  { value: "12", label: "광주" },
+  { value: "30", label: "대전" },
+  { value: "31", label: "울산" },
+  { value: "36", label: "세종" },
+  { value: "41", label: "경기" },
+  { value: "51", label: "강원" },
+  { value: "43", label: "충북" },
+  { value: "44", label: "충남" },
+  { value: "52", label: "전북" },
+  { value: "47", label: "경북" },
+  { value: "48", label: "경남" },
+  { value: "50", label: "제주" },
+];
+
 export function CrawlerSearchTab() {
   const [search, setSearch] = useState<CrawlerSearchConfig | null>(null);
   const [saving, setSaving] = useState(false);
@@ -344,6 +365,7 @@ export function CrawlerSearchTab() {
         <p className="text-sm font-semibold mb-2">상세 검색조건 (선택)</p>
         <p className="text-xs text-muted-foreground mb-3">
           비워두면 조건 없이 검색합니다. 값을 입력한 항목만 검색에 반영됩니다.
+          시/군/구·읍/면/동은 코드 선택 대신 검색어(자유 텍스트)로 필터링합니다.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="text-sm space-y-1">
@@ -373,8 +395,24 @@ export function CrawlerSearchTab() {
               className="w-full px-3 py-2 border border-border rounded-sm bg-card"
             />
           </label>
-          <label className="text-sm space-y-1 md:col-span-3">
-            <span className="text-muted-foreground text-xs">세부주소/건물명 검색어</span>
+          <label className="text-sm space-y-1">
+            <span className="text-muted-foreground text-xs">시/도</span>
+            <select
+              value={search.regionSiCd ?? ""}
+              onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
+              className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+            >
+              {REGION_SI_OPTIONS.map((item) => (
+                <option key={item.value || "all"} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm space-y-1 md:col-span-2">
+            <span className="text-muted-foreground text-xs">
+              시/군/구·읍/면/동·상세주소 검색어
+            </span>
             <input
               value={search.addressKeyword ?? ""}
               onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
