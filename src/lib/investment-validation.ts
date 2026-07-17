@@ -37,14 +37,14 @@ export function validateInvestmentSignup(
   const targetReturn = normalizeMoneyText(input.targetReturn);
   const parsedHousingCount = Number.parseInt(input.housingCount, 10);
 
+  // 목표 수익은 선택 항목 — 비워두면 목표수익 필터 없이 추천된다.
   if (
     !investableFunds ||
     !existingLoanAmount ||
     !input.housingCount.trim() ||
     !creditScore ||
     !annualNetIncome ||
-    !investmentGoal ||
-    !targetReturn
+    !investmentGoal
   ) {
     return { ok: false, message: "투자정보 항목을 모두 입력해 주세요." };
   }
@@ -79,7 +79,7 @@ export function validateInvestmentSignup(
     return { ok: false, message: "투자목표를 선택하거나 5자 이상 입력해 주세요." };
   }
 
-  if (targetReturn.length < 2) {
+  if (targetReturn && targetReturn.length < 2) {
     return { ok: false, message: "목표 수익을 선택해 주세요." };
   }
 

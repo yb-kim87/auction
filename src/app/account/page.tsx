@@ -126,12 +126,12 @@ export default function AccountPage() {
     const passwordChanging = Boolean(newPassword || confirmPassword || currentPassword);
 
     if (profileFieldsChanged) {
+      // 목표 수익은 선택 항목 — 비워두면 목표수익 필터 없이 추천된다.
       if (
         !trimmedInvestableFunds ||
         !trimmedExistingLoanAmount ||
         !trimmedCreditScore ||
         !trimmedAnnualNetIncome ||
-        !trimmedTargetReturn ||
         !trimmedInvestmentGoal
       ) {
         setMessage({ type: "error", text: "투자정보 항목을 모두 입력해 주세요." });
