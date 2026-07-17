@@ -133,20 +133,6 @@ const MIN_PRICE_PCT_BGN_OPTIONS: { value: string; label: string }[] = [
   { value: "1", label: "100" },
 ];
 
-const MIN_PRICE_PCT_END_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "-선택-" },
-  { value: "1", label: "100" },
-  { value: "0.9", label: "90" },
-  { value: "0.8", label: "80" },
-  { value: "0.7", label: "70" },
-  { value: "0.6", label: "60" },
-  { value: "0.5", label: "50" },
-  { value: "0.4", label: "40" },
-  { value: "0.3", label: "30" },
-  { value: "0.2", label: "20" },
-  { value: "0.1", label: "10" },
-];
-
 const TOTAL_FLOOR_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "-선택-" },
   ...["3", "4", "5", "6", "7", "8", "9", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85", "90", "95", "100"].map(
@@ -217,6 +203,96 @@ const REGION_SI_OPTIONS: { value: string; label: string }[] = [
   { value: "48", label: "경남" },
   { value: "50", label: "제주" },
 ];
+
+// "이상 ~ 이하" 한 줄 구간 선택 — 관리자 화면 검색조건(search/page.tsx의
+// PriceRangeSelect)과 동일한 레이아웃. 시작/끝 select 두 개를 라벨 하나
+// 아래 한 줄에 배치한다.
+function RangeSelectRow({
+  label,
+  minValue,
+  maxValue,
+  onMinChange,
+  onMaxChange,
+  options,
+  hint,
+}: {
+  label: string;
+  minValue: string;
+  maxValue: string;
+  onMinChange: (v: string) => void;
+  onMaxChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  hint?: string;
+}) {
+  return (
+    <div className="text-sm space-y-1">
+      <span className="text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-2">
+        <select
+          value={minValue}
+          onChange={(e) => onMinChange(e.target.value)}
+          className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+        >
+          {options.map((item) => (
+            <option key={item.value || "none"} value={item.value}>
+              {item.value === "" ? "이상" : item.label}
+            </option>
+          ))}
+        </select>
+        <span className="text-muted-foreground shrink-0 select-none">~</span>
+        <select
+          value={maxValue}
+          onChange={(e) => onMaxChange(e.target.value)}
+          className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+        >
+          {options.map((item) => (
+            <option key={item.value || "none"} value={item.value}>
+              {item.value === "" ? "이하" : item.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+// 숫자 자유 입력용 "이상 ~ 이하" — 대지면적/건물면적처럼 목록이 아니라
+// 임의 숫자를 받는 필드에 사용.
+function RangeInputRow({
+  label,
+  minValue,
+  maxValue,
+  onMinChange,
+  onMaxChange,
+}: {
+  label: string;
+  minValue: string;
+  maxValue: string;
+  onMinChange: (v: string) => void;
+  onMaxChange: (v: string) => void;
+}) {
+  return (
+    <div className="text-sm space-y-1">
+      <span className="text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          value={minValue}
+          onChange={(e) => onMinChange(e.target.value)}
+          placeholder="이상"
+          className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+        />
+        <span className="text-muted-foreground shrink-0 select-none">~</span>
+        <input
+          value={maxValue}
+          onChange={(e) => onMaxChange(e.target.value)}
+          placeholder="이하"
+          className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+        />
+      </div>
+    </div>
+  );
+}
 
 type CollectResult = {
   urls: unknown[];
@@ -584,7 +660,14 @@ export function CrawlerSearchPanel({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">검색조건</p>
+            <p className="text-xs text-muted-foreground">
+              비워두면 조건 없이 검색합니다. 값을 입력하거나 선택한 항목만 검색에 반영됩니다.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <label className="text-sm space-y-1">
               <span className="text-muted-foreground">물건 구분</span>
               <select
@@ -618,48 +701,6 @@ export function CrawlerSearchPanel({
             </label>
 
             <label className="text-sm space-y-1">
-              <span className="text-muted-foreground">감정가 (시작)</span>
-              <select
-                value={search.appraisalMin}
-                onChange={(e) => setSearch({ ...search, appraisalMin: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                {APPRAISAL_OPTIONS.map((item) => (
-                  <option key={item || "none"} value={item}>
-                    {item || "선택 안 함"}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-sm space-y-1">
-              <span className="text-muted-foreground">감정가 (끝)</span>
-              <select
-                value={search.appraisalMax}
-                onChange={(e) => setSearch({ ...search, appraisalMax: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                {APPRAISAL_OPTIONS.map((item) => (
-                  <option key={item || "none"} value={item}>
-                    {item || "선택 안 함"}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-sm space-y-1">
-              <span className="text-muted-foreground">보존등기 (년)</span>
-              <input
-                value={search.preserveRegistryFrom}
-                onChange={(e) =>
-                  setSearch({ ...search, preserveRegistryFrom: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                placeholder="2012"
-              />
-            </label>
-
-            <label className="text-sm space-y-1">
               <span className="text-muted-foreground">목록 수</span>
               <select
                 value={search.pageSize}
@@ -673,17 +714,104 @@ export function CrawlerSearchPanel({
                 ))}
               </select>
             </label>
-          </div>
 
-          <div className="border-t border-border pt-4">
-            <p className="text-sm font-semibold mb-2">상세 검색조건 (선택)</p>
-            <p className="text-xs text-muted-foreground mb-3">
-              비워두면 조건 없이 검색합니다. 값을 입력한 항목만 검색에 반영됩니다.
-              시/군/구·읍/면/동은 코드 선택 대신 검색어(자유 텍스트)로 필터링합니다.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">사건번호 연도</span>
+            <RangeSelectRow
+              label="감정가"
+              minValue={search.appraisalMin}
+              maxValue={search.appraisalMax}
+              onMinChange={(v) => setSearch({ ...search, appraisalMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, appraisalMax: v })}
+              options={APPRAISAL_OPTIONS.map((v) => ({ value: v, label: v }))}
+            />
+
+            <RangeSelectRow
+              label="최저가"
+              minValue={search.minPriceMin ?? ""}
+              maxValue={search.minPriceMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, minPriceMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, minPriceMax: v })}
+              options={MIN_PRICE_OPTIONS}
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <RangeSelectRow
+                label="최저가율(%)"
+                minValue={search.minPricePctMin ?? ""}
+                maxValue={search.minPricePctMax ?? ""}
+                onMinChange={(v) => setSearch({ ...search, minPricePctMin: v })}
+                onMaxChange={(v) => setSearch({ ...search, minPricePctMax: v })}
+                options={MIN_PRICE_PCT_BGN_OPTIONS}
+              />
+            </div>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">보존등기 (년)</span>
+              <input
+                value={search.preserveRegistryFrom}
+                onChange={(e) =>
+                  setSearch({ ...search, preserveRegistryFrom: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                placeholder="2012"
+              />
+            </label>
+
+            <RangeInputRow
+              label="대지면적(㎡)"
+              minValue={search.landAreaMin ?? ""}
+              maxValue={search.landAreaMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, landAreaMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, landAreaMax: v })}
+            />
+
+            <RangeInputRow
+              label="건물면적(㎡)"
+              minValue={search.buildingAreaMin ?? ""}
+              maxValue={search.buildingAreaMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, buildingAreaMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, buildingAreaMax: v })}
+            />
+
+            <RangeSelectRow
+              label="총 층수"
+              minValue={search.totalFloorMin ?? ""}
+              maxValue={search.totalFloorMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, totalFloorMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, totalFloorMax: v })}
+              options={TOTAL_FLOOR_OPTIONS}
+            />
+
+            <RangeSelectRow
+              label="유찰횟수"
+              minValue={search.failCountMin ?? ""}
+              maxValue={search.failCountMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, failCountMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, failCountMax: v })}
+              options={FAIL_COUNT_OPTIONS}
+            />
+
+            <div className="text-sm space-y-1">
+              <span className="text-muted-foreground">매각기일</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={search.bidDateFrom ?? ""}
+                  onChange={(e) => setSearch({ ...search, bidDateFrom: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+                <span className="text-muted-foreground shrink-0 select-none">~</span>
+                <input
+                  type="date"
+                  value={search.bidDateTo ?? ""}
+                  onChange={(e) => setSearch({ ...search, bidDateTo: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </div>
+            </div>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">사건번호</span>
+              <div className="flex items-center gap-2">
                 <select
                   value={search.caseYear ?? ""}
                   onChange={(e) => setSearch({ ...search, caseYear: e.target.value })}
@@ -695,241 +823,80 @@ export function CrawlerSearchPanel({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">사건번호 일련번호</span>
+                <span className="text-muted-foreground shrink-0 select-none">타경</span>
                 <input
                   value={search.caseSerial ?? ""}
                   onChange={(e) => setSearch({ ...search, caseSerial: e.target.value })}
-                  placeholder="예: 12345"
+                  placeholder="일련번호"
                   className="w-full px-3 py-2 border border-border rounded-sm bg-card"
                 />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">물건번호</span>
-                <input
-                  value={search.itemNumber ?? ""}
-                  onChange={(e) => setSearch({ ...search, itemNumber: e.target.value })}
-                  placeholder="예: 1"
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">시/도</span>
-                <select
-                  value={search.regionSiCd ?? ""}
-                  onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {REGION_SI_OPTIONS.map((item) => (
-                    <option key={item.value || "all"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1 md:col-span-2">
-                <span className="text-muted-foreground text-xs">
-                  시/군/구·읍/면/동·상세주소 검색어
-                </span>
-                <input
-                  value={search.addressKeyword ?? ""}
-                  onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
-                  placeholder="예: 강남구, 래미안"
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">최저가 시작</span>
-                <select
-                  value={search.minPriceMin ?? ""}
-                  onChange={(e) => setSearch({ ...search, minPriceMin: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {MIN_PRICE_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">최저가 끝</span>
-                <select
-                  value={search.minPriceMax ?? ""}
-                  onChange={(e) => setSearch({ ...search, minPriceMax: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {MIN_PRICE_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">최저가율(%) 시작</span>
-                <select
-                  value={search.minPricePctMin ?? ""}
-                  onChange={(e) => setSearch({ ...search, minPricePctMin: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {MIN_PRICE_PCT_BGN_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">최저가율(%) 끝</span>
-                <select
-                  value={search.minPricePctMax ?? ""}
-                  onChange={(e) => setSearch({ ...search, minPricePctMax: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {MIN_PRICE_PCT_END_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">대지면적(㎡) 시작</span>
-                <input
-                  value={search.landAreaMin ?? ""}
-                  onChange={(e) => setSearch({ ...search, landAreaMin: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">대지면적(㎡) 끝</span>
-                <input
-                  value={search.landAreaMax ?? ""}
-                  onChange={(e) => setSearch({ ...search, landAreaMax: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">건물면적(㎡) 시작</span>
-                <input
-                  value={search.buildingAreaMin ?? ""}
-                  onChange={(e) => setSearch({ ...search, buildingAreaMin: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">건물면적(㎡) 끝</span>
-                <input
-                  value={search.buildingAreaMax ?? ""}
-                  onChange={(e) => setSearch({ ...search, buildingAreaMax: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">총 층수 시작</span>
-                <select
-                  value={search.totalFloorMin ?? ""}
-                  onChange={(e) => setSearch({ ...search, totalFloorMin: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {TOTAL_FLOOR_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">총 층수 끝</span>
-                <select
-                  value={search.totalFloorMax ?? ""}
-                  onChange={(e) => setSearch({ ...search, totalFloorMax: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {TOTAL_FLOOR_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">유찰횟수 시작</span>
-                <select
-                  value={search.failCountMin ?? ""}
-                  onChange={(e) => setSearch({ ...search, failCountMin: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {FAIL_COUNT_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">유찰횟수 끝</span>
-                <select
-                  value={search.failCountMax ?? ""}
-                  onChange={(e) => setSearch({ ...search, failCountMax: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {FAIL_COUNT_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">매각기일 시작일</span>
-                <input
-                  type="date"
-                  value={search.bidDateFrom ?? ""}
-                  onChange={(e) => setSearch({ ...search, bidDateFrom: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">매각기일 종료일</span>
-                <input
-                  type="date"
-                  value={search.bidDateTo ?? ""}
-                  onChange={(e) => setSearch({ ...search, bidDateTo: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                />
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground text-xs">경매구분</span>
-                <select
-                  value={search.auctionType ?? ""}
-                  onChange={(e) => setSearch({ ...search, auctionType: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {AUCTION_TYPE_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1 md:col-span-2">
-                <span className="text-muted-foreground text-xs">매각구분</span>
-                <select
-                  value={search.saleDivision ?? ""}
-                  onChange={(e) => setSearch({ ...search, saleDivision: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                >
-                  {SALE_DIVISION_OPTIONS.map((item) => (
-                    <option key={item.value || "none"} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+              </div>
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">물건번호</span>
+              <input
+                value={search.itemNumber ?? ""}
+                onChange={(e) => setSearch({ ...search, itemNumber: e.target.value })}
+                placeholder="예: 1"
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              />
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">시/도</span>
+              <select
+                value={search.regionSiCd ?? ""}
+                onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {REGION_SI_OPTIONS.map((item) => (
+                  <option key={item.value || "all"} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm space-y-1 md:col-span-2">
+              <span className="text-muted-foreground">시/군/구·읍/면/동·상세주소 검색어</span>
+              <input
+                value={search.addressKeyword ?? ""}
+                onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
+                placeholder="예: 강남구, 래미안 (코드 선택 대신 자유 텍스트로 필터링)"
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              />
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">경매구분</span>
+              <select
+                value={search.auctionType ?? ""}
+                onChange={(e) => setSearch({ ...search, auctionType: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {AUCTION_TYPE_OPTIONS.map((item) => (
+                  <option key={item.value || "none"} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm space-y-1 md:col-span-2">
+              <span className="text-muted-foreground">매각구분</span>
+              <select
+                value={search.saleDivision ?? ""}
+                onChange={(e) => setSearch({ ...search, saleDivision: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {SALE_DIVISION_OPTIONS.map((item) => (
+                  <option key={item.value || "none"} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div>
