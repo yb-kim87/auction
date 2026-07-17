@@ -667,7 +667,7 @@ export function CrawlerSearchPanel({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <label className="text-sm space-y-1">
               <span className="text-muted-foreground">물건 구분</span>
               <select
@@ -714,7 +714,9 @@ export function CrawlerSearchPanel({
                 ))}
               </select>
             </label>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <RangeSelectRow
               label="감정가"
               minValue={search.appraisalMin}
@@ -790,7 +792,7 @@ export function CrawlerSearchPanel({
               options={FAIL_COUNT_OPTIONS}
             />
 
-            <div className="text-sm space-y-1">
+            <div className="text-sm space-y-1 md:col-span-2">
               <span className="text-muted-foreground">매각기일</span>
               <div className="flex items-center gap-2">
                 <input
@@ -843,30 +845,28 @@ export function CrawlerSearchPanel({
               />
             </label>
 
-            <label className="text-sm space-y-1">
-              <span className="text-muted-foreground">시/도</span>
-              <select
-                value={search.regionSiCd ?? ""}
-                onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                {REGION_SI_OPTIONS.map((item) => (
-                  <option key={item.value || "all"} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-sm space-y-1 md:col-span-2">
-              <span className="text-muted-foreground">시/군/구·읍/면/동·상세주소 검색어</span>
-              <input
-                value={search.addressKeyword ?? ""}
-                onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
-                placeholder="예: 강남구, 래미안 (코드 선택 대신 자유 텍스트로 필터링)"
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-              />
-            </label>
+            <div className="text-sm space-y-1 md:col-span-2">
+              <span className="text-muted-foreground">시/도 · 시/군/구·읍/면/동·상세주소</span>
+              <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
+                <select
+                  value={search.regionSiCd ?? ""}
+                  onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {REGION_SI_OPTIONS.map((item) => (
+                    <option key={item.value || "all"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={search.addressKeyword ?? ""}
+                  onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
+                  placeholder="예: 강남구, 래미안 (시/군/구 이하는 코드 대신 자유 텍스트로 필터링)"
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </div>
+            </div>
 
             <label className="text-sm space-y-1">
               <span className="text-muted-foreground">경매구분</span>
@@ -883,7 +883,7 @@ export function CrawlerSearchPanel({
               </select>
             </label>
 
-            <label className="text-sm space-y-1 md:col-span-2">
+            <label className="text-sm space-y-1">
               <span className="text-muted-foreground">매각구분</span>
               <select
                 value={search.saleDivision ?? ""}
