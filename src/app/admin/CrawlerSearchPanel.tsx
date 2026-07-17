@@ -357,7 +357,7 @@ function RangeSelectRow({
   hint?: string;
 }) {
   return (
-    <div className="text-sm space-y-1.5">
+    <div className="text-sm space-y-2">
       <span className="text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
         <select
@@ -405,7 +405,7 @@ function RangeInputRow({
   onMaxChange: (v: string) => void;
 }) {
   return (
-    <div className="text-sm space-y-1.5">
+    <div className="text-sm space-y-2">
       <span className="text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
         <input
@@ -799,7 +799,7 @@ export function CrawlerSearchPanel({
             </p>
           </div>
 
-          <label className="text-sm space-y-1.5 block max-w-lg">
+          <label className="text-sm space-y-2 block max-w-lg">
             <span className="text-muted-foreground">사건번호</span>
             <div className="flex items-center gap-2">
               <select
@@ -830,7 +830,7 @@ export function CrawlerSearchPanel({
             </div>
           </label>
 
-          <div className="text-sm space-y-1.5">
+          <div className="text-sm space-y-2">
             <span className="text-muted-foreground">시/도 · 시/군/구·읍/면/동·상세주소</span>
             <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
               <select
@@ -853,7 +853,7 @@ export function CrawlerSearchPanel({
             </div>
           </div>
 
-          <div className="text-sm space-y-1.5">
+          <div className="text-sm space-y-2">
             <span className="text-muted-foreground">물건종류</span>
             <select
               value=""
@@ -891,7 +891,7 @@ export function CrawlerSearchPanel({
             )}
           </div>
 
-          <div className="text-sm space-y-1.5 max-w-md">
+          <div className="text-sm space-y-2 max-w-md">
             <span className="text-muted-foreground">매각기일</span>
             <div className="flex items-center gap-2">
               <input
@@ -911,7 +911,7 @@ export function CrawlerSearchPanel({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="text-sm space-y-1.5">
+            <label className="text-sm space-y-2">
               <span className="text-muted-foreground">물건 구분</span>
               <select
                 value={search.listType}
@@ -928,7 +928,7 @@ export function CrawlerSearchPanel({
               </select>
             </label>
 
-            <label className="text-sm space-y-1.5">
+            <label className="text-sm space-y-2">
               <span className="text-muted-foreground">진행상태</span>
               <select
                 value={search.status}
@@ -974,7 +974,7 @@ export function CrawlerSearchPanel({
               />
             </div>
 
-            <label className="text-sm space-y-1.5">
+            <label className="text-sm space-y-2">
               <span className="text-muted-foreground">보존등기 (년)</span>
               <input
                 value={search.preserveRegistryFrom}
@@ -1020,7 +1020,7 @@ export function CrawlerSearchPanel({
               options={FAIL_COUNT_OPTIONS}
             />
 
-            <label className="text-sm space-y-1.5">
+            <label className="text-sm space-y-2">
               <span className="text-muted-foreground">경매구분</span>
               <select
                 value={search.auctionType ?? ""}
@@ -1035,7 +1035,7 @@ export function CrawlerSearchPanel({
               </select>
             </label>
 
-            <label className="text-sm space-y-1.5">
+            <label className="text-sm space-y-2">
               <span className="text-muted-foreground">매각구분</span>
               <select
                 value={search.saleDivision ?? ""}
@@ -1051,7 +1051,7 @@ export function CrawlerSearchPanel({
             </label>
           </div>
 
-          <label className="text-sm space-y-1.5 block max-w-xs">
+          <label className="text-sm space-y-2 block max-w-xs">
             <span className="text-muted-foreground">목록 수</span>
             <select
               value={search.pageSize}
