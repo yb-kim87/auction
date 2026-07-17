@@ -1233,6 +1233,7 @@ export type CrawlerSearchConfig = {
   regionSiCd?: string;
   regionGuCd?: string;
   regionDnCd?: string;
+  regionAdrPlural?: string;
   addressKeyword?: string;
   minPriceMin?: string;
   minPriceMax?: string;
