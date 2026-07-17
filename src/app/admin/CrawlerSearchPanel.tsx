@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  countSearchResultsV3,
   crawlerCollectUrls,
   fetchCrawlerConfig,
   fetchSavedSearches,
@@ -261,6 +262,7 @@ export function CrawlerSearchPanel({
   const [tankFavorites, setTankFavorites] = useState<TankFavoriteSearch[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
   const [favoritesLoaded, setFavoritesLoaded] = useState(false);
+  const [checkingCount, setCheckingCount] = useState(false);
 
   useEffect(() => {
     fetchCrawlerConfig()
@@ -292,18 +294,54 @@ export function CrawlerSearchPanel({
     }
   }
 
+  // 탱크옥션에서 즐겨찾기 이름을 지을 때 특수문자 입력 제약 때문에 ","를
+  // "콤마", "~"를 "물결표"라는 한글 텍스트로 직접 타이핑해 저장한 경우가
+  // 있어(원본 응답 자체에 이 단어들이 그대로 들어있음, 인코딩 문제 아님),
+  // 우리 화면에서 보여줄 때만 원래 기호로 치환한다. 저장된 원본 데이터는
+  // 건드리지 않는다.
+  function formatFavoriteTitle(title: string): string {
+    return title.replace(/콤마/g, ",").replace(/물결표/g, "~");
+  }
+
+  // 관심조건/즐겨찾기를 선택한 직후 "지금 이 조건으로 조회하면 몇 건
+  // 나오는지" 미리 보여준다(탱크옥션 즐겨찾기 항목의 저장 당시 건수는
+  // 이후 물건 변동으로 달라져 있을 수 있어 그대로 믿을 수 없으므로,
+  // dataSize=1로 최소 조회해 현재 시점 totalCount 를 다시 구한다).
+  async function showResultCount(nextSearch: CrawlerSearchConfig, label: string) {
+    if (crawlerVersion !== "v3") {
+      setMessage(label);
+      return;
+    }
+    setCheckingCount(true);
+    try {
+      const { total } = await countSearchResultsV3("현재", nextSearch);
+      setMessage(`${label} — 현재 조건으로 ${total}건이 검색됩니다.`);
+    } catch (err) {
+      setMessage(
+        `${label} (건수 확인 실패: ${err instanceof Error ? err.message : "알 수 없는 오류"})`,
+      );
+    } finally {
+      setCheckingCount(false);
+    }
+  }
+
   function applyTankFavorite(favorite: TankFavoriteSearch) {
-    setSearch((prev) => (prev ? { ...prev, ...favorite.search } : prev));
+    const displayTitle = formatFavoriteTitle(favorite.title);
     setActivePresetId(null);
-    setPresetName(favorite.title);
-    setMessage(`탱크옥션 즐겨찾기 "${favorite.title}" 조건을 불러왔습니다.`);
+    setPresetName(displayTitle);
+    setSearch((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...favorite.search };
+      void showResultCount(next, `탱크옥션 즐겨찾기 "${displayTitle}" 조건을 불러왔습니다.`);
+      return next;
+    });
   }
 
   function applyPreset(preset: SavedSearchPreset) {
-    setSearch(preset.search);
     setActivePresetId(preset.id);
     setPresetName(preset.name);
-    setMessage(`"${preset.name}" 조건을 불러왔습니다.`);
+    setSearch(preset.search);
+    void showResultCount(preset.search, `"${preset.name}" 조건을 불러왔습니다.`);
   }
 
   function handleNewPreset() {
@@ -422,9 +460,9 @@ export function CrawlerSearchPanel({
 
       {expanded && search && (
         <div className="border-t border-border p-4 space-y-5">
-          {message && (
+          {(message || checkingCount) && (
             <div className="text-sm px-3 py-2 rounded-sm border border-border bg-secondary/30">
-              {message}
+              {checkingCount ? "조건에 맞는 건수를 확인하는 중..." : message}
             </div>
           )}
 
@@ -518,8 +556,7 @@ export function CrawlerSearchPanel({
                 </option>
                 {tankFavorites.map((favorite) => (
                   <option key={favorite.id} value={favorite.id}>
-                    {favorite.title}
-                    {favorite.count != null ? ` (${favorite.count}건)` : ""}
+                    {formatFavoriteTitle(favorite.title)}
                   </option>
                 ))}
               </select>

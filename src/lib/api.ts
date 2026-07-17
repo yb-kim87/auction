@@ -1465,6 +1465,24 @@ export async function deleteSavedSearch(id: string): Promise<{ ok: boolean }> {
   return readJsonResponse(res);
 }
 
+export async function countSearchResultsV3(
+  preset: string,
+  search?: Partial<CrawlerSearchConfig>,
+): Promise<{ ok: boolean; total: number }> {
+  const res = await fetch(`${API_BASE}/crawler/count-search-v3`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ preset, search }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "건수 조회에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
 export async function crawlerCollectUrls(
   preset: string,
   options?: {
