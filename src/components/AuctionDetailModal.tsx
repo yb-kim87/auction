@@ -1448,6 +1448,7 @@ export function AuctionDetailModal({
   incomeLoanLimit = null,
   existingLoanWon = null,
   firstTimeBuyer = false,
+  housingCount = null,
   annualNetIncome = null,
   creditScore = null,
   isAdmin = false,
@@ -1475,6 +1476,7 @@ export function AuctionDetailModal({
   incomeLoanLimit?: number | null;
   existingLoanWon?: number | null;
   firstTimeBuyer?: boolean;
+  housingCount?: number | null;
   annualNetIncome?: string | null;
   creditScore?: string | null;
   isAdmin?: boolean;
@@ -2072,6 +2074,8 @@ export function AuctionDetailModal({
                 appraisalRatio={appraisalRatio}
                 incomeLoanLimit={incomeLoanLimit}
                 existingLoanWon={existingLoanWon}
+                housingCount={housingCount}
+                regulatedArea={regulatedArea}
               />
             )
           ) : (

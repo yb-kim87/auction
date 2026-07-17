@@ -82,12 +82,16 @@ export function ProfitCalculatorPanel({
   appraisalRatio,
   incomeLoanLimit,
   existingLoanWon,
+  housingCount,
+  regulatedArea,
 }: {
   item: AuctionItem;
   loanRatio?: number | null;
   appraisalRatio?: number | null;
   incomeLoanLimit?: number | null;
   existingLoanWon?: number | null;
+  housingCount?: number | null;
+  regulatedArea?: boolean | null;
 }) {
   const [bidPrice, setBidPrice] = useState(item.minPrice);
   const [salePrice, setSalePrice] = useState(item.appraisedValue);
@@ -138,6 +142,8 @@ export function ProfitCalculatorPanel({
     vatAmount,
     applyProgressiveDeduction,
     existingIncome,
+    housingCount,
+    regulatedArea,
   };
 
   const result = useMemo(() => calculateProfit(input), [
@@ -159,6 +165,8 @@ export function ProfitCalculatorPanel({
     extraRealtyFee,
     vatAmount,
     applyProgressiveDeduction,
+    housingCount,
+    regulatedArea,
   ]);
 
   return (

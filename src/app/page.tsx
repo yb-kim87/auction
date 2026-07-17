@@ -525,6 +525,7 @@ function RecommendCard({
   item,
   loanInfo,
   firstTimeBuyer,
+  housingCount,
   isFavorite,
   favoriteBusy,
   onToggleFavorite,
@@ -533,6 +534,7 @@ function RecommendCard({
   item: AuctionItem;
   loanInfo: LoanInfo | undefined;
   firstTimeBuyer: boolean;
+  housingCount?: number | null;
   isFavorite: boolean;
   favoriteBusy: boolean;
   onToggleFavorite: () => void;
@@ -555,6 +557,8 @@ function RecommendCard({
         loanRatioByBidPrice: loanInfo.loanRatio,
         incomeLoanLimit: loanInfo.incomeLoanLimit,
         existingLoanWon: loanInfo.existingLoanWon,
+        housingCount,
+        regulatedArea: loanInfo.regulatedArea,
       }).finalProfit
     : null;
 
@@ -1283,6 +1287,7 @@ export default function HomePage() {
                 item={item}
                 loanInfo={loanInfoByItemId[item.id]}
                 firstTimeBuyer={profile?.firstTimeBuyer ?? false}
+                housingCount={profile?.housingCount}
                 isFavorite={favoriteIds.has(item.id)}
                 favoriteBusy={favoriteBusyId === item.id}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}

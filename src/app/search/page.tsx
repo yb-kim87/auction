@@ -1420,6 +1420,12 @@ export default function Home() {
         }}
         editable={isAdmin}
         isAdmin={isAdmin}
+        housingCount={profile?.housingCount}
+        regulatedArea={
+          selectedItem
+            ? isRegulatedArea(selectedItem.city, selectedItem.district, regulatedRegionNames)
+            : null
+        }
         aiAnalysisLimit={profile?.aiAnalysisLimit}
         aiAnalysisUsed={profile?.aiAnalysisUsed}
         onAiAnalysisUsed={() =>
