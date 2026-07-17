@@ -226,6 +226,23 @@ type CollectResult = {
   naverRefresh?: number;
 };
 
+// 즐겨찾기/관심조건을 적용할 때 기준이 되는 "조건 없음" 템플릿. 화면에
+// 현재 표시 중인 검색조건(관리자 기본값이 채워져 있을 수 있음)과 병합
+// 하면, 즐겨찾기 원본에 없던 필드(감정가 범위, 보존등기 연도, 특수조건
+// 제외 등)에 관리자 기본값이 그대로 남아 의도치 않게 조건이 좁아진다
+// (실측: 32건→1건, 2026-07-17). 즐겨찾기를 적용할 때는 항상 이 빈
+// 템플릿을 기준으로 덮어써야 한다.
+const EMPTY_SEARCH: CrawlerSearchConfig = {
+  listType: "auction",
+  propertyTypes: [],
+  status: "",
+  appraisalMin: "",
+  appraisalMax: "",
+  preserveRegistryFrom: "",
+  excludeSpecialConditions: [],
+  pageSize: "100",
+};
+
 export function CrawlerSearchPanel({
   crawlerVersion,
   disabled,
@@ -329,12 +346,11 @@ export function CrawlerSearchPanel({
     const displayTitle = formatFavoriteTitle(favorite.title);
     setActivePresetId(null);
     setPresetName(displayTitle);
-    setSearch((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev, ...favorite.search };
-      void showResultCount(next, `탱크옥션 즐겨찾기 "${displayTitle}" 조건을 불러왔습니다.`);
-      return next;
-    });
+    // 화면에 남아있던 이전 검색조건(관리자 기본값 포함)과 병합하지 않고,
+    // "조건 없음" 템플릿 위에 즐겨찾기 값만 덮어쓴다.
+    const next = { ...EMPTY_SEARCH, ...favorite.search };
+    setSearch(next);
+    void showResultCount(next, `탱크옥션 즐겨찾기 "${displayTitle}" 조건을 불러왔습니다.`);
   }
 
   function applyPreset(preset: SavedSearchPreset) {
