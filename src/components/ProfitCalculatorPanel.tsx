@@ -259,7 +259,7 @@ export function ProfitCalculatorPanel({
             value={result.acquisitionTax}
             readOnly
             suffix="원"
-            helper={`${acquisitionTaxBracketLabel(housingCount, regulatedArea)} · 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산 [DEBUG housingCount=${JSON.stringify(housingCount)} regulatedArea=${JSON.stringify(regulatedArea)}]`}
+            helper={`${acquisitionTaxBracketLabel(housingCount, regulatedArea)} · 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`}
           />
           <NumberField label="인테리어(필요경비)" value={interiorCost} onChange={setInteriorCost} suffix="원" />
           <NumberField label="명도비" value={evictionCost} onChange={setEvictionCost} suffix="원" />

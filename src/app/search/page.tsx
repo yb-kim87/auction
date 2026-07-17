@@ -867,8 +867,6 @@ export default function Home() {
     fetchMyProfile()
       .then((data) => {
         if (cancelled) return;
-        // eslint-disable-next-line no-console
-        console.log("[DEBUG] fetchMyProfile result:", data);
         setProfile(data);
         setIsAdmin(data.role === "admin");
         setIsConsultant(data.role === "consultant");

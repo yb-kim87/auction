@@ -1355,6 +1355,7 @@ export default function HomePage() {
         regulatedArea={
           selectedItem ? loanInfoByItemId[selectedItem.id]?.regulatedArea ?? null : null
         }
+        housingCount={profile?.housingCount}
         incomeLoanLimit={
           selectedItem ? loanInfoByItemId[selectedItem.id]?.incomeLoanLimit ?? null : null
         }
