@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AuctionItem } from "@/types/auction";
 import { formatWonShort } from "@/lib/investment-money";
-import { calculateProfit, isOver85Sqm, type ProfitCalculatorInput } from "@/lib/profit-calculator";
+import {
+  calculateProfit,
+  isOver85Sqm,
+  acquisitionTaxBracketLabel,
+  type ProfitCalculatorInput,
+} from "@/lib/profit-calculator";
 
 function NumberField({
   label,
@@ -254,7 +259,7 @@ export function ProfitCalculatorPanel({
             value={result.acquisitionTax}
             readOnly
             suffix="원"
-            helper={`취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`}
+            helper={`${acquisitionTaxBracketLabel(housingCount, regulatedArea)} · 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`}
           />
           <NumberField label="인테리어(필요경비)" value={interiorCost} onChange={setInteriorCost} suffix="원" />
           <NumberField label="명도비" value={evictionCost} onChange={setEvictionCost} suffix="원" />
