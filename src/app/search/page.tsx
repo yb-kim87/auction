@@ -548,7 +548,7 @@ function AuctionMobileCard({
     ? parseMoneyToWon(recommendCriteria.existingLoanAmount ?? "") ?? 0
     : 0;
   const equity =
-    recommendPolicy && !recommendPolicy.loanUnavailable && item.minPrice
+    recommendPolicy && item.minPrice
       ? requiredEquityForItem(
           item.minPrice,
           item.appraisedValue,

@@ -241,7 +241,9 @@ export function matchesInvestmentRecommend(
   if (!item.minPrice || item.minPrice <= 0) return false;
   const regulated = isRegulatedArea(item.city, item.district, regionNames);
   const policy = selectLoanPolicy(criteria, regulated, policies);
-  if (policy.loanUnavailable) return false;
+  // 대출 불가 정책(예: 규제지역·1주택 이상)이어도 목록에서 완전히 제외하지 않는다.
+  // requiredEquityForItem이 대출한도 0으로 계산해 필요자금=낙찰가 전액이 되고,
+  // 그 값이 투자가능자금 이하일 때만(현금으로 전액 매수 가능할 때만) 매칭된다.
   const annualIncomeWon = parseIncomeToWon(criteria.annualNetIncome) ?? undefined;
   const existingLoanWon = parseMoneyToWon(criteria.existingLoanAmount ?? "") ?? 0;
   return (
