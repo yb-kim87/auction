@@ -598,15 +598,26 @@ export function CrawlerWorkPanel() {
                 <button
                   type="button"
                   disabled={Boolean(busy) || selected.size === 0}
-                  onClick={() =>
-                    runAction("remove", async () => {
-                      await crawlerManageUrls({
-                        action: "remove",
-                        indices: Array.from(selected),
-                      });
-                      setSelected(new Set());
-                    })
-                  }
+                  onClick={() => {
+                    // 낙관적 업데이트 — 워커 응답(수 초 걸릴 수 있음)을 기다리지
+                    // 않고 화면을 즉시 갱신한다. 백엔드 반영은 뒤에서 마저
+                    // 진행되고, 실패하면 다음 폴링 때 실제 상태로 되돌아온다.
+                    const indices = Array.from(selected);
+                    const removeSet = new Set(indices);
+                    setStatus((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            urls: prev.urls.filter((_, i) => !removeSet.has(i)),
+                            total: prev.urls.length - indices.length,
+                          }
+                        : prev,
+                    );
+                    setSelected(new Set());
+                    void runAction("remove", async () => {
+                      await crawlerManageUrls({ action: "remove", indices });
+                    });
+                  }}
                   className="px-3 py-2 text-sm border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50"
                 >
                   선택 삭제
@@ -614,12 +625,15 @@ export function CrawlerWorkPanel() {
                 <button
                   type="button"
                   disabled={Boolean(busy) || urls.length === 0}
-                  onClick={() =>
-                    runAction("clear", async () => {
+                  onClick={() => {
+                    setStatus((prev) =>
+                      prev ? { ...prev, urls: [], total: 0, completed: 0 } : prev,
+                    );
+                    setSelected(new Set());
+                    void runAction("clear", async () => {
                       await crawlerManageUrls({ action: "clear" });
-                      setSelected(new Set());
-                    })
-                  }
+                    });
+                  }}
                   className="px-3 py-2 text-sm border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50"
                 >
                   모두 삭제
