@@ -5,11 +5,13 @@ import {
   crawlerCollectUrls,
   fetchCrawlerConfig,
   fetchSavedSearches,
+  fetchTankFavoriteSearches,
   saveSavedSearch,
   deleteSavedSearch,
   type CrawlerSearchConfig,
   type CrawlerVersion,
   type SavedSearchPreset,
+  type TankFavoriteSearch,
 } from "@/lib/api";
 
 const PROPERTY_OPTIONS = [
@@ -226,11 +228,27 @@ type CollectResult = {
 export function CrawlerSearchPanel({
   crawlerVersion,
   disabled,
+  tankLoginChecked,
+  onCollectStart,
   onCollected,
+  onCollectFinished,
 }: {
   crawlerVersion?: CrawlerVersion;
   disabled?: boolean;
+  /** v3(로컬 워커) 모드에서 탱크옥션 로그인 확인이 끝났는지 — 끝나야
+   * 탱크옥션 "즐겨쓰는 검색" 목록을 불러올 수 있다. 원격 워커(v1) 모드에서는
+   * 이 값과 무관하게 항상 조회 가능(별도 로그인 절차가 있으므로). */
+  tankLoginChecked?: boolean;
+  /** 주소 추가 요청을 보내는 시점(응답 전)에 호출 — 로그인 확인·목록
+   * 조회에 시간이 걸리는 동안 부모가 실행 로그 폴링을 앞당겨 시작하도록
+   * 알리는 용도. 이게 없으면 버튼을 누른 뒤 응답이 올 때까지 화면에
+   * 아무 변화가 없어 멈춘 것처럼 보인다. */
+  onCollectStart?: () => void;
   onCollected?: (result: CollectResult) => void;
+  /** 성공/실패와 무관하게 요청이 끝나면 항상 호출 — onCollectStart로 켠
+   * "수집 중" 표시를 꺼뜨리는 용도(실패 시에는 onCollected가 호출되지
+   * 않으므로 이게 없으면 상태가 계속 켜진 채로 남는다). */
+  onCollectFinished?: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [search, setSearch] = useState<CrawlerSearchConfig | null>(null);
@@ -240,6 +258,9 @@ export function CrawlerSearchPanel({
   const [presetName, setPresetName] = useState("");
   const [savingPreset, setSavingPreset] = useState(false);
   const [collecting, setCollecting] = useState(false);
+  const [tankFavorites, setTankFavorites] = useState<TankFavoriteSearch[]>([]);
+  const [loadingFavorites, setLoadingFavorites] = useState(false);
+  const [favoritesLoaded, setFavoritesLoaded] = useState(false);
 
   useEffect(() => {
     fetchCrawlerConfig()
@@ -252,6 +273,30 @@ export function CrawlerSearchPanel({
     fetchSavedSearches()
       .then(setSavedSearches)
       .catch(() => {});
+  }
+
+  async function loadTankFavorites() {
+    setLoadingFavorites(true);
+    setMessage(null);
+    try {
+      const result = await fetchTankFavoriteSearches();
+      setTankFavorites(result.items);
+      setFavoritesLoaded(true);
+      if (result.items.length === 0) {
+        setMessage("탱크옥션에 등록된 즐겨쓰는 검색이 없습니다.");
+      }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "즐겨쓰는 검색 조회 실패");
+    } finally {
+      setLoadingFavorites(false);
+    }
+  }
+
+  function applyTankFavorite(favorite: TankFavoriteSearch) {
+    setSearch((prev) => (prev ? { ...prev, ...favorite.search } : prev));
+    setActivePresetId(null);
+    setPresetName(favorite.title);
+    setMessage(`탱크옥션 즐겨찾기 "${favorite.title}" 조건을 불러왔습니다.`);
   }
 
   function applyPreset(preset: SavedSearchPreset) {
@@ -315,6 +360,7 @@ export function CrawlerSearchPanel({
         refreshSavedSearches();
       }
 
+      onCollectStart?.();
       const result = await crawlerCollectUrls(presetLabel || "현재", {
         clear: true,
         search,
@@ -339,6 +385,7 @@ export function CrawlerSearchPanel({
     } finally {
       setCollecting(false);
       setSavingPreset(false);
+      onCollectFinished?.();
     }
   }
 
@@ -434,6 +481,53 @@ export function CrawlerSearchPanel({
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">탱크옥션 즐겨쓰는 검색</p>
+              <button
+                type="button"
+                onClick={loadTankFavorites}
+                disabled={loadingFavorites || (crawlerVersion === "v3" && !tankLoginChecked)}
+                className="px-3 py-1.5 text-xs rounded-sm border border-border disabled:opacity-50"
+              >
+                {loadingFavorites
+                  ? "불러오는 중..."
+                  : favoritesLoaded
+                    ? "새로고침"
+                    : "불러오기"}
+              </button>
+            </div>
+            {crawlerVersion === "v3" && !tankLoginChecked ? (
+              <p className="text-xs text-muted-foreground">
+                상단에서 탱크옥션 로그인을 먼저 확인해야 불러올 수 있습니다.
+              </p>
+            ) : favoritesLoaded && tankFavorites.length > 0 ? (
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const favorite = tankFavorites.find((f) => f.id === e.target.value);
+                  if (favorite) applyTankFavorite(favorite);
+                  e.target.value = "";
+                }}
+                className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card"
+              >
+                <option value="" disabled>
+                  탱크옥션 즐겨찾기에서 선택...
+                </option>
+                {tankFavorites.map((favorite) => (
+                  <option key={favorite.id} value={favorite.id}>
+                    {favorite.title}
+                    {favorite.count != null ? ` (${favorite.count}건)` : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                탱크옥션 검색 페이지에서 등록한 즐겨쓰는 검색을 불러와 바로 적용할 수 있습니다.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

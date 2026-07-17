@@ -1291,6 +1291,13 @@ export type SavedSearchPreset = {
   updatedAt: string;
 };
 
+export type TankFavoriteSearch = {
+  id: string;
+  title: string;
+  count?: number;
+  search: Partial<CrawlerSearchConfig>;
+};
+
 export type CrawlerConfig = {
   search: CrawlerSearchConfig;
   algorithm: CrawlerAlgorithmConfig;
@@ -1375,6 +1382,37 @@ export async function updateCrawlerConfig(
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "크롤러 설정 저장에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
+export async function checkTankLoginV3(): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/crawler/tank-login-check`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: "{}",
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "탱크옥션 로그인 확인에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchTankFavoriteSearches(): Promise<{
+  ok: boolean;
+  items: TankFavoriteSearch[];
+}> {
+  const res = await fetch(`${API_BASE}/crawler/tank-favorite-searches`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "즐겨쓰는 검색 목록을 불러오지 못했습니다.",
     );
   }
   return readJsonResponse(res);

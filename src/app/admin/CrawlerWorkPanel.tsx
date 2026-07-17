@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  checkTankLoginV3,
   crawlerClearLogs,
   crawlerLoadExcel,
   crawlerLogin,
@@ -69,6 +70,12 @@ export function CrawlerWorkPanel() {
   const [error, setError] = useState<string | null>(null);
   const [collectSummary, setCollectSummary] = useState<string | null>(null);
   const [localWorkPanelHint, setLocalWorkPanelHint] = useState(false);
+  const [tankLoginChecked, setTankLoginChecked] = useState(false);
+  // "주소 추가" 요청을 보낸 순간부터 응답이 올 때까지(로그인 확인+목록
+  // 조회로 수십 초 걸릴 수 있음) 폴링을 앞당겨 실행 로그가 실시간으로
+  // 갱신되도록 한다 — 이게 없으면 버튼을 눌러도 응답 전까지 화면이 멈춘
+  // 것처럼 보인다.
+  const [collectingLocal, setCollectingLocal] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -123,7 +130,8 @@ export function CrawlerWorkPanel() {
       status?.phase === "crawling" ||
       status?.phase === "collecting" ||
       status?.phase === "logging_in" ||
-      status?.phase === "starting";
+      status?.phase === "starting" ||
+      collectingLocal;
 
     const isVisible = () =>
       typeof document === "undefined" ||
@@ -161,7 +169,7 @@ export function CrawlerWorkPanel() {
     return () => {
       clearInterval(statusTimer);
     };
-  }, [status?.phase, refresh]);
+  }, [status?.phase, refresh, collectingLocal]);
 
   useEffect(() => {
     if (logRef.current) {
@@ -352,10 +360,90 @@ export function CrawlerWorkPanel() {
             </div>
           )}
 
+          <div className="border border-border rounded-sm p-4 space-y-3 bg-card">
+            <p className="text-sm font-semibold">탱크옥션 로그인</p>
+            {status?.remoteWorker ? (
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground text-xs">탱크옥션 ID</span>
+                  <input
+                    value={tankUserId}
+                    onChange={(e) => setTankUserId(e.target.value)}
+                    disabled={Boolean(isRunning)}
+                    autoComplete="username"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card"
+                  />
+                </label>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground text-xs">탱크옥션 PW</span>
+                  <input
+                    type="password"
+                    value={tankPassword}
+                    onChange={(e) => setTankPassword(e.target.value)}
+                    disabled={Boolean(isRunning)}
+                    autoComplete="current-password"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={Boolean(busy) || !tankUserId.trim() || !tankPassword}
+                  onClick={() =>
+                    runAction("login", async () => {
+                      await crawlerLogin({
+                        userId: tankUserId.trim(),
+                        password: tankPassword,
+                      });
+                    })
+                  }
+                  className="px-4 py-2 text-sm font-semibold border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50 h-[38px]"
+                >
+                  {busy === "login" ? "로그인 중..." : "로그인"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={Boolean(busy)}
+                  onClick={() =>
+                    runAction("tank-login-check", async () => {
+                      await checkTankLoginV3();
+                      setTankLoginChecked(true);
+                    })
+                  }
+                  className={`px-4 py-2 text-sm font-semibold rounded-sm disabled:opacity-50 ${
+                    tankLoginChecked
+                      ? "border border-emerald-600 text-emerald-700 bg-emerald-50"
+                      : "bg-primary text-primary-foreground"
+                  }`}
+                >
+                  {busy === "tank-login-check"
+                    ? "확인 중..."
+                    : tankLoginChecked
+                      ? "로그인 확인됨 ✓ (다시 확인)"
+                      : "탱크옥션 로그인 확인"}
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  검색조건/주소 추가를 사용하려면 먼저 로그인을 확인해 주세요.
+                  ({tankUserId || "환경변수에 저장된 계정"})
+                </p>
+              </div>
+            )}
+          </div>
+
           <CrawlerSearchPanel
             crawlerVersion={status?.remoteWorker ? undefined : "v3"}
-            disabled={Boolean(busy) || isRunning}
+            tankLoginChecked={tankLoginChecked}
+            disabled={
+              Boolean(busy) || isRunning || (!status?.remoteWorker && !tankLoginChecked)
+            }
+            onCollectStart={() => {
+              setCollectingLocal(true);
+              void refresh();
+            }}
             onCollected={(result) => {
+              setCollectingLocal(false);
               const raw = result.rawCount ?? result.urls.length;
               const parts: string[] = [];
               if (raw > 0) parts.push(`탱크 ${raw}건 수집`);
@@ -384,6 +472,10 @@ export function CrawlerWorkPanel() {
                   );
                 });
               }
+              void refresh();
+            }}
+            onCollectFinished={() => {
+              setCollectingLocal(false);
               void refresh();
             }}
           />
@@ -592,45 +684,6 @@ export function CrawlerWorkPanel() {
                   className="px-4 py-2 text-sm border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50"
                 >
                   추가
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                <label className="text-sm space-y-1">
-                  <span className="text-muted-foreground text-xs">탱크옥션 ID</span>
-                  <input
-                    value={tankUserId}
-                    onChange={(e) => setTankUserId(e.target.value)}
-                    disabled={Boolean(isRunning)}
-                    autoComplete="username"
-                    className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card"
-                  />
-                </label>
-                <label className="text-sm space-y-1">
-                  <span className="text-muted-foreground text-xs">탱크옥션 PW</span>
-                  <input
-                    type="password"
-                    value={tankPassword}
-                    onChange={(e) => setTankPassword(e.target.value)}
-                    disabled={Boolean(isRunning)}
-                    autoComplete="current-password"
-                    className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card"
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={Boolean(busy) || !tankUserId.trim() || !tankPassword}
-                  onClick={() =>
-                    runAction("login", async () => {
-                      await crawlerLogin({
-                        userId: tankUserId.trim(),
-                        password: tankPassword,
-                      });
-                    })
-                  }
-                  className="px-4 py-2 text-sm font-semibold border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50 h-[38px]"
-                >
-                  {busy === "login" ? "로그인 중..." : "로그인"}
                 </button>
               </div>
 
