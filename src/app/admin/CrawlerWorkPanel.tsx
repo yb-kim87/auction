@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   crawlerClearLogs,
-  crawlerCollectUrls,
   crawlerLoadExcel,
   crawlerLogin,
   crawlerManageUrls,
@@ -14,23 +13,18 @@ import {
   fetchCrawlerConfig,
   fetchCrawlerLogs,
   fetchCrawlerStatus,
-  fetchSavedSearches,
   type CrawlerLogEntry,
   type CrawlerStatus,
   type CrawlerUrlEntry,
-  type SavedSearchPreset,
 } from "@/lib/api";
 import { CrawlerAlgorithmTab } from "./CrawlerAlgorithmTab";
 import { CrawlerProfitTab } from "./CrawlerProfitTab";
-import { CrawlerSearchTab } from "./CrawlerSearchTab";
+import { CrawlerSearchPanel } from "./CrawlerSearchPanel";
 
-const PRESETS = ["현재", "다가구", "빌라", "지방", "공매", "아파트"] as const;
-
-type CrawlerSubTab = "work" | "search" | "algorithm" | "profit";
+type CrawlerSubTab = "work" | "algorithm" | "profit";
 
 const SUB_TABS: { id: CrawlerSubTab; label: string }[] = [
   { id: "work", label: "작업창" },
-  { id: "search", label: "검색조건" },
   { id: "algorithm", label: "알고리즘" },
   { id: "profit", label: "수익계산" },
 ];
@@ -65,7 +59,6 @@ export function CrawlerWorkPanel() {
   const [subTab, setSubTab] = useState<CrawlerSubTab>("work");
   const [status, setStatus] = useState<CrawlerStatus | null>(null);
   const [logs, setLogs] = useState<CrawlerLogEntry[]>([]);
-  const [preset, setPreset] = useState<string>("현재");
   const [repeatAfterCollect, setRepeatAfterCollect] = useState(false);
   const [scheduledTime, setScheduledTime] = useState("00:00");
   const [manualUrl, setManualUrl] = useState("");
@@ -76,7 +69,6 @@ export function CrawlerWorkPanel() {
   const [error, setError] = useState<string | null>(null);
   const [collectSummary, setCollectSummary] = useState<string | null>(null);
   const [localWorkPanelHint, setLocalWorkPanelHint] = useState(false);
-  const [savedSearches, setSavedSearches] = useState<SavedSearchPreset[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -116,7 +108,6 @@ export function CrawlerWorkPanel() {
       .then((config) => {
         setRepeatAfterCollect(config.schedule.repeatAfterCollect);
         setScheduledTime(config.schedule.time);
-        setPreset(config.schedule.preset || "현재");
         if (config.credentials?.userId) {
           setTankUserId(config.credentials.userId);
         }
@@ -124,9 +115,6 @@ export function CrawlerWorkPanel() {
           setTankPassword(config.credentials.password);
         }
       })
-      .catch(() => undefined);
-    fetchSavedSearches()
-      .then(setSavedSearches)
       .catch(() => undefined);
   }, [refresh]);
 
@@ -234,7 +222,6 @@ export function CrawlerWorkPanel() {
         ))}
       </div>
 
-      {subTab === "search" && <CrawlerSearchTab />}
       {subTab === "algorithm" && <CrawlerAlgorithmTab />}
       {subTab === "profit" && <CrawlerProfitTab />}
 
@@ -244,7 +231,7 @@ export function CrawlerWorkPanel() {
             <div>
               <h2 className="text-lg font-bold text-foreground">크롤링 작업창</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                탱크옥션 로그인 → 검색(프리셋/검색조건) → 주소 추가 → 조회 시작
+                탱크옥션 로그인 → 검색조건(관심조건/직접설정) → 주소 추가 → 조회 시작
                 {status?.remoteWorker && (
                   <span className="block mt-1 text-amber-700">
                     운영 웹: 관리자 PC 크롤러 워커에 원격 연결됩니다. PC가 꺼져 있으면
@@ -365,73 +352,36 @@ export function CrawlerWorkPanel() {
             </div>
           )}
 
+          <CrawlerSearchPanel
+            crawlerVersion={status?.remoteWorker ? undefined : "v3"}
+            disabled={Boolean(busy) || isRunning}
+            onCollected={(result) => {
+              const raw = result.rawCount ?? result.urls.length;
+              const parts: string[] = [];
+              if (raw > 0) parts.push(`탱크 ${raw}건 수집`);
+              parts.push(`작업목록 ${result.urls.length}건`);
+              if (result.excluded) {
+                parts.push(`DB중복·입찰기일 미도래 ${result.excluded}건 제외`);
+              }
+              if (result.deduped) parts.push(`목록 중복 ${result.deduped}건 제외`);
+              if (result.naverRefresh) {
+                parts.push(`네이버 미수집 ${result.naverRefresh}건 포함`);
+              }
+              setCollectSummary(
+                result.urls.length === 0
+                  ? `${parts.join(" · ")} — 추가된 URL 없음`
+                  : parts.join(" · "),
+              );
+              if (repeatAfterCollect && result.urls.length > 0) {
+                void crawlerStart({ repeatAfterCollect: true });
+              }
+              void refresh();
+            }}
+          />
+
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5">
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <select
-                  value={preset}
-                  onChange={(e) => setPreset(e.target.value)}
-                  disabled={Boolean(isRunning)}
-                  className="px-3 py-2 text-sm border border-border rounded-sm bg-card"
-                >
-                  {PRESETS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                  {savedSearches.length > 0 && (
-                    <optgroup label="관심조건">
-                      {savedSearches.map((item) => (
-                        <option key={item.id} value={item.name}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-                <button
-                  type="button"
-                  disabled={Boolean(busy) || isRunning}
-                  onClick={() =>
-                    runAction("collect", async () => {
-                      const result = await crawlerCollectUrls(preset, {
-                        clear: true,
-                        crawlerVersion: status?.remoteWorker ? undefined : "v3",
-                      });
-                      const raw = result.rawCount ?? result.urls.length;
-                      const parts: string[] = [];
-                      if (raw > 0) {
-                        parts.push(`탱크 ${raw}건 수집`);
-                      }
-                      parts.push(`작업목록 ${result.urls.length}건`);
-                      if (result.excluded) {
-                        parts.push(
-                          `DB중복·입찰기일 미도래 ${result.excluded}건 제외`,
-                        );
-                      }
-                      if (result.deduped) {
-                        parts.push(`목록 중복 ${result.deduped}건 제외`);
-                      }
-                      if (result.naverRefresh) {
-                        parts.push(
-                          `네이버 미수집 ${result.naverRefresh}건 포함`,
-                        );
-                      }
-                      setCollectSummary(parts.join(" · "));
-                      if (result.urls.length === 0) {
-                        setCollectSummary(
-                          `${parts.join(" · ")} — 추가된 URL 없음`,
-                        );
-                      }
-                      if (repeatAfterCollect && result.urls.length > 0) {
-                        await crawlerStart({ repeatAfterCollect: true });
-                      }
-                    })
-                  }
-                  className="px-3 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-                >
-                  {busy === "collect" ? "수집 중..." : "주소 추가"}
-                </button>
+              <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 px-2 text-sm">
                   <input
                     type="checkbox"
@@ -440,7 +390,7 @@ export function CrawlerWorkPanel() {
                     disabled={Boolean(isRunning)}
                     className="accent-primary"
                   />
-                  조회 반복
+                  주소 추가 후 자동으로 조회 시작
                 </label>
                 <input
                   type="time"

@@ -1,0 +1,839 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  crawlerCollectUrls,
+  fetchCrawlerConfig,
+  fetchSavedSearches,
+  saveSavedSearch,
+  deleteSavedSearch,
+  type CrawlerSearchConfig,
+  type CrawlerVersion,
+  type SavedSearchPreset,
+} from "@/lib/api";
+
+const PROPERTY_OPTIONS = [
+  "아파트",
+  "다가구주택",
+  "상가주택",
+  "오피스텔",
+  "연립주택",
+  "다세대주택",
+  "도시형생활주택",
+  "근린상가",
+  "토지",
+];
+
+const STATUS_OPTIONS = ["진행물건", "기타", "매각", "유찰"];
+const APPRAISAL_OPTIONS = [
+  "1억",
+  "2억",
+  "3억",
+  "4억",
+  "5억",
+  "6억",
+  "7억",
+  "8억",
+  "10억",
+  "15억",
+  "20억",
+  "30억",
+  "50억",
+];
+const PAGE_SIZE_OPTIONS = ["20", "50", "100", "200"];
+const SPECIAL_EXCLUDE = [
+  "위반건축물",
+  "법정지상권",
+  "선순위임차",
+  "대지권미등기",
+];
+
+// 아래 select 옵션들은 탱크옥션 ca/caList.php 검색 폼(#minbAmtBgn,
+// #minbPctBgn, #totFlrBgn, #fbCntBgn, #num1_Top1, #auctType, #dpslDvsn)의
+// option 값을 그대로 실측(2026-07-17)한 것이다. 값이 바뀌면 여기도 함께
+// 갱신할 것 — presets_httpx.py 의 동일 목적 상수와 짝을 이룬다.
+const MIN_PRICE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "- 선택 -" },
+  { value: "1000000", label: "1백만" },
+  { value: "2000000", label: "2백만" },
+  { value: "3000000", label: "3백만" },
+  { value: "4000000", label: "4백만" },
+  { value: "5000000", label: "5백만" },
+  { value: "6000000", label: "6백만" },
+  { value: "7000000", label: "7백만" },
+  { value: "8000000", label: "8백만" },
+  { value: "9000000", label: "9백만" },
+  { value: "10000000", label: "1천만" },
+  { value: "20000000", label: "2천만" },
+  { value: "30000000", label: "3천만" },
+  { value: "40000000", label: "4천만" },
+  { value: "50000000", label: "5천만" },
+  { value: "60000000", label: "6천만" },
+  { value: "70000000", label: "7천만" },
+  { value: "80000000", label: "8천만" },
+  { value: "90000000", label: "9천만" },
+  { value: "100000000", label: "1억" },
+  { value: "150000000", label: "1억 5천만" },
+  { value: "200000000", label: "2억" },
+  { value: "250000000", label: "2억 5천만" },
+  { value: "300000000", label: "3억" },
+  { value: "350000000", label: "3억 5천만" },
+  { value: "400000000", label: "4억" },
+  { value: "450000000", label: "4억 5천만" },
+  { value: "500000000", label: "5억" },
+  { value: "600000000", label: "6억" },
+  { value: "700000000", label: "7억" },
+  { value: "800000000", label: "8억" },
+  { value: "900000000", label: "9억" },
+  { value: "1000000000", label: "10억" },
+  { value: "1100000000", label: "11억" },
+  { value: "1200000000", label: "12억" },
+  { value: "1300000000", label: "13억" },
+  { value: "1400000000", label: "14억" },
+  { value: "1500000000", label: "15억" },
+  { value: "1600000000", label: "16억" },
+  { value: "1700000000", label: "17억" },
+  { value: "1800000000", label: "18억" },
+  { value: "1900000000", label: "19억" },
+  { value: "2000000000", label: "20억" },
+  { value: "3000000000", label: "30억" },
+  { value: "4000000000", label: "40억" },
+  { value: "5000000000", label: "50억" },
+  { value: "6000000000", label: "60억" },
+  { value: "7000000000", label: "70억" },
+  { value: "8000000000", label: "80억" },
+  { value: "9000000000", label: "90억" },
+  { value: "10000000000", label: "100억" },
+  { value: "20000000000", label: "200억" },
+  { value: "30000000000", label: "300억" },
+  { value: "40000000000", label: "400억" },
+  { value: "50000000000", label: "500억" },
+  { value: "60000000000", label: "600억" },
+  { value: "70000000000", label: "700억" },
+  { value: "80000000000", label: "800억" },
+  { value: "90000000000", label: "900억" },
+  { value: "100000000000", label: "1000억" },
+];
+
+const MIN_PRICE_PCT_BGN_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "-선택-" },
+  { value: "0.1", label: "10" },
+  { value: "0.2", label: "20" },
+  { value: "0.3", label: "30" },
+  { value: "0.4", label: "40" },
+  { value: "0.5", label: "50" },
+  { value: "0.6", label: "60" },
+  { value: "0.7", label: "70" },
+  { value: "0.8", label: "80" },
+  { value: "0.9", label: "90" },
+  { value: "1", label: "100" },
+];
+
+const MIN_PRICE_PCT_END_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "-선택-" },
+  { value: "1", label: "100" },
+  { value: "0.9", label: "90" },
+  { value: "0.8", label: "80" },
+  { value: "0.7", label: "70" },
+  { value: "0.6", label: "60" },
+  { value: "0.5", label: "50" },
+  { value: "0.4", label: "40" },
+  { value: "0.3", label: "30" },
+  { value: "0.2", label: "20" },
+  { value: "0.1", label: "10" },
+];
+
+const TOTAL_FLOOR_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "-선택-" },
+  ...["3", "4", "5", "6", "7", "8", "9", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85", "90", "95", "100"].map(
+    (v) => ({ value: v, label: v }),
+  ),
+];
+
+const FAIL_COUNT_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "-선택-" },
+  ...["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map((v) => ({
+    value: v,
+    label: v,
+  })),
+];
+
+const CASE_YEAR_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "전체" },
+  ...Array.from({ length: 2026 - 2005 + 1 }, (_, i) => 2026 - i).map((y) => ({
+    value: String(y),
+    label: String(y),
+  })),
+];
+
+const AUCTION_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "-선택-" },
+  { value: "1", label: "임의경매" },
+  { value: "2", label: "강제경매" },
+];
+
+const SALE_DIVISION_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "-선택-" },
+  { value: "10", label: "토지·건물 일괄매각" },
+  { value: "11", label: "토지 매각" },
+  { value: "12", label: "토지지분매각" },
+  { value: "13", label: "토지만 매각" },
+  { value: "14", label: "토지만 매각(제시외기타제외)" },
+  { value: "15", label: "토지및건물 지분 매각" },
+  { value: "16", label: "토지만 매각이며,지분 매각임" },
+  { value: "17", label: "건물만 매각" },
+  { value: "18", label: "건물전부, 토지지분" },
+  { value: "19", label: "토지 매각(제시외기타 포함)" },
+  { value: "20", label: "토지만매각,지분매각(건물X)" },
+  { value: "21", label: "토지지분매각(제시외기타 포함)" },
+  { value: "22", label: "건물만 매각이며,지분 매각임" },
+  { value: "23", label: "토지전부, 건물지분" },
+  { value: "24", label: "전세권만 매각" },
+  { value: "25", label: "지상권만 매각" },
+  { value: "26", label: "기타" },
+];
+
+// 탱크옥션 ca/caList.php 검색 폼의 #siCd select 옵션을 그대로 실측(2026-07-17).
+const REGION_SI_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "전체" },
+  { value: "11", label: "서울" },
+  { value: "26", label: "부산" },
+  { value: "27", label: "대구" },
+  { value: "28", label: "인천" },
+  { value: "12", label: "광주" },
+  { value: "30", label: "대전" },
+  { value: "31", label: "울산" },
+  { value: "36", label: "세종" },
+  { value: "41", label: "경기" },
+  { value: "51", label: "강원" },
+  { value: "43", label: "충북" },
+  { value: "44", label: "충남" },
+  { value: "52", label: "전북" },
+  { value: "47", label: "경북" },
+  { value: "48", label: "경남" },
+  { value: "50", label: "제주" },
+];
+
+type CollectResult = {
+  urls: unknown[];
+  message?: string;
+  rawCount?: number;
+  excluded?: number;
+  deduped?: number;
+  naverRefresh?: number;
+};
+
+export function CrawlerSearchPanel({
+  crawlerVersion,
+  disabled,
+  onCollected,
+}: {
+  crawlerVersion?: CrawlerVersion;
+  disabled?: boolean;
+  onCollected?: (result: CollectResult) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [search, setSearch] = useState<CrawlerSearchConfig | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [savedSearches, setSavedSearches] = useState<SavedSearchPreset[]>([]);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [presetName, setPresetName] = useState("");
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [collecting, setCollecting] = useState(false);
+
+  useEffect(() => {
+    fetchCrawlerConfig()
+      .then((config) => setSearch(config.search))
+      .catch(() => setMessage("설정을 불러오지 못했습니다."));
+    refreshSavedSearches();
+  }, []);
+
+  function refreshSavedSearches() {
+    fetchSavedSearches()
+      .then(setSavedSearches)
+      .catch(() => {});
+  }
+
+  function applyPreset(preset: SavedSearchPreset) {
+    setSearch(preset.search);
+    setActivePresetId(preset.id);
+    setPresetName(preset.name);
+    setMessage(`"${preset.name}" 조건을 불러왔습니다.`);
+  }
+
+  function handleNewPreset() {
+    setActivePresetId(null);
+    setPresetName("");
+  }
+
+  function toggleProperty(type: string) {
+    setSearch((prev) => {
+      if (!prev) return prev;
+      const exists = prev.propertyTypes.includes(type);
+      return {
+        ...prev,
+        propertyTypes: exists
+          ? prev.propertyTypes.filter((item) => item !== type)
+          : [...prev.propertyTypes, type],
+      };
+    });
+  }
+
+  function toggleExclude(type: string) {
+    setSearch((prev) => {
+      if (!prev) return prev;
+      const exists = prev.excludeSpecialConditions.includes(type);
+      return {
+        ...prev,
+        excludeSpecialConditions: exists
+          ? prev.excludeSpecialConditions.filter((item) => item !== type)
+          : [...prev.excludeSpecialConditions, type],
+      };
+    });
+  }
+
+  // "검색조건 저장"이었던 버튼이 이제 "주소 추가" 역할을 겸한다: 이름을
+  // 입력했으면 관심조건으로 저장(신규 또는 덮어쓰기)하고, 곧바로 그
+  // 조건으로 주소 수집을 실행한다. 이름이 비어 있으면 저장 없이 현재
+  // 조건 그대로 1회성 수집만 수행한다.
+  async function handleAddUrls() {
+    if (!search) return;
+    setCollecting(true);
+    setSavingPreset(true);
+    setMessage(null);
+    try {
+      let presetLabel = activePresetId ? presetName.trim() : "";
+      const name = presetName.trim();
+      if (name) {
+        const saved = await saveSavedSearch({
+          id: activePresetId ?? undefined,
+          name,
+          search,
+        });
+        setActivePresetId(saved.id);
+        presetLabel = saved.name;
+        refreshSavedSearches();
+      }
+
+      const result = await crawlerCollectUrls(presetLabel || "현재", {
+        clear: true,
+        search,
+        crawlerVersion,
+      });
+
+      const raw = result.rawCount ?? result.urls.length;
+      const parts: string[] = [];
+      if (raw > 0) parts.push(`탱크 ${raw}건 수집`);
+      parts.push(`작업목록 ${result.urls.length}건`);
+      if (result.excluded) parts.push(`DB중복·입찰기일 미도래 ${result.excluded}건 제외`);
+      if (result.deduped) parts.push(`목록 중복 ${result.deduped}건 제외`);
+      if (result.naverRefresh) parts.push(`네이버 미수집 ${result.naverRefresh}건 포함`);
+      setMessage(
+        result.urls.length === 0
+          ? `${parts.join(" · ")} — 추가된 URL 없음`
+          : parts.join(" · "),
+      );
+      onCollected?.(result);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "주소 추가 실패");
+    } finally {
+      setCollecting(false);
+      setSavingPreset(false);
+    }
+  }
+
+  async function handleDeletePreset(id: string) {
+    try {
+      await deleteSavedSearch(id);
+      if (activePresetId === id) {
+        setActivePresetId(null);
+        setPresetName("");
+      }
+      refreshSavedSearches();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "삭제 실패");
+    }
+  }
+
+  return (
+    <div className="border border-border rounded-sm bg-card">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <div>
+          <h3 className="text-sm font-bold">검색조건</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            관심조건을 선택하거나 직접 설정한 뒤 주소 추가를 누르세요.
+          </p>
+        </div>
+        <span className="text-muted-foreground text-sm">
+          {expanded ? "접기 ▲" : "펼치기 ▼"}
+        </span>
+      </button>
+
+      {expanded && search && (
+        <div className="border-t border-border p-4 space-y-5">
+          {message && (
+            <div className="text-sm px-3 py-2 rounded-sm border border-border bg-secondary/30">
+              {message}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold">관심조건</p>
+            {savedSearches.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {savedSearches.map((preset) => (
+                  <div
+                    key={preset.id}
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs border rounded-sm ${
+                      activePresetId === preset.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      className="font-medium"
+                    >
+                      {preset.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePreset(preset.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label={`${preset.name} 삭제`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                저장된 관심조건이 없습니다. 아래에서 조건을 설정한 뒤 이름을 붙여 저장하세요.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="조건 이름 (예: 강남 아파트) — 비우면 저장 없이 1회성 조회"
+                className="px-3 py-1.5 text-sm border border-border rounded-sm bg-card flex-1 min-w-[220px]"
+              />
+              {activePresetId && (
+                <button
+                  type="button"
+                  onClick={handleNewPreset}
+                  className="px-3 py-1.5 text-xs rounded-sm border border-border"
+                >
+                  새로 만들기
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">물건 구분</span>
+              <select
+                value={search.listType}
+                onChange={(e) =>
+                  setSearch({
+                    ...search,
+                    listType: e.target.value as CrawlerSearchConfig["listType"],
+                  })
+                }
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                <option value="auction">경매</option>
+                <option value="public">공매</option>
+              </select>
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">진행상태</span>
+              <select
+                value={search.status}
+                onChange={(e) => setSearch({ ...search, status: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {STATUS_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">감정가 (시작)</span>
+              <select
+                value={search.appraisalMin}
+                onChange={(e) => setSearch({ ...search, appraisalMin: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {APPRAISAL_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">감정가 (끝)</span>
+              <select
+                value={search.appraisalMax}
+                onChange={(e) => setSearch({ ...search, appraisalMax: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {APPRAISAL_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">보존등기 (년)</span>
+              <input
+                value={search.preserveRegistryFrom}
+                onChange={(e) =>
+                  setSearch({ ...search, preserveRegistryFrom: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                placeholder="2012"
+              />
+            </label>
+
+            <label className="text-sm space-y-1">
+              <span className="text-muted-foreground">목록 수</span>
+              <select
+                value={search.pageSize}
+                onChange={(e) => setSearch({ ...search, pageSize: e.target.value })}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+              >
+                {PAGE_SIZE_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <p className="text-sm font-semibold mb-2">상세 검색조건 (선택)</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              비워두면 조건 없이 검색합니다. 값을 입력한 항목만 검색에 반영됩니다.
+              시/군/구·읍/면/동은 코드 선택 대신 검색어(자유 텍스트)로 필터링합니다.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">사건번호 연도</span>
+                <select
+                  value={search.caseYear ?? ""}
+                  onChange={(e) => setSearch({ ...search, caseYear: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {CASE_YEAR_OPTIONS.map((item) => (
+                    <option key={item.value || "all"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">사건번호 일련번호</span>
+                <input
+                  value={search.caseSerial ?? ""}
+                  onChange={(e) => setSearch({ ...search, caseSerial: e.target.value })}
+                  placeholder="예: 12345"
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">물건번호</span>
+                <input
+                  value={search.itemNumber ?? ""}
+                  onChange={(e) => setSearch({ ...search, itemNumber: e.target.value })}
+                  placeholder="예: 1"
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">시/도</span>
+                <select
+                  value={search.regionSiCd ?? ""}
+                  onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {REGION_SI_OPTIONS.map((item) => (
+                    <option key={item.value || "all"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1 md:col-span-2">
+                <span className="text-muted-foreground text-xs">
+                  시/군/구·읍/면/동·상세주소 검색어
+                </span>
+                <input
+                  value={search.addressKeyword ?? ""}
+                  onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
+                  placeholder="예: 강남구, 래미안"
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">최저가 시작</span>
+                <select
+                  value={search.minPriceMin ?? ""}
+                  onChange={(e) => setSearch({ ...search, minPriceMin: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {MIN_PRICE_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">최저가 끝</span>
+                <select
+                  value={search.minPriceMax ?? ""}
+                  onChange={(e) => setSearch({ ...search, minPriceMax: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {MIN_PRICE_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">최저가율(%) 시작</span>
+                <select
+                  value={search.minPricePctMin ?? ""}
+                  onChange={(e) => setSearch({ ...search, minPricePctMin: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {MIN_PRICE_PCT_BGN_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">최저가율(%) 끝</span>
+                <select
+                  value={search.minPricePctMax ?? ""}
+                  onChange={(e) => setSearch({ ...search, minPricePctMax: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {MIN_PRICE_PCT_END_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">대지면적(㎡) 시작</span>
+                <input
+                  value={search.landAreaMin ?? ""}
+                  onChange={(e) => setSearch({ ...search, landAreaMin: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">대지면적(㎡) 끝</span>
+                <input
+                  value={search.landAreaMax ?? ""}
+                  onChange={(e) => setSearch({ ...search, landAreaMax: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">건물면적(㎡) 시작</span>
+                <input
+                  value={search.buildingAreaMin ?? ""}
+                  onChange={(e) => setSearch({ ...search, buildingAreaMin: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">건물면적(㎡) 끝</span>
+                <input
+                  value={search.buildingAreaMax ?? ""}
+                  onChange={(e) => setSearch({ ...search, buildingAreaMax: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">총 층수 시작</span>
+                <select
+                  value={search.totalFloorMin ?? ""}
+                  onChange={(e) => setSearch({ ...search, totalFloorMin: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {TOTAL_FLOOR_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">총 층수 끝</span>
+                <select
+                  value={search.totalFloorMax ?? ""}
+                  onChange={(e) => setSearch({ ...search, totalFloorMax: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {TOTAL_FLOOR_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">유찰횟수 시작</span>
+                <select
+                  value={search.failCountMin ?? ""}
+                  onChange={(e) => setSearch({ ...search, failCountMin: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {FAIL_COUNT_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">유찰횟수 끝</span>
+                <select
+                  value={search.failCountMax ?? ""}
+                  onChange={(e) => setSearch({ ...search, failCountMax: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {FAIL_COUNT_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">매각기일 시작일</span>
+                <input
+                  type="date"
+                  value={search.bidDateFrom ?? ""}
+                  onChange={(e) => setSearch({ ...search, bidDateFrom: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">매각기일 종료일</span>
+                <input
+                  type="date"
+                  value={search.bidDateTo ?? ""}
+                  onChange={(e) => setSearch({ ...search, bidDateTo: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </label>
+              <label className="text-sm space-y-1">
+                <span className="text-muted-foreground text-xs">경매구분</span>
+                <select
+                  value={search.auctionType ?? ""}
+                  onChange={(e) => setSearch({ ...search, auctionType: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {AUCTION_TYPE_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm space-y-1 md:col-span-2">
+                <span className="text-muted-foreground text-xs">매각구분</span>
+                <select
+                  value={search.saleDivision ?? ""}
+                  onChange={(e) => setSearch({ ...search, saleDivision: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {SALE_DIVISION_OPTIONS.map((item) => (
+                    <option key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold mb-2">물건종류</p>
+            <div className="flex flex-wrap gap-2">
+              {PROPERTY_OPTIONS.map((type) => (
+                <label
+                  key={type}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-sm cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={search.propertyTypes.includes(type)}
+                    onChange={() => toggleProperty(type)}
+                    className="accent-primary"
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold mb-2">특수조건 (선택제외)</p>
+            <div className="flex flex-wrap gap-2">
+              {SPECIAL_EXCLUDE.map((type) => (
+                <label
+                  key={type}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-sm cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={search.excludeSpecialConditions.includes(type)}
+                    onChange={() => toggleExclude(type)}
+                    className="accent-primary"
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAddUrls}
+            disabled={collecting || savingPreset || disabled}
+            className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+          >
+            {collecting ? "수집 중..." : "주소 추가"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
