@@ -29,6 +29,7 @@ const PROPERTY_OPTIONS = [
 
 const STATUS_OPTIONS = ["진행물건", "기타", "매각", "유찰"];
 const APPRAISAL_OPTIONS = [
+  "",
   "1억",
   "2억",
   "3억",
@@ -624,8 +625,8 @@ export function CrawlerSearchPanel({
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
               >
                 {APPRAISAL_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+                  <option key={item || "none"} value={item}>
+                    {item || "선택 안 함"}
                   </option>
                 ))}
               </select>
@@ -639,8 +640,8 @@ export function CrawlerSearchPanel({
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
               >
                 {APPRAISAL_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+                  <option key={item || "none"} value={item}>
+                    {item || "선택 안 함"}
                   </option>
                 ))}
               </select>
