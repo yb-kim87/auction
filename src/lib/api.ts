@@ -1467,14 +1467,13 @@ export async function deleteSavedSearch(id: string): Promise<{ ok: boolean }> {
 }
 
 export async function countSearchResultsV3(
-  preset: string,
-  search?: Partial<CrawlerSearchConfig>,
+  search: CrawlerSearchConfig,
 ): Promise<{ ok: boolean; total: number }> {
   const res = await fetch(`${API_BASE}/crawler/count-search-v3`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
-    body: JSON.stringify({ preset, search }),
+    body: JSON.stringify({ search }),
   });
   if (!res.ok) {
     throw new Error(

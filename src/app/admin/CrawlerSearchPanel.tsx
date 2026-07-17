@@ -314,7 +314,7 @@ export function CrawlerSearchPanel({
     }
     setCheckingCount(true);
     try {
-      const { total } = await countSearchResultsV3("현재", nextSearch);
+      const { total } = await countSearchResultsV3(nextSearch);
       setMessage(`${label} — 현재 조건으로 ${total}건이 검색됩니다.`);
     } catch (err) {
       setMessage(
@@ -399,7 +399,7 @@ export function CrawlerSearchPanel({
       }
 
       onCollectStart?.();
-      const result = await crawlerCollectUrls(presetLabel || "현재", {
+      const result = await crawlerCollectUrls(presetLabel || "직접 설정", {
         clear: true,
         search,
         crawlerVersion,
