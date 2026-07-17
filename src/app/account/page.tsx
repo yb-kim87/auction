@@ -51,6 +51,8 @@ export default function AccountPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(
     null,
   );
+  // 목표 수익은 선택 항목이라 제외 — 비워두지 못하게 막을 필수 필드만 담는다.
+  const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
 
   const homeHref = profile ? getLoginRedirect(profile.role) : "/";
 
@@ -127,20 +129,27 @@ export default function AccountPage() {
 
     if (profileFieldsChanged) {
       // 목표 수익은 선택 항목 — 비워두면 목표수익 필터 없이 추천된다.
-      if (
-        !trimmedInvestableFunds ||
-        !trimmedExistingLoanAmount ||
-        !trimmedCreditScore ||
-        !trimmedAnnualNetIncome ||
-        !trimmedInvestmentGoal
-      ) {
-        setMessage({ type: "error", text: "투자정보 항목을 모두 입력해 주세요." });
-        return;
-      }
+      const missing = new Set<string>();
+      if (!trimmedInvestableFunds) missing.add("investableFunds");
+      if (!trimmedExistingLoanAmount) missing.add("existingLoanAmount");
+      if (!trimmedCreditScore) missing.add("creditScore");
+      if (!trimmedAnnualNetIncome) missing.add("annualNetIncome");
+      if (!trimmedInvestmentGoal) missing.add("investmentGoal");
       if (Number.isNaN(parsedHousingCount) || parsedHousingCount < 0) {
-        setMessage({ type: "error", text: "주택수는 0 이상의 숫자로 입력해 주세요." });
+        missing.add("housingCount");
+      }
+      if (missing.size > 0) {
+        setInvalidFields(missing);
+        setMessage({
+          type: "error",
+          text:
+            missing.has("housingCount") && missing.size === 1
+              ? "주택수는 0 이상의 숫자로 입력해 주세요."
+              : "빨간색으로 표시된 항목을 입력해 주세요.",
+        });
         return;
       }
+      setInvalidFields(new Set());
     }
 
     if (passwordChanging) {
@@ -286,23 +295,47 @@ export default function AccountPage() {
                   label="투자가능자금"
                   placeholder="투자가능자금 선택"
                   value={investableFunds}
-                  onChange={setInvestableFunds}
+                  onChange={(v) => {
+                    setInvestableFunds(v);
+                    setInvalidFields((prev) => {
+                      const next = new Set(prev);
+                      next.delete("investableFunds");
+                      return next;
+                    });
+                  }}
                   options={INVESTABLE_FUNDS_OPTIONS}
+                  invalid={invalidFields.has("investableFunds")}
                 />
                 <SelectField
                   label="연순소득"
                   placeholder="연순소득 선택"
                   value={annualNetIncome}
-                  onChange={setAnnualNetIncome}
+                  onChange={(v) => {
+                    setAnnualNetIncome(v);
+                    setInvalidFields((prev) => {
+                      const next = new Set(prev);
+                      next.delete("annualNetIncome");
+                      return next;
+                    });
+                  }}
                   options={ANNUAL_NET_INCOME_OPTIONS}
                   hint="* 매출이 아닌 순소득정보입니다."
+                  invalid={invalidFields.has("annualNetIncome")}
                 />
                 <SelectField
                   label="기존대출금액"
                   placeholder="기존대출금액 선택"
                   value={existingLoanAmount}
-                  onChange={setExistingLoanAmount}
+                  onChange={(v) => {
+                    setExistingLoanAmount(v);
+                    setInvalidFields((prev) => {
+                      const next = new Set(prev);
+                      next.delete("existingLoanAmount");
+                      return next;
+                    });
+                  }}
                   options={EXISTING_LOAN_OPTIONS}
+                  invalid={invalidFields.has("existingLoanAmount")}
                 />
                 <div className="flex items-end gap-4">
                   <div className="flex-1">
@@ -313,8 +346,14 @@ export default function AccountPage() {
                       onChange={(v) => {
                         setHousingCount(v);
                         if (v !== "0") setFirstTimeBuyer(false);
+                        setInvalidFields((prev) => {
+                          const next = new Set(prev);
+                          next.delete("housingCount");
+                          return next;
+                        });
                       }}
                       options={HOUSING_COUNT_OPTIONS}
+                      invalid={invalidFields.has("housingCount")}
                     />
                   </div>
                   <div className={`h-11 flex items-center ${housingCount !== "0" ? "opacity-40 pointer-events-none" : ""}`}>
@@ -329,18 +368,37 @@ export default function AccountPage() {
                   label="신용점수"
                   placeholder="신용점수 선택"
                   value={creditScore}
-                  onChange={setCreditScore}
+                  onChange={(v) => {
+                    setCreditScore(v);
+                    setInvalidFields((prev) => {
+                      const next = new Set(prev);
+                      next.delete("creditScore");
+                      return next;
+                    });
+                  }}
                   options={CREDIT_SCORE_OPTIONS}
                   hint="* 나이스/KCB 신용점수는 토스/카카오를 통해 확인가능합니다."
+                  invalid={invalidFields.has("creditScore")}
                 />
                 <SelectField
-                  label="목표 수익"
-                  placeholder="목표 수익 선택"
+                  label="목표 수익 (선택)"
+                  placeholder="목표 수익 선택 — 선택 안 하면 필터 없이 추천"
                   value={targetReturn}
                   onChange={setTargetReturn}
                   options={TARGET_RETURN_OPTIONS}
                 />
-                <InvestmentGoalField value={investmentGoal} onChange={setInvestmentGoal} />
+                <InvestmentGoalField
+                  value={investmentGoal}
+                  onChange={(v) => {
+                    setInvestmentGoal(v);
+                    setInvalidFields((prev) => {
+                      const next = new Set(prev);
+                      next.delete("investmentGoal");
+                      return next;
+                    });
+                  }}
+                  invalid={invalidFields.has("investmentGoal")}
+                />
               </InvestmentInfoSection>
 
               <div className="rounded-sm border border-border bg-secondary/25 p-4 sm:p-5 space-y-4">

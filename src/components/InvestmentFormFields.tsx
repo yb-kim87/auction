@@ -12,6 +12,7 @@ export function SelectField({
   options,
   placeholder,
   hint,
+  invalid,
 }: {
   label: string;
   value: string;
@@ -19,6 +20,8 @@ export function SelectField({
   options: InvestmentSelectOption[];
   placeholder: string;
   hint?: string;
+  /** true면 라벨과 테두리를 빨간색으로 표시(필수 항목 미입력 등). */
+  invalid?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -37,16 +40,23 @@ export function SelectField({
 
   return (
     <div ref={rootRef}>
-      <label className="block text-[0.82rem] font-medium text-foreground/70 mb-1.5">
+      <label
+        className={`block text-[0.82rem] font-medium mb-1.5 ${
+          invalid ? "text-destructive" : "text-foreground/70"
+        }`}
+      >
         {label}
+        {invalid && <span className="ml-1 text-destructive">*필수</span>}
       </label>
       <div className="relative">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className={`w-full h-11 flex items-center px-4 pr-10 rounded-xl bg-input-background border border-border text-[0.9rem] text-left focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 transition-all cursor-pointer ${
-            selected ? "text-foreground" : "text-muted-foreground/60"
-          }`}
+          className={`w-full h-11 flex items-center px-4 pr-10 rounded-xl bg-input-background border text-[0.9rem] text-left focus:outline-none focus:ring-2 transition-all cursor-pointer ${
+            invalid
+              ? "border-destructive focus:border-destructive focus:ring-destructive/30"
+              : "border-border focus:border-primary focus:ring-ring/30"
+          } ${selected ? "text-foreground" : "text-muted-foreground/60"}`}
         >
           {selected ? selected.label : placeholder}
         </button>
@@ -145,9 +155,11 @@ export function TextAreaField({
 export function InvestmentGoalField({
   value,
   onChange,
+  invalid,
 }: {
   value: string;
   onChange: (v: string) => void;
+  invalid?: boolean;
 }) {
   const isPreset = INVESTMENT_GOAL_OPTIONS.some(
     (o) => o.value === value && o.value !== INVESTMENT_GOAL_ETC,
@@ -172,6 +184,7 @@ export function InvestmentGoalField({
           }
         }}
         options={INVESTMENT_GOAL_OPTIONS}
+        invalid={invalid}
       />
       {showCustomInput && (
         <input
