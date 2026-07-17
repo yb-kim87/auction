@@ -14,9 +14,11 @@ import {
   fetchCrawlerConfig,
   fetchCrawlerLogs,
   fetchCrawlerStatus,
+  fetchSavedSearches,
   type CrawlerLogEntry,
   type CrawlerStatus,
   type CrawlerUrlEntry,
+  type SavedSearchPreset,
 } from "@/lib/api";
 import { CrawlerAlgorithmTab } from "./CrawlerAlgorithmTab";
 import { CrawlerProfitTab } from "./CrawlerProfitTab";
@@ -74,6 +76,7 @@ export function CrawlerWorkPanel() {
   const [error, setError] = useState<string | null>(null);
   const [collectSummary, setCollectSummary] = useState<string | null>(null);
   const [localWorkPanelHint, setLocalWorkPanelHint] = useState(false);
+  const [savedSearches, setSavedSearches] = useState<SavedSearchPreset[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -121,6 +124,9 @@ export function CrawlerWorkPanel() {
           setTankPassword(config.credentials.password);
         }
       })
+      .catch(() => undefined);
+    fetchSavedSearches()
+      .then(setSavedSearches)
       .catch(() => undefined);
   }, [refresh]);
 
@@ -373,6 +379,15 @@ export function CrawlerWorkPanel() {
                       {item}
                     </option>
                   ))}
+                  {savedSearches.length > 0 && (
+                    <optgroup label="관심조건">
+                      {savedSearches.map((item) => (
+                        <option key={item.id} value={item.name}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <button
                   type="button"
@@ -381,6 +396,7 @@ export function CrawlerWorkPanel() {
                     runAction("collect", async () => {
                       const result = await crawlerCollectUrls(preset, {
                         clear: true,
+                        crawlerVersion: status?.remoteWorker ? undefined : "v3",
                       });
                       const raw = result.rawCount ?? result.urls.length;
                       const parts: string[] = [];

@@ -1227,6 +1227,29 @@ export type CrawlerSearchConfig = {
   preserveRegistryFrom: string;
   excludeSpecialConditions: string[];
   pageSize: string;
+  caseYear?: string;
+  caseSerial?: string;
+  itemNumber?: string;
+  regionSiCd?: string;
+  regionGuCd?: string;
+  regionDnCd?: string;
+  addressKeyword?: string;
+  minPriceMin?: string;
+  minPriceMax?: string;
+  minPricePctMin?: string;
+  minPricePctMax?: string;
+  landAreaMin?: string;
+  landAreaMax?: string;
+  buildingAreaMin?: string;
+  buildingAreaMax?: string;
+  totalFloorMin?: string;
+  totalFloorMax?: string;
+  failCountMin?: string;
+  failCountMax?: string;
+  bidDateFrom?: string;
+  bidDateTo?: string;
+  auctionType?: string;
+  saleDivision?: string;
 };
 
 export type CrawlerAlgorithmConfig = {
@@ -1260,12 +1283,21 @@ export type CrawlerCredentialsConfig = {
   password: string;
 };
 
+export type SavedSearchPreset = {
+  id: string;
+  name: string;
+  search: CrawlerSearchConfig;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CrawlerConfig = {
   search: CrawlerSearchConfig;
   algorithm: CrawlerAlgorithmConfig;
   schedule: CrawlerScheduleConfig;
   credentials: CrawlerCredentialsConfig;
   naverCredentials?: CrawlerCredentialsConfig;
+  savedSearches?: SavedSearchPreset[];
 };
 
 export type CrawlerLogEntry = {
@@ -1348,11 +1380,59 @@ export async function updateCrawlerConfig(
   return readJsonResponse(res);
 }
 
+export async function fetchSavedSearches(): Promise<SavedSearchPreset[]> {
+  const res = await fetch(`${API_BASE}/crawler/saved-searches`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "저장된 검색조건을 불러오지 못했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
+export async function saveSavedSearch(body: {
+  id?: string;
+  name: string;
+  search: CrawlerSearchConfig;
+}): Promise<SavedSearchPreset> {
+  const res = await fetch(`${API_BASE}/crawler/saved-searches`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "검색조건 저장에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteSavedSearch(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/crawler/saved-searches/delete`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "검색조건 삭제에 실패했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
 export async function crawlerCollectUrls(
   preset: string,
   options?: {
     clear?: boolean;
     search?: Partial<CrawlerSearchConfig>;
+    crawlerVersion?: CrawlerVersion;
   },
 ) {
   const res = await fetch(`${API_BASE}/crawler/collect-urls`, {
@@ -1363,6 +1443,7 @@ export async function crawlerCollectUrls(
       preset,
       clear: options?.clear ?? true,
       search: options?.search,
+      crawlerVersion: options?.crawlerVersion,
     }),
   });
   if (!res.ok) {
