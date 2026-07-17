@@ -373,9 +373,15 @@ export function CrawlerWorkPanel() {
                   : parts.join(" · "),
               );
               if (repeatAfterCollect && result.urls.length > 0) {
-                void crawlerStart({
+                crawlerStart({
                   repeatAfterCollect: true,
                   crawlerVersion: status?.remoteWorker ? undefined : "v3",
+                }).catch((err) => {
+                  setError(
+                    err instanceof Error
+                      ? `자동 조회 시작 실패: ${err.message}`
+                      : "자동 조회 시작 실패",
+                  );
                 });
               }
               void refresh();
