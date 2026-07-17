@@ -1106,6 +1106,7 @@ export async function fetchRecommendations(
       regulatedArea: boolean;
       incomeLoanLimit: number | null;
       existingLoanWon: number;
+      loanUnavailable?: boolean;
     }
   >;
   total: number;

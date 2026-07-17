@@ -42,6 +42,7 @@ type LoanInfo = {
   regulatedArea: boolean;
   incomeLoanLimit: number | null;
   existingLoanWon: number;
+  loanUnavailable?: boolean;
 };
 import { getFailureRateRatio, getFailureRoundCount } from "@/lib/failure-rate";
 import { CITIES } from "@/data/korea-regions";
@@ -669,10 +670,16 @@ function RecommendCard({
               >
                 {formatWonShort(requiredEquity)}
               </p>
-              {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
-                <p className="text-[0.67rem] text-primary/50 mt-0.5">
-                  {loanPolicyLabel} · 예상대출 {formatWonShort(loanAmount)}
+              {loanInfo?.loanUnavailable ? (
+                <p className="text-[0.67rem] text-red-500 font-semibold mt-0.5">
+                  {loanPolicyLabel} · 대출불가
                 </p>
+              ) : (
+                loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
+                  <p className="text-[0.67rem] text-primary/50 mt-0.5">
+                    {loanPolicyLabel} · 예상대출 {formatWonShort(loanAmount)}
+                  </p>
+                )
               )}
             </div>
             {estimatedProfit != null && (
@@ -850,13 +857,21 @@ function RecommendListRow({
             </div>
           )}
 
-          {loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
+          {loanInfo?.loanUnavailable ? (
             <div className="text-right flex-shrink-0 hidden lg:block">
-              <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{loanPolicyLabel} 예상대출</p>
-              <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
-                {formatWonShort(loanAmount)}
+              <p className="text-[0.62rem] text-red-500 font-semibold whitespace-nowrap">
+                {loanPolicyLabel} · 대출불가
               </p>
             </div>
+          ) : (
+            loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
+              <div className="text-right flex-shrink-0 hidden lg:block">
+                <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{loanPolicyLabel} 예상대출</p>
+                <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+                  {formatWonShort(loanAmount)}
+                </p>
+              </div>
+            )
           )}
 
           <div className="text-right flex-shrink-0 hidden md:block">
