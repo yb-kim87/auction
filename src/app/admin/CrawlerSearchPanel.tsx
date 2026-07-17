@@ -14,6 +14,7 @@ import {
   type SavedSearchPreset,
   type TankFavoriteSearch,
 } from "@/lib/api";
+import { getTankGuOptions, getTankDongOptions } from "@/data/tank-regions";
 
 // 탱크옥션 ca/caList.php 검색 폼 #ctgr select 옵션 전체를 실측(2026-07-17)한
 // 대분류→하위 물건종류 그룹. presets_httpx.py: PROPERTY_TYPE_CODES 의 키와
@@ -322,7 +323,7 @@ const REGION_SI_OPTIONS: { value: string; label: string }[] = [
   { value: "26", label: "부산" },
   { value: "27", label: "대구" },
   { value: "28", label: "인천" },
-  { value: "12", label: "광주" },
+  { value: "12", label: "광주·전남" },
   { value: "30", label: "대전" },
   { value: "31", label: "울산" },
   { value: "36", label: "세종" },
@@ -873,23 +874,62 @@ export function CrawlerSearchPanel({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
-            <span className="text-muted-foreground">시/도·주소</span>
-            <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
-              <select
-                value={search.regionSiCd ?? ""}
-                onChange={(e) => setSearch({ ...search, regionSiCd: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                {REGION_SI_OPTIONS.map((item) => (
-                  <option key={item.value || "all"} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+            <span className="text-muted-foreground">주소</span>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={search.regionSiCd ?? ""}
+                  onChange={(e) => {
+                    const nextSiCd = e.target.value;
+                    setSearch({
+                      ...search,
+                      regionSiCd: nextSiCd,
+                      regionGuCd: "",
+                      regionDnCd: "",
+                    });
+                  }}
+                  className="w-32 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {REGION_SI_OPTIONS.map((item) => (
+                    <option key={item.value || "all"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={search.regionGuCd ?? ""}
+                  onChange={(e) => {
+                    const nextGuCd = e.target.value;
+                    setSearch({ ...search, regionGuCd: nextGuCd, regionDnCd: "" });
+                  }}
+                  disabled={!search.regionSiCd}
+                  className="w-32 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+                >
+                  <option value="">시/군/구 전체</option>
+                  {getTankGuOptions(search.regionSiCd ?? "").map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={search.regionDnCd ?? ""}
+                  onChange={(e) => setSearch({ ...search, regionDnCd: e.target.value })}
+                  disabled={!search.regionGuCd}
+                  className="w-32 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+                >
+                  <option value="">동/읍/면 전체</option>
+                  {getTankDongOptions(search.regionSiCd ?? "", search.regionGuCd ?? "").map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <input
                 value={search.addressKeyword ?? ""}
                 onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
-                placeholder="예: 강남구, 래미안 (시/군/구 이하는 코드 대신 자유 텍스트로 필터링)"
+                placeholder="상세주소 (예: 래미안) — 시/군/구 이하 자유 텍스트로 추가 필터링"
                 className="w-full px-3 py-2 border border-border rounded-sm bg-card"
               />
             </div>
