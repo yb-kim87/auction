@@ -697,7 +697,7 @@ export function CrawlerSearchPanel({
             <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
               <span className="font-semibold">관심조건</span>
               {savedSearches.length > 0 ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <select
                     value={activePresetId ?? ""}
                     onChange={(e) => {
@@ -724,6 +724,12 @@ export function CrawlerSearchPanel({
                       삭제
                     </button>
                   )}
+                  <input
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder="조건 이름 (예: 강남 아파트)"
+                    className="w-40 px-3 py-1.5 text-sm border border-border rounded-sm bg-card shrink-0"
+                  />
                   <button
                     type="button"
                     onClick={handleNewPreset}
@@ -733,18 +739,15 @@ export function CrawlerSearchPanel({
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  저장된 관심조건이 없습니다. 아래에서 조건을 설정한 뒤 이름을 붙여 저장하세요.
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder="조건 이름 (예: 강남 아파트) — 비우면 저장 없이 1회성 조회"
+                    className="px-3 py-1.5 text-sm border border-border rounded-sm bg-card flex-1 min-w-[220px]"
+                  />
+                </div>
               )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:ml-[calc(6.5rem+0.75rem)]">
-              <input
-                value={presetName}
-                onChange={(e) => setPresetName(e.target.value)}
-                placeholder="조건 이름 (예: 강남 아파트) — 비우면 저장 없이 1회성 조회"
-                className="px-3 py-1.5 text-sm border border-border rounded-sm bg-card flex-1 min-w-[220px]"
-              />
             </div>
           </div>
 
