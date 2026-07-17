@@ -694,9 +694,33 @@ export function CrawlerSearchPanel({
           )}
 
           <div className="space-y-3">
-            <p className="text-sm font-semibold">관심조건</p>
-            {savedSearches.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
+              <span className="font-semibold">관심조건</span>
+              {savedSearches.length > 0 ? (
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const preset = savedSearches.find((p) => p.id === e.target.value);
+                    if (preset) applyPreset(preset);
+                    e.target.value = "";
+                  }}
+                  className="w-full max-w-xs px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  <option value="">저장된 관심조건에서 선택...</option>
+                  {savedSearches.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  저장된 관심조건이 없습니다. 아래에서 조건을 설정한 뒤 이름을 붙여 저장하세요.
+                </p>
+              )}
+            </div>
+            {savedSearches.length > 0 && (
+              <div className="flex flex-wrap gap-2 sm:ml-[calc(6.5rem+0.75rem)]">
                 {savedSearches.map((preset) => (
                   <div
                     key={preset.id}
@@ -724,10 +748,6 @@ export function CrawlerSearchPanel({
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                저장된 관심조건이 없습니다. 아래에서 조건을 설정한 뒤 이름을 붙여 저장하세요.
-              </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
               <input
