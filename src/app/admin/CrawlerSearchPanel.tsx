@@ -728,7 +728,7 @@ export function CrawlerSearchPanel({
                     value={presetName}
                     onChange={(e) => setPresetName(e.target.value)}
                     placeholder="조건 이름 (예: 강남 아파트)"
-                    className="w-40 px-3 py-1.5 text-sm border border-border rounded-sm bg-card shrink-0"
+                    className="w-64 px-3 py-1.5 text-sm border border-border rounded-sm bg-card shrink-0"
                   />
                   <button
                     type="button"
