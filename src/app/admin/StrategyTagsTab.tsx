@@ -8,7 +8,8 @@ import {
   updateStrategyRule,
   removeStrategyRule,
   fetchStrategyLabels,
-  upsertStrategyLabel,
+  createStrategyLabel,
+  updateStrategyLabel,
   removeStrategyLabel,
   backfillTagRules,
   type TagRule,
@@ -19,16 +20,11 @@ import {
 type StrategyForm = {
   strategyCode: string;
   requiredFactCodes: string[];
-  label: string;
-  description: string;
+  labelId: string;
 };
 
-const EMPTY_FORM: StrategyForm = {
-  strategyCode: "",
-  requiredFactCodes: [],
-  label: "",
-  description: "",
-};
+const EMPTY_FORM: StrategyForm = { strategyCode: "", requiredFactCodes: [], labelId: "" };
+const EMPTY_LABEL_FORM = { label: "", description: "" };
 
 export function StrategyTagsTab() {
   const [factRules, setFactRules] = useState<TagRule[]>([]);
@@ -42,6 +38,12 @@ export function StrategyTagsTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<StrategyForm>(EMPTY_FORM);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const [labelForm, setLabelForm] = useState(EMPTY_LABEL_FORM);
+  const [creatingLabel, setCreatingLabel] = useState(false);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editLabelForm, setEditLabelForm] = useState(EMPTY_LABEL_FORM);
+  const [savingLabelEdit, setSavingLabelEdit] = useState(false);
 
   function load() {
     setLoading(true);
@@ -57,7 +59,7 @@ export function StrategyTagsTab() {
 
   useEffect(load, []);
 
-  const labelMap = new Map(labels.map((l) => [l.strategyCode, l]));
+  const labelByStrategyCode = new Map(labels.filter((l) => l.strategyCode).map((l) => [l.strategyCode, l]));
 
   function toggleFactCode(code: string) {
     setForm((f) => ({
@@ -69,8 +71,8 @@ export function StrategyTagsTab() {
   }
 
   async function handleCreate() {
-    if (!form.strategyCode.trim() || form.requiredFactCodes.length === 0 || !form.label.trim()) {
-      setMessage("전략 코드, 조건, 사용자 노출 라벨을 모두 입력해 주세요.");
+    if (!form.strategyCode.trim() || form.requiredFactCodes.length === 0 || !form.labelId) {
+      setMessage("전략 코드, 조건, 노출 라벨을 모두 선택해 주세요.");
       return;
     }
     setCreating(true);
@@ -79,11 +81,7 @@ export function StrategyTagsTab() {
       await createStrategyRule({
         strategyCode: form.strategyCode,
         requiredFactCodes: form.requiredFactCodes,
-      });
-      await upsertStrategyLabel({
-        strategyCode: form.strategyCode,
-        label: form.label,
-        description: form.description,
+        labelId: form.labelId,
       });
       setForm(EMPTY_FORM);
       load();
@@ -107,13 +105,12 @@ export function StrategyTagsTab() {
   }
 
   function startEdit(rule: StrategyRule) {
-    const label = labelMap.get(rule.strategyCode);
+    const label = labelByStrategyCode.get(rule.strategyCode);
     setEditingId(rule.id);
     setEditForm({
       strategyCode: rule.strategyCode,
       requiredFactCodes: [...rule.requiredFactCodes],
-      label: label?.label ?? "",
-      description: label?.description ?? "",
+      labelId: label?.id ?? "",
     });
     setMessage(null);
   }
@@ -133,8 +130,8 @@ export function StrategyTagsTab() {
   }
 
   async function handleSaveEdit(id: string) {
-    if (!editForm.strategyCode.trim() || editForm.requiredFactCodes.length === 0 || !editForm.label.trim()) {
-      setMessage("전략 코드, 조건, 사용자 노출 라벨을 모두 입력해 주세요.");
+    if (!editForm.strategyCode.trim() || editForm.requiredFactCodes.length === 0 || !editForm.labelId) {
+      setMessage("전략 코드, 조건, 노출 라벨을 모두 선택해 주세요.");
       return;
     }
     setSavingEdit(true);
@@ -143,11 +140,7 @@ export function StrategyTagsTab() {
       await updateStrategyRule(id, {
         strategyCode: editForm.strategyCode,
         requiredFactCodes: editForm.requiredFactCodes,
-      });
-      await upsertStrategyLabel({
-        strategyCode: editForm.strategyCode,
-        label: editForm.label,
-        description: editForm.description,
+        labelId: editForm.labelId,
       });
       cancelEdit();
       load();
@@ -162,14 +155,67 @@ export function StrategyTagsTab() {
   async function handleDelete(rule: StrategyRule) {
     try {
       await removeStrategyRule(rule.id);
-      const label = labelMap.get(rule.strategyCode);
-      if (label) {
-        await removeStrategyLabel(label.id);
-      }
       setStrategyRules((prev) => prev.filter((r) => r.id !== rule.id));
-      setLabels((prev) => prev.filter((l) => l.strategyCode !== rule.strategyCode));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "삭제 실패");
+    }
+  }
+
+  async function handleCreateLabel() {
+    if (!labelForm.label.trim()) {
+      setMessage("노출 라벨을 입력해 주세요.");
+      return;
+    }
+    setCreatingLabel(true);
+    setMessage(null);
+    try {
+      await createStrategyLabel(labelForm);
+      setLabelForm(EMPTY_LABEL_FORM);
+      load();
+      setMessage("라벨이 추가되었습니다.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "라벨 생성 실패");
+    } finally {
+      setCreatingLabel(false);
+    }
+  }
+
+  function startEditLabel(label: StrategyLabel) {
+    setEditingLabelId(label.id);
+    setEditLabelForm({ label: label.label, description: label.description });
+    setMessage(null);
+  }
+
+  function cancelEditLabel() {
+    setEditingLabelId(null);
+    setEditLabelForm(EMPTY_LABEL_FORM);
+  }
+
+  async function handleSaveLabelEdit(id: string) {
+    if (!editLabelForm.label.trim()) {
+      setMessage("노출 라벨을 입력해 주세요.");
+      return;
+    }
+    setSavingLabelEdit(true);
+    setMessage(null);
+    try {
+      await updateStrategyLabel(id, editLabelForm);
+      cancelEditLabel();
+      load();
+      setMessage("라벨이 수정되었습니다.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "라벨 수정 실패");
+    } finally {
+      setSavingLabelEdit(false);
+    }
+  }
+
+  async function handleDeleteLabel(label: StrategyLabel) {
+    try {
+      await removeStrategyLabel(label.id);
+      setLabels((prev) => prev.filter((l) => l.id !== label.id));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "라벨 삭제 실패");
     }
   }
 
@@ -196,7 +242,7 @@ export function StrategyTagsTab() {
         <h2 className="text-lg font-bold text-foreground">전략 관리</h2>
         <p className="text-sm text-muted-foreground mt-1">
           조건 조합(모두 만족 시)으로 전략 코드를 부여하고, 그 코드를 사용자에게
-          보여줄 실제 문구로 연결합니다. 물건 상세페이지에는 여기서 만든{" "}
+          보여줄 라벨과 연결합니다. 물건 상세페이지에는 여기서 만든{" "}
           <b className="text-foreground">라벨·설명만</b> 노출되고 조건 자체는 보이지
           않습니다.
         </p>
@@ -207,6 +253,134 @@ export function StrategyTagsTab() {
           {message}
         </div>
       )}
+
+      <div className="border border-border rounded-sm p-4 space-y-3">
+        <p className="text-sm font-semibold text-foreground">노출 라벨 관리</p>
+        <p className="text-xs text-muted-foreground">
+          전략에 연결할 사용자 노출 문구를 미리 등록해두면, 아래 "전략 추가"에서
+          드롭박스로 골라 쓸 수 있습니다.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input
+            type="text"
+            placeholder="라벨 (예: 경쟁이 적은 투자)"
+            value={labelForm.label}
+            onChange={(e) => setLabelForm((f) => ({ ...f, label: e.target.value }))}
+            className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+          />
+          <input
+            type="text"
+            placeholder="설명 (선택)"
+            value={labelForm.description}
+            onChange={(e) => setLabelForm((f) => ({ ...f, description: e.target.value }))}
+            className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleCreateLabel()}
+          disabled={creatingLabel}
+          className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+        >
+          {creatingLabel ? "추가 중..." : "라벨 추가"}
+        </button>
+
+        {labels.length > 0 && (
+          <div className="border border-border rounded-sm overflow-x-auto mt-2">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border bg-secondary/30 text-left">
+                  <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">라벨</th>
+                  <th className="px-3 py-2 font-semibold text-foreground">설명</th>
+                  <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">
+                    연결된 전략
+                  </th>
+                  <th className="px-3 py-2 text-center whitespace-nowrap w-16">수정</th>
+                  <th className="px-3 py-2 w-16" />
+                </tr>
+              </thead>
+              <tbody>
+                {labels.map((label) => {
+                  if (editingLabelId === label.id) {
+                    return (
+                      <tr key={label.id} className="border-b border-border last:border-b-0 bg-secondary/20">
+                        <td className="px-3 py-2" colSpan={5}>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={editLabelForm.label}
+                              onChange={(e) =>
+                                setEditLabelForm((f) => ({ ...f, label: e.target.value }))
+                              }
+                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+                            />
+                            <input
+                              type="text"
+                              value={editLabelForm.description}
+                              onChange={(e) =>
+                                setEditLabelForm((f) => ({ ...f, description: e.target.value }))
+                              }
+                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+                            />
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleSaveLabelEdit(label.id)}
+                              disabled={savingLabelEdit}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+                            >
+                              {savingLabelEdit ? "저장 중..." : "저장"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditLabel}
+                              className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border bg-card"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return (
+                    <tr key={label.id} className="border-b border-border last:border-b-0">
+                      <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap">
+                        {label.label}
+                      </td>
+                      <td className="px-3 py-2 align-middle text-muted-foreground">
+                        {label.description || "-"}
+                      </td>
+                      <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">
+                        {label.strategyCode || "-"}
+                      </td>
+                      <td className="px-3 py-2 align-middle text-center">
+                        <button
+                          type="button"
+                          onClick={() => startEditLabel(label)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          수정
+                        </button>
+                      </td>
+                      <td className="px-3 py-2 align-middle text-right">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteLabel(label)}
+                          className="text-xs text-destructive hover:underline"
+                        >
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <div className="border border-border rounded-sm p-4 space-y-3">
         <p className="text-sm font-semibold text-foreground">전략 추가</p>
@@ -238,20 +412,18 @@ export function StrategyTagsTab() {
             ))}
           </div>
         </div>
-        <input
-          type="text"
-          placeholder="사용자에게 보일 라벨 (예: 경쟁이 적은 투자)"
-          value={form.label}
-          onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
+        <select
+          value={form.labelId}
+          onChange={(e) => setForm((f) => ({ ...f, labelId: e.target.value }))}
           className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
-        />
-        <textarea
-          placeholder="설명 (예: 세금 계산을 어려워하는 입찰자가 적어 경쟁이 낮아질 수 있습니다.)"
-          value={form.description}
-          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          rows={2}
-          className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card resize-y"
-        />
+        >
+          <option value="">노출 라벨 선택</option>
+          {labels.map((label) => (
+            <option key={label.id} value={label.id}>
+              {label.label}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           onClick={() => void handleCreate()}
@@ -324,22 +496,18 @@ export function StrategyTagsTab() {
                               ))}
                             </div>
                           </div>
-                          <input
-                            type="text"
-                            placeholder="사용자에게 보일 라벨"
-                            value={editForm.label}
-                            onChange={(e) => setEditForm((f) => ({ ...f, label: e.target.value }))}
+                          <select
+                            value={editForm.labelId}
+                            onChange={(e) => setEditForm((f) => ({ ...f, labelId: e.target.value }))}
                             className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
-                          />
-                          <textarea
-                            placeholder="설명"
-                            value={editForm.description}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, description: e.target.value }))
-                            }
-                            rows={2}
-                            className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card resize-y"
-                          />
+                          >
+                            <option value="">노출 라벨 선택</option>
+                            {labels.map((label) => (
+                              <option key={label.id} value={label.id}>
+                                {label.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div className="flex gap-2 mt-3">
                           <button
@@ -363,7 +531,7 @@ export function StrategyTagsTab() {
                   );
                 }
 
-                const label = labelMap.get(rule.strategyCode);
+                const label = labelByStrategyCode.get(rule.strategyCode);
                 return (
                   <tr key={rule.id} className="border-b border-border last:border-b-0">
                     <td className="px-4 py-3 align-middle whitespace-nowrap">

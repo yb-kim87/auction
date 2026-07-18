@@ -814,6 +814,7 @@ export async function fetchStrategyRules(): Promise<StrategyRule[]> {
 export async function createStrategyRule(input: {
   strategyCode: string;
   requiredFactCodes: string[];
+  labelId?: string;
   active?: boolean;
   sortOrder?: number;
 }): Promise<StrategyRule> {
@@ -831,7 +832,13 @@ export async function createStrategyRule(input: {
 
 export async function updateStrategyRule(
   id: string,
-  input: Partial<{ strategyCode: string; requiredFactCodes: string[]; active: boolean; sortOrder: number }>,
+  input: Partial<{
+    strategyCode: string;
+    requiredFactCodes: string[];
+    labelId: string;
+    active: boolean;
+    sortOrder: number;
+  }>,
 ): Promise<StrategyRule> {
   const res = await fetch(`${API_BASE}/tag-rules/strategy-rules/${id}`, {
     method: "PATCH",
@@ -867,8 +874,7 @@ export async function fetchStrategyLabels(): Promise<StrategyLabel[]> {
   return readJsonResponse(res);
 }
 
-export async function upsertStrategyLabel(input: {
-  strategyCode: string;
+export async function createStrategyLabel(input: {
   label: string;
   description?: string;
   icon?: string;
@@ -880,7 +886,23 @@ export async function upsertStrategyLabel(input: {
     body: JSON.stringify(input),
   });
   if (!res.ok) {
-    throw new Error((await parseErrorMessage(res)) ?? "Strategy 문구 저장에 실패했습니다.");
+    throw new Error((await parseErrorMessage(res)) ?? "라벨 생성에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateStrategyLabel(
+  id: string,
+  input: Partial<{ label: string; description: string; icon: string }>,
+): Promise<StrategyLabel> {
+  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels/${id}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "라벨 수정에 실패했습니다.");
   }
   return readJsonResponse(res);
 }

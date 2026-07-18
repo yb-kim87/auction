@@ -114,8 +114,8 @@ const AI_PLATFORM_SUB_TABS: { id: AiPlatformSubTab; label: string }[] = [
 ];
 
 const STRATEGY_TAGS_SUB_TABS: { id: StrategyTagsSubTab; label: string }[] = [
-  { id: "tagRules", label: "조건 관리" },
   { id: "strategyRules", label: "전략 규칙" },
+  { id: "tagRules", label: "조건 관리" },
 ];
 
 function AdminTabs({
@@ -178,7 +178,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("data");
   const [aiOpsSubTab, setAiOpsSubTab] = useState<AiOpsSubTab>("knowledge");
   const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
-  const [strategyTagsSubTab, setStrategyTagsSubTab] = useState<StrategyTagsSubTab>("tagRules");
+  const [strategyTagsSubTab, setStrategyTagsSubTab] = useState<StrategyTagsSubTab>("strategyRules");
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
 
   const loadCounts = useCallback(async () => {
