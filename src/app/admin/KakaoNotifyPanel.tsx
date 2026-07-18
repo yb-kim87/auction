@@ -1662,7 +1662,10 @@ function ManualSheetConfigCard() {
     setApplyMessage("");
     try {
       const result = await applyManualSheet();
-      setApplyMessage(`${result.processed}건 확인, ${result.created}건 신규 저장`);
+      const parts = [`${result.processed}건 확인`, `${result.created}건 신규 저장`];
+      if (result.duplicate > 0) parts.push(`${result.duplicate}건 중복`);
+      if (result.invalidPhone > 0) parts.push(`${result.invalidPhone}건 전화번호 형식오류`);
+      setApplyMessage(parts.join(", "));
     } catch (err) {
       setApplyMessage(err instanceof Error ? err.message : "적용에 실패했습니다.");
     } finally {

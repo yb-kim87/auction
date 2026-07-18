@@ -2662,7 +2662,12 @@ export async function updateManualSheetConfig(
   return readJsonResponse(res);
 }
 
-export async function applyManualSheet(): Promise<{ processed: number; created: number }> {
+export async function applyManualSheet(): Promise<{
+  processed: number;
+  created: number;
+  duplicate: number;
+  invalidPhone: number;
+}> {
   const res = await fetch(`${API_BASE}/kakao-notify/manual-sheet/apply`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
