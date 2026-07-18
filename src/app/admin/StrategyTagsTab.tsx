@@ -56,7 +56,7 @@ export function StrategyTagsTab() {
 
   async function handleCreateRule() {
     if (!ruleForm.strategyCode.trim() || ruleForm.requiredFactCodes.length === 0) {
-      setMessage("Strategy 코드와 조건이 될 Fact 태그를 하나 이상 선택해 주세요.");
+      setMessage("전략 코드와 조건이 될 Fact 태그를 하나 이상 선택해 주세요.");
       return;
     }
     setCreatingRule(true);
@@ -65,7 +65,7 @@ export function StrategyTagsTab() {
       await createStrategyRule(ruleForm);
       setRuleForm(EMPTY_RULE_FORM);
       load();
-      setMessage("Strategy 규칙이 추가되었습니다.");
+      setMessage("전략 규칙이 추가되었습니다.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "생성 실패");
     } finally {
@@ -95,7 +95,7 @@ export function StrategyTagsTab() {
 
   async function handleSaveLabel() {
     if (!labelForm.strategyCode.trim() || !labelForm.label.trim()) {
-      setMessage("Strategy 코드와 노출 문구(라벨)를 입력해 주세요.");
+      setMessage("전략 코드와 노출 문구(라벨)를 입력해 주세요.");
       return;
     }
     setSavingLabel(true);
@@ -104,7 +104,7 @@ export function StrategyTagsTab() {
       await upsertStrategyLabel(labelForm);
       setLabelForm(EMPTY_LABEL_FORM);
       load();
-      setMessage("Strategy 표시 문구가 저장되었습니다.");
+      setMessage("전략 표시 문구가 저장되었습니다.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "저장 실패");
     } finally {
@@ -143,9 +143,9 @@ export function StrategyTagsTab() {
   return (
     <div className="p-6 space-y-8 max-w-4xl">
       <div>
-        <h2 className="text-lg font-bold text-foreground">Strategy 태그 관리</h2>
+        <h2 className="text-lg font-bold text-foreground">전략 태그 관리</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Fact 태그 조합(모두 만족 시)으로 Strategy 코드를 부여하고, 그 코드를 사용자에게
+          Fact 태그 조합(모두 만족 시)으로 전략 코드를 부여하고, 그 코드를 사용자에게
           보여줄 실제 문구로 연결합니다. 물건 상세페이지에는 여기서 만든{" "}
           <b className="text-foreground">라벨·설명만</b> 노출되고 Fact 태그 자체는 보이지
           않습니다.
@@ -160,18 +160,18 @@ export function StrategyTagsTab() {
 
       <div className="border border-border rounded-sm p-4 space-y-3">
         <p className="text-sm font-semibold text-foreground">
-          1단계 · Strategy 규칙 추가 (Fact 조합 → Strategy 코드)
+          1단계 · 전략 규칙 추가 (Fact 조합 → 전략 코드)
         </p>
         <input
           type="text"
-          placeholder="Strategy 코드 (예: COMPETITION_LOW_POSSIBLE)"
+          placeholder="전략 코드 (예: COMPETITION_LOW_POSSIBLE)"
           value={ruleForm.strategyCode}
           onChange={(e) => setRuleForm((f) => ({ ...f, strategyCode: e.target.value }))}
           className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
         />
         <div>
           <p className="text-xs text-muted-foreground mb-1.5">
-            아래 Fact 태그를 모두 가진 물건에만 이 Strategy가 부여됩니다(AND 조건).
+            아래 Fact 태그를 모두 가진 물건에만 이 전략이 부여됩니다(AND 조건).
           </p>
           <div className="flex flex-wrap gap-1.5">
             {factRules.map((rule) => (
@@ -196,7 +196,7 @@ export function StrategyTagsTab() {
           disabled={creatingRule}
           className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
         >
-          {creatingRule ? "추가 중..." : "Strategy 규칙 추가"}
+          {creatingRule ? "추가 중..." : "전략 규칙 추가"}
         </button>
       </div>
 
@@ -205,7 +205,7 @@ export function StrategyTagsTab() {
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
               <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">
-                Strategy 코드
+                전략 코드
               </th>
               <th className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">
                 필요한 Fact 태그
@@ -220,7 +220,7 @@ export function StrategyTagsTab() {
             {strategyRules.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  등록된 Strategy 규칙이 없습니다.
+                  등록된 전략 규칙이 없습니다.
                 </td>
               </tr>
             ) : (
@@ -263,12 +263,12 @@ export function StrategyTagsTab() {
 
       <div className="border border-border rounded-sm p-4 space-y-3">
         <p className="text-sm font-semibold text-foreground">
-          2단계 · 사용자 노출 문구 설정 (Strategy 코드 → 라벨/설명)
+          2단계 · 사용자 노출 문구 설정 (전략 코드 → 라벨/설명)
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <input
             type="text"
-            placeholder="Strategy 코드 (위에서 만든 코드와 동일하게)"
+            placeholder="전략 코드 (위에서 만든 코드와 동일하게)"
             value={labelForm.strategyCode}
             onChange={(e) => setLabelForm((f) => ({ ...f, strategyCode: e.target.value }))}
             className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
@@ -303,7 +303,7 @@ export function StrategyTagsTab() {
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
               <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">
-                Strategy 코드
+                전략 코드
               </th>
               <th className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">라벨</th>
               <th className="px-3 py-2.5 font-semibold text-foreground">설명</th>
@@ -353,7 +353,7 @@ export function StrategyTagsTab() {
           {backfilling ? "재계산 중..." : "기존 물건 태그 일괄 재계산"}
         </button>
         <p className="text-xs text-muted-foreground mt-1.5">
-          Fact/Strategy 규칙이나 문구를 바꾼 뒤 이미 등록된 물건들에도 반영하려면 눌러주세요.
+          Fact/전략 규칙이나 문구를 바꾼 뒤 이미 등록된 물건들에도 반영하려면 눌러주세요.
         </p>
       </div>
     </div>

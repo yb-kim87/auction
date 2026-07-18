@@ -1,41 +1,121 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import type { AuctionKnowledgeItem } from "@/types/auction";
 import {
   createKnowledgeItem,
+  createKnowledgeCategory,
+  deleteKnowledgeCategory,
   deleteKnowledgeItem,
+  fetchKnowledgeCategories,
   fetchKnowledgeItems,
   updateKnowledgeItem,
+  type KnowledgeCategory,
 } from "@/lib/api";
-
-/** 분류 입력창의 초기 제안값(씨앗). 실제로는 자유 입력이며, 아래 목록 외에도
- *  관리자가 새 분류명을 그대로 타이핑해 추가할 수 있다. 어떤 분류를 어느
- *  AI가 참고할지는 백엔드 쪽에서 별도로 연결한다(예: 물건 상세 AI는 현재
- *  "권리분석"만 참고하도록 고정되어 있음 — ai-analysis.service.ts 참고). */
-const CATEGORY_SEEDS = ["권리분석", "물건추천"];
 
 const emptyForm = {
   title: "",
-  category: "권리분석",
+  category: "",
   tags: "",
   content: "",
   active: true,
 };
 
+/** 분류 관리 카드 — 관리자가 분류를 추가/삭제한다. 어떤 분류를 어느 AI가
+ *  참고할지는 백엔드 쪽에서 별도로 연결한다(예: 물건 상세 AI는 현재
+ *  "권리분석"만 참고하도록 고정되어 있음 — ai-analysis.service.ts 참고). */
+function CategoryManager({
+  categories,
+  onChanged,
+}: {
+  categories: KnowledgeCategory[];
+  onChanged: () => void;
+}) {
+  const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setAdding(true);
+    setError("");
+    try {
+      await createKnowledgeCategory(newName.trim());
+      setNewName("");
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "분류 추가에 실패했습니다.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRemove(id: string) {
+    if (!confirm("이 분류를 삭제할까요? (이미 등록된 지식의 분류값은 그대로 남습니다)")) return;
+    try {
+      await deleteKnowledgeCategory(id);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "분류 삭제에 실패했습니다.");
+    }
+  }
+
+  return (
+    <div className="mb-6 border border-border rounded-sm bg-card p-4 space-y-3 max-w-3xl">
+      <h3 className="text-sm font-bold">분류 관리</h3>
+      <div className="flex flex-wrap gap-2">
+        {categories.length === 0 ? (
+          <p className="text-xs text-muted-foreground">등록된 분류가 없습니다. 아래에서 추가해 주세요.</p>
+        ) : (
+          categories.map((c) => (
+            <span
+              key={c.id}
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
+            >
+              {c.name}
+              <button
+                type="button"
+                onClick={() => void handleRemove(c.id)}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label={`${c.name} 삭제`}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+      <form onSubmit={handleAdd} className="flex gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="새 분류명 (예: 권리분석)"
+          className="flex-1 px-3 py-1.5 text-sm border border-border rounded-sm bg-background"
+        />
+        <button
+          type="submit"
+          disabled={adding}
+          className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+        >
+          {adding ? "추가 중..." : "분류 추가"}
+        </button>
+      </form>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function KnowledgeListPanel() {
   const [items, setItems] = useState<AuctionKnowledgeItem[]>([]);
+  const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-
-  const categoryOptions = [
-    ...new Set([...CATEGORY_SEEDS, ...items.map((i) => i.category).filter(Boolean)]),
-  ];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,13 +131,22 @@ export function KnowledgeListPanel() {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      setCategories(await fetchKnowledgeCategories());
+    } catch {
+      setCategories([]);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadCategories();
+  }, [load, loadCategories]);
 
   function openCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, category: categories[0]?.name ?? "" });
     setFormOpen(true);
   }
 
@@ -142,6 +231,8 @@ export function KnowledgeListPanel() {
         </div>
       )}
 
+      <CategoryManager categories={categories} onChanged={loadCategories} />
+
       {formOpen && (
         <form
           onSubmit={handleSubmit}
@@ -160,20 +251,21 @@ export function KnowledgeListPanel() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block text-sm space-y-1">
               <span className="text-muted-foreground">분류</span>
-              <input
+              <select
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                list="knowledge-category-options"
-                placeholder="새 분류명 입력 또는 목록에서 선택"
-                spellCheck={false}
-                autoComplete="off"
                 className="w-full px-3 py-2 border border-border rounded-sm bg-background"
-              />
-              <datalist id="knowledge-category-options">
-                {categoryOptions.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
+              >
+                {categories.length === 0 ? (
+                  <option value="">분류를 먼저 추가해 주세요</option>
+                ) : (
+                  categories.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))
+                )}
+              </select>
             </label>
             <label className="block text-sm space-y-1">
               <span className="text-muted-foreground">태그 (쉼표 구분)</span>

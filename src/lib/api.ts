@@ -1736,6 +1736,47 @@ export async function deleteKnowledgeItem(id: string): Promise<void> {
   }
 }
 
+export interface KnowledgeCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export async function fetchKnowledgeCategories(): Promise<KnowledgeCategory[]> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-categories`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "분류 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function createKnowledgeCategory(name: string): Promise<KnowledgeCategory> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-categories`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "분류 추가에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteKnowledgeCategory(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/ai/knowledge-categories/${id}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "분류 삭제에 실패했습니다.");
+  }
+}
+
 export async function fetchKnowledgeDrafts(
   status?: KnowledgeDraftStatus,
 ): Promise<KnowledgeDraftItem[]> {
