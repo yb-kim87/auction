@@ -24,6 +24,8 @@ export function TagRulesTab() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   function load() {
     setLoading(true);
@@ -72,12 +74,30 @@ export function TagRulesTab() {
     }
   }
 
-  async function handleDelete(rule: TagRule) {
+  function togglePendingDelete(ruleId: string) {
+    setPendingDeleteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ruleId)) next.delete(ruleId);
+      else next.add(ruleId);
+      return next;
+    });
+  }
+
+  async function handleConfirmDelete() {
+    if (pendingDeleteIds.size === 0) return;
+    setDeleting(true);
+    setMessage(null);
     try {
-      await removeTagRule(rule.id);
-      setRules((prev) => prev.filter((r) => r.id !== rule.id));
+      for (const id of pendingDeleteIds) {
+        await removeTagRule(id);
+      }
+      setRules((prev) => prev.filter((r) => !pendingDeleteIds.has(r.id)));
+      setMessage(`${pendingDeleteIds.size}개 조건이 삭제되었습니다.`);
+      setPendingDeleteIds(new Set());
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "삭제 실패");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -178,7 +198,7 @@ export function TagRulesTab() {
               <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
                 활성
               </th>
-              <th className="px-4 py-2.5 w-16" />
+              <th className="px-4 py-2.5 text-center whitespace-nowrap w-16">삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -210,14 +230,14 @@ export function TagRulesTab() {
                         className="w-4 h-4"
                       />
                     </td>
-                    <td className="px-4 py-3 align-middle text-right">
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(rule)}
-                        className="text-xs text-destructive hover:underline"
-                      >
-                        삭제
-                      </button>
+                    <td className="px-4 py-3 align-middle text-center">
+                      <input
+                        type="checkbox"
+                        checked={pendingDeleteIds.has(rule.id)}
+                        onChange={() => togglePendingDelete(rule.id)}
+                        className="w-4 h-4 accent-destructive"
+                        aria-label="삭제할 조건으로 표시"
+                      />
                     </td>
                   </tr>
                 );
@@ -226,6 +246,29 @@ export function TagRulesTab() {
           </tbody>
         </table>
       </div>
+
+      {pendingDeleteIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 border border-destructive/30 bg-destructive/5 rounded-sm">
+          <p className="text-sm text-destructive">
+            {pendingDeleteIds.size}개 조건을 삭제 대상으로 선택했습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleConfirmDelete()}
+            disabled={deleting}
+            className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-destructive text-destructive-foreground disabled:opacity-50"
+          >
+            {deleting ? "삭제 중..." : "선택 삭제 적용"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingDeleteIds(new Set())}
+            className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border bg-card"
+          >
+            선택 취소
+          </button>
+        </div>
+      )}
 
       <div>
         <button
