@@ -51,6 +51,8 @@ export interface AuctionItem {
   priceDetail: string;
   tradingDetail: string;
   recordTime: string;
+  /** 특이사항 텍스트로 자동 판별되지 않아 관리자가 직접 표시하는 재개발 여부 */
+  isRedevelopment: boolean;
   city: string;
   district: string;
   propType: "아파트" | "빌라";

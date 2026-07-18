@@ -11,7 +11,7 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2025 3건, 2024 2건", bidInfo: "3명", owner: "김○○", appraiser: "한국감정원",
     officialLandPrice: 890000000, tenantInfo: "전입 없음", specialNote: "유치권 없음",
     tenantDetail: "-", priceDetail: "22년 3월 1.55억 거래", tradingDetail: "최근 3건",
-    recordTime: "2025-01-15 09:22", city: "서울특별시", district: "강남구", propType: "아파트", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-01-15 09:22", city: "서울특별시", district: "강남구", propType: "아파트", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "2", memo: "", link: "https://www.courtauction.go.kr", views: 218,
@@ -23,7 +23,7 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2025 2건", bidInfo: "1회 유찰", owner: "이○○", appraiser: "감정평가법인",
     officialLandPrice: 2100000000, tenantInfo: "보증 3억/월 120만", specialNote: "임차인 점유 중",
     tenantDetail: "전세 보증금 3억", priceDetail: "24년 11월 42억 거래", tradingDetail: "최근 2건",
-    recordTime: "2025-01-18 14:05", city: "서울특별시", district: "서초구", propType: "아파트", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-01-18 14:05", city: "서울특별시", district: "서초구", propType: "아파트", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "3", memo: "재건축 예정", link: "https://www.courtauction.go.kr", views: 567,
@@ -35,7 +35,7 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2025 1건", bidInfo: "2명", owner: "박○○", appraiser: "한국감정원",
     officialLandPrice: 3400000000, tenantInfo: "전입 없음", specialNote: "재건축 조합원 자격",
     tenantDetail: "-", priceDetail: "24년 9월 58억 거래", tradingDetail: "최근 1건",
-    recordTime: "2025-01-20 10:30", city: "서울특별시", district: "강남구", propType: "아파트", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-01-20 10:30", city: "서울특별시", district: "강남구", propType: "아파트", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "4", memo: "", link: "https://www.courtauction.go.kr", views: 89,
@@ -47,7 +47,7 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2024 8건", bidInfo: "5명", owner: "최○○", appraiser: "감정평가법인",
     officialLandPrice: 280000000, tenantInfo: "전입 없음", specialNote: "유치권 없음",
     tenantDetail: "-", priceDetail: "24년 12월 4.4억 거래", tradingDetail: "최근 8건",
-    recordTime: "2025-01-22 11:15", city: "경기도", district: "수원시", propType: "아파트", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-01-22 11:15", city: "경기도", district: "수원시", propType: "아파트", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "5", memo: "역세권", link: "https://www.courtauction.go.kr", views: 156,
@@ -59,7 +59,7 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2025 4건", bidInfo: "2회 유찰", owner: "정○○", appraiser: "한국감정원",
     officialLandPrice: 620000000, tenantInfo: "전세 보증금 6.5억", specialNote: "세입자 대항력 있음",
     tenantDetail: "전세 보증금 6.5억 / 확정일자 확인 필요", priceDetail: "24년 10월 10.5억 거래", tradingDetail: "최근 4건",
-    recordTime: "2025-01-25 16:40", city: "서울특별시", district: "마포구", propType: "아파트", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-01-25 16:40", city: "서울특별시", district: "마포구", propType: "아파트", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "6", memo: "", link: "https://www.courtauction.go.kr", views: 44,
@@ -71,7 +71,7 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2025 3건", bidInfo: "3회 유찰", owner: "한○○", appraiser: "감정평가법인",
     officialLandPrice: 190000000, tenantInfo: "전입 없음", specialNote: "근저당 권리분석 필요",
     tenantDetail: "-", priceDetail: "24년 8월 3.3억 거래", tradingDetail: "최근 3건",
-    recordTime: "2025-01-28 09:55", city: "서울특별시", district: "강북구", propType: "아파트", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-01-28 09:55", city: "서울특별시", district: "강북구", propType: "아파트", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "7", memo: "시세 대비 저렴", link: "https://www.courtauction.go.kr", views: 201,
@@ -83,7 +83,7 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2025 2건", bidInfo: "1명", owner: "오○○", appraiser: "한국감정원",
     officialLandPrice: 1550000000, tenantInfo: "전입 없음", specialNote: "재건축 추진 중",
     tenantDetail: "-", priceDetail: "24년 11월 26.5억 거래", tradingDetail: "최근 2건",
-    recordTime: "2025-02-01 13:20", city: "서울특별시", district: "송파구", propType: "아파트", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-02-01 13:20", city: "서울특별시", district: "송파구", propType: "아파트", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "8", memo: "", link: "https://www.courtauction.go.kr", views: 73,
@@ -95,6 +95,6 @@ export const MOCK_DATA: AuctionItem[] = [
     tradingCount: "2024 1건", bidInfo: "2회 유찰", owner: "윤○○", appraiser: "감정평가법인",
     officialLandPrice: 310000000, tenantInfo: "보증 1억/월 80만", specialNote: "임차인 점유",
     tenantDetail: "월세 계약 잔여 8개월", priceDetail: "23년 6월 5.1억 거래", tradingDetail: "최근 1건",
-    recordTime: "2025-02-03 10:10", city: "경기도", district: "성남시", propType: "빌라", status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
+    recordTime: "2025-02-03 10:10", city: "경기도", district: "성남시", propType: "빌라", isRedevelopment: false, status: "approved", submittedBy: "admin", isUpdated: false, updatedAt: null, updatedBy: "", createdAt: "2025-01-01T00:00:00.000Z",
   },
 ];

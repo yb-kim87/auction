@@ -2459,7 +2459,7 @@ export function AuctionDetailModal({
                         ) : (
                           <AuctionFieldInput
                             field={field}
-                            value={form[field.key] as string | number | null}
+                            value={form[field.key] as string | number | boolean | null}
                             onChange={(v) => setField(field.key, v)}
                           />
                         )}

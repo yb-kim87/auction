@@ -23,7 +23,7 @@ export function AuctionFieldInput({
           onChange={(e) => onChange(e.target.checked ? "true" : "false")}
           className="w-4 h-4"
         />
-        <span className="text-sm text-muted-foreground">규제지역이면 체크</span>
+        <span className="text-sm text-muted-foreground">{field.checkboxHint ?? "체크 시 활성화"}</span>
       </label>
     );
   }

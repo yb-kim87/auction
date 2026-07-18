@@ -6,6 +6,8 @@ export type FieldDef = {
   label: string;
   type?: "text" | "number" | "textarea" | "checkbox";
   full?: boolean;
+  /** type이 checkbox일 때 체크박스 옆에 보여줄 안내 문구 */
+  checkboxHint?: string;
 };
 
 export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
@@ -27,6 +29,12 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
       { key: "area", label: "평형" },
       { key: "builtYear", label: "연식", type: "number" },
       { key: "bidDate", label: "입찰기일" },
+      {
+        key: "isRedevelopment",
+        label: "재개발",
+        type: "checkbox",
+        checkboxHint: "재개발 물건이면 체크",
+      },
     ],
   },
   {
@@ -95,6 +103,7 @@ export const EMPTY_AUCTION_FORM: UpdateAuctionPayload = {
   priceDetail: "",
   tradingDetail: "",
   recordTime: "",
+  isRedevelopment: false,
 };
 
 export function toFormState(item: AuctionItem): UpdateAuctionPayload {
@@ -145,5 +154,6 @@ export function toPayload(form: UpdateAuctionPayload): UpdateAuctionPayload {
     salePrice: numOrNull(form.salePrice),
     naverPrice: num(form.naverPrice),
     officialLandPrice: num(form.officialLandPrice),
+    isRedevelopment: form.isRedevelopment === true || (form.isRedevelopment as unknown) === "true",
   };
 }
