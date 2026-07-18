@@ -629,6 +629,7 @@ export type StrategyRule = {
   id: string;
   strategyCode: string;
   requiredFactCodes: string[];
+  description: string;
   active: boolean;
   sortOrder: number;
 };
@@ -637,7 +638,6 @@ export type StrategyLabel = {
   id: string;
   strategyCode: string;
   label: string;
-  description: string;
   icon: string;
 };
 
@@ -815,6 +815,7 @@ export async function createStrategyRule(input: {
   strategyCode: string;
   requiredFactCodes: string[];
   labelId?: string;
+  description?: string;
   active?: boolean;
   sortOrder?: number;
 }): Promise<StrategyRule> {
@@ -836,6 +837,7 @@ export async function updateStrategyRule(
     strategyCode: string;
     requiredFactCodes: string[];
     labelId: string;
+    description: string;
     active: boolean;
     sortOrder: number;
   }>,
@@ -876,7 +878,6 @@ export async function fetchStrategyLabels(): Promise<StrategyLabel[]> {
 
 export async function createStrategyLabel(input: {
   label: string;
-  description?: string;
   icon?: string;
 }): Promise<StrategyLabel> {
   const res = await fetch(`${API_BASE}/tag-rules/strategy-labels`, {
@@ -893,7 +894,7 @@ export async function createStrategyLabel(input: {
 
 export async function updateStrategyLabel(
   id: string,
-  input: Partial<{ label: string; description: string; icon: string }>,
+  input: Partial<{ label: string; icon: string }>,
 ): Promise<StrategyLabel> {
   const res = await fetch(`${API_BASE}/tag-rules/strategy-labels/${id}`, {
     method: "PATCH",

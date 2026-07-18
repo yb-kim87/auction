@@ -21,10 +21,11 @@ type StrategyForm = {
   strategyCode: string;
   requiredFactCodes: string[];
   labelId: string;
+  description: string;
 };
 
-const EMPTY_FORM: StrategyForm = { strategyCode: "", requiredFactCodes: [], labelId: "" };
-const EMPTY_LABEL_FORM = { label: "", description: "" };
+const EMPTY_FORM: StrategyForm = { strategyCode: "", requiredFactCodes: [], labelId: "", description: "" };
+const EMPTY_LABEL_FORM = { label: "" };
 
 export function StrategyTagsTab() {
   const [factRules, setFactRules] = useState<TagRule[]>([]);
@@ -82,6 +83,7 @@ export function StrategyTagsTab() {
         strategyCode: form.strategyCode,
         requiredFactCodes: form.requiredFactCodes,
         labelId: form.labelId,
+        description: form.description,
       });
       setForm(EMPTY_FORM);
       load();
@@ -111,6 +113,7 @@ export function StrategyTagsTab() {
       strategyCode: rule.strategyCode,
       requiredFactCodes: [...rule.requiredFactCodes],
       labelId: label?.id ?? "",
+      description: rule.description,
     });
     setMessage(null);
   }
@@ -141,6 +144,7 @@ export function StrategyTagsTab() {
         strategyCode: editForm.strategyCode,
         requiredFactCodes: editForm.requiredFactCodes,
         labelId: editForm.labelId,
+        description: editForm.description,
       });
       cancelEdit();
       load();
@@ -182,7 +186,7 @@ export function StrategyTagsTab() {
 
   function startEditLabel(label: StrategyLabel) {
     setEditingLabelId(label.id);
-    setEditLabelForm({ label: label.label, description: label.description });
+    setEditLabelForm({ label: label.label });
     setMessage(null);
   }
 
@@ -257,25 +261,17 @@ export function StrategyTagsTab() {
       <div className="border border-border rounded-sm p-4 space-y-3">
         <p className="text-sm font-semibold text-foreground">노출 라벨 관리</p>
         <p className="text-xs text-muted-foreground">
-          전략에 연결할 사용자 노출 문구를 미리 등록해두면, 아래 "전략 추가"에서
-          드롭박스로 골라 쓸 수 있습니다.
+          전략에 연결할 사용자 노출 라벨(짧은 배지 문구)을 미리 등록해두면, 아래
+          "전략 추가"에서 드롭박스로 골라 쓸 수 있습니다. 설명은 전략을 추가할 때
+          그때그때 작성합니다.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <input
-            type="text"
-            placeholder="라벨 (예: 경쟁이 적은 투자)"
-            value={labelForm.label}
-            onChange={(e) => setLabelForm((f) => ({ ...f, label: e.target.value }))}
-            className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
-          />
-          <input
-            type="text"
-            placeholder="설명 (선택)"
-            value={labelForm.description}
-            onChange={(e) => setLabelForm((f) => ({ ...f, description: e.target.value }))}
-            className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="라벨 (예: 경쟁이 적은 투자)"
+          value={labelForm.label}
+          onChange={(e) => setLabelForm({ label: e.target.value })}
+          className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
+        />
         <button
           type="button"
           onClick={() => void handleCreateLabel()}
@@ -291,7 +287,6 @@ export function StrategyTagsTab() {
               <thead>
                 <tr className="border-b border-border bg-secondary/30 text-left">
                   <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">라벨</th>
-                  <th className="px-3 py-2 font-semibold text-foreground">설명</th>
                   <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">
                     연결된 전략
                   </th>
@@ -304,25 +299,13 @@ export function StrategyTagsTab() {
                   if (editingLabelId === label.id) {
                     return (
                       <tr key={label.id} className="border-b border-border last:border-b-0 bg-secondary/20">
-                        <td className="px-3 py-2" colSpan={5}>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <input
-                              type="text"
-                              value={editLabelForm.label}
-                              onChange={(e) =>
-                                setEditLabelForm((f) => ({ ...f, label: e.target.value }))
-                              }
-                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
-                            />
-                            <input
-                              type="text"
-                              value={editLabelForm.description}
-                              onChange={(e) =>
-                                setEditLabelForm((f) => ({ ...f, description: e.target.value }))
-                              }
-                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
-                            />
-                          </div>
+                        <td className="px-3 py-2" colSpan={4}>
+                          <input
+                            type="text"
+                            value={editLabelForm.label}
+                            onChange={(e) => setEditLabelForm({ label: e.target.value })}
+                            className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
+                          />
                           <div className="flex gap-2 mt-2">
                             <button
                               type="button"
@@ -348,9 +331,6 @@ export function StrategyTagsTab() {
                     <tr key={label.id} className="border-b border-border last:border-b-0">
                       <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap">
                         {label.label}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-muted-foreground">
-                        {label.description || "-"}
                       </td>
                       <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">
                         {label.strategyCode || "-"}
@@ -424,6 +404,13 @@ export function StrategyTagsTab() {
             </option>
           ))}
         </select>
+        <textarea
+          placeholder="설명 (예: 세금 계산을 어려워하는 입찰자가 적어 경쟁이 낮아질 수 있습니다.)"
+          value={form.description}
+          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          rows={2}
+          className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card resize-y"
+        />
         <button
           type="button"
           onClick={() => void handleCreate()}
@@ -508,6 +495,15 @@ export function StrategyTagsTab() {
                               </option>
                             ))}
                           </select>
+                          <textarea
+                            placeholder="설명"
+                            value={editForm.description}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, description: e.target.value }))
+                            }
+                            rows={2}
+                            className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card resize-y"
+                          />
                         </div>
                         <div className="flex gap-2 mt-3">
                           <button
@@ -544,7 +540,7 @@ export function StrategyTagsTab() {
                       {rule.requiredFactCodes.join(" + ")}
                     </td>
                     <td className="px-3 py-3 align-middle text-muted-foreground">
-                      {label?.description || "-"}
+                      {rule.description || "-"}
                     </td>
                     <td className="px-3 py-3 align-middle text-center">
                       <input
