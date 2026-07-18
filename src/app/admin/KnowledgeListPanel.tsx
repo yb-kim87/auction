@@ -10,7 +10,7 @@ import {
   updateKnowledgeItem,
 } from "@/lib/api";
 
-const CATEGORIES = ["권리분석", "대출", "가격분석", "투자전략", "기타"];
+const CATEGORIES = ["권리분석", "물건추천", "공통"];
 
 const emptyForm = {
   title: "",
@@ -57,7 +57,7 @@ export function KnowledgeListPanel() {
     setEditingId(item.id);
     setForm({
       title: item.title,
-      category: item.category || "기타",
+      category: item.category || "공통",
       tags: item.tags,
       content: item.content,
       active: item.active,
