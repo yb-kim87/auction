@@ -15,6 +15,8 @@ import {
 
 const EMPTY_FORM = { tagName: "", field: "", operator: "", value: "" };
 
+type EditForm = { tagName: string; field: string; operator: string; value: string };
+
 export function TagRulesTab() {
   const [rules, setRules] = useState<TagRule[]>([]);
   const [fields, setFields] = useState<TagRuleFieldDef[]>([]);
@@ -26,6 +28,9 @@ export function TagRulesTab() {
   const [backfilling, setBackfilling] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>(EMPTY_FORM);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   function load() {
     setLoading(true);
@@ -62,6 +67,36 @@ export function TagRulesTab() {
       setMessage(err instanceof Error ? err.message : "생성 실패");
     } finally {
       setCreating(false);
+    }
+  }
+
+  function startEdit(rule: TagRule) {
+    setEditingId(rule.id);
+    setEditForm({ tagName: rule.tagName, field: rule.field, operator: rule.operator, value: rule.value });
+    setMessage(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm(EMPTY_FORM);
+  }
+
+  async function handleSaveEdit(id: string) {
+    if (!editForm.tagName.trim() || !editForm.field || !editForm.operator || !editForm.value.trim()) {
+      setMessage("조건명, 필드, 연산자, 값을 모두 입력해 주세요.");
+      return;
+    }
+    setSavingEdit(true);
+    setMessage(null);
+    try {
+      const updated = await updateTagRule(id, editForm);
+      setRules((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      setMessage("조건이 수정되었습니다.");
+      cancelEdit();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "수정 실패");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -210,13 +245,14 @@ export function TagRulesTab() {
               <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
                 활성
               </th>
+              <th className="px-4 py-2.5 text-center whitespace-nowrap w-16">수정</th>
               <th className="px-4 py-2.5 text-center whitespace-nowrap w-16">삭제</th>
             </tr>
           </thead>
           <tbody>
             {rules.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-foreground">
                   등록된 조건이 없습니다.
                 </td>
               </tr>
@@ -225,6 +261,90 @@ export function TagRulesTab() {
                 const fieldLabel = fields.find((f) => f.key === rule.field)?.label ?? rule.field;
                 const operatorLabel =
                   operators.find((op) => op.key === rule.operator)?.label ?? rule.operator;
+
+                if (editingId === rule.id) {
+                  const editFieldType = fields.find((f) => f.key === editForm.field)?.type;
+                  const editOperators = editFieldType
+                    ? operators.filter((op) => op.types.includes(editFieldType))
+                    : operators;
+                  return (
+                    <tr key={rule.id} className="border-b border-border last:border-b-0 bg-secondary/20">
+                      <td className="px-4 py-3 align-middle" colSpan={5}>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          <input
+                            type="text"
+                            value={editForm.tagName}
+                            onChange={(e) => setEditForm((f) => ({ ...f, tagName: e.target.value }))}
+                            className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+                          />
+                          <select
+                            value={editForm.field}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, field: e.target.value, operator: "", value: "" }))
+                            }
+                            className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+                          >
+                            <option value="">필드 선택</option>
+                            {fields.map((f) => (
+                              <option key={f.key} value={f.key}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={editForm.operator}
+                            onChange={(e) => setEditForm((f) => ({ ...f, operator: e.target.value }))}
+                            disabled={!editForm.field}
+                            className="px-2 py-2 text-sm border border-border rounded-sm bg-card disabled:opacity-50"
+                          >
+                            <option value="">연산자 선택</option>
+                            {editOperators.map((op) => (
+                              <option key={op.key} value={op.key}>
+                                {op.label}
+                              </option>
+                            ))}
+                          </select>
+                          {editFieldType === "boolean" ? (
+                            <select
+                              value={editForm.value}
+                              onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
+                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+                            >
+                              <option value="">값 선택</option>
+                              <option value="true">예</option>
+                              <option value="false">아니오</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={editForm.value}
+                              onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
+                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+                            />
+                          )}
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveEdit(rule.id)}
+                            disabled={savingEdit}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+                          >
+                            {savingEdit ? "저장 중..." : "저장"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEdit}
+                            className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border bg-card"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <tr key={rule.id} className="border-b border-border last:border-b-0">
                     <td className="px-4 py-3 align-middle whitespace-nowrap">
@@ -241,6 +361,15 @@ export function TagRulesTab() {
                         onChange={() => void handleToggleActive(rule)}
                         className="w-4 h-4"
                       />
+                    </td>
+                    <td className="px-4 py-3 align-middle text-center">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(rule)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        수정
+                      </button>
                     </td>
                     <td className="px-4 py-3 align-middle text-center">
                       <input
