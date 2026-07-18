@@ -134,8 +134,14 @@ export function KnowledgeListPanel() {
   const loadCategories = useCallback(async () => {
     try {
       setCategories(await fetchKnowledgeCategories());
-    } catch {
+    } catch (err) {
       setCategories([]);
+      setMessage({
+        type: "error",
+        text:
+          "분류 목록을 불러오지 못했습니다: " +
+          (err instanceof Error ? err.message : String(err)),
+      });
     }
   }, []);
 
