@@ -164,7 +164,9 @@ export function KnowledgeListPanel() {
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 list="knowledge-category-options"
-                placeholder="예: 권리분석"
+                placeholder="새 분류명 입력 또는 목록에서 선택"
+                spellCheck={false}
+                autoComplete="off"
                 className="w-full px-3 py-2 border border-border rounded-sm bg-background"
               />
               <datalist id="knowledge-category-options">
