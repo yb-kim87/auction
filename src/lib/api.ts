@@ -2055,7 +2055,7 @@ export async function cafeImportArticle(options: {
 
 // ─── 알림톡 관리(kakao-notify) ─────────────────────────────────────────────
 
-export type KakaoLeadSource = "imweb" | "instagram";
+export type KakaoLeadSource = "imweb" | "instagram" | "manual_sheet";
 export type KakaoLeadStatus = "pending" | "sent" | "failed" | "skipped_duplicate";
 
 export interface KakaoLead {
@@ -2069,6 +2069,8 @@ export interface KakaoLead {
   birthDate: string;
   address: string;
   adName: string;
+  /** 설문형 유입 소스(수동시트 등)의 질문명→응답 JSON 문자열. 없으면 빈 문자열. */
+  surveyAnswers: string;
   joinedAt: string | null;
   rawPayload: string;
   status: KakaoLeadStatus;
@@ -2608,6 +2610,49 @@ export async function updateInstagramSheetConfig(
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "구글시트 설정 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export interface ManualSheetConfig {
+  spreadsheetId: string;
+  sheetRange: string;
+}
+
+export async function fetchManualSheetConfig(): Promise<ManualSheetConfig> {
+  const res = await fetch(`${API_BASE}/kakao-notify/manual-sheet/config`, {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "구글시트 설정을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateManualSheetConfig(
+  input: ManualSheetConfig,
+): Promise<ManualSheetConfig> {
+  const res = await fetch(`${API_BASE}/kakao-notify/manual-sheet/config`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "구글시트 설정 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function applyManualSheet(): Promise<{ processed: number; created: number }> {
+  const res = await fetch(`${API_BASE}/kakao-notify/manual-sheet/apply`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "구글시트 적용에 실패했습니다.");
   }
   return readJsonResponse(res);
 }

@@ -27,6 +27,9 @@ import {
   fetchInstagramSheetConfig,
   updateInstagramSheetConfig,
   backfillInstagramExistingRows,
+  fetchManualSheetConfig,
+  updateManualSheetConfig,
+  applyManualSheet,
   isScheduledDispatch,
   fetchKakaoScheduledDispatches,
   cancelKakaoScheduledDispatch,
@@ -69,6 +72,7 @@ const STATUS_STYLES: Record<KakaoLeadStatus, string> = {
 const SOURCE_LABELS: Record<KakaoLeadSource, string> = {
   imweb: "아임웹",
   instagram: "인스타",
+  manual_sheet: "수동시트",
 };
 
 function maskPhone(phone: string): string {
@@ -89,6 +93,17 @@ function formatDate(value: string | null): string {
 function shortenAdName(adName: string): string {
   const match = adName.match(/^\([^)]*\)\s*[^_]+_(.+)$/);
   return match ? match[1] : adName;
+}
+
+/** surveyAnswers JSON 문자열("{"나이대":"40대", ...}")을 [질문, 응답] 배열로 파싱한다. */
+function parseSurveyAnswers(raw: string): [string, string][] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return Object.entries(parsed).filter(([, v]) => v);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -523,6 +538,22 @@ function LeadDetailPanel({
                 <p className="font-medium text-foreground">{formatDate(lead.updatedAt)}</p>
               </div>
             </div>
+
+            {parseSurveyAnswers(lead.surveyAnswers).length > 0 && (
+              <div className="text-xs border-t border-border pt-3">
+                <p className="text-muted-foreground mb-2">설문 응답</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {parseSurveyAnswers(lead.surveyAnswers).map(([question, answer]) => (
+                    <div key={question}>
+                      <p className="text-muted-foreground">{question}</p>
+                      <p className="font-medium text-foreground truncate" title={answer}>
+                        {answer}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {landingVisit && (
               <div className="text-xs border-t border-border pt-3">
@@ -1579,6 +1610,112 @@ function InstagramSheetConfigCard() {
       </div>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}
       {backfillMessage && <p className="text-xs text-muted-foreground">{backfillMessage}</p>}
+    </div>
+  );
+}
+
+function ManualSheetConfigCard() {
+  const [spreadsheetId, setSpreadsheetId] = useState("");
+  const [sheetRange, setSheetRange] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [applying, setApplying] = useState(false);
+  const [applyMessage, setApplyMessage] = useState("");
+
+  useEffect(() => {
+    fetchManualSheetConfig()
+      .then((config) => {
+        setSpreadsheetId(config.spreadsheetId);
+        setSheetRange(config.sheetRange);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    if (!spreadsheetId.trim()) {
+      setMessage("구글시트 ID를 입력해 주세요.");
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    try {
+      await updateManualSheetConfig({ spreadsheetId, sheetRange });
+      setMessage("저장되었습니다.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleApply() {
+    setApplying(true);
+    setApplyMessage("");
+    try {
+      const result = await applyManualSheet();
+      setApplyMessage(`${result.processed}건 확인, ${result.created}건 신규 저장`);
+    } catch (err) {
+      setApplyMessage(err instanceof Error ? err.message : "적용에 실패했습니다.");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className="border border-border rounded-sm p-4 space-y-3">
+      <h3 className="text-sm font-bold text-foreground">수동 리드(구글시트) 연동</h3>
+      <p className="text-[11px] text-muted-foreground">
+        네이버폼 등 설문 응답이 쌓이는 구글시트를 지정합니다. 시트를 서비스 계정에 뷰어로
+        공유해야 합니다. 1행은 헤더로 읽어 "이름/연락처/응답일시" 계열 컬럼만 자동 인식하고,
+        나머지 열(나이대·직업 등 설문 질문)은 질문이 바뀌어도 그대로 함께 저장됩니다.
+        자동발송 없이 리드만 추가되며, 발송은 목록에서 직접 진행합니다.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">구글시트 ID</label>
+          <input
+            type="text"
+            value={spreadsheetId}
+            onChange={(e) => setSpreadsheetId(e.target.value)}
+            placeholder="시트 URL의 /d/와 /edit 사이 문자열"
+            className="w-full px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">시트 범위</label>
+          <input
+            type="text"
+            value={sheetRange}
+            onChange={(e) => setSheetRange(e.target.value)}
+            placeholder="시트1!A1:Z"
+            className="w-full px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
+          />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+        >
+          {saving ? "적용 중..." : "적용"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleApply()}
+          disabled={applying}
+          className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+        >
+          {applying ? "동기화 중..." : "새 응답 확인 및 업데이트"}
+        </button>
+      </div>
+      {message && <p className="text-xs text-muted-foreground">{message}</p>}
+      {applyMessage && <p className="text-xs text-muted-foreground">{applyMessage}</p>}
     </div>
   );
 }
@@ -2855,6 +2992,7 @@ export function KakaoNotifyPanel() {
         <>
           <TestSendCard />
           <InstagramSheetConfigCard />
+          <ManualSheetConfigCard />
           <AdCreativeManagerCard />
           <AdvancedSyncCard />
         </>
