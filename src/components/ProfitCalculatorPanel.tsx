@@ -242,6 +242,9 @@ export function ProfitCalculatorPanel({
             suffix="%"
           />
           <NumberField label="대출 연이자율" value={loanInterestRate} onChange={setLoanInterestRate} suffix="%" />
+          <p className="text-[11px] text-muted-foreground leading-relaxed py-2">
+            현재 대출 금액은 추정치이므로 반드시 대출상담사와 다시 한 번 확인 후 진행하세요.
+          </p>
           <NumberField
             label="중도상환수수료율"
             value={earlyRepaymentFeeRate}

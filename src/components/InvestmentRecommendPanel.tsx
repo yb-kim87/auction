@@ -263,7 +263,8 @@ export function InvestmentRecommendPanel({
                 {summary}
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed px-1">
-                실제 대출 가능금액은 개인 신용, 소득, 기존 대출, 금융기관 심사 등에 따라 달라질 수 있습니다.
+                실제 대출 가능금액은 개인 신용, 소득, 기존 대출, 금융기관 심사 등에 따라 달라질 수 있습니다. 현재 대출
+                금액은 추정치이므로 반드시 대출상담사와 다시 한 번 확인 후 진행하세요.
               </p>
             </div>
           )}

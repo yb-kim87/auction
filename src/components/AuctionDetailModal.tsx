@@ -2688,6 +2688,9 @@ export function AuctionDetailModal({
                           </span>
                         </div>
                       </div>
+                      <p className="text-[0.65rem] text-muted-foreground leading-relaxed">
+                        현재 대출 금액은 추정치이므로 반드시 대출상담사와 다시 한 번 확인 후 진행하세요.
+                      </p>
 
                       <div className="flex items-center justify-between pt-1">
                         <span className="text-[0.72rem] text-primary/60 flex items-center gap-1">
