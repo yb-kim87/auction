@@ -39,6 +39,7 @@ import {
   upsertKakaoAdCreative,
   deleteKakaoAdCreative,
   fetchKakaoGroupLabels,
+  fetchKakaoChannels,
   setKakaoLeadGroup,
   setKakaoLeadGroupBulk,
   type KakaoLead,
@@ -495,6 +496,12 @@ function LeadDetailPanel({
                   {lead.adName ? shortenAdName(lead.adName) : "-"}
                 </p>
               </div>
+              {lead.channel && (
+                <div>
+                  <p className="text-muted-foreground">유입매체</p>
+                  <p className="font-medium text-foreground truncate">{lead.channel}</p>
+                </div>
+              )}
               {(lead.utmSource || lead.utmCampaign) && (
                 <div>
                   <p className="text-muted-foreground">
@@ -2754,6 +2761,7 @@ export function KakaoNotifyPanel() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [source, setSource] = useState<KakaoLeadSource | "">("");
+  const [channel, setChannel] = useState("");
   const [status, setStatus] = useState<KakaoLeadStatus | "">("");
   const [search, setSearch] = useState("");
   const [group, setGroup] = useState("");
@@ -2761,6 +2769,7 @@ export function KakaoNotifyPanel() {
   const [joinedTo, setJoinedTo] = useState("");
   const [duplicateOnly, setDuplicateOnly] = useState(false);
   const [groupLabels, setGroupLabels] = useState<string[]>([]);
+  const [channels, setChannels] = useState<string[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [selectingAll, setSelectingAll] = useState(false);
@@ -2808,6 +2817,7 @@ export function KakaoNotifyPanel() {
     try {
       const result = await fetchKakaoLeads({
         source: source || undefined,
+        channel: channel || undefined,
         status: status || undefined,
         search: search || undefined,
         group: group || undefined,
@@ -2825,7 +2835,7 @@ export function KakaoNotifyPanel() {
     } finally {
       setLoading(false);
     }
-  }, [source, status, search, group, joinedFrom, joinedTo, duplicateOnly, page]);
+  }, [source, channel, status, search, group, joinedFrom, joinedTo, duplicateOnly, page]);
 
   useEffect(() => {
     void load();
@@ -2840,6 +2850,16 @@ export function KakaoNotifyPanel() {
   useEffect(() => {
     loadGroupLabels();
   }, [loadGroupLabels]);
+
+  const loadChannels = useCallback(() => {
+    fetchKakaoChannels()
+      .then(setChannels)
+      .catch(() => setChannels([]));
+  }, []);
+
+  useEffect(() => {
+    loadChannels();
+  }, [loadChannels]);
 
   useEffect(() => {
     fetchKakaoAdCreatives()
@@ -2868,6 +2888,7 @@ export function KakaoNotifyPanel() {
     try {
       const ids = await fetchKakaoLeadIds({
         source: source || undefined,
+        channel: channel || undefined,
         status: status || undefined,
         search: search || undefined,
         group: group || undefined,
@@ -3014,7 +3035,25 @@ export function KakaoNotifyPanel() {
             <option value="">유입경로</option>
             <option value="imweb">아임웹</option>
             <option value="instagram">인스타</option>
+            <option value="manual_sheet">수동시트</option>
           </select>
+          {channels.length > 0 && (
+            <select
+              value={channel}
+              onChange={(e) => {
+                setPage(1);
+                setChannel(e.target.value);
+              }}
+              className="px-2 py-1.5 text-sm border border-border rounded-sm bg-card"
+            >
+              <option value="">유입매체 전체</option>
+              {channels.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             value={status}
             onChange={(e) => {

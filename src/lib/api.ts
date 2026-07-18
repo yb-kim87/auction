@@ -2069,6 +2069,8 @@ export interface KakaoLead {
   birthDate: string;
   address: string;
   adName: string;
+  /** source를 세분화하는 채널명(수동시트 전용, 예: "naver폼"). 유입경로 필터에 사용. */
+  channel: string;
   /** 설문형 유입 소스(수동시트 등)의 질문명→응답 JSON 문자열. 없으면 빈 문자열. */
   surveyAnswers: string;
   joinedAt: string | null;
@@ -2125,6 +2127,7 @@ export interface PagedResult<T> {
 
 export async function fetchKakaoLeads(params: {
   source?: KakaoLeadSource;
+  channel?: string;
   status?: KakaoLeadStatus;
   search?: string;
   group?: string;
@@ -2136,6 +2139,7 @@ export async function fetchKakaoLeads(params: {
 }): Promise<PagedResult<KakaoLead>> {
   const query = new URLSearchParams();
   if (params.source) query.set("source", params.source);
+  if (params.channel) query.set("channel", params.channel);
   if (params.status) query.set("status", params.status);
   if (params.search) query.set("search", params.search);
   if (params.group) query.set("group", params.group);
@@ -2158,6 +2162,7 @@ export async function fetchKakaoLeads(params: {
 /** 필터/검색 조건에 맞는 리드 전체의 ID만 조회한다("전체선택"용, 페이징 없음). */
 export async function fetchKakaoLeadIds(params: {
   source?: KakaoLeadSource;
+  channel?: string;
   status?: KakaoLeadStatus;
   search?: string;
   group?: string;
@@ -2167,6 +2172,7 @@ export async function fetchKakaoLeadIds(params: {
 }): Promise<string[]> {
   const query = new URLSearchParams();
   if (params.source) query.set("source", params.source);
+  if (params.channel) query.set("channel", params.channel);
   if (params.status) query.set("status", params.status);
   if (params.search) query.set("search", params.search);
   if (params.group) query.set("group", params.group);
@@ -2191,6 +2197,17 @@ export async function fetchKakaoGroupLabels(): Promise<string[]> {
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "그룹 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchKakaoChannels(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/kakao-notify/leads/channels`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "유입매체 목록을 불러오지 못했습니다.");
   }
   return readJsonResponse(res);
 }
