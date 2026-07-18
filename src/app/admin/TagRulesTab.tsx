@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   fetchTagRules,
   fetchTagRuleFields,
+  fetchTagRuleFieldValueOptions,
   createTagRule,
   updateTagRule,
   removeTagRule,
@@ -16,6 +17,101 @@ import {
 const EMPTY_FORM = { tagName: "", field: "", operator: "", value: "" };
 
 type EditForm = { tagName: string; field: string; operator: string; value: string };
+
+/** 필드/연산자에 맞춰 값 입력을 텍스트/드롭박스(예·아니오)/다중선택 체크박스로 바꿔 보여준다. */
+function ValueInput({
+  fieldType,
+  operator,
+  hasValueOptions,
+  fieldKey,
+  value,
+  onChange,
+}: {
+  fieldType: string | undefined;
+  operator: string;
+  hasValueOptions: boolean | undefined;
+  fieldKey: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [options, setOptions] = useState<string[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  const useMultiSelect = hasValueOptions && operator === "in";
+
+  useEffect(() => {
+    if (!useMultiSelect || !fieldKey) return;
+    setLoadingOptions(true);
+    fetchTagRuleFieldValueOptions(fieldKey)
+      .then(setOptions)
+      .catch(() => setOptions([]))
+      .finally(() => setLoadingOptions(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useMultiSelect, fieldKey]);
+
+  if (useMultiSelect) {
+    const selected = new Set(
+      value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean),
+    );
+    function toggle(opt: string) {
+      const next = new Set(selected);
+      if (next.has(opt)) next.delete(opt);
+      else next.add(opt);
+      onChange([...next].join(","));
+    }
+    return (
+      <div className="col-span-2 sm:col-span-4 flex flex-wrap gap-1.5 px-1 py-1">
+        {loadingOptions ? (
+          <span className="text-xs text-muted-foreground">값 목록 불러오는 중...</span>
+        ) : options.length === 0 ? (
+          <span className="text-xs text-muted-foreground">선택 가능한 값이 없습니다.</span>
+        ) : (
+          options.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggle(opt)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                selected.has(opt)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:bg-secondary/50"
+              }`}
+            >
+              {opt}
+            </button>
+          ))
+        )}
+      </div>
+    );
+  }
+
+  if (fieldType === "boolean") {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+      >
+        <option value="">값 선택</option>
+        <option value="true">예</option>
+        <option value="false">아니오</option>
+      </select>
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      placeholder="조건 값 (예: 85)"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+    />
+  );
+}
 
 export function TagRulesTab() {
   const [rules, setRules] = useState<TagRule[]>([]);
@@ -206,25 +302,14 @@ export function TagRulesTab() {
               </option>
             ))}
           </select>
-          {selectedFieldType === "boolean" ? (
-            <select
-              value={form.value}
-              onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
-            >
-              <option value="">값 선택</option>
-              <option value="true">예</option>
-              <option value="false">아니오</option>
-            </select>
-          ) : (
-          <input
-            type="text"
-            placeholder="조건 값 (예: 85)"
+          <ValueInput
+            fieldType={selectedFieldType}
+            operator={form.operator}
+            hasValueOptions={fields.find((f) => f.key === form.field)?.hasValueOptions}
+            fieldKey={form.field}
             value={form.value}
-            onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-            className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+            onChange={(v) => setForm((f) => ({ ...f, value: v }))}
           />
-          )}
         </div>
         <button
           type="button"
@@ -304,24 +389,14 @@ export function TagRulesTab() {
                               </option>
                             ))}
                           </select>
-                          {editFieldType === "boolean" ? (
-                            <select
-                              value={editForm.value}
-                              onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
-                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
-                            >
-                              <option value="">값 선택</option>
-                              <option value="true">예</option>
-                              <option value="false">아니오</option>
-                            </select>
-                          ) : (
-                            <input
-                              type="text"
-                              value={editForm.value}
-                              onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
-                              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
-                            />
-                          )}
+                          <ValueInput
+                            fieldType={editFieldType}
+                            operator={editForm.operator}
+                            hasValueOptions={fields.find((f) => f.key === editForm.field)?.hasValueOptions}
+                            fieldKey={editForm.field}
+                            value={editForm.value}
+                            onChange={(v) => setEditForm((f) => ({ ...f, value: v }))}
+                          />
                         </div>
                         <div className="flex gap-2 mt-2">
                           <button

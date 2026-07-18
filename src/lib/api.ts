@@ -641,7 +641,12 @@ export type StrategyLabel = {
   icon: string;
 };
 
-export type TagRuleFieldDef = { key: string; label: string; type: "number" | "string" | "boolean" };
+export type TagRuleFieldDef = {
+  key: string;
+  label: string;
+  type: "number" | "string" | "boolean";
+  hasValueOptions?: boolean;
+};
 export type TagRuleOperatorDef = { key: string; label: string; types: string[] };
 
 export async function fetchTagRules(): Promise<TagRule[]> {
@@ -665,6 +670,17 @@ export async function fetchTagRuleFields(): Promise<{
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "태그 필드 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchTagRuleFieldValueOptions(fieldKey: string): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/tag-rules/fields/${encodeURIComponent(fieldKey)}/value-options`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "값 목록을 불러오지 못했습니다.");
   }
   return readJsonResponse(res);
 }
