@@ -81,29 +81,30 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
 type AdminTab =
   | "data"
   | "crawler"
-  | "users"
-  | "knowledge"
-  | "loanPolicy"
-  | "tagRules"
-  | "strategyTags"
-  | "aiPlatform"
   | "kakaoNotify"
-  | "coupangSourcing"
-  | "securityLog";
+  | "users"
+  | "aiOps"
+  | "securityLog"
+  // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
+  | "coupangSourcing";
+type AiOpsSubTab = "knowledge" | "loanPolicy" | "tagRules" | "strategyTags" | "aiPlatform";
 type AiPlatformSubTab = "normalizer" | "feature" | "tag";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
   { id: "crawler", label: "크롤링 작업" },
-  { id: "knowledge", label: "경매지식" },
+  { id: "kakaoNotify", label: "알림톡 관리" },
   { id: "users", label: "회원권한 관리" },
+  { id: "aiOps", label: "AI운영" },
+  { id: "securityLog", label: "보안 로그" },
+];
+
+const AI_OPS_SUB_TABS: { id: AiOpsSubTab; label: string }[] = [
+  { id: "knowledge", label: "AI지식" },
   { id: "loanPolicy", label: "대출정책" },
   { id: "tagRules", label: "태그 관리" },
-  { id: "strategyTags", label: "Strategy 태그" },
+  { id: "strategyTags", label: "추천 전략" },
   { id: "aiPlatform", label: "AI Platform" },
-  { id: "kakaoNotify", label: "알림톡 관리" },
-  { id: "coupangSourcing", label: "쿠팡 소싱" },
-  { id: "securityLog", label: "보안 로그" },
 ];
 
 const AI_PLATFORM_SUB_TABS: { id: AiPlatformSubTab; label: string }[] = [
@@ -170,6 +171,7 @@ export default function AdminPage() {
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [aiLimitUpdating, setAiLimitUpdating] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>("data");
+  const [aiOpsSubTab, setAiOpsSubTab] = useState<AiOpsSubTab>("knowledge");
   const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
 
@@ -863,30 +865,22 @@ export default function AdminPage() {
 
           {activeTab === "crawler" && <CrawlerWorkPanel />}
 
-          {activeTab === "knowledge" && <KnowledgePanel />}
-
-          {activeTab === "loanPolicy" && <LoanPolicyTab />}
-
-          {activeTab === "tagRules" && <TagRulesTab />}
-
-          {activeTab === "strategyTags" && <StrategyTagsTab />}
-
           {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}
 
           {activeTab === "coupangSourcing" && <CoupangSourcingTab />}
 
           {activeTab === "securityLog" && <SecurityLogTab />}
 
-          {activeTab === "aiPlatform" && (
+          {activeTab === "aiOps" && (
             <div>
               <div className="flex border-b border-border px-2">
-                {AI_PLATFORM_SUB_TABS.map((tab) => (
+                {AI_OPS_SUB_TABS.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setAiPlatformSubTab(tab.id)}
+                    onClick={() => setAiOpsSubTab(tab.id)}
                     className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                      aiPlatformSubTab === tab.id
+                      aiOpsSubTab === tab.id
                         ? "text-primary border-b-2 border-primary -mb-px"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
@@ -895,7 +889,31 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
-              <AiPlatformPanel engine={aiPlatformSubTab} />
+              {aiOpsSubTab === "knowledge" && <KnowledgePanel />}
+              {aiOpsSubTab === "loanPolicy" && <LoanPolicyTab />}
+              {aiOpsSubTab === "tagRules" && <TagRulesTab />}
+              {aiOpsSubTab === "strategyTags" && <StrategyTagsTab />}
+              {aiOpsSubTab === "aiPlatform" && (
+                <div>
+                  <div className="flex border-b border-border px-2">
+                    {AI_PLATFORM_SUB_TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setAiPlatformSubTab(tab.id)}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                          aiPlatformSubTab === tab.id
+                            ? "text-primary border-b-2 border-primary -mb-px"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <AiPlatformPanel engine={aiPlatformSubTab} />
+                </div>
+              )}
             </div>
           )}
 
