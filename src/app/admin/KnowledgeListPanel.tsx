@@ -20,6 +20,7 @@ const emptyForm = {
   category: "",
   tags: "",
   content: "",
+  grade: 3,
   active: true,
 };
 
@@ -167,6 +168,7 @@ export function KnowledgeListPanel() {
       category: item.category || "",
       tags: item.tags,
       content: item.content,
+      grade: item.grade ?? 3,
       active: item.active,
     });
     setRawText("");
@@ -315,7 +317,7 @@ export function KnowledgeListPanel() {
               required
             />
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <label className="block text-sm space-y-1">
               <span className="text-muted-foreground">분류</span>
               <select
@@ -332,6 +334,18 @@ export function KnowledgeListPanel() {
                     </option>
                   ))
                 )}
+              </select>
+            </label>
+            <label className="block text-sm space-y-1">
+              <span className="text-muted-foreground">등급</span>
+              <select
+                value={form.grade}
+                onChange={(e) => setForm((f) => ({ ...f, grade: Number(e.target.value) }))}
+                className="w-full px-3 py-2 border border-border rounded-sm bg-background"
+              >
+                <option value={1}>1등급</option>
+                <option value={2}>2등급</option>
+                <option value={3}>3등급 (기본)</option>
               </select>
             </label>
             <label className="block text-sm space-y-1">
@@ -394,6 +408,7 @@ export function KnowledgeListPanel() {
               <tr className="border-b border-border">
                 <th className="px-3 py-2.5 text-left font-semibold">제목</th>
                 <th className="px-3 py-2.5 text-left font-semibold">분류</th>
+                <th className="px-3 py-2.5 text-left font-semibold">등급</th>
                 <th className="px-3 py-2.5 text-left font-semibold">태그</th>
                 <th className="px-3 py-2.5 text-left font-semibold">상태</th>
                 <th className="px-3 py-2.5 text-left font-semibold">관리</th>
@@ -404,6 +419,7 @@ export function KnowledgeListPanel() {
                 <tr key={item.id} className="border-b border-border hover:bg-secondary/20">
                   <td className="px-3 py-2.5 font-medium max-w-[200px] truncate">{item.title}</td>
                   <td className="px-3 py-2.5">{item.category || "-"}</td>
+                  <td className="px-3 py-2.5">{item.grade ?? 3}등급</td>
                   <td className="px-3 py-2.5 text-muted-foreground max-w-[160px] truncate">
                     {item.tags || "-"}
                   </td>

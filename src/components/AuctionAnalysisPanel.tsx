@@ -155,10 +155,10 @@ export function AuctionAnalysisPanel({
         <div>
           <div className="flex items-center gap-2">
             <Brain size={18} className="text-primary" />
-            <h3 className="text-base font-bold text-foreground">{ANALYSIS_ENGINE_LABEL} 물건 분석</h3>
+            <h3 className="text-base font-bold text-foreground">{ANALYSIS_ENGINE_LABEL} 권리분석</h3>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            권리분석 · 물건분석 · 대출·자금 관점을 종합합니다. (참고용, 최종 판단은 전문가 확인 필요)
+            등기·임차인·대항력 등 권리관계를 중심으로 분석합니다. (참고용, 최종 판단은 전문가 확인 필요)
           </p>
           {remaining != null && (
             <p className="text-xs text-muted-foreground mt-1">
@@ -209,7 +209,7 @@ export function AuctionAnalysisPanel({
 
       {!result && !analyzing && !error && (
         <p className="text-sm text-muted-foreground py-4 text-center">
-          「분석 시작」을 누르면 {ANALYSIS_ENGINE_LABEL}가 이 물건에 대한 분석 리포트를 생성합니다.
+          「분석 시작」을 누르면 {ANALYSIS_ENGINE_LABEL}가 이 물건의 권리분석 리포트를 생성합니다.
         </p>
       )}
 

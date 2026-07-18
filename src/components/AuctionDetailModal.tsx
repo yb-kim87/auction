@@ -2037,7 +2037,7 @@ export function AuctionDetailModal({
               }`}
             >
               <Brain size={14} />
-              AI에게 물어보기
+              AI 권리분석
             </button>
             {!editable && (
               <button

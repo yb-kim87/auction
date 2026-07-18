@@ -145,6 +145,8 @@ export interface AuctionKnowledgeItem {
   category: string;
   tags: string;
   content: string;
+  /** 중요도 등급. 1이 가장 중요, 숫자가 클수록 낮음. 기본값 3. */
+  grade: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
