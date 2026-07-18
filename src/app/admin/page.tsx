@@ -87,8 +87,9 @@ type AdminTab =
   | "securityLog"
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
   | "coupangSourcing";
-type AiOpsSubTab = "knowledge" | "loanPolicy" | "tagRules" | "strategyTags" | "aiPlatform";
+type AiOpsSubTab = "knowledge" | "loanPolicy" | "strategyTags" | "aiPlatform";
 type AiPlatformSubTab = "normalizer" | "feature" | "tag";
+type StrategyTagsSubTab = "tagRules" | "strategyRules";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
@@ -102,8 +103,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
 const AI_OPS_SUB_TABS: { id: AiOpsSubTab; label: string }[] = [
   { id: "knowledge", label: "AI지식" },
   { id: "loanPolicy", label: "대출정책" },
-  { id: "tagRules", label: "조건 관리" },
-  { id: "strategyTags", label: "추천 전략" },
+  { id: "strategyTags", label: "물건추천" },
   { id: "aiPlatform", label: "AI Platform" },
 ];
 
@@ -111,6 +111,11 @@ const AI_PLATFORM_SUB_TABS: { id: AiPlatformSubTab; label: string }[] = [
   { id: "normalizer", label: "Normalized Data 관리" },
   { id: "feature", label: "Feature 관리" },
   { id: "tag", label: "Tag 관리" },
+];
+
+const STRATEGY_TAGS_SUB_TABS: { id: StrategyTagsSubTab; label: string }[] = [
+  { id: "tagRules", label: "조건 관리" },
+  { id: "strategyRules", label: "전략 규칙" },
 ];
 
 function AdminTabs({
@@ -173,6 +178,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("data");
   const [aiOpsSubTab, setAiOpsSubTab] = useState<AiOpsSubTab>("knowledge");
   const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
+  const [strategyTagsSubTab, setStrategyTagsSubTab] = useState<StrategyTagsSubTab>("tagRules");
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
 
   const loadCounts = useCallback(async () => {
@@ -891,8 +897,28 @@ export default function AdminPage() {
               </div>
               {aiOpsSubTab === "knowledge" && <KnowledgePanel />}
               {aiOpsSubTab === "loanPolicy" && <LoanPolicyTab />}
-              {aiOpsSubTab === "tagRules" && <TagRulesTab />}
-              {aiOpsSubTab === "strategyTags" && <StrategyTagsTab />}
+              {aiOpsSubTab === "strategyTags" && (
+                <div>
+                  <div className="flex border-b border-border px-2">
+                    {STRATEGY_TAGS_SUB_TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setStrategyTagsSubTab(tab.id)}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                          strategyTagsSubTab === tab.id
+                            ? "text-primary border-b-2 border-primary -mb-px"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  {strategyTagsSubTab === "tagRules" && <TagRulesTab />}
+                  {strategyTagsSubTab === "strategyRules" && <StrategyTagsTab />}
+                </div>
+              )}
               {aiOpsSubTab === "aiPlatform" && (
                 <div>
                   <div className="flex border-b border-border px-2">
