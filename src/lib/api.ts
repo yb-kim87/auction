@@ -1700,6 +1700,22 @@ export async function createKnowledgeItem(input: {
   return readJsonResponse(res);
 }
 
+export async function structureKnowledgeInput(input: {
+  category: string;
+  rawText: string;
+}): Promise<{ title: string; tags: string; content: string }> {
+  const res = await fetch(`${API_BASE}/ai/knowledge/structure`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "AI 정리에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function updateKnowledgeItem(
   id: string,
   input: Partial<{

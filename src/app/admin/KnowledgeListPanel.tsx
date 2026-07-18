@@ -10,6 +10,7 @@ import {
   deleteKnowledgeItem,
   fetchKnowledgeCategories,
   fetchKnowledgeItems,
+  structureKnowledgeInput,
   updateKnowledgeItem,
   type KnowledgeCategory,
 } from "@/lib/api";
@@ -116,6 +117,8 @@ export function KnowledgeListPanel() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [rawText, setRawText] = useState("");
+  const [structuring, setStructuring] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -153,6 +156,7 @@ export function KnowledgeListPanel() {
   function openCreate() {
     setEditingId(null);
     setForm({ ...emptyForm, category: categories[0]?.name ?? "" });
+    setRawText("");
     setFormOpen(true);
   }
 
@@ -165,7 +169,40 @@ export function KnowledgeListPanel() {
       content: item.content,
       active: item.active,
     });
+    setRawText("");
     setFormOpen(true);
+  }
+
+  async function handleStructure() {
+    if (!rawText.trim()) {
+      setMessage({ type: "error", text: "AI로 정리할 원본 메모를 입력해 주세요." });
+      return;
+    }
+    setStructuring(true);
+    setMessage(null);
+    try {
+      const result = await structureKnowledgeInput({
+        category: form.category,
+        rawText,
+      });
+      setForm((f) => ({
+        ...f,
+        title: result.title || f.title,
+        tags: result.tags || f.tags,
+        content: result.content,
+      }));
+      setMessage({
+        type: "success",
+        text: "AI가 정리했습니다. 내용을 확인·수정한 뒤 저장하면 등록됩니다.",
+      });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "AI 정리에 실패했습니다.",
+      });
+    } finally {
+      setStructuring(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -245,6 +282,30 @@ export function KnowledgeListPanel() {
           className="mb-6 border border-border rounded-sm bg-card p-5 space-y-4 max-w-3xl"
         >
           <h3 className="text-sm font-bold">{editingId ? "지식 수정" : "지식 등록"}</h3>
+
+          <div className="border border-dashed border-border rounded-sm p-3 space-y-2 bg-secondary/10">
+            <label className="block text-sm space-y-1">
+              <span className="text-muted-foreground">
+                원본 메모 (정리 안 된 텍스트를 그대로 붙여넣으세요)
+              </span>
+              <textarea
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                rows={5}
+                placeholder="분류를 먼저 선택한 뒤, 여기에 원본 내용을 입력하고 「AI로 정리」를 눌러 주세요."
+                className="w-full px-3 py-2 border border-border rounded-sm bg-background resize-y"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleStructure()}
+              disabled={structuring}
+              className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
+            >
+              {structuring ? "AI 정리 중..." : "AI로 정리"}
+            </button>
+          </div>
+
           <label className="block text-sm space-y-1">
             <span className="text-muted-foreground">제목</span>
             <input
