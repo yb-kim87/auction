@@ -148,7 +148,7 @@ export function TagRulesTab() {
           />
           <select
             value={form.field}
-            onChange={(e) => setForm((f) => ({ ...f, field: e.target.value, operator: "" }))}
+            onChange={(e) => setForm((f) => ({ ...f, field: e.target.value, operator: "", value: "" }))}
             className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
           >
             <option value="">필드 선택</option>
@@ -171,6 +171,17 @@ export function TagRulesTab() {
               </option>
             ))}
           </select>
+          {selectedFieldType === "boolean" ? (
+            <select
+              value={form.value}
+              onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+              className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
+            >
+              <option value="">값 선택</option>
+              <option value="true">예</option>
+              <option value="false">아니오</option>
+            </select>
+          ) : (
           <input
             type="text"
             placeholder="조건 값 (예: 85)"
@@ -178,6 +189,7 @@ export function TagRulesTab() {
             onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
             className="px-2 py-2 text-sm border border-border rounded-sm bg-card"
           />
+          )}
         </div>
         <button
           type="button"
