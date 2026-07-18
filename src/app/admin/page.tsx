@@ -102,7 +102,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
 const AI_OPS_SUB_TABS: { id: AiOpsSubTab; label: string }[] = [
   { id: "knowledge", label: "AI지식" },
   { id: "loanPolicy", label: "대출정책" },
-  { id: "tagRules", label: "태그 관리" },
+  { id: "tagRules", label: "조건 관리" },
   { id: "strategyTags", label: "추천 전략" },
   { id: "aiPlatform", label: "AI Platform" },
 ];

@@ -56,7 +56,7 @@ export function StrategyTagsTab() {
 
   async function handleCreateRule() {
     if (!ruleForm.strategyCode.trim() || ruleForm.requiredFactCodes.length === 0) {
-      setMessage("전략 코드와 조건이 될 Fact 태그를 하나 이상 선택해 주세요.");
+      setMessage("전략 코드와 조건이 될 항목을 하나 이상 선택해 주세요.");
       return;
     }
     setCreatingRule(true);
@@ -126,7 +126,7 @@ export function StrategyTagsTab() {
     setMessage(null);
     try {
       const result = await backfillTagRules();
-      setMessage(`전체 ${result.total}건 중 ${result.updated}건의 태그가 갱신되었습니다.`);
+      setMessage(`전체 ${result.total}건 중 ${result.updated}건의 조건이 갱신되었습니다.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "재계산 실패");
     } finally {
@@ -143,11 +143,11 @@ export function StrategyTagsTab() {
   return (
     <div className="p-6 space-y-8 max-w-4xl">
       <div>
-        <h2 className="text-lg font-bold text-foreground">전략 태그 관리</h2>
+        <h2 className="text-lg font-bold text-foreground">전략 관리</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Fact 태그 조합(모두 만족 시)으로 전략 코드를 부여하고, 그 코드를 사용자에게
+          조건 조합(모두 만족 시)으로 전략 코드를 부여하고, 그 코드를 사용자에게
           보여줄 실제 문구로 연결합니다. 물건 상세페이지에는 여기서 만든{" "}
-          <b className="text-foreground">라벨·설명만</b> 노출되고 Fact 태그 자체는 보이지
+          <b className="text-foreground">라벨·설명만</b> 노출되고 조건 자체는 보이지
           않습니다.
         </p>
       </div>
@@ -160,7 +160,7 @@ export function StrategyTagsTab() {
 
       <div className="border border-border rounded-sm p-4 space-y-3">
         <p className="text-sm font-semibold text-foreground">
-          1단계 · 전략 규칙 추가 (Fact 조합 → 전략 코드)
+          1단계 · 전략 규칙 추가 (조건 조합 → 전략 코드)
         </p>
         <input
           type="text"
@@ -171,7 +171,7 @@ export function StrategyTagsTab() {
         />
         <div>
           <p className="text-xs text-muted-foreground mb-1.5">
-            아래 Fact 태그를 모두 가진 물건에만 이 전략이 부여됩니다(AND 조건).
+            아래 조건을 모두 가진 물건에만 이 전략이 부여됩니다(AND 조건).
           </p>
           <div className="flex flex-wrap gap-1.5">
             {factRules.map((rule) => (
@@ -208,7 +208,7 @@ export function StrategyTagsTab() {
                 전략 코드
               </th>
               <th className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">
-                필요한 Fact 태그
+                필요한 조건
               </th>
               <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
                 활성
@@ -353,7 +353,7 @@ export function StrategyTagsTab() {
           {backfilling ? "재계산 중..." : "기존 물건 태그 일괄 재계산"}
         </button>
         <p className="text-xs text-muted-foreground mt-1.5">
-          Fact/전략 규칙이나 문구를 바꾼 뒤 이미 등록된 물건들에도 반영하려면 눌러주세요.
+          조건/전략 규칙이나 문구를 바꾼 뒤 이미 등록된 물건들에도 반영하려면 눌러주세요.
         </p>
       </div>
     </div>

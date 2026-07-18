@@ -46,7 +46,7 @@ export function TagRulesTab() {
 
   async function handleCreate() {
     if (!form.tagName.trim() || !form.field || !form.operator || !form.value.trim()) {
-      setMessage("태그명, 필드, 연산자, 값을 모두 입력해 주세요.");
+      setMessage("조건명, 필드, 연산자, 값을 모두 입력해 주세요.");
       return;
     }
     setCreating(true);
@@ -55,7 +55,7 @@ export function TagRulesTab() {
       await createTagRule(form);
       setForm(EMPTY_FORM);
       load();
-      setMessage("태그 규칙이 추가되었습니다.");
+      setMessage("조건이 추가되었습니다.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "생성 실패");
     } finally {
@@ -86,7 +86,7 @@ export function TagRulesTab() {
     setMessage(null);
     try {
       const result = await backfillTagRules();
-      setMessage(`전체 ${result.total}건 중 ${result.updated}건의 태그가 갱신되었습니다.`);
+      setMessage(`전체 ${result.total}건 중 ${result.updated}건의 조건이 갱신되었습니다.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "재계산 실패");
     } finally {
@@ -101,12 +101,12 @@ export function TagRulesTab() {
   return (
     <div className="p-6 space-y-8 max-w-4xl">
       <div>
-        <h2 className="text-lg font-bold text-foreground">태그 관리 (Fact Tag)</h2>
+        <h2 className="text-lg font-bold text-foreground">조건 관리</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          물건 데이터를 기준으로 내부 판단용 사실(Fact)을 자동 계산하는 규칙입니다. 여기서
-          만든 Fact 태그는 <b className="text-foreground">사용자에게 직접 노출되지 않습니다</b> —
-          "Strategy 태그 관리" 탭에서 이 Fact들을 조합해 사용자에게 보여줄 투자 전략 문구를
-          만드세요. 각 규칙의 회색 코드값(예: AREA_OVER_85)을 Strategy 규칙에서 참조합니다.
+          물건 데이터를 기준으로 내부 판단용 조건을 자동 계산하는 규칙입니다. 여기서 만든
+          조건은 <b className="text-foreground">사용자에게 직접 노출되지 않습니다</b> —
+          "추천 전략" 탭에서 이 조건들을 조합해 사용자에게 보여줄 투자 전략 문구를 만드세요.
+          각 규칙의 회색 코드값(예: AREA_OVER_85)을 전략 규칙에서 참조합니다.
         </p>
       </div>
 
@@ -117,11 +117,11 @@ export function TagRulesTab() {
       )}
 
       <div className="border border-border rounded-sm p-4 space-y-3">
-        <p className="text-sm font-semibold text-foreground">새 태그 규칙 추가</p>
+        <p className="text-sm font-semibold text-foreground">새 조건 추가</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <input
             type="text"
-            placeholder="태그명 (예: 85㎡ 초과)"
+            placeholder="조건명 (예: 85㎡ 초과)"
             value={form.tagName}
             onChange={(e) => setForm((f) => ({ ...f, tagName: e.target.value }))}
             className="px-2 py-2 text-sm border border-border rounded-sm bg-card col-span-2 sm:col-span-1"
@@ -165,7 +165,7 @@ export function TagRulesTab() {
           disabled={creating}
           className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
         >
-          {creating ? "추가 중..." : "규칙 추가"}
+          {creating ? "추가 중..." : "조건 추가"}
         </button>
       </div>
 
@@ -173,8 +173,8 @@ export function TagRulesTab() {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
-              <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">태그명</th>
-              <th className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">조건</th>
+              <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">조건명</th>
+              <th className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">조건식</th>
               <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
                 활성
               </th>
@@ -185,7 +185,7 @@ export function TagRulesTab() {
             {rules.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  등록된 태그 규칙이 없습니다.
+                  등록된 조건이 없습니다.
                 </td>
               </tr>
             ) : (
@@ -234,7 +234,7 @@ export function TagRulesTab() {
           disabled={backfilling}
           className="px-4 py-2 text-sm font-semibold rounded-sm border border-border bg-card disabled:opacity-50"
         >
-          {backfilling ? "재계산 중..." : "기존 물건 태그 일괄 재계산"}
+          {backfilling ? "재계산 중..." : "기존 물건 조건 일괄 재계산"}
         </button>
         <p className="text-xs text-muted-foreground mt-1.5">
           규칙을 추가·수정·삭제한 뒤 이미 등록된 물건들에도 반영하려면 눌러주세요. 새로
