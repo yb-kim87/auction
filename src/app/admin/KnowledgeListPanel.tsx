@@ -10,7 +10,11 @@ import {
   updateKnowledgeItem,
 } from "@/lib/api";
 
-const CATEGORIES = ["권리분석", "물건추천", "공통"];
+/** 분류 입력창의 초기 제안값(씨앗). 실제로는 자유 입력이며, 아래 목록 외에도
+ *  관리자가 새 분류명을 그대로 타이핑해 추가할 수 있다. 어떤 분류를 어느
+ *  AI가 참고할지는 백엔드 쪽에서 별도로 연결한다(예: 물건 상세 AI는 현재
+ *  "권리분석"만 참고하도록 고정되어 있음 — ai-analysis.service.ts 참고). */
+const CATEGORY_SEEDS = ["권리분석", "물건추천"];
 
 const emptyForm = {
   title: "",
@@ -28,6 +32,10 @@ export function KnowledgeListPanel() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  const categoryOptions = [
+    ...new Set([...CATEGORY_SEEDS, ...items.map((i) => i.category).filter(Boolean)]),
+  ];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,7 +65,7 @@ export function KnowledgeListPanel() {
     setEditingId(item.id);
     setForm({
       title: item.title,
-      category: item.category || "공통",
+      category: item.category || "",
       tags: item.tags,
       content: item.content,
       active: item.active,
@@ -152,17 +160,18 @@ export function KnowledgeListPanel() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block text-sm space-y-1">
               <span className="text-muted-foreground">분류</span>
-              <select
+              <input
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                list="knowledge-category-options"
+                placeholder="예: 권리분석"
                 className="w-full px-3 py-2 border border-border rounded-sm bg-background"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
+              />
+              <datalist id="knowledge-category-options">
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c} />
                 ))}
-              </select>
+              </datalist>
             </label>
             <label className="block text-sm space-y-1">
               <span className="text-muted-foreground">태그 (쉼표 구분)</span>
