@@ -14,7 +14,7 @@ import {
   type SavedSearchPreset,
   type TankFavoriteSearch,
 } from "@/lib/api";
-import { getTankGuOptions, getTankDongOptions } from "@/data/tank-regions";
+import { getTankGuOptions, getTankDongOptions, labelsFromAdrPlural } from "@/data/tank-regions";
 
 // 탱크옥션 ca/caList.php 검색 폼 #ctgr select 옵션 전체를 실측(2026-07-17)한
 // 대분류→하위 물건종류 그룹. presets_httpx.py: PROPERTY_TYPE_CODES 의 키와
@@ -876,54 +876,84 @@ export function CrawlerSearchPanel({
           <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
             <span className="text-muted-foreground">주소</span>
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={search.regionSiCd ?? ""}
-                onChange={(e) => {
-                  const nextSiCd = e.target.value;
-                  setSearch({
-                    ...search,
-                    regionSiCd: nextSiCd,
-                    regionGuCd: "",
-                    regionDnCd: "",
-                  });
-                }}
-                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
-              >
-                {REGION_SI_OPTIONS.map((item) => (
-                  <option key={item.value || "all"} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={search.regionGuCd ?? ""}
-                onChange={(e) => {
-                  const nextGuCd = e.target.value;
-                  setSearch({ ...search, regionGuCd: nextGuCd, regionDnCd: "" });
-                }}
-                disabled={!search.regionSiCd}
-                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
-              >
-                <option value="">시/군/구</option>
-                {getTankGuOptions(search.regionSiCd ?? "").map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={search.regionDnCd ?? ""}
-                onChange={(e) => setSearch({ ...search, regionDnCd: e.target.value })}
-                disabled={!search.regionGuCd}
-                className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
-              >
-                <option value="">동/읍/면</option>
-                {getTankDongOptions(search.regionSiCd ?? "", search.regionGuCd ?? "").map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+              {search.regionAdrPlural ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {labelsFromAdrPlural(search.regionAdrPlural).map((label, i) => (
+                    <span
+                      key={`${label}-${i}`}
+                      className="inline-flex items-center px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSearch({
+                        ...search,
+                        regionAdrPlural: "",
+                        regionSiCd: "",
+                        regionGuCd: "",
+                        regionDnCd: "",
+                      })
+                    }
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                  >
+                    지역 직접 선택으로 변경
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={search.regionSiCd ?? ""}
+                    onChange={(e) => {
+                      const nextSiCd = e.target.value;
+                      setSearch({
+                        ...search,
+                        regionSiCd: nextSiCd,
+                        regionGuCd: "",
+                        regionDnCd: "",
+                      });
+                    }}
+                    className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
+                  >
+                    {REGION_SI_OPTIONS.map((item) => (
+                      <option key={item.value || "all"} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={search.regionGuCd ?? ""}
+                    onChange={(e) => {
+                      const nextGuCd = e.target.value;
+                      setSearch({ ...search, regionGuCd: nextGuCd, regionDnCd: "" });
+                    }}
+                    disabled={!search.regionSiCd}
+                    className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+                  >
+                    <option value="">시/군/구</option>
+                    {getTankGuOptions(search.regionSiCd ?? "").map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={search.regionDnCd ?? ""}
+                    onChange={(e) => setSearch({ ...search, regionDnCd: e.target.value })}
+                    disabled={!search.regionGuCd}
+                    className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+                  >
+                    <option value="">동/읍/면</option>
+                    {getTankDongOptions(search.regionSiCd ?? "", search.regionGuCd ?? "").map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
               <input
                 value={search.addressKeyword ?? ""}
                 onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}

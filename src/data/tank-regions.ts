@@ -35,3 +35,17 @@ export function getTankDongOptions(siCd: string, guCd: string): { value: string;
     .map((d) => ({ value: d.code, label: d.label }))
     .sort((a, b) => a.label.localeCompare(b.label, "ko"));
 }
+
+export function getTankSiLabel(siCd: string): string {
+  return TANK_REGIONS[siCd]?.label ?? siCd;
+}
+
+/** 즐겨찾기의 adrPlural(콤마 구분 법정동 코드, 예: "1100000000,4100000000")을
+ * 앞 2자리(siCd)만 뽑아 사람이 읽는 시/도 라벨 목록으로 바꾼다. */
+export function labelsFromAdrPlural(adrPlural: string): string[] {
+  return adrPlural
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean)
+    .map((code) => getTankSiLabel(code.slice(0, 2)));
+}
