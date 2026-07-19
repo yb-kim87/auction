@@ -13,6 +13,7 @@ import {
   type CrawlerScheduleConfig,
   type SavedSearchPreset,
 } from "@/lib/api";
+import { renderLogMessage } from "@/lib/crawler-log-format";
 
 function formatTime(iso: string) {
   try {
@@ -392,7 +393,7 @@ export function CrawlerDailyJobTab() {
                   <span className="text-muted-foreground">
                     [{formatTime(entry.at)}]
                   </span>{" "}
-                  {entry.message}
+                  {renderLogMessage(entry.message)}
                 </div>
               ))
             )}

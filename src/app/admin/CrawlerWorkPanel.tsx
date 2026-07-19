@@ -22,6 +22,7 @@ import { CrawlerAlgorithmTab } from "./CrawlerAlgorithmTab";
 import { CrawlerDailyJobTab } from "./CrawlerDailyJobTab";
 import { CrawlerProfitTab } from "./CrawlerProfitTab";
 import { CrawlerSearchPanel } from "./CrawlerSearchPanel";
+import { renderLogMessage } from "@/lib/crawler-log-format";
 
 type CrawlerSubTab = "work" | "algorithm" | "daily" | "profit";
 
@@ -807,7 +808,7 @@ export function CrawlerWorkPanel() {
                       <span className="text-muted-foreground">
                         [{formatTime(entry.at)}]
                       </span>{" "}
-                      {entry.message}
+                      {renderLogMessage(entry.message)}
                     </div>
                   ))
                 )}
