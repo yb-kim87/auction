@@ -22,15 +22,18 @@ function formatTime(iso: string) {
   }
 }
 
-// 매일 작업(스케줄러)이 남기는 로그는 crawler.service.ts tickScheduler()가
-// "[관심조건] ..." 또는 "예약 작업 시작"/"1회 예약 조회가 완료" 태그를
-// 붙여 남긴다 — 이 접두어로 전체 실행 로그 중 매일 작업분만 골라낸다.
+// 매일 작업(스케줄러)은 작업창의 "주소 추가"/"조회 시작"과 동일한
+// 서비스 메서드(collectUrls/startCrawl 등)를 submittedBy="scheduler"로
+// 그대로 호출한다 — 그 메서드들이 남기는 로그는 전부 "scheduler님이 ..."
+// 형태이므로, 이 문구와 tickScheduler 자체의 "[관심조건]"/"예약 작업 ..."
+// 태그를 함께 걸러 매일 작업 실행 로그로 보여준다.
 function isDailyJobLog(message: string): boolean {
   return (
     message.startsWith("[관심조건]") ||
     message.startsWith("예약 작업 시작") ||
     message.startsWith("예약 작업 실패") ||
-    message.includes("예약 조회가 완료")
+    message.includes("예약 조회가 완료") ||
+    message.startsWith("scheduler님이")
   );
 }
 
