@@ -87,6 +87,7 @@ const EXPANDABLE_DETAIL_KEYS = new Set<keyof UpdateAuctionPayload>([
   "education",
   "priceDetail",
   "tradingDetail",
+  "bidInfo",
 ]);
 
 function isExpandableDetailField(key: keyof UpdateAuctionPayload) {
