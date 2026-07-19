@@ -25,6 +25,11 @@ function formatTime(iso: string) {
 
 export function CrawlerDailyJobTab() {
   const [schedule, setSchedule] = useState<CrawlerScheduleConfig | null>(null);
+  // "매일 작업 작동 중" 배너는 편집 중인(아직 저장 안 된) schedule이 아니라
+  // 실제로 서버에 저장된 값만 반영해야 한다 — 안 그러면 시간을 바꾸는
+  // 즉시 아직 저장도 안 했는데 이미 그 시간에 실행되는 것처럼 보여
+  // 혼란을 준다. 초기 로드/저장 성공 시점에만 갱신한다.
+  const [savedSchedule, setSavedSchedule] = useState<CrawlerScheduleConfig | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedSearchPreset[]>([]);
   const [addSelection, setAddSelection] = useState("");
   const [saving, setSaving] = useState(false);
@@ -46,13 +51,15 @@ export function CrawlerDailyJobTab() {
   useEffect(() => {
     Promise.all([fetchCrawlerConfig(), fetchSavedSearches()])
       .then(([config, presets]) => {
-        setSchedule({
+        const normalized: CrawlerScheduleConfig = {
           ...config.schedule,
           presets:
             config.schedule.presets && config.schedule.presets.length > 0
               ? config.schedule.presets
               : [],
-        });
+        };
+        setSchedule(normalized);
+        setSavedSchedule(normalized);
         setSavedSearches(presets);
       })
       .catch((err) => {
@@ -148,6 +155,7 @@ export function CrawlerDailyJobTab() {
     setMessage(null);
     try {
       await updateCrawlerConfig({ schedule });
+      setSavedSchedule(schedule);
       setMessage("매일 작업 설정이 저장되었습니다.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "저장 실패");
@@ -180,13 +188,13 @@ export function CrawlerDailyJobTab() {
 
       <div
         className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 transition-colors ${
-          schedule.enabled
+          savedSchedule?.enabled
             ? "border-emerald-300 bg-emerald-50"
             : "border-border bg-secondary/20"
         }`}
       >
         <div className="flex items-center gap-2">
-          {schedule.enabled ? (
+          {savedSchedule?.enabled ? (
             <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
@@ -196,13 +204,13 @@ export function CrawlerDailyJobTab() {
           )}
           <div>
             <p
-              className={`text-xs font-semibold ${schedule.enabled ? "text-emerald-700" : "text-foreground"}`}
+              className={`text-xs font-semibold ${savedSchedule?.enabled ? "text-emerald-700" : "text-foreground"}`}
             >
-              {schedule.enabled ? "매일 작업 작동 중" : "매일 작업 꺼짐"}
+              {savedSchedule?.enabled ? "매일 작업 작동 중" : "매일 작업 꺼짐"}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {schedule.enabled
-                ? `매일 ${schedule.time}에 아래 관심조건 목록을 순서대로 자동 수집·조회합니다.`
+              {savedSchedule?.enabled
+                ? `매일 ${savedSchedule.time}에 아래 관심조건 목록을 순서대로 자동 수집·조회합니다. (저장된 설정 기준)`
                 : "켜두면 지정한 시간에 서버가 관심조건 목록을 순서대로 자동 수집·조회합니다. 지금은 자동으로 실행되지 않습니다."}
             </p>
           </div>
@@ -224,7 +232,10 @@ export function CrawlerDailyJobTab() {
         </button>
       </div>
       <p className="text-xs text-muted-foreground -mt-3">
-        토글을 바꾼 뒤 아래 &quot;설정 저장&quot;을 눌러야 반영됩니다.
+        {schedule.enabled !== savedSchedule?.enabled ||
+        schedule.time !== savedSchedule?.time
+          ? "변경된 내용이 있습니다 — 아래 \"설정 저장\"을 눌러야 반영됩니다."
+          : "토글/시간을 바꾼 뒤 아래 \"설정 저장\"을 눌러야 반영됩니다."}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
