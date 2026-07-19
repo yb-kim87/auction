@@ -30,6 +30,7 @@ function formatTime(iso: string) {
 function isDailyJobLog(message: string): boolean {
   return (
     message.startsWith("[관심조건]") ||
+    message.startsWith("[매일작업]") ||
     message.startsWith("예약 작업 시작") ||
     message.startsWith("예약 작업 실패") ||
     message.includes("예약 조회가 완료") ||
