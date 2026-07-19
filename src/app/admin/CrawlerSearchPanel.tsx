@@ -578,6 +578,36 @@ export function CrawlerSearchPanel({
     setPresetName("");
   }
 
+  // "현재 조건 저장" 버튼 — 탱크옥션 즐겨찾기를 불러온 직후처럼 이름이
+  // 이미 채워져 있는 상태에서도 그 값 그대로 관심조건으로 저장한다.
+  // (이전에는 이 버튼이 handleNewPreset을 호출해 저장 없이 이름만
+  // 비워버리는 버그가 있었다.)
+  async function handleSavePreset() {
+    if (!search) return;
+    const name = presetName.trim();
+    if (!name) {
+      setMessage("저장할 조건 이름을 입력해 주세요.");
+      return;
+    }
+    setSavingPreset(true);
+    setMessage(null);
+    try {
+      const saved = await saveSavedSearch({
+        id: activePresetId ?? undefined,
+        name,
+        search,
+      });
+      setActivePresetId(saved.id);
+      setPresetName(saved.name);
+      refreshSavedSearches();
+      setMessage(`"${saved.name}" 조건을 관심조건에 저장했습니다.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "조건 저장에 실패했습니다.");
+    } finally {
+      setSavingPreset(false);
+    }
+  }
+
   function toggleProperty(type: string) {
     setSearch((prev) => {
       if (!prev) return prev;
@@ -734,11 +764,21 @@ export function CrawlerSearchPanel({
                   />
                   <button
                     type="button"
-                    onClick={handleNewPreset}
-                    className="px-3 py-2 text-xs rounded-sm border border-border shrink-0 whitespace-nowrap"
+                    onClick={() => void handleSavePreset()}
+                    disabled={savingPreset || !presetName.trim()}
+                    className="px-3 py-2 text-xs rounded-sm border border-border shrink-0 whitespace-nowrap disabled:opacity-50"
                   >
-                    현재 조건 저장
+                    {savingPreset ? "저장 중..." : "현재 조건 저장"}
                   </button>
+                  {activePresetId && (
+                    <button
+                      type="button"
+                      onClick={handleNewPreset}
+                      className="px-2 py-2 text-xs text-muted-foreground border border-border rounded-sm hover:text-foreground shrink-0 whitespace-nowrap"
+                    >
+                      새 조건으로
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
@@ -748,6 +788,14 @@ export function CrawlerSearchPanel({
                     placeholder="조건 이름 (예: 강남 아파트) — 비우면 저장 없이 1회성 조회"
                     className="px-3 py-1.5 text-sm border border-border rounded-sm bg-card flex-1 min-w-[220px]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => void handleSavePreset()}
+                    disabled={savingPreset || !presetName.trim()}
+                    className="px-3 py-2 text-xs rounded-sm border border-border shrink-0 whitespace-nowrap disabled:opacity-50"
+                  >
+                    {savingPreset ? "저장 중..." : "현재 조건 저장"}
+                  </button>
                 </div>
               )}
             </div>
