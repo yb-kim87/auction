@@ -37,7 +37,7 @@ function ValueInput({
   const [options, setOptions] = useState<string[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
-  const useMultiSelect = hasValueOptions && operator === "in";
+  const useMultiSelect = hasValueOptions && (operator === "in" || operator === "contains_any");
 
   useEffect(() => {
     if (!useMultiSelect || !fieldKey) return;
@@ -142,9 +142,18 @@ export function TagRulesTab() {
 
   useEffect(load, []);
 
-  const selectedFieldType = fields.find((f) => f.key === form.field)?.type;
+  const selectedField = fields.find((f) => f.key === form.field);
+  const selectedFieldType = selectedField?.type;
   const availableOperators = selectedFieldType
-    ? operators.filter((op) => op.types.includes(selectedFieldType))
+    ? operators.filter(
+        (op) =>
+          op.types.includes(selectedFieldType) &&
+          // usage/special_note처럼 값 목록이 있는 필드는 자유 텍스트 입력
+          // 연산자(contains/eq/neq)를 막고 드롭박스로만 값을 고르게 한다 —
+          // 수동 입력 오타로 조건이 실제로는 아무것도 안 걸리는 사고를 방지
+          // (2026-07-19).
+          (!selectedField?.hasValueOptions || op.key === "in" || op.key === "contains_any"),
+      )
     : operators;
 
   async function handleCreate() {
@@ -348,9 +357,14 @@ export function TagRulesTab() {
                   operators.find((op) => op.key === rule.operator)?.label ?? rule.operator;
 
                 if (editingId === rule.id) {
-                  const editFieldType = fields.find((f) => f.key === editForm.field)?.type;
+                  const editField = fields.find((f) => f.key === editForm.field);
+                  const editFieldType = editField?.type;
                   const editOperators = editFieldType
-                    ? operators.filter((op) => op.types.includes(editFieldType))
+                    ? operators.filter(
+                        (op) =>
+                          op.types.includes(editFieldType) &&
+                          (!editField?.hasValueOptions || op.key === "in" || op.key === "contains_any"),
+                      )
                     : operators;
                   return (
                     <tr key={rule.id} className="border-b border-border last:border-b-0 bg-secondary/20">
