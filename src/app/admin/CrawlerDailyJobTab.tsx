@@ -120,15 +120,54 @@ export function CrawlerDailyJobTab() {
         </div>
       )}
 
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={schedule.enabled}
-          onChange={(e) => updateSchedule({ enabled: e.target.checked })}
-          className="accent-primary"
-        />
-        <span className="font-semibold">매일 작업 사용</span>
-      </label>
+      <div
+        className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 transition-colors ${
+          schedule.enabled
+            ? "border-emerald-300 bg-emerald-50"
+            : "border-border bg-secondary/20"
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {schedule.enabled ? (
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+          ) : (
+            <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-muted-foreground/40" />
+          )}
+          <div>
+            <p
+              className={`text-xs font-semibold ${schedule.enabled ? "text-emerald-700" : "text-foreground"}`}
+            >
+              {schedule.enabled ? "매일 작업 작동 중" : "매일 작업 꺼짐"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {schedule.enabled
+                ? `매일 ${schedule.time}에 아래 관심조건 목록을 순서대로 자동 수집·조회합니다.`
+                : "켜두면 지정한 시간에 서버가 관심조건 목록을 순서대로 자동 수집·조회합니다. 지금은 자동으로 실행되지 않습니다."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => updateSchedule({ enabled: !schedule.enabled })}
+          role="switch"
+          aria-checked={schedule.enabled}
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+            schedule.enabled ? "bg-emerald-500" : "bg-secondary border border-border"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              schedule.enabled ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground -mt-3">
+        토글을 바꾼 뒤 아래 &quot;설정 저장&quot;을 눌러야 반영됩니다.
+      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="text-sm space-y-1">
