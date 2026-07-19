@@ -1388,6 +1388,8 @@ export type CrawlerLogEntry = {
   at: string;
   level: "info" | "warn" | "error";
   message: string;
+  /** 매일 예약 작업(스케줄러) 실행 중 남겨진 로그인지. */
+  scheduler?: boolean;
 };
 
 export async function fetchCrawlerStatus(): Promise<CrawlerStatus> {

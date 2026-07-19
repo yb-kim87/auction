@@ -22,23 +22,6 @@ function formatTime(iso: string) {
   }
 }
 
-// 매일 작업(스케줄러)은 작업창의 "주소 추가"/"조회 시작"과 동일한
-// 서비스 메서드(collectUrls/startCrawl 등)를 submittedBy="scheduler"로
-// 그대로 호출한다 — 그 메서드들이 남기는 로그는 전부 "scheduler님이 ..."
-// 형태이므로, 이 문구와 tickScheduler 자체의 "[관심조건]"/"예약 작업 ..."
-// 태그를 함께 걸러 매일 작업 실행 로그로 보여준다.
-function isDailyJobLog(message: string): boolean {
-  return (
-    message.startsWith("[관심조건]") ||
-    message.startsWith("[매일작업]") ||
-    message.startsWith("예약 작업 시작") ||
-    message.startsWith("예약 작업 실패") ||
-    message.includes("예약 조회가 완료") ||
-    message.startsWith("scheduler님이") ||
-    message.includes("작업이 완료되었습니다")
-  );
-}
-
 export function CrawlerDailyJobTab() {
   const [schedule, setSchedule] = useState<CrawlerScheduleConfig | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedSearchPreset[]>([]);
@@ -50,8 +33,12 @@ export function CrawlerDailyJobTab() {
   const logRef = useRef<HTMLDivElement>(null);
 
   const refreshLogs = useCallback(() => {
+    // 백엔드가 appendLog 호출 시점의 스케줄러 실행 여부를 그대로
+    // 기록해두므로(entry.scheduler), 메시지 텍스트 태그에 의존하지 않고
+    // 이 플래그만으로 매일 작업 로그를 정확히 걸러낼 수 있다 — collectUrls/
+    // startCrawl 내부의 세부 로그(수집 건수, 중복 제외 등)도 빠짐없이 포함.
     fetchCrawlerLogs(500)
-      .then((all) => setLogs(all.filter((entry) => isDailyJobLog(entry.message))))
+      .then((all) => setLogs(all.filter((entry) => entry.scheduler)))
       .catch(() => undefined);
   }, []);
 
