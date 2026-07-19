@@ -69,12 +69,33 @@ export function CrawlerDailyJobTab() {
     refreshLogs();
   }, [refreshLogs]);
 
+  // 예약 시각 전후 1분 구간에는 2초 간격으로, 평소에는 15초 간격으로
+  // 폴링한다 — 실행 로그가 최대한 빨리 보이면서도 평소엔 불필요한 요청을
+  // 줄인다.
+  const isNearScheduledTime = useCallback(() => {
+    if (!schedule?.enabled) return false;
+    const [h, m] = schedule.time.split(":").map((v) => parseInt(v, 10));
+    if (Number.isNaN(h) || Number.isNaN(m)) return false;
+    const now = new Date();
+    const scheduled = new Date(now);
+    scheduled.setHours(h, m, 0, 0);
+    const diffMs = Math.abs(now.getTime() - scheduled.getTime());
+    return diffMs <= 60_000;
+  }, [schedule?.enabled, schedule?.time]);
+
   useEffect(() => {
-    // 스케줄러가 실행되는 순간(정각/설정 시간)에 실행 로그가 최대한 빨리
-    // 보이도록 짧은 간격으로 폴링한다.
-    const timer = setInterval(refreshLogs, 5_000);
-    return () => clearInterval(timer);
-  }, [refreshLogs]);
+    let timer: ReturnType<typeof setInterval>;
+    const schedulePoll = () => {
+      clearInterval(timer);
+      timer = setInterval(refreshLogs, isNearScheduledTime() ? 2_000 : 15_000);
+    };
+    schedulePoll();
+    const rescheduleCheck = setInterval(schedulePoll, 10_000);
+    return () => {
+      clearInterval(timer);
+      clearInterval(rescheduleCheck);
+    };
+  }, [refreshLogs, isNearScheduledTime]);
 
   useEffect(() => {
     if (logRef.current) {
