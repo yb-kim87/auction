@@ -32,8 +32,21 @@ async function tryRefreshSession(
     });
     if (!res.ok) return null;
 
+    // Vercel Edge 런타임의 fetch Response.headers는 getSetCookie()를 지원하지
+    // 않을 수 있다(구현체에 따라 다름) — 그 경우 여러 Set-Cookie 헤더가 콤마로
+    // 합쳐진 단일 문자열로만 조회돼, 배열 전제로 짠 파싱이 조용히 실패해 매번
+    // /login으로 튕기는 원인이 됐다(2026-07-20). getSetCookie가 없거나 빈
+    // 배열이면 단일 헤더 문자열을 콤마 기준으로 직접 나눠 폴백한다.
     const getSetCookie = (res.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
-    const setCookie = getSetCookie ? getSetCookie.call(res.headers) : [];
+    let setCookie = getSetCookie ? getSetCookie.call(res.headers) : [];
+    if (setCookie.length === 0) {
+      const single = res.headers.get("set-cookie");
+      if (single) {
+        // "auc-token=...; Path=/; HttpOnly, auc-refresh-token=...; Path=/refresh; HttpOnly"
+        // 형태로 합쳐질 수 있어, 쿠키 경계(", " 뒤에 "이름=값" 패턴이 오는 지점)로 분리한다.
+        setCookie = single.split(/,(?=\s*[\w-]+=)/).map((s) => s.trim());
+      }
+    }
     const newAccessToken = setCookie
       .find((c) => c.startsWith("auc-token="))
       ?.split(";")[0]
