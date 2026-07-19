@@ -1,16 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import {
   fetchCrawlerConfig,
+  fetchCrawlerLogs,
   fetchSavedSearches,
   updateCrawlerConfig,
   TODAY_BID_DATE_PRESET_ID,
   TODAY_BID_DATE_PRESET_LABEL,
+  type CrawlerLogEntry,
   type CrawlerScheduleConfig,
   type SavedSearchPreset,
 } from "@/lib/api";
+
+function formatTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString("ko-KR", { hour12: false });
+  } catch {
+    return iso;
+  }
+}
+
+// 매일 작업(스케줄러)이 남기는 로그는 crawler.service.ts tickScheduler()가
+// "[관심조건] ..." 또는 "예약 작업 시작"/"1회 예약 조회가 완료" 태그를
+// 붙여 남긴다 — 이 접두어로 전체 실행 로그 중 매일 작업분만 골라낸다.
+function isDailyJobLog(message: string): boolean {
+  return (
+    message.startsWith("[관심조건]") ||
+    message.startsWith("예약 작업 시작") ||
+    message.includes("예약 조회가 완료")
+  );
+}
 
 export function CrawlerDailyJobTab() {
   const [schedule, setSchedule] = useState<CrawlerScheduleConfig | null>(null);
@@ -19,6 +40,14 @@ export function CrawlerDailyJobTab() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [logs, setLogs] = useState<CrawlerLogEntry[]>([]);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  const refreshLogs = useCallback(() => {
+    fetchCrawlerLogs(500)
+      .then((all) => setLogs(all.filter((entry) => isDailyJobLog(entry.message))))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     Promise.all([fetchCrawlerConfig(), fetchSavedSearches()])
@@ -36,7 +65,19 @@ export function CrawlerDailyJobTab() {
         setMessage(err instanceof Error ? err.message : "설정을 불러오지 못했습니다.");
       })
       .finally(() => setLoading(false));
-  }, []);
+    refreshLogs();
+  }, [refreshLogs]);
+
+  useEffect(() => {
+    const timer = setInterval(refreshLogs, 15_000);
+    return () => clearInterval(timer);
+  }, [refreshLogs]);
+
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   const presetNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -299,6 +340,49 @@ export function CrawlerDailyJobTab() {
       >
         {saving ? "저장 중..." : "설정 저장"}
       </button>
+
+      <div className="space-y-2 pt-2 border-t border-border">
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm font-semibold">매일 작업 실행 로그</p>
+          <button
+            type="button"
+            onClick={refreshLogs}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            새로고침
+          </button>
+        </div>
+        <div className="border border-border rounded-sm h-72 overflow-hidden flex flex-col bg-card">
+          <div
+            ref={logRef}
+            className="flex-1 overflow-y-auto p-3 space-y-1 text-xs font-mono"
+          >
+            {logs.length === 0 ? (
+              <p className="text-muted-foreground">
+                아직 매일 작업이 실행된 기록이 없습니다.
+              </p>
+            ) : (
+              logs.map((entry, index) => (
+                <div
+                  key={`${entry.at}-${index}`}
+                  className={
+                    entry.level === "error"
+                      ? "text-red-600"
+                      : entry.level === "warn"
+                        ? "text-amber-700"
+                        : "text-foreground/80"
+                  }
+                >
+                  <span className="text-muted-foreground">
+                    [{formatTime(entry.at)}]
+                  </span>{" "}
+                  {entry.message}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
