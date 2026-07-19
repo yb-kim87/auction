@@ -47,6 +47,8 @@ export function StrategyTagsTab() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [refiningDescription, setRefiningDescription] = useState(false);
   const [refiningEditDescription, setRefiningEditDescription] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const [labelForm, setLabelForm] = useState(EMPTY_LABEL_FORM);
   const [creatingLabel, setCreatingLabel] = useState(false);
@@ -231,12 +233,30 @@ export function StrategyTagsTab() {
     }
   }
 
-  async function handleDelete(rule: StrategyRule) {
+  function togglePendingDelete(ruleId: string) {
+    setPendingDeleteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ruleId)) next.delete(ruleId);
+      else next.add(ruleId);
+      return next;
+    });
+  }
+
+  async function handleConfirmDelete() {
+    if (pendingDeleteIds.size === 0) return;
+    setDeleting(true);
+    setMessage(null);
     try {
-      await removeStrategyRule(rule.id);
-      setStrategyRules((prev) => prev.filter((r) => r.id !== rule.id));
+      for (const id of pendingDeleteIds) {
+        await removeStrategyRule(id);
+      }
+      setStrategyRules((prev) => prev.filter((r) => !pendingDeleteIds.has(r.id)));
+      setMessage(`${pendingDeleteIds.size}개 전략이 삭제되었습니다.`);
+      setPendingDeleteIds(new Set());
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "삭제 실패");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -697,13 +717,13 @@ export function StrategyTagsTab() {
                       </button>
                     </td>
                     <td className="px-3 py-3 align-top text-center">
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(rule)}
-                        className="text-xs text-destructive hover:underline"
-                      >
-                        삭제
-                      </button>
+                      <input
+                        type="checkbox"
+                        checked={pendingDeleteIds.has(rule.id)}
+                        onChange={() => togglePendingDelete(rule.id)}
+                        className="w-4 h-4 accent-destructive"
+                        aria-label="삭제할 전략으로 표시"
+                      />
                     </td>
                   </tr>
                 );
@@ -712,6 +732,29 @@ export function StrategyTagsTab() {
           </tbody>
         </table>
       </div>
+
+      {pendingDeleteIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 border border-destructive/30 bg-destructive/5 rounded-sm">
+          <p className="text-sm text-destructive">
+            {pendingDeleteIds.size}개 전략을 삭제 대상으로 선택했습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleConfirmDelete()}
+            disabled={deleting}
+            className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-destructive text-destructive-foreground disabled:opacity-50"
+          >
+            {deleting ? "삭제 중..." : "선택 삭제 적용"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingDeleteIds(new Set())}
+            className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border bg-card"
+          >
+            선택 취소
+          </button>
+        </div>
+      )}
 
       <div>
         <button
