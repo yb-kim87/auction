@@ -33,7 +33,8 @@ function isDailyJobLog(message: string): boolean {
     message.startsWith("예약 작업 시작") ||
     message.startsWith("예약 작업 실패") ||
     message.includes("예약 조회가 완료") ||
-    message.startsWith("scheduler님이")
+    message.startsWith("scheduler님이") ||
+    message.includes("작업이 완료되었습니다")
   );
 }
 
