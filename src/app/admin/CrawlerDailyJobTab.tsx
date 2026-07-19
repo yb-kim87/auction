@@ -70,7 +70,9 @@ export function CrawlerDailyJobTab() {
   }, [refreshLogs]);
 
   useEffect(() => {
-    const timer = setInterval(refreshLogs, 15_000);
+    // 스케줄러가 실행되는 순간(정각/설정 시간)에 실행 로그가 최대한 빨리
+    // 보이도록 짧은 간격으로 폴링한다.
+    const timer = setInterval(refreshLogs, 5_000);
     return () => clearInterval(timer);
   }, [refreshLogs]);
 
