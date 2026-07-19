@@ -28,8 +28,8 @@ type CrawlerSubTab = "work" | "algorithm" | "daily" | "profit";
 
 const SUB_TABS: { id: CrawlerSubTab; label: string }[] = [
   { id: "work", label: "작업창" },
-  { id: "algorithm", label: "알고리즘" },
   { id: "daily", label: "매일 작업" },
+  { id: "algorithm", label: "알고리즘" },
   { id: "profit", label: "수익계산" },
 ];
 

@@ -95,8 +95,8 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
   { id: "crawler", label: "크롤링 작업" },
   { id: "kakaoNotify", label: "알림톡 관리" },
-  { id: "users", label: "회원권한 관리" },
   { id: "aiOps", label: "AI운영" },
+  { id: "users", label: "회원권한 관리" },
   { id: "securityLog", label: "보안 로그" },
 ];
 
