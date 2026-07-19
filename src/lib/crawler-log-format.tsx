@@ -8,7 +8,9 @@ export function renderLogMessage(message: string): ReactNode {
   if (!match) return message;
   return (
     <>
-      <span className="text-primary font-semibold">{match[1]}</span>
+      <span className="text-blue-600 font-bold bg-blue-50 px-1 rounded-sm">
+        {match[1]}
+      </span>
       {match[2]}
     </>
   );
