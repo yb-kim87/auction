@@ -2501,6 +2501,9 @@ export function AuctionDetailModal({
                   const bidInfoValue = String(item.bidInfo ?? "").trim();
                   return bidInfoValue && bidInfoValue !== "없음";
                 }
+                if (field.key === "isRedevelopment") {
+                  return item.isRedevelopment === true;
+                }
                 return true;
               });
               if (fields.length === 0) return null;
