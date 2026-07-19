@@ -1718,6 +1718,9 @@ export function AuctionDetailModal({
             <span className="font-mono font-medium text-foreground truncate">
               {(editable ? form.auctionNo : preview.auctionNo) || "경매번호 없음"}
             </span>
+            {preview.court && (
+              <span className="text-muted-foreground shrink-0">({preview.court})</span>
+            )}
             {preview.isUpdated && <UpdatedBadge />}
           </div>
 
@@ -1797,6 +1800,11 @@ export function AuctionDetailModal({
               <span className={`font-mono font-bold ${SECTION_TEXT} truncate`}>
                 {(editable ? form.auctionNo : preview.auctionNo) || "경매번호 없음"}
               </span>
+              {preview.court && (
+                <span className={`${LABEL_TEXT} text-primary-foreground/70 shrink-0`}>
+                  ({preview.court})
+                </span>
+              )}
               {preview.isUpdated && <UpdatedBadge variant="onDark" />}
             </p>
             <div className="flex items-center gap-1 shrink-0">

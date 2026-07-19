@@ -19,6 +19,9 @@ export interface AuctionItem {
   link: string;
   views: number;
   auctionNo: string;
+  /** 담당 법원+계(예: "수원지방법원 9계"). 사건번호는 법원마다 겹칠 수 있어
+   * 이 값으로 구분한다. */
+  court?: string;
   address: string;
   totalUnits: number;
   usage: string;
