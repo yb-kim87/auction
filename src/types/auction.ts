@@ -22,6 +22,8 @@ export interface AuctionItem {
   /** 담당 법원+계(예: "수원지방법원 9계"). 사건번호는 법원마다 겹칠 수 있어
    * 이 값으로 구분한다. */
   court?: string;
+  /** 탱크옥션 사건상태 원문(진행/변경/취하/매각 등). */
+  caseState?: string;
   address: string;
   totalUnits: number;
   usage: string;

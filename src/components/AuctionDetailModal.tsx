@@ -100,6 +100,25 @@ function buildingRegistryClassName(text: string): string {
   return trimmed !== "이상없음" ? "text-red-500 font-semibold" : "text-emerald-600";
 }
 
+/** 취하·변경 등 사건상태를 눈에 띄게 표시 — "취하"는 사건 자체가 종결되어
+ * 더 이상 진행되지 않음을, "변경"은 매각기일이 다시 잡힐 수 있음을 뜻한다. */
+function CaseStateBadge({ caseState }: { caseState?: string }) {
+  const trimmed = (caseState ?? "").trim();
+  if (trimmed !== "취하" && trimmed !== "변경") return null;
+  const isWithdrawn = trimmed === "취하";
+  return (
+    <span
+      className={`shrink-0 px-1.5 py-0.5 rounded-sm text-[11px] font-semibold ${
+        isWithdrawn
+          ? "bg-destructive/10 text-destructive"
+          : "bg-amber-100 text-amber-700"
+      }`}
+    >
+      {trimmed}
+    </span>
+  );
+}
+
 type HeaderEditKey =
   | "auctionNo"
   | "address"
@@ -1722,6 +1741,7 @@ export function AuctionDetailModal({
             {preview.court && (
               <span className="text-muted-foreground shrink-0">({preview.court})</span>
             )}
+            <CaseStateBadge caseState={preview.caseState} />
             {preview.isUpdated && <UpdatedBadge />}
           </div>
 
@@ -1806,6 +1826,7 @@ export function AuctionDetailModal({
                   ({preview.court})
                 </span>
               )}
+              <CaseStateBadge caseState={preview.caseState} />
               {preview.isUpdated && <UpdatedBadge variant="onDark" />}
             </p>
             <div className="flex items-center gap-1 shrink-0">
