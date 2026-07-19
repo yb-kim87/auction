@@ -889,7 +889,11 @@ type RegistryRow = {
   cancelled: boolean;
 };
 
-const REGISTRY_HEADER_RE = /^([갑을])\((\d+)\)\s+(\d{4}-\d{2}-\d{2})$/;
+// 헤더 뒤에 날짜만 오고 줄이 끝나는 형태("갑(1) 2023-03-31")와, 같은 줄에 곧바로
+// 권리종류·권리자 등 본문이 이어붙는 형태("갑(1) 2023-03-31 소유권보존 ...") 둘 다
+// 지원한다 — 크롤러 원본이 물건마다 줄바꿈 유무가 달라(2026-07-20 실측: "2025타경4041"
+// 은 본문이 헤더와 한 줄에 붙어 있어 종전 정규식(줄 끝 고정)이 통째로 못 읽었음).
+const REGISTRY_HEADER_RE = /^([갑을])\((\d+)\)\s+(\d{4}-\d{2}-\d{2})\s*(.*)$/;
 
 function parseRegistryDetail(raw: string): RegistryRow[] {
   const lines = raw
@@ -907,9 +911,8 @@ function parseRegistryDetail(raw: string): RegistryRow[] {
       block = [];
       return;
     }
-    const [, section, seq, date] = headerMatch;
-    const bodyText = block
-      .slice(1)
+    const [, section, seq, date, restOfFirstLine] = headerMatch;
+    const bodyText = [restOfFirstLine, ...block.slice(1)]
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
@@ -938,8 +941,12 @@ function parseRegistryDetail(raw: string): RegistryRow[] {
     } else {
       isClaimAmount = /청구금액/.test(rest);
       rest = rest.replace(/청구금액\s*/, "");
-      const amountMatch = rest.match(/([\d,]{4,})/);
-      amount = amountMatch ? amountMatch[1] : "";
+      // 괄호 안 숫자(사건번호 "(2025타경4041)" 등)는 채권금액이 아니므로 매칭에서
+      // 제외한다 — 괄호 구간을 같은 길이의 안전 문자로 임시 마스킹해 인덱스를
+      // 유지한 채 찾고, 실제 표시(holder/note)는 원본 rest에서 그대로 자른다.
+      const masked = rest.replace(/\([^)]*\)/g, (m) => "#".repeat(m.length));
+      const amountMatch = masked.match(/([\d,]{4,})/);
+      amount = amountMatch ? amountMatch[0] : "";
       if (amountMatch && amountMatch.index != null) {
         holder = rest.slice(0, amountMatch.index).trim();
         note = rest.slice(amountMatch.index + amountMatch[0].length).trim();
