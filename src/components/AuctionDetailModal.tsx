@@ -2111,7 +2111,7 @@ export function AuctionDetailModal({
                                 {tag.label}
                               </p>
                               {tag.description && (
-                                <p className="text-[0.72rem] text-purple-900/60 mt-1 leading-relaxed">
+                                <p className="text-[0.72rem] text-purple-900/60 mt-1 leading-relaxed whitespace-pre-wrap">
                                   {tag.description}
                                 </p>
                               )}
