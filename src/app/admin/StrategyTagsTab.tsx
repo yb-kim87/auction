@@ -11,6 +11,7 @@ import {
   createStrategyLabel,
   updateStrategyLabel,
   removeStrategyLabel,
+  refineStrategyDescription,
   backfillTagRules,
   type TagRule,
   type StrategyRule,
@@ -39,6 +40,8 @@ export function StrategyTagsTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<StrategyForm>(EMPTY_FORM);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [refiningDescription, setRefiningDescription] = useState(false);
+  const [refiningEditDescription, setRefiningEditDescription] = useState(false);
 
   const [labelForm, setLabelForm] = useState(EMPTY_LABEL_FORM);
   const [creatingLabel, setCreatingLabel] = useState(false);
@@ -92,6 +95,52 @@ export function StrategyTagsTab() {
       setMessage(err instanceof Error ? err.message : "생성 실패");
     } finally {
       setCreating(false);
+    }
+  }
+
+  /** 입력한 설명 초안을 AI가 다듬어 즉시 textarea에 채운다(저장은 안 함 —
+   * 결과를 확인·수정한 뒤 기존 "전략 추가" 버튼으로 승인). */
+  async function handleRefineDescription() {
+    if (!form.description.trim()) {
+      setMessage("먼저 설명 초안을 입력해 주세요.");
+      return;
+    }
+    const label = labelById.get(form.labelId)?.label ?? "";
+    setRefiningDescription(true);
+    setMessage(null);
+    try {
+      const { description } = await refineStrategyDescription({
+        label,
+        rawText: form.description,
+      });
+      setForm((f) => ({ ...f, description }));
+      setMessage("AI가 설명을 다듬었습니다. 확인 후 「전략 추가」를 눌러 승인해 주세요.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "AI 정리 실패");
+    } finally {
+      setRefiningDescription(false);
+    }
+  }
+
+  async function handleRefineEditDescription() {
+    if (!editForm.description.trim()) {
+      setMessage("먼저 설명 초안을 입력해 주세요.");
+      return;
+    }
+    const label = labelById.get(editForm.labelId)?.label ?? "";
+    setRefiningEditDescription(true);
+    setMessage(null);
+    try {
+      const { description } = await refineStrategyDescription({
+        label,
+        rawText: editForm.description,
+      });
+      setEditForm((f) => ({ ...f, description }));
+      setMessage("AI가 설명을 다듬었습니다. 확인 후 「저장」을 눌러 승인해 주세요.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "AI 정리 실패");
+    } finally {
+      setRefiningEditDescription(false);
     }
   }
 
@@ -415,6 +464,14 @@ export function StrategyTagsTab() {
         />
         <button
           type="button"
+          onClick={() => void handleRefineDescription()}
+          disabled={refiningDescription}
+          className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border bg-card disabled:opacity-50"
+        >
+          {refiningDescription ? "AI가 다듬는 중..." : "AI로 설명 다듬기"}
+        </button>
+        <button
+          type="button"
           onClick={() => void handleCreate()}
           disabled={creating}
           className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
@@ -506,6 +563,14 @@ export function StrategyTagsTab() {
                             rows={2}
                             className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card resize-y"
                           />
+                          <button
+                            type="button"
+                            onClick={() => void handleRefineEditDescription()}
+                            disabled={refiningEditDescription}
+                            className="px-3 py-1.5 text-xs font-medium rounded-sm border border-border bg-card disabled:opacity-50"
+                          >
+                            {refiningEditDescription ? "AI가 다듬는 중..." : "AI로 설명 다듬기"}
+                          </button>
                         </div>
                         <div className="flex gap-2 mt-3">
                           <button
