@@ -10,6 +10,7 @@ import {
   fetchRecommendations,
   fetchMyProfile,
   fetchFavoriteIds,
+  fetchStrategyLabelOptions,
   addFavorite,
   removeFavorite,
   logoutUser,
@@ -95,6 +96,7 @@ type RecommendFilters = {
   maxFailureRate: string;
   favoritesOnly: boolean;
   progressStatus: string;
+  strategyLabel: string;
 };
 
 const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
@@ -103,6 +105,7 @@ const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
   maxFailureRate: "",
   favoritesOnly: false,
   progressStatus: PROGRESS_STATUS_LABELS.active,
+  strategyLabel: "",
 };
 
 // favoritesOnly는 토글 즉시 반영을 위해 서버로 보내지 않고 클라이언트에서만
@@ -116,6 +119,7 @@ function toApiFilters(
   maxFailureRate?: string;
   progressStatus?: "all" | "active" | "ended";
   search?: string;
+  strategyLabel?: string;
 } {
   return {
     city: filters.city || undefined,
@@ -123,6 +127,7 @@ function toApiFilters(
     maxFailureRate: filters.maxFailureRate || undefined,
     progressStatus: progressLabelToStatus(filters.progressStatus),
     search: searchText.trim() || undefined,
+    strategyLabel: filters.strategyLabel || undefined,
   };
 }
 
@@ -141,11 +146,13 @@ function matchesRecommendFilters(
 function RecommendFilterModal({
   filters,
   favoriteCount,
+  strategyLabelOptions,
   onClose,
   onApply,
 }: {
   filters: RecommendFilters;
   favoriteCount: number;
+  strategyLabelOptions: string[];
   onClose: () => void;
   onApply: (next: RecommendFilters) => void;
 }) {
@@ -154,6 +161,7 @@ function RecommendFilterModal({
   const [maxFailureRate, setMaxFailureRate] = useState(filters.maxFailureRate);
   const [favoritesOnly, setFavoritesOnly] = useState(filters.favoritesOnly);
   const [progressStatus, setProgressStatus] = useState(filters.progressStatus);
+  const [strategyLabel, setStrategyLabel] = useState(filters.strategyLabel);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
@@ -229,6 +237,22 @@ function RecommendFilterModal({
             </select>
           </label>
 
+          {strategyLabelOptions.length > 0 && (
+            <label className="block text-sm space-y-1.5">
+              <span className="text-muted-foreground text-[13px]">투자 전략</span>
+              <select
+                value={strategyLabel}
+                onChange={(e) => setStrategyLabel(e.target.value)}
+                className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">전체</option>
+                {strategyLabelOptions.map((label) => (
+                  <option key={label} value={label}>{label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"
@@ -250,6 +274,7 @@ function RecommendFilterModal({
               setMaxFailureRate("");
               setFavoritesOnly(false);
               setProgressStatus(PROGRESS_STATUS_LABELS.active);
+              setStrategyLabel("");
             }}
             className="px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
           >
@@ -257,7 +282,9 @@ function RecommendFilterModal({
           </button>
           <button
             type="button"
-            onClick={() => onApply({ city, propType, maxFailureRate, favoritesOnly, progressStatus })}
+            onClick={() =>
+              onApply({ city, propType, maxFailureRate, favoritesOnly, progressStatus, strategyLabel })
+            }
             className="px-5 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
           >
             필터 적용
@@ -962,6 +989,7 @@ export default function HomePage() {
   const [sortBy, setSortBy] = useState<SortOption>("입찰기일순");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+  const [strategyLabelOptions, setStrategyLabelOptions] = useState<string[]>([]);
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -978,6 +1006,9 @@ export default function HomePage() {
       .catch(() => {});
     fetchFavoriteIds()
       .then((ids) => setFavoriteIds(new Set(ids)))
+      .catch(() => {});
+    fetchStrategyLabelOptions()
+      .then((items) => setStrategyLabelOptions(items.map((item) => item.label)))
       .catch(() => {});
   }, []);
 
@@ -1405,6 +1436,7 @@ export default function HomePage() {
         <RecommendFilterModal
           filters={filters}
           favoriteCount={favoriteIds.size}
+          strategyLabelOptions={strategyLabelOptions}
           onClose={() => setShowFilterModal(false)}
           onApply={(next) => {
             setFilters(next);

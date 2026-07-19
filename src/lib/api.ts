@@ -629,8 +629,8 @@ export type StrategyRule = {
   id: string;
   strategyCode: string;
   requiredFactCodes: string[];
-  /** 연결된 노출 라벨(StrategyLabel)의 id. 라벨은 여러 전략이 동시에 재사용 가능. */
-  labelId: string | null;
+  /** 연결된 노출 라벨(StrategyLabel) id 목록. 전략 하나가 여러 라벨(배지)을 동시에 가질 수 있음. */
+  labelIds: string[];
   description: string;
   active: boolean;
   sortOrder: number;
@@ -831,7 +831,7 @@ export async function fetchStrategyRules(): Promise<StrategyRule[]> {
 export async function createStrategyRule(input: {
   strategyCode: string;
   requiredFactCodes: string[];
-  labelId?: string;
+  labelIds?: string[];
   description?: string;
   active?: boolean;
   sortOrder?: number;
@@ -853,7 +853,7 @@ export async function updateStrategyRule(
   input: Partial<{
     strategyCode: string;
     requiredFactCodes: string[];
-    labelId: string;
+    labelIds: string[];
     description: string;
     active: boolean;
     sortOrder: number;
@@ -1125,7 +1125,23 @@ export type RecommendationFilters = {
   favoritesOnly?: boolean;
   progressStatus?: "all" | "active" | "ended";
   search?: string;
+  /** 사용자에게 노출되는 전략 라벨(예: "경쟁이 적은 투자")로 필터링. */
+  strategyLabel?: string;
 };
+
+/** 추천 물건 화면의 라벨 필터 드롭박스를 채울 전략 라벨 전체 목록. */
+export async function fetchStrategyLabelOptions(): Promise<
+  Array<{ id: string; label: string }>
+> {
+  const res = await fetch(`${API_BASE}/recommendations/strategy-labels`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "라벨 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
 
 export async function fetchRecommendations(
   budget?: string,
@@ -1165,6 +1181,7 @@ export async function fetchRecommendations(
   if (filters?.favoritesOnly) query.set("favoritesOnly", "true");
   if (filters?.progressStatus) query.set("progressStatus", filters.progressStatus);
   if (filters?.search) query.set("search", filters.search);
+  if (filters?.strategyLabel) query.set("strategyLabel", filters.strategyLabel);
   const qs = query.toString();
   const res = await fetch(`${API_BASE}/recommendations${qs ? `?${qs}` : ""}`, {
     cache: "no-store",

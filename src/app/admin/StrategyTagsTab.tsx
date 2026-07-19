@@ -21,11 +21,16 @@ import {
 type StrategyForm = {
   strategyCode: string;
   requiredFactCodes: string[];
-  labelId: string;
+  labelIds: string[];
   description: string;
 };
 
-const EMPTY_FORM: StrategyForm = { strategyCode: "", requiredFactCodes: [], labelId: "", description: "" };
+const EMPTY_FORM: StrategyForm = {
+  strategyCode: "",
+  requiredFactCodes: [],
+  labelIds: [],
+  description: "",
+};
 const EMPTY_LABEL_FORM = { label: "" };
 
 export function StrategyTagsTab() {
@@ -74,9 +79,27 @@ export function StrategyTagsTab() {
     }));
   }
 
+  function toggleFormLabel(labelId: string) {
+    setForm((f) => ({
+      ...f,
+      labelIds: f.labelIds.includes(labelId)
+        ? f.labelIds.filter((id) => id !== labelId)
+        : [...f.labelIds, labelId],
+    }));
+  }
+
+  function toggleEditLabel(labelId: string) {
+    setEditForm((f) => ({
+      ...f,
+      labelIds: f.labelIds.includes(labelId)
+        ? f.labelIds.filter((id) => id !== labelId)
+        : [...f.labelIds, labelId],
+    }));
+  }
+
   async function handleCreate() {
-    if (!form.strategyCode.trim() || form.requiredFactCodes.length === 0 || !form.labelId) {
-      setMessage("전략 코드, 조건, 노출 라벨을 모두 선택해 주세요.");
+    if (!form.strategyCode.trim() || form.requiredFactCodes.length === 0 || form.labelIds.length === 0) {
+      setMessage("전략 코드, 조건, 노출 라벨을 하나 이상 선택해 주세요.");
       return;
     }
     setCreating(true);
@@ -85,7 +108,7 @@ export function StrategyTagsTab() {
       await createStrategyRule({
         strategyCode: form.strategyCode,
         requiredFactCodes: form.requiredFactCodes,
-        labelId: form.labelId,
+        labelIds: form.labelIds,
         description: form.description,
       });
       setForm(EMPTY_FORM);
@@ -105,7 +128,7 @@ export function StrategyTagsTab() {
       setMessage("먼저 설명 초안을 입력해 주세요.");
       return;
     }
-    const label = labelById.get(form.labelId)?.label ?? "";
+    const label = form.labelIds.map((id) => labelById.get(id)?.label).filter(Boolean).join(", ");
     setRefiningDescription(true);
     setMessage(null);
     try {
@@ -127,7 +150,7 @@ export function StrategyTagsTab() {
       setMessage("먼저 설명 초안을 입력해 주세요.");
       return;
     }
-    const label = labelById.get(editForm.labelId)?.label ?? "";
+    const label = editForm.labelIds.map((id) => labelById.get(id)?.label).filter(Boolean).join(", ");
     setRefiningEditDescription(true);
     setMessage(null);
     try {
@@ -160,7 +183,7 @@ export function StrategyTagsTab() {
     setEditForm({
       strategyCode: rule.strategyCode,
       requiredFactCodes: [...rule.requiredFactCodes],
-      labelId: rule.labelId ?? "",
+      labelIds: [...rule.labelIds],
       description: rule.description,
     });
     setMessage(null);
@@ -181,8 +204,12 @@ export function StrategyTagsTab() {
   }
 
   async function handleSaveEdit(id: string) {
-    if (!editForm.strategyCode.trim() || editForm.requiredFactCodes.length === 0 || !editForm.labelId) {
-      setMessage("전략 코드, 조건, 노출 라벨을 모두 선택해 주세요.");
+    if (
+      !editForm.strategyCode.trim() ||
+      editForm.requiredFactCodes.length === 0 ||
+      editForm.labelIds.length === 0
+    ) {
+      setMessage("전략 코드, 조건, 노출 라벨을 하나 이상 선택해 주세요.");
       return;
     }
     setSavingEdit(true);
@@ -191,7 +218,7 @@ export function StrategyTagsTab() {
       await updateStrategyRule(id, {
         strategyCode: editForm.strategyCode,
         requiredFactCodes: editForm.requiredFactCodes,
-        labelId: editForm.labelId,
+        labelIds: editForm.labelIds,
         description: editForm.description,
       });
       cancelEdit();
@@ -294,7 +321,7 @@ export function StrategyTagsTab() {
         <h2 className="text-lg font-bold text-foreground">전략 관리</h2>
         <p className="text-sm text-muted-foreground mt-1">
           조건 조합(모두 만족 시)으로 전략 코드를 부여하고, 그 코드를 사용자에게
-          보여줄 라벨과 연결합니다. 물건 상세페이지에는 여기서 만든{" "}
+          보여줄 라벨(여러 개 선택 가능)과 연결합니다. 물건 상세페이지에는 여기서 만든{" "}
           <b className="text-foreground">라벨·설명만</b> 노출되고 조건 자체는 보이지
           않습니다.
         </p>
@@ -310,8 +337,8 @@ export function StrategyTagsTab() {
         <p className="text-sm font-semibold text-foreground">노출 라벨 관리</p>
         <p className="text-xs text-muted-foreground">
           전략에 연결할 사용자 노출 라벨(짧은 배지 문구)을 미리 등록해두면, 아래
-          "전략 추가"에서 드롭박스로 골라 쓸 수 있습니다. 설명은 전략을 추가할 때
-          그때그때 작성합니다.
+          "전략 추가"에서 여러 개를 동시에 선택해 쓸 수 있습니다. 설명은 전략을
+          추가할 때 그때그때 작성합니다.
         </p>
         <input
           type="text"
@@ -375,7 +402,7 @@ export function StrategyTagsTab() {
                       </tr>
                     );
                   }
-                  const linkedRules = strategyRules.filter((r) => r.labelId === label.id);
+                  const linkedRules = strategyRules.filter((r) => r.labelIds.includes(label.id));
                   return (
                     <tr key={label.id} className="border-b border-border last:border-b-0">
                       <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap">
@@ -443,18 +470,33 @@ export function StrategyTagsTab() {
             ))}
           </div>
         </div>
-        <select
-          value={form.labelId}
-          onChange={(e) => setForm((f) => ({ ...f, labelId: e.target.value }))}
-          className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
-        >
-          <option value="">노출 라벨 선택</option>
-          {labels.map((label) => (
-            <option key={label.id} value={label.id}>
-              {label.label}
-            </option>
-          ))}
-        </select>
+        <div>
+          <p className="text-xs text-muted-foreground mb-1.5">
+            노출 라벨(여러 개 선택 가능 — 물건 상세에 배지로 모두 표시됩니다).
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {labels.length === 0 ? (
+              <span className="text-xs text-muted-foreground">
+                먼저 위에서 라벨을 하나 이상 등록해 주세요.
+              </span>
+            ) : (
+              labels.map((label) => (
+                <button
+                  key={label.id}
+                  type="button"
+                  onClick={() => toggleFormLabel(label.id)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    form.labelIds.includes(label.id)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-muted-foreground border-border hover:bg-secondary/50"
+                  }`}
+                >
+                  {label.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
         <textarea
           placeholder="설명 (예: 세금 계산을 어려워하는 입찰자가 적어 경쟁이 낮아질 수 있습니다.)"
           value={form.description}
@@ -481,27 +523,31 @@ export function StrategyTagsTab() {
       </div>
 
       <div className="border border-border rounded-sm overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-sm border-collapse table-fixed">
+          <colgroup>
+            <col className="w-[14%]" />
+            <col className="w-[16%]" />
+            <col className="w-[16%]" />
+            <col className="w-[28%]" />
+            <col className="w-[8%]" />
+            <col className="w-[9%]" />
+            <col className="w-[9%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
-              <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">
-                전략 코드 · 라벨
-              </th>
-              <th className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">
-                필요한 조건
-              </th>
+              <th className="px-3 py-2.5 font-semibold text-foreground">전략 코드</th>
+              <th className="px-3 py-2.5 font-semibold text-foreground">라벨</th>
+              <th className="px-3 py-2.5 font-semibold text-foreground">필요한 조건</th>
               <th className="px-3 py-2.5 font-semibold text-foreground">설명</th>
-              <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
-                활성
-              </th>
-              <th className="px-4 py-2.5 text-center whitespace-nowrap w-16">수정</th>
-              <th className="px-4 py-2.5 w-16" />
+              <th className="px-3 py-2.5 font-semibold text-foreground text-center">활성</th>
+              <th className="px-3 py-2.5 text-center">수정</th>
+              <th className="px-3 py-2.5 text-center">삭제</th>
             </tr>
           </thead>
           <tbody>
             {strategyRules.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                <td colSpan={7} className="px-4 py-6 text-center text-sm text-muted-foreground">
                   등록된 전략이 없습니다.
                 </td>
               </tr>
@@ -510,7 +556,7 @@ export function StrategyTagsTab() {
                 if (editingId === rule.id) {
                   return (
                     <tr key={rule.id} className="border-b border-border last:border-b-0 bg-secondary/20">
-                      <td className="px-4 py-3 align-middle" colSpan={6}>
+                      <td className="px-3 py-3 align-top" colSpan={7}>
                         <div className="space-y-2">
                           <input
                             type="text"
@@ -542,18 +588,27 @@ export function StrategyTagsTab() {
                               ))}
                             </div>
                           </div>
-                          <select
-                            value={editForm.labelId}
-                            onChange={(e) => setEditForm((f) => ({ ...f, labelId: e.target.value }))}
-                            className="w-full px-2 py-2 text-sm border border-border rounded-sm bg-card"
-                          >
-                            <option value="">노출 라벨 선택</option>
-                            {labels.map((label) => (
-                              <option key={label.id} value={label.id}>
-                                {label.label}
-                              </option>
-                            ))}
-                          </select>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1.5">
+                              노출 라벨(여러 개 선택 가능).
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {labels.map((label) => (
+                                <button
+                                  key={label.id}
+                                  type="button"
+                                  onClick={() => toggleEditLabel(label.id)}
+                                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                    editForm.labelIds.includes(label.id)
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-card text-muted-foreground border-border hover:bg-secondary/50"
+                                  }`}
+                                >
+                                  {label.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                           <textarea
                             placeholder="설명"
                             value={editForm.description}
@@ -594,22 +649,37 @@ export function StrategyTagsTab() {
                   );
                 }
 
-                const label = rule.labelId ? labelById.get(rule.labelId) : undefined;
+                const ruleLabels = rule.labelIds
+                  .map((id) => labelById.get(id))
+                  .filter((l): l is StrategyLabel => Boolean(l));
                 return (
                   <tr key={rule.id} className="border-b border-border last:border-b-0">
-                    <td className="px-4 py-3 align-middle whitespace-nowrap">
-                      <p className="font-semibold text-foreground">{rule.strategyCode}</p>
-                      {label && (
-                        <p className="text-[0.68rem] text-muted-foreground mt-0.5">"{label.label}"</p>
+                    <td className="px-3 py-3 align-top">
+                      <p className="font-semibold text-foreground break-words">{rule.strategyCode}</p>
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      {ruleLabels.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {ruleLabels.map((label) => (
+                            <span
+                              key={label.id}
+                              className="inline-flex px-2 py-0.5 text-[0.7rem] font-medium rounded-full bg-secondary/60 text-foreground/80"
+                            >
+                              {label.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </td>
-                    <td className="px-3 py-3 align-middle text-muted-foreground">
+                    <td className="px-3 py-3 align-top text-muted-foreground break-words">
                       {rule.requiredFactCodes.join(" + ")}
                     </td>
-                    <td className="px-3 py-3 align-middle text-muted-foreground">
+                    <td className="px-3 py-3 align-top text-muted-foreground break-words">
                       {rule.description || "-"}
                     </td>
-                    <td className="px-3 py-3 align-middle text-center">
+                    <td className="px-3 py-3 align-top text-center">
                       <input
                         type="checkbox"
                         checked={rule.active}
@@ -617,7 +687,7 @@ export function StrategyTagsTab() {
                         className="w-4 h-4"
                       />
                     </td>
-                    <td className="px-4 py-3 align-middle text-center">
+                    <td className="px-3 py-3 align-top text-center">
                       <button
                         type="button"
                         onClick={() => startEdit(rule)}
@@ -626,7 +696,7 @@ export function StrategyTagsTab() {
                         수정
                       </button>
                     </td>
-                    <td className="px-4 py-3 align-middle text-right">
+                    <td className="px-3 py-3 align-top text-center">
                       <button
                         type="button"
                         onClick={() => void handleDelete(rule)}
