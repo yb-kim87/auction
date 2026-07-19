@@ -436,6 +436,7 @@ type CollectResult = {
   excluded?: number;
   deduped?: number;
   naverRefresh?: number;
+  beforeResultTime?: number;
 };
 
 // 즐겨찾기/관심조건을 적용할 때 기준이 되는 "조건 없음" 템플릿. 화면에

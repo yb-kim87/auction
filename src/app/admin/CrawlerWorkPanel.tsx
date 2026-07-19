@@ -19,14 +19,16 @@ import {
   type CrawlerUrlEntry,
 } from "@/lib/api";
 import { CrawlerAlgorithmTab } from "./CrawlerAlgorithmTab";
+import { CrawlerDailyJobTab } from "./CrawlerDailyJobTab";
 import { CrawlerProfitTab } from "./CrawlerProfitTab";
 import { CrawlerSearchPanel } from "./CrawlerSearchPanel";
 
-type CrawlerSubTab = "work" | "algorithm" | "profit";
+type CrawlerSubTab = "work" | "algorithm" | "daily" | "profit";
 
 const SUB_TABS: { id: CrawlerSubTab; label: string }[] = [
   { id: "work", label: "작업창" },
   { id: "algorithm", label: "알고리즘" },
+  { id: "daily", label: "매일 작업" },
   { id: "profit", label: "수익계산" },
 ];
 
@@ -239,6 +241,7 @@ export function CrawlerWorkPanel() {
       </div>
 
       {subTab === "algorithm" && <CrawlerAlgorithmTab />}
+      {subTab === "daily" && <CrawlerDailyJobTab />}
       {subTab === "profit" && <CrawlerProfitTab />}
 
       {subTab === "work" && (
@@ -462,6 +465,9 @@ export function CrawlerWorkPanel() {
               if (result.deduped) parts.push(`목록 중복 ${result.deduped}건 제외`);
               if (result.naverRefresh) {
                 parts.push(`네이버 미수집 ${result.naverRefresh}건 포함`);
+              }
+              if (result.beforeResultTime) {
+                parts.push(`당일 5시 이전 제외 ${result.beforeResultTime}건`);
               }
               setCollectSummary(
                 result.urls.length === 0

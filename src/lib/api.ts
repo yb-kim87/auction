@@ -1335,10 +1335,19 @@ export type CrawlerAlgorithmConfig = {
  */
 export type CrawlerVersion = "v1" | "v2" | "v3";
 
+/** 매일 예약 작업의 관심조건 목록에서 선택할 수 있는 특수 항목 — 탱크옥션 검색이
+ * 아니라, 입찰기일이 오늘인 기존 DB 물건을 재조회해 낙찰 여부/변경사항을 갱신한다. */
+export const TODAY_BID_DATE_PRESET_ID = "__TODAY_BID_DATE__";
+export const TODAY_BID_DATE_PRESET_LABEL = "당일물건 조회(낙찰/변경 갱신)";
+
 export type CrawlerScheduleConfig = {
   enabled: boolean;
   time: string;
+  /** @deprecated 하위호환용 단일 프리셋. 새 UI는 presets(배열)를 사용한다. */
   preset: string;
+  /** 매일 예약 작업이 순서대로 수집·조회할 관심조건(저장된 검색조건) 이름 목록.
+   * 비어 있으면 preset(단일)을 사용한다. */
+  presets?: string[];
   repeatAfterCollect: boolean;
   excludeDuplicates: boolean;
   repeatDaily: boolean;
@@ -1581,6 +1590,7 @@ export async function crawlerCollectUrls(
     excluded?: number;
     deduped?: number;
     naverRefresh?: number;
+    beforeResultTime?: number;
   }>(res);
 }
 
