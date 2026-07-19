@@ -60,7 +60,7 @@ export function StrategyTagsTab() {
 
   useEffect(load, []);
 
-  const labelByStrategyCode = new Map(labels.filter((l) => l.strategyCode).map((l) => [l.strategyCode, l]));
+  const labelById = new Map(labels.map((l) => [l.id, l]));
 
   function toggleFactCode(code: string) {
     setForm((f) => ({
@@ -107,12 +107,11 @@ export function StrategyTagsTab() {
   }
 
   function startEdit(rule: StrategyRule) {
-    const label = labelByStrategyCode.get(rule.strategyCode);
     setEditingId(rule.id);
     setEditForm({
       strategyCode: rule.strategyCode,
       requiredFactCodes: [...rule.requiredFactCodes],
-      labelId: label?.id ?? "",
+      labelId: rule.labelId ?? "",
       description: rule.description,
     });
     setMessage(null);
@@ -287,7 +286,7 @@ export function StrategyTagsTab() {
               <thead>
                 <tr className="border-b border-border bg-secondary/30 text-left">
                   <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">라벨</th>
-                  <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">
+                  <th className="px-3 py-2 font-semibold text-foreground">
                     연결된 전략
                   </th>
                   <th className="px-3 py-2 text-center whitespace-nowrap w-16">수정</th>
@@ -327,13 +326,16 @@ export function StrategyTagsTab() {
                       </tr>
                     );
                   }
+                  const linkedRules = strategyRules.filter((r) => r.labelId === label.id);
                   return (
                     <tr key={label.id} className="border-b border-border last:border-b-0">
                       <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap">
                         {label.label}
                       </td>
-                      <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">
-                        {label.strategyCode || "-"}
+                      <td className="px-3 py-2 align-middle text-muted-foreground">
+                        {linkedRules.length > 0
+                          ? linkedRules.map((r) => r.strategyCode).join(", ")
+                          : "-"}
                       </td>
                       <td className="px-3 py-2 align-middle text-center">
                         <button
@@ -527,7 +529,7 @@ export function StrategyTagsTab() {
                   );
                 }
 
-                const label = labelByStrategyCode.get(rule.strategyCode);
+                const label = rule.labelId ? labelById.get(rule.labelId) : undefined;
                 return (
                   <tr key={rule.id} className="border-b border-border last:border-b-0">
                     <td className="px-4 py-3 align-middle whitespace-nowrap">

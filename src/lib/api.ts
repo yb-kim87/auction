@@ -629,6 +629,8 @@ export type StrategyRule = {
   id: string;
   strategyCode: string;
   requiredFactCodes: string[];
+  /** 연결된 노출 라벨(StrategyLabel)의 id. 라벨은 여러 전략이 동시에 재사용 가능. */
+  labelId: string | null;
   description: string;
   active: boolean;
   sortOrder: number;
@@ -636,7 +638,6 @@ export type StrategyRule = {
 
 export type StrategyLabel = {
   id: string;
-  strategyCode: string;
   label: string;
   icon: string;
 };
