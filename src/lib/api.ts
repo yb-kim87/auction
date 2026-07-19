@@ -571,7 +571,7 @@ export async function fetchLoanPolicies(): Promise<LoanPolicy[]> {
 
 export async function updateLoanPolicy(
   id: string,
-  input: { loanRatio: number; appraisalRatio: number },
+  input: { loanRatio: number; appraisalRatio: number; loanUnavailable: boolean },
 ): Promise<LoanPolicy> {
   const res = await fetch(`${API_BASE}/loan-policies/${id}`, {
     method: "PATCH",

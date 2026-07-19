@@ -154,15 +154,22 @@ export function LoanPolicyTab() {
     setMessage(null);
   }
 
+  function toggleUnavailable(id: string, checked: boolean) {
+    setPolicies((prev) => prev.map((p) => (p.id === id ? { ...p, loanUnavailable: checked } : p)));
+    setMessage(null);
+  }
+
   function isDirty(policy: LoanPolicy): boolean {
     const original = originalPolicies[policy.id];
     if (!original) return false;
+    if (original.loanUnavailable !== policy.loanUnavailable) return true;
+    if (policy.loanUnavailable) return false;
     return (
       original.loanRatio !== policy.loanRatio || original.appraisalRatio !== policy.appraisalRatio
     );
   }
 
-  const dirtyPolicies = policies.filter((p) => !p.loanUnavailable && isDirty(p));
+  const dirtyPolicies = policies.filter(isDirty);
 
   async function handleSaveAll() {
     if (dirtyPolicies.length === 0) return;
@@ -174,6 +181,7 @@ export function LoanPolicyTab() {
           updateLoanPolicy(policy.id, {
             loanRatio: policy.loanRatio,
             appraisalRatio: policy.appraisalRatio,
+            loanUnavailable: policy.loanUnavailable,
           }),
         ),
       );
@@ -370,6 +378,9 @@ export function LoanPolicyTab() {
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
               <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">정책</th>
+              <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
+                대출불가
+              </th>
               <th className="px-3 py-2.5 font-semibold text-foreground text-right whitespace-nowrap w-28">
                 감정가 비율
               </th>
@@ -405,6 +416,13 @@ export function LoanPolicyTab() {
                       ? "대출 불가 (비율 지정 불가)"
                       : "min(감정가비율, 낙찰가비율) 중 낮은 쪽이 최종 적용"}
                   </p>
+                </td>
+                <td className="px-3 py-3 text-center align-middle">
+                  <input
+                    type="checkbox"
+                    checked={policy.loanUnavailable}
+                    onChange={(e) => toggleUnavailable(policy.id, e.target.checked)}
+                  />
                 </td>
                 {policy.loanUnavailable ? (
                   <td colSpan={2} className="px-4 py-3 text-right align-middle">
