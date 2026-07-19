@@ -1265,6 +1265,8 @@ export type CrawlerSearchConfig = {
   appraisalMin: string;
   appraisalMax: string;
   preserveRegistryFrom: string;
+  /** 보존등기 상한 연도(탱크옥션 prsvEnd, 예: "2005" = ~2005년, "구축" 조건의 핵심). */
+  preserveRegistryTo?: string;
   excludeSpecialConditions: string[];
   /** 특수조건 선택 항목들을 어떻게 적용할지. 탱크옥션 splSrchType과 동일.
    * 미지정/undefined면 "exclude"(선택 제외, 기존 동작)로 취급한다. */
@@ -1288,6 +1290,10 @@ export type CrawlerSearchConfig = {
   buildingAreaMax?: string;
   totalFloorMin?: string;
   totalFloorMax?: string;
+  /** 해당층(물건이 위치한 층) 하한 — 순수 층수(예: "1"). "저층 단타" 조건의 핵심. */
+  objectFloorMin?: string;
+  /** 해당층 상한(순수 층수, 예: "3"). */
+  objectFloorMax?: string;
   failCountMin?: string;
   failCountMax?: string;
   bidDateFrom?: string;

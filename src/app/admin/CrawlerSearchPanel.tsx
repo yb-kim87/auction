@@ -1013,17 +1013,13 @@ export function CrawlerSearchPanel({
               onMaxChange={(v) => setSearch({ ...search, landAreaMax: v })}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
-              <span className="text-muted-foreground">보존등기 (년)</span>
-              <input
-                value={search.preserveRegistryFrom}
-                onChange={(e) =>
-                  setSearch({ ...search, preserveRegistryFrom: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-border rounded-sm bg-card"
-                placeholder="2012"
-              />
-            </div>
+            <RangeInputRow
+              label="보존등기 (년)"
+              minValue={search.preserveRegistryFrom}
+              maxValue={search.preserveRegistryTo ?? ""}
+              onMinChange={(v) => setSearch({ ...search, preserveRegistryFrom: v })}
+              onMaxChange={(v) => setSearch({ ...search, preserveRegistryTo: v })}
+            />
 
             <RangeInputRow
               label="건물면적(㎡)"
@@ -1040,6 +1036,14 @@ export function CrawlerSearchPanel({
               onMinChange={(v) => setSearch({ ...search, totalFloorMin: v })}
               onMaxChange={(v) => setSearch({ ...search, totalFloorMax: v })}
               options={TOTAL_FLOOR_OPTIONS}
+            />
+
+            <RangeInputRow
+              label="해당층"
+              minValue={search.objectFloorMin ?? ""}
+              maxValue={search.objectFloorMax ?? ""}
+              onMinChange={(v) => setSearch({ ...search, objectFloorMin: v })}
+              onMaxChange={(v) => setSearch({ ...search, objectFloorMax: v })}
             />
 
             <RangeSelectRow
