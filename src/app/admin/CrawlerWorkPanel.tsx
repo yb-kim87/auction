@@ -494,7 +494,7 @@ export function CrawlerWorkPanel() {
             }}
           />
 
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 px-2 text-sm">
