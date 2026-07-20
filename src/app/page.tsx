@@ -21,6 +21,7 @@ import {
 import { AppHeader, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
+import { CaseStateBadge } from "@/components/CaseStateBadge";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
 import { SelectField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
 import {
@@ -612,6 +613,7 @@ function RecommendCard({
             <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[0.65rem] font-semibold border border-transparent bg-white/90 text-[#2A5298] backdrop-blur-sm">
               {item.usage || "물건"}
             </span>
+            <CaseStateBadge caseState={item.caseState} />
             {displaySpecialNote(item.specialNote) && (
               <span className="min-w-0 px-1.5 py-0.5 rounded-md text-[0.65rem] font-medium border bg-red-50/95 text-red-600 border-red-100 truncate backdrop-blur-sm">
                 {displaySpecialNote(item.specialNote)}
@@ -811,6 +813,7 @@ function RecommendListRow({
             <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-semibold border bg-[#EEF4FF] text-[#2A5298] border-transparent">
               {item.usage || "물건"}
             </span>
+            <CaseStateBadge caseState={item.caseState} />
             {isNew ? (
               <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-medium border bg-blue-50 text-blue-700 border-blue-100">
                 신건

@@ -11,6 +11,7 @@ import {
 import { AuctionFieldInput } from "@/components/AuctionFieldInput";
 import { deleteAuction, updateAuction } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
+import { CaseStateBadge } from "@/components/CaseStateBadge";
 import { NaverComplexLink } from "@/components/NaverComplexLink";
 import { hasNaverPrice } from "@/lib/naver-price";
 import { AuctionAnalysisPanel } from "@/components/AuctionAnalysisPanel";
@@ -102,33 +103,6 @@ function buildingRegistryClassName(text: string): string {
 
 /** 취하·변경 등 사건상태를 눈에 띄게 표시 — "취하"는 사건 자체가 종결되어
  * 더 이상 진행되지 않음을, "변경"은 매각기일이 다시 잡힐 수 있음을 뜻한다. */
-const SOLD_CASE_STATES = new Set([
-  "허가",
-  "매각결정기일",
-  "지급기한",
-  "배당기일",
-  "배당종결",
-]);
-
-function CaseStateBadge({ caseState }: { caseState?: string }) {
-  const trimmed = (caseState ?? "").trim();
-  const isWithdrawn = trimmed === "취하";
-  const isChanged = trimmed === "변경";
-  const isSold = SOLD_CASE_STATES.has(trimmed);
-  if (!isWithdrawn && !isChanged && !isSold) return null;
-  return (
-    <span
-      className={`shrink-0 px-1.5 py-0.5 rounded-sm text-[11px] font-semibold ${
-        isWithdrawn || isSold
-          ? "bg-destructive/10 text-destructive"
-          : "bg-amber-100 text-amber-700"
-      }`}
-    >
-      {isSold ? "낙찰" : trimmed}
-    </span>
-  );
-}
-
 type HeaderEditKey =
   | "auctionNo"
   | "address"
