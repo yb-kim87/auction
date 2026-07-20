@@ -3008,11 +3008,13 @@ export type VatAddressCoord = {
   x: string;
   y: string;
   refinedAddress: string;
+  pnu: string | null;
 };
 
 /** 부가세 계산기의 "주소검색" 단계 — 카카오 우편번호에서 선택한 도로명
  * 주소를 좌표(지번, PARCEL)로 변환한다(VWorld 프록시, 백엔드가 API 키를
- * 들고 호출). */
+ * 들고 호출). structure.level4LC가 PNU(19자리 고유번호)로, 건축물대장
+ * 조회에 쓴다(실측 확인, 2026-07-21). */
 export async function fetchVatAddressCoord(
   address: string,
 ): Promise<VatAddressCoord | null> {
@@ -3027,7 +3029,7 @@ export async function fetchVatAddressCoord(
     response?: {
       status?: string;
       result?: { point?: { x?: string; y?: string } };
-      refined?: { text?: string };
+      refined?: { text?: string; structure?: { level4LC?: string } };
     };
   }>(res);
   const point = data.response?.result?.point;
@@ -3036,6 +3038,7 @@ export async function fetchVatAddressCoord(
     x: point.x,
     y: point.y,
     refinedAddress: data.response?.refined?.text ?? address,
+    pnu: data.response?.refined?.structure?.level4LC ?? null,
   };
 }
 
@@ -3065,4 +3068,43 @@ export async function fetchVatLandPrice(
       ?.jiga;
   const jiga = jigaStr ? Number(jigaStr) : NaN;
   return Number.isFinite(jiga) ? jiga : null;
+}
+
+export type VatBuildingRegister = {
+  /** 연면적(㎡) — 공용부+전유부 포함, "건물 면적" 입력에 그대로 씀. */
+  totalArea: number | null;
+  /** 사용승인일(YYYYMMDD) 앞 4자리 — "신축연도" 입력에 씀. */
+  builtYear: string | null;
+  /** 구조명(예: "철근콘크리트구조") — 계산기 "구조" select와 표기가
+   * 달라 그대로 매칭은 안 되지만 참고용으로 표시. */
+  structureName: string | null;
+  mainPurposeName: string | null;
+};
+
+/** PNU 기준 건축물대장 표제부 자동조회(연면적·신축연도). 공공데이터포털
+ * 건축물대장정보 서비스 프록시(백엔드가 API 키를 들고 호출). */
+export async function fetchVatBuildingRegister(
+  pnu: string,
+): Promise<VatBuildingRegister | null> {
+  const res = await fetch(
+    `${API_BASE}/vat/building-register?pnu=${encodeURIComponent(pnu)}`,
+    { credentials: FETCH_CREDENTIALS, headers: withJsonHeaders() },
+  );
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "건축물대장 조회에 실패했습니다.",
+    );
+  }
+  const item = await readJsonResponse<{
+    totArea?: number;
+    useAprDay?: string;
+    strctCdNm?: string;
+    mainPurpsCdNm?: string;
+  }>(res);
+  return {
+    totalArea: typeof item.totArea === "number" ? item.totArea : null,
+    builtYear: item.useAprDay?.trim() ? item.useAprDay.slice(0, 4) : null,
+    structureName: item.strctCdNm ?? null,
+    mainPurposeName: item.mainPurpsCdNm ?? null,
+  };
 }

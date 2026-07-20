@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { fetchVatAddressCoord, fetchVatLandPrice } from "@/lib/api";
+import {
+  fetchVatAddressCoord,
+  fetchVatBuildingRegister,
+  fetchVatLandPrice,
+} from "@/lib/api";
 
 declare global {
   interface Window {
@@ -83,6 +87,7 @@ export function CrawlerVatTab() {
   const [address, setAddress] = useState("");
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressMessage, setAddressMessage] = useState("");
+  const [pnu, setPnu] = useState<string | null>(null);
 
   const [landArea, setLandArea] = useState("");
   const [buildingArea, setBuildingArea] = useState("");
@@ -95,6 +100,9 @@ export function CrawlerVatTab() {
 
   const [landPricePerM2, setLandPricePerM2] = useState("");
   const [buildingStandardPrice, setBuildingStandardPrice] = useState("");
+
+  const [autoFetchLoading, setAutoFetchLoading] = useState(false);
+  const [autoFetchMessage, setAutoFetchMessage] = useState("");
 
   const [calculated, setCalculated] = useState(false);
 
@@ -122,12 +130,14 @@ export function CrawlerVatTab() {
   async function fetchLandPriceForAddress(fullAddress: string) {
     setAddressLoading(true);
     setAddressMessage("");
+    setPnu(null);
     try {
       const coord = await fetchVatAddressCoord(fullAddress);
       if (!coord) {
         setAddressMessage("주소를 좌표로 변환하지 못했습니다. 지번주소로 다시 시도해 주세요.");
         return;
       }
+      setPnu(coord.pnu);
       const jiga = await fetchVatLandPrice(coord.x, coord.y);
       if (jiga == null) {
         setAddressMessage("이 위치의 개별공시지가를 찾지 못했습니다. 직접 입력해 주세요.");
@@ -142,9 +152,42 @@ export function CrawlerVatTab() {
     }
   }
 
+  async function handleAutoFetchBuilding() {
+    if (!pnu) return;
+    setAutoFetchLoading(true);
+    setAutoFetchMessage("");
+    try {
+      const info = await fetchVatBuildingRegister(pnu);
+      if (!info) {
+        setAutoFetchMessage("건축물대장 정보를 찾지 못했습니다.");
+        return;
+      }
+      if (info.totalArea != null) setBuildingArea(String(info.totalArea));
+      if (info.builtYear) setBuiltYear(info.builtYear);
+      const parts = [
+        info.totalArea != null ? `연면적 ${info.totalArea}㎡` : null,
+        info.builtYear ? `사용승인 ${info.builtYear}년` : null,
+        info.structureName ? `구조 ${info.structureName}` : null,
+        info.mainPurposeName ? `주용도 ${info.mainPurposeName}` : null,
+      ].filter(Boolean);
+      setAutoFetchMessage(
+        parts.length > 0
+          ? `건축물대장 자동 조회 완료 (${parts.join(" · ")})`
+          : "건축물대장 자동 조회 완료",
+      );
+    } catch (err) {
+      setAutoFetchMessage(
+        err instanceof Error ? err.message : "건축물대장 조회에 실패했습니다.",
+      );
+    } finally {
+      setAutoFetchLoading(false);
+    }
+  }
+
   function handleReset() {
     setAddress("");
     setAddressMessage("");
+    setPnu(null);
     setLandArea("");
     setBuildingArea("");
     setSalePrice("");
@@ -154,6 +197,7 @@ export function CrawlerVatTab() {
     setBuiltYear("");
     setLandPricePerM2("");
     setBuildingStandardPrice("");
+    setAutoFetchMessage("");
     setCalculated(false);
   }
 
@@ -249,17 +293,31 @@ export function CrawlerVatTab() {
           </label>
           <label className="space-y-1">
             <span className="text-sm font-medium">건물 면적(㎡)*</span>
-            <input
-              value={buildingArea}
-              onChange={(e) => setBuildingArea(e.target.value)}
-              placeholder="예: 242.83"
-              className={fieldClass}
-            />
+            <div className="flex gap-2">
+              <input
+                value={buildingArea}
+                onChange={(e) => setBuildingArea(e.target.value)}
+                placeholder="예: 242.83"
+                className={fieldClass}
+              />
+              <button
+                type="button"
+                onClick={() => void handleAutoFetchBuilding()}
+                disabled={!pnu || autoFetchLoading}
+                className="px-3 py-2 text-xs rounded-sm border border-border whitespace-nowrap disabled:opacity-50"
+              >
+                {autoFetchLoading ? "조회 중..." : "자동 조회"}
+              </button>
+            </div>
           </label>
         </div>
         <p className={hintClass}>
-          공용부 + 전유부 모두 포함합니다.
+          공용부 + 전유부 모두 포함합니다. [자동 조회]는 주소 검색 완료
+          후 활성화됩니다.
         </p>
+        {autoFetchMessage && (
+          <p className="text-xs text-primary">{autoFetchMessage}</p>
+        )}
 
         <label className="space-y-1 block">
           <span className="text-sm font-medium">매도예상가 (원)*</span>
