@@ -119,11 +119,9 @@ function CaseStateBadge({ caseState }: { caseState?: string }) {
   return (
     <span
       className={`shrink-0 px-1.5 py-0.5 rounded-sm text-[11px] font-semibold ${
-        isWithdrawn
+        isWithdrawn || isSold
           ? "bg-destructive/10 text-destructive"
-          : isSold
-            ? "bg-emerald-100 text-emerald-700"
-            : "bg-amber-100 text-amber-700"
+          : "bg-amber-100 text-amber-700"
       }`}
     >
       {isSold ? "낙찰" : trimmed}
