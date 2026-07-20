@@ -156,9 +156,15 @@ export function CrawlerVatTab() {
   }
 
   async function handleAutoFetchBuilding() {
-    if (!pnu) return;
     setAutoFetchLoading(true);
     setAutoFetchMessage("");
+    if (!pnu) {
+      setAutoFetchMessage(
+        "먼저 주소검색을 완료해 주세요(주소를 찾지 못했다면 지번주소로 다시 시도해 보세요).",
+      );
+      setAutoFetchLoading(false);
+      return;
+    }
     try {
       const info = await fetchVatBuildingRegister(pnu);
       if (!info) {
@@ -336,7 +342,7 @@ export function CrawlerVatTab() {
               <button
                 type="button"
                 onClick={() => void handleAutoFetchBuilding()}
-                disabled={!pnu || autoFetchLoading}
+                disabled={autoFetchLoading}
                 className="px-3 py-2 text-xs rounded-sm border border-border whitespace-nowrap disabled:opacity-50"
               >
                 {autoFetchLoading ? "조회 중..." : "자동 조회"}
