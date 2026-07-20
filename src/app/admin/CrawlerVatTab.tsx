@@ -17,38 +17,77 @@ declare global {
   }
 }
 
-const STRUCTURE_OPTIONS = [
-  "통나무조",
-  "목구조",
-  "철골(철골철근)콘크리트조 (SRC)",
-  "철근콘크리트조 (RC)",
-  "석조",
-  "프리캐스트 콘크리트조 (PC)",
-  "라멘조",
-  "목조",
-  "ALC조",
-  "스틸하우스조",
-  "연와조",
-  "철골조",
-  "보강콘크리트조",
-  "보강블록조",
-  "시멘트벽돌조",
-  "황토조",
-  "시멘트블록조",
-  "와이어패널조",
-  "철골조 중 조립식패널(EPS패널)",
-  "조립식패널조",
-  "경량철골조",
-  "석회/흙벽돌조, 돌담/토담조",
-  "철파이프조",
-  "컨테이너건물",
+/** 국세청 「건물 기준시가 계산방법 해설」(2024.1.1. 시행 기준, 2024.2)
+ * 실측 검증한 구조지수·잔가율 그룹표. 구조명은 고시 원문 그대로 사용.
+ * 잔가율 그룹(depGroup)은 "10. 경과연수별잔가율의 적용" 표에 따른
+ * 내용연수 50/40/30/20년 4개 그룹. */
+const STRUCTURE_OPTIONS: { label: string; index: number; depGroup: 1 | 2 | 3 | 4 }[] = [
+  { label: "통나무조", index: 135, depGroup: 1 },
+  { label: "목구조", index: 125, depGroup: 1 },
+  { label: "철골(철골철근)콘크리트조", index: 110, depGroup: 1 },
+  { label: "철근콘크리트조, 석조, 프리캐스트콘크리트조, 목조, 라멘조, ALC조, 스틸하우스조", index: 100, depGroup: 1 },
+  { label: "연와조, 철골조, 보강콘크리트조, 보강블록조", index: 97, depGroup: 2 },
+  { label: "시멘트벽돌조, 황토조, 시멘트블록조, 와이어패널조", index: 95, depGroup: 2 },
+  { label: "철골조 중 조립식패널(EPS패널)", index: 85, depGroup: 3 },
+  { label: "조립식패널조", index: 80, depGroup: 3 },
+  { label: "경량철골조", index: 79, depGroup: 3 },
+  { label: "석회 및 흙벽돌조, 돌담 및 토담조", index: 60, depGroup: 3 },
+  { label: "철파이프조, 컨테이너건물", index: 59, depGroup: 4 },
 ];
+
+/** 잔가율 그룹별 내용연수(년) — 최종잔존가치율은 4개 그룹 모두 10%로
+ * 통일(2024년 기준 개정 반영). */
+const DEP_GROUP_USEFUL_LIFE: Record<1 | 2 | 3 | 4, number> = {
+  1: 50,
+  2: 40,
+  3: 30,
+  4: 20,
+};
 
 const USAGE_OPTIONS = [
   { value: "110", label: "아파트 (110)" },
   { value: "100", label: "단독·다세대·연립·기숙사 등 (100)" },
   { value: "140", label: "오피스텔 (주거용 임대) (140)" },
 ];
+
+/** 위치지수표(개별공시지가 원/㎡ 구간별) — 국세청 고시 2024.1.1. 시행
+ * 기준 실측 검증(2,593,000원/㎡ → 116 등 다수 구간 확인, 2026-07-21).
+ * 구간은 오름차순, 각 항목은 [상한 미만, 지수] — 상한을 초과하면 다음
+ * 구간으로 넘어가고, 마지막 구간은 상한 없이 그 지수를 적용한다. */
+const LOCATION_INDEX_BRACKETS: [number, number][] = [
+  [20000, 78], [30000, 83], [50000, 85], [70000, 86], [100000, 87],
+  [130000, 88], [150000, 89], [180000, 90], [200000, 91], [300000, 92],
+  [350000, 94], [500000, 96], [650000, 98], [800000, 100], [1000000, 102],
+  [1200000, 105], [1600000, 108], [2000000, 111], [2500000, 114], [3000000, 116],
+  [3500000, 118], [4000000, 120], [4500000, 122], [5000000, 124], [5500000, 126],
+  [6000000, 128], [7000000, 130], [8000000, 132], [9000000, 134], [10000000, 137],
+  [15000000, 140], [20000000, 143], [25000000, 146], [30000000, 149], [35000000, 152],
+  [40000000, 155], [45000000, 158], [50000000, 161], [55000000, 164], [60000000, 167],
+  [65000000, 170], [70000000, 173], [75000000, 176], [80000000, 179],
+];
+const LOCATION_INDEX_MAX = 182;
+
+function getLocationIndex(pricePerM2: number): number {
+  for (const [upperBound, index] of LOCATION_INDEX_BRACKETS) {
+    if (pricePerM2 < upperBound) return index;
+  }
+  return LOCATION_INDEX_MAX;
+}
+
+/** 건물신축가격기준액(원/㎡) — 최신 고시 기준. 매년 조정되므로 국세청
+ * 고시가 바뀌면 이 값만 갱신하면 된다(실측 확인값, 2026-07-21). */
+const BUILDING_BASE_PRICE_PER_M2 = 850000;
+
+/** 경과연수별잔가율(정액법) — 고시연도를 경과연수 1년으로 계산한다
+ * (실측 검증: 2024년 고시에서 신축연도 2024=1.000, 2001=0.586 등
+ * Ⅰ그룹(내용연수50) 표와 공식이 정확히 일치, 2026-07-21).
+ * 최종잔존가치율 10%, 최소값은 그 이하로 내려가지 않는다. */
+function calcResidualRate(builtYear: number, usefulLife: number, baseYear: number): number {
+  const finalResidualRate = 0.1;
+  const annualRate = (1 - finalResidualRate) / usefulLife;
+  const elapsed = Math.max(0, baseYear - builtYear);
+  return Math.max(finalResidualRate, 1 - annualRate * elapsed);
+}
 
 function parseNum(value: string): number {
   const cleaned = value.replace(/,/g, "").trim();
@@ -97,7 +136,7 @@ export function CrawlerVatTab() {
   const [salePrice, setSalePrice] = useState("");
 
   const [usageType, setUsageType] = useState<"주거용" | "상업용">("주거용");
-  const [structure, setStructure] = useState(STRUCTURE_OPTIONS[3]);
+  const [structureIndex, setStructureIndex] = useState(3);
   const [usage, setUsage] = useState(USAGE_OPTIONS[0].value);
   const [builtYear, setBuiltYear] = useState("");
 
@@ -108,6 +147,7 @@ export function CrawlerVatTab() {
   const [autoFetchMessage, setAutoFetchMessage] = useState("");
 
   const [calculated, setCalculated] = useState(false);
+  const [autoCalcNote, setAutoCalcNote] = useState("");
 
   async function handleAddressSearch() {
     setAddressMessage("");
@@ -166,7 +206,7 @@ export function CrawlerVatTab() {
       return;
     }
     try {
-      const info = await fetchVatBuildingRegister(pnu);
+      const info = await fetchVatBuildingRegister(pnu, dong, ho);
       if (!info) {
         setAutoFetchMessage("건축물대장 정보를 찾지 못했습니다.");
         return;
@@ -193,6 +233,46 @@ export function CrawlerVatTab() {
     }
   }
 
+  function handleAutoCalcBuildingStandardPrice() {
+    const area = parseNum(buildingArea);
+    const landUnitPrice = parseNum(landPricePerM2);
+    const year = parseNum(builtYear);
+    if (!area || !landUnitPrice || !year) {
+      setAutoCalcNote(
+        "건물 면적·토지공시지가·신축연도를 먼저 입력해 주세요.",
+      );
+      return;
+    }
+    const structureOption = STRUCTURE_OPTIONS[structureIndex];
+    const usageIndex = parseNum(usage);
+    const locationIndex = getLocationIndex(landUnitPrice);
+    const usefulLife = DEP_GROUP_USEFUL_LIFE[structureOption.depGroup];
+    // 고시연도(경과연수 1년 기준)는 현재 연도로 근사한다 — 국세청은
+    // 매년 신규 고시하며 그 연도를 경과연수 1년으로 잡는다(실측 확인:
+    // 2024년 고시에서 신축연도 2024=잔가율 1.000, 2026-07-21).
+    const baseYear = new Date().getFullYear();
+    const residualRate = calcResidualRate(year, usefulLife, baseYear);
+    // 구조·용도·위치지수는 100분율(예: 100=1.0배)이라 각각 100으로
+    // 나눈 뒤 곱해야 한다 — ㎡당 금액은 1,000원 단위로 절사(고시 규정,
+    // 실측 검증: 850,000×1.00×1.10×1.16×0.586=635,575.6원 →
+    // 635,000원/㎡×166.8163㎡=105,928,351원, 원본 사이트 105,928,350.5원과
+    // 일치, 2026-07-21).
+    const perM2 =
+      Math.floor(
+        (BUILDING_BASE_PRICE_PER_M2 *
+          (structureOption.index / 100) *
+          (usageIndex / 100) *
+          (locationIndex / 100) *
+          residualRate) /
+          1000,
+      ) * 1000;
+    const total = Math.round(perM2 * area);
+    setBuildingStandardPrice(String(total));
+    setAutoCalcNote(
+      `자동계산 완료 · ${BUILDING_BASE_PRICE_PER_M2.toLocaleString("ko-KR")} × ${structureOption.index}(구조) × ${usageIndex}(용도) × ${locationIndex}(위치) × ${residualRate.toFixed(3)}(잔가율, 경과 ${Math.max(0, baseYear - year)}년) → ${perM2.toLocaleString("ko-KR")}원/㎡ × ${area}㎡`,
+    );
+  }
+
   function handleReset() {
     setAddress("");
     setAddressMessage("");
@@ -204,12 +284,13 @@ export function CrawlerVatTab() {
     setBuildingArea("");
     setSalePrice("");
     setUsageType("주거용");
-    setStructure(STRUCTURE_OPTIONS[3]);
+    setStructureIndex(3);
     setUsage(USAGE_OPTIONS[0].value);
     setBuiltYear("");
     setLandPricePerM2("");
     setBuildingStandardPrice("");
     setAutoFetchMessage("");
+    setAutoCalcNote("");
     setCalculated(false);
   }
 
@@ -403,13 +484,13 @@ export function CrawlerVatTab() {
         <label className="space-y-1 block">
           <span className="text-sm font-medium">구조*</span>
           <select
-            value={structure}
-            onChange={(e) => setStructure(e.target.value)}
+            value={structureIndex}
+            onChange={(e) => setStructureIndex(Number(e.target.value))}
             className={fieldClass}
           >
-            {STRUCTURE_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            {STRUCTURE_OPTIONS.map((s, i) => (
+              <option key={s.label} value={i}>
+                {s.label} ({s.index})
               </option>
             ))}
           </select>
@@ -463,15 +544,28 @@ export function CrawlerVatTab() {
           <span className="text-sm font-medium">
             건물기준시가 (전체 금액, 원) *
           </span>
-          <input
-            value={buildingStandardPrice}
-            onChange={(e) => setBuildingStandardPrice(e.target.value)}
-            placeholder="예: 265,800,000"
-            className={fieldClass}
-          />
+          <div className="flex gap-2">
+            <input
+              value={buildingStandardPrice}
+              onChange={(e) => setBuildingStandardPrice(e.target.value)}
+              placeholder="예: 265,800,000"
+              className={fieldClass}
+            />
+            <button
+              type="button"
+              onClick={handleAutoCalcBuildingStandardPrice}
+              className="px-3 py-2 text-xs rounded-sm border border-border whitespace-nowrap"
+            >
+              자동계산
+            </button>
+          </div>
           <p className={hintClass}>
-            직접 입력하거나, 구조/용도/신축연도 입력 후 계산해 주세요.
+            직접 입력하거나, 구조/용도/신축연도 입력 후 [자동계산]을
+            사용하세요(2024.1.1. 시행 국세청 고시 기준).
           </p>
+          {autoCalcNote && (
+            <p className="text-xs text-primary">{autoCalcNote}</p>
+          )}
         </label>
       </div>
 
