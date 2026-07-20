@@ -3003,3 +3003,66 @@ export async function deleteKakaoAdCreative(id: string): Promise<{ ok: boolean }
   }
   return readJsonResponse(res);
 }
+
+export type VatAddressCoord = {
+  x: string;
+  y: string;
+  refinedAddress: string;
+};
+
+/** 부가세 계산기의 "주소검색" 단계 — 카카오 우편번호에서 선택한 도로명
+ * 주소를 좌표(지번, PARCEL)로 변환한다(VWorld 프록시, 백엔드가 API 키를
+ * 들고 호출). */
+export async function fetchVatAddressCoord(
+  address: string,
+): Promise<VatAddressCoord | null> {
+  const res = await fetch(
+    `${API_BASE}/vat/address-to-coord?address=${encodeURIComponent(address)}`,
+    { credentials: FETCH_CREDENTIALS, headers: withJsonHeaders() },
+  );
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "주소 조회에 실패했습니다.");
+  }
+  const data = await readJsonResponse<{
+    response?: {
+      status?: string;
+      result?: { point?: { x?: string; y?: string } };
+      refined?: { text?: string };
+    };
+  }>(res);
+  const point = data.response?.result?.point;
+  if (data.response?.status !== "OK" || !point?.x || !point?.y) return null;
+  return {
+    x: point.x,
+    y: point.y,
+    refinedAddress: data.response?.refined?.text ?? address,
+  };
+}
+
+/** 좌표 기준 개별공시지가(원/㎡) 조회(VWorld 프록시). */
+export async function fetchVatLandPrice(
+  x: string,
+  y: string,
+): Promise<number | null> {
+  const res = await fetch(
+    `${API_BASE}/vat/land-price?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`,
+    { credentials: FETCH_CREDENTIALS, headers: withJsonHeaders() },
+  );
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "공시지가 조회에 실패했습니다.");
+  }
+  const data = await readJsonResponse<{
+    response?: {
+      result?: {
+        featureCollection?: {
+          features?: { properties?: { jiga?: string } }[];
+        };
+      };
+    };
+  }>(res);
+  const jigaStr =
+    data.response?.result?.featureCollection?.features?.[0]?.properties
+      ?.jiga;
+  const jiga = jigaStr ? Number(jigaStr) : NaN;
+  return Number.isFinite(jiga) ? jiga : null;
+}
