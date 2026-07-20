@@ -88,6 +88,9 @@ export function CrawlerVatTab() {
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressMessage, setAddressMessage] = useState("");
   const [pnu, setPnu] = useState<string | null>(null);
+  const [dong, setDong] = useState("");
+  const [ho, setHo] = useState("");
+  const [isBasement, setIsBasement] = useState(false);
 
   const [landArea, setLandArea] = useState("");
   const [buildingArea, setBuildingArea] = useState("");
@@ -188,6 +191,9 @@ export function CrawlerVatTab() {
     setAddress("");
     setAddressMessage("");
     setPnu(null);
+    setDong("");
+    setHo("");
+    setIsBasement(false);
     setLandArea("");
     setBuildingArea("");
     setSalePrice("");
@@ -279,6 +285,33 @@ export function CrawlerVatTab() {
               {addressLoading ? "조회 중..." : addressMessage}
             </p>
           )}
+        </div>
+
+        <div>
+          <span className="text-sm font-medium">상세 위치</span>
+          <div className="flex gap-2 mt-1 items-center">
+            <input
+              value={dong}
+              onChange={(e) => setDong(e.target.value)}
+              placeholder="동"
+              className={fieldClass}
+            />
+            <input
+              value={ho}
+              onChange={(e) => setHo(e.target.value)}
+              placeholder="호 (숫자)"
+              className={fieldClass}
+            />
+            <label className="flex items-center gap-1.5 text-sm whitespace-nowrap px-1">
+              <input
+                type="checkbox"
+                checked={isBasement}
+                onChange={(e) => setIsBasement(e.target.checked)}
+              />
+              지하
+            </label>
+          </div>
+          <p className={hintClass}>단독주택의 경우 빈칸</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
