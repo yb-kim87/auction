@@ -3085,11 +3085,16 @@ export type VatBuildingRegister = {
  * 건축물대장정보 서비스 프록시(백엔드가 API 키를 들고 호출). */
 export async function fetchVatBuildingRegister(
   pnu: string,
+  dong?: string,
+  ho?: string,
 ): Promise<VatBuildingRegister | null> {
-  const res = await fetch(
-    `${API_BASE}/vat/building-register?pnu=${encodeURIComponent(pnu)}`,
-    { credentials: FETCH_CREDENTIALS, headers: withJsonHeaders() },
-  );
+  const params = new URLSearchParams({ pnu });
+  if (dong?.trim()) params.set("dong", dong.trim());
+  if (ho?.trim()) params.set("ho", ho.trim());
+  const res = await fetch(`${API_BASE}/vat/building-register?${params.toString()}`, {
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "건축물대장 조회에 실패했습니다.",
