@@ -1142,6 +1142,7 @@ function parsePreviewNumber(value: string | number | null | undefined): number {
 function formatFieldValue(
   key: keyof UpdateAuctionPayload,
   item: AuctionItem,
+  isAdmin: boolean,
 ): string {
   if (key === "naverPrice") {
     return hasNaverPrice(item.naverPrice) ? fmtEok(item.naverPrice) : "-";
@@ -1154,7 +1155,7 @@ function formatFieldValue(
   if (key === "landShare") {
     const landShare = String(item.landShare ?? "").trim();
     if (!landShare) return "-";
-    const sharedArea = String(item.sharedArea ?? "").trim();
+    const sharedArea = isAdmin ? String(item.sharedArea ?? "").trim() : "";
     return sharedArea ? `${landShare}㎡ (공용 ${sharedArea}㎡)` : `${landShare}㎡`;
   }
 
@@ -2528,7 +2529,7 @@ export function AuctionDetailModal({
                   <div className="px-5 py-4">
                     <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                       {fields.map((field) => {
-                        const value = formatFieldValue(field.key, item);
+                        const value = formatFieldValue(field.key, item, isAdmin);
                         const isFull = field.full;
 
                         return (
