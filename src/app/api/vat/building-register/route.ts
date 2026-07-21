@@ -193,8 +193,16 @@ export async function GET(request: NextRequest) {
   const item =
     (await fetchTitleInfo(key, params, "0")) ?? (await fetchTitleInfo(key, params, "1"));
   if (!item) {
+    // 최근 행정구역 개편(예: 2026-07-01 인천 서구→검단구/서해구 분리
+    // 신설)으로 VWorld는 새 구역을 반영했지만 건축물대장(공공데이터
+    // 포털) DB가 아직 못 따라가 조회가 0건이 되는 경우가 있다(실측,
+    // 2026-07-21) — 코드로 우회할 수 없는 외부 데이터 정합성 문제라
+    // 사용자에게 그대로 안내한다.
     return NextResponse.json(
-      { message: "이 위치의 건축물대장 정보를 찾지 못했습니다." },
+      {
+        message:
+          "이 위치의 건축물대장 정보를 찾지 못했습니다. 최근 행정구역이 개편된 지역이면 공공데이터가 아직 반영되지 않았을 수 있습니다 — 매도예상가·건물기준시가를 직접 입력해 주세요.",
+      },
       { status: 503 },
     );
   }
