@@ -28,28 +28,70 @@ export async function GET(request: NextRequest) {
 
   // 1) 도로명주소 → 좌표(ROAD). 카카오 우편번호가 도로명주소를 주므로
   // PARCEL(지번)로 조회하면 대부분 NOT_FOUND가 난다(실측, 2026-07-21).
-  const coordUrl = new URL("https://api.vworld.kr/req/address");
-  coordUrl.searchParams.set("service", "address");
-  coordUrl.searchParams.set("request", "getCoord");
-  coordUrl.searchParams.set("version", "2.0");
-  coordUrl.searchParams.set("crs", "EPSG:4326");
-  coordUrl.searchParams.set("type", "ROAD");
-  coordUrl.searchParams.set("address", address);
-  coordUrl.searchParams.set("format", "json");
-  coordUrl.searchParams.set("key", key);
+  async function tryGetCoord(addr: string) {
+    const url = new URL("https://api.vworld.kr/req/address");
+    url.searchParams.set("service", "address");
+    url.searchParams.set("request", "getCoord");
+    url.searchParams.set("version", "2.0");
+    url.searchParams.set("crs", "EPSG:4326");
+    url.searchParams.set("type", "ROAD");
+    url.searchParams.set("address", addr);
+    url.searchParams.set("format", "json");
+    url.searchParams.set("key", key as string);
+    return fetchExternalJson("VWorld 주소 변환", url.toString());
+  }
 
-  const coordResult = await fetchExternalJson("VWorld 주소 변환", coordUrl.toString());
+  let coordResult = await tryGetCoord(address);
   if (!coordResult.ok) {
     return NextResponse.json({ message: coordResult.message }, { status: coordResult.status });
   }
-  const coordData = coordResult.data as {
+  let coordData = coordResult.data as {
     response?: {
       status?: string;
       result?: { point?: { x?: string; y?: string } };
       refined?: { text?: string };
     };
   };
-  const point = coordData.response?.result?.point;
+  let point = coordData.response?.result?.point;
+
+  // 행정구역 개편(예: 인천 서구 → 검단구 분리 신설)으로 DB에 저장된
+  // 옛 구주소가 VWorld getCoord에서 NOT_FOUND가 나는 경우가 있다(실측:
+  // "인천 서구 서로4로 89"는 NOT_FOUND, VWorld 최신 행정구역명
+  // "인천광역시 검단구 서로4로 89"로는 정상 매칭, 2026-07-21). VWorld
+  // 자체 검색(search) API로 유사 주소를 찾아 재시도한다.
+  if (coordData.response?.status !== "OK" || !point?.x || !point?.y) {
+    const searchUrl = new URL("https://api.vworld.kr/req/search");
+    searchUrl.searchParams.set("service", "search");
+    searchUrl.searchParams.set("request", "search");
+    searchUrl.searchParams.set("version", "2.0");
+    searchUrl.searchParams.set("crs", "EPSG:4326");
+    searchUrl.searchParams.set("size", "1");
+    searchUrl.searchParams.set("query", address);
+    searchUrl.searchParams.set("type", "ADDRESS");
+    searchUrl.searchParams.set("category", "ROAD");
+    searchUrl.searchParams.set("format", "json");
+    searchUrl.searchParams.set("errorFormat", "json");
+    searchUrl.searchParams.set("key", key);
+
+    const searchResult = await fetchExternalJson("VWorld 주소 검색", searchUrl.toString());
+    if (searchResult.ok) {
+      const searchData = searchResult.data as {
+        response?: {
+          status?: string;
+          result?: { items?: { address?: { road?: string } }[] };
+        };
+      };
+      const roadAddress = searchData.response?.result?.items?.[0]?.address?.road;
+      if (searchData.response?.status === "OK" && roadAddress) {
+        coordResult = await tryGetCoord(roadAddress);
+        if (coordResult.ok) {
+          coordData = coordResult.data as typeof coordData;
+          point = coordData.response?.result?.point;
+        }
+      }
+    }
+  }
+
   if (coordData.response?.status !== "OK" || !point?.x || !point?.y) {
     return NextResponse.json(coordData);
   }
