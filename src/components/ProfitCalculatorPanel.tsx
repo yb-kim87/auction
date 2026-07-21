@@ -143,12 +143,12 @@ export function ProfitCalculatorPanel({
 
   // 85㎡ 초과 물건의 부가세는 매도가×10%×50% 추정치 대신, 관리자
   // 부가세계산 탭(CrawlerVatTab)과 동일한 국세청 고시 공식으로 정확히
-  // 계산한다 — 토지면적은 물건의 landShare, 신축연도는 builtYear를
+  // 계산할 수 있다 — 토지면적은 물건의 landShare, 신축연도는 builtYear를
   // 그대로 쓰고, 건물면적·토지공시지가는 물건 주소로 VWorld/건축물대장
-  // API를 자동조회해서 채운다(사용자 요청, 2026-07-21). 계산에 필요한
-  // 자료(공시지가·건물기준시가)가 갖춰지면 landPricePerM2Ref 등에 담아
-  // 두고, 매도가가 바뀔 때마다 calcVat만 다시 돌려 부가세 최저가를
-  // 갱신한다.
+  // API를 자동조회해서 채운다. 물건 상세를 열 때마다 외부 API를 부르면
+  // 낭비이므로, "자동계산" 버튼을 눌렀을 때만 조회한다(사용자 요청,
+  // 2026-07-21). 계산에 필요한 자료가 갖춰지면 매도가가 바뀔 때마다
+  // calcVat만 다시 돌려 부가세 최저가를 갱신한다.
   const [vatAutoLoading, setVatAutoLoading] = useState(false);
   const [vatAutoNote, setVatAutoNote] = useState<string | null>(null);
   const [vatAutoReady, setVatAutoReady] = useState(false);
@@ -156,80 +156,66 @@ export function ProfitCalculatorPanel({
   const [vatLandPricePerM2, setVatLandPricePerM2] = useState<number | null>(null);
   const [vatBuildingStandardPrice, setVatBuildingStandardPrice] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!over85) return;
-    let cancelled = false;
-
-    async function autoFetch() {
-      setVatAutoLoading(true);
-      setVatAutoNote(null);
-      try {
-        const landArea = parseAreaNumber(item.landShare);
-        if (!landArea) {
-          setVatAutoNote("토지지분 정보가 없어 자동계산을 사용할 수 없습니다.");
-          return;
-        }
-        const { searchAddress, dong, ho } = parseAuctionAddress(item.address);
-        const coord = await fetchVatAddressCoord(searchAddress);
-        if (cancelled) return;
-        if (!coord) {
-          setVatAutoNote("주소를 좌표로 변환하지 못해 자동계산을 사용할 수 없습니다.");
-          return;
-        }
-        const [jiga, buildingInfo] = await Promise.all([
-          fetchVatLandPrice(coord.x, coord.y),
-          coord.pnu ? fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined) : null,
-        ]);
-        if (cancelled) return;
-        if (jiga == null) {
-          setVatAutoNote("개별공시지가를 조회하지 못해 자동계산을 사용할 수 없습니다.");
-          return;
-        }
-        const builtYear = item.builtYear || parseAreaNumber(String(buildingInfo?.builtYear ?? "")) || null;
-        if (!builtYear) {
-          setVatAutoNote("신축연도 정보가 없어 자동계산을 사용할 수 없습니다.");
-          return;
-        }
-        const baseYear = new Date().getFullYear();
-        const residualRate = calcResidualRate(
-          builtYear,
-          DEP_GROUP_USEFUL_LIFE[RC_DEP_GROUP],
-          baseYear,
-        );
-        const locationIndex = getLocationIndex(jiga);
-        const perM2 = calcBuildingStandardPricePerM2({
-          structureIndex: STRUCTURE_INDEX_RC,
-          usageIndex: APARTMENT_USAGE_INDEX,
-          locationIndex,
-          residualRate,
-        });
-        const buildingArea = buildingInfo?.totalArea ?? parseAreaNumber(item.area) ?? 0;
-        const buildingStandardPrice = Math.round(perM2 * buildingArea);
-
-        setVatLandArea(landArea);
-        setVatLandPricePerM2(jiga);
-        setVatBuildingStandardPrice(buildingStandardPrice);
-        setVatAutoReady(true);
-        setVatAutoNote(
-          `자동계산 완료 · 토지 ${landArea}㎡ · 건물 ${buildingArea.toFixed(2)}㎡ · 공시지가 ${jiga.toLocaleString("ko-KR")}원/㎡`,
-        );
-      } catch (err) {
-        if (!cancelled) {
-          setVatAutoNote(
-            err instanceof Error ? err.message : "부가세 자동계산에 실패했습니다.",
-          );
-        }
-      } finally {
-        if (!cancelled) setVatAutoLoading(false);
+  async function handleAutoCalcVat() {
+    setVatAutoLoading(true);
+    setVatAutoNote(null);
+    try {
+      const landArea = parseAreaNumber(item.landShare);
+      if (!landArea) {
+        setVatAutoNote("토지지분 정보가 없어 자동계산을 사용할 수 없습니다.");
+        return;
       }
-    }
+      const { searchAddress, dong, ho } = parseAuctionAddress(item.address);
+      const coord = await fetchVatAddressCoord(searchAddress);
+      if (!coord) {
+        setVatAutoNote("주소를 좌표로 변환하지 못해 자동계산을 사용할 수 없습니다.");
+        return;
+      }
+      const [jiga, buildingInfo] = await Promise.all([
+        fetchVatLandPrice(coord.x, coord.y),
+        coord.pnu ? fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined) : null,
+      ]);
+      if (jiga == null) {
+        setVatAutoNote("개별공시지가를 조회하지 못해 자동계산을 사용할 수 없습니다.");
+        return;
+      }
+      const builtYear = item.builtYear || parseAreaNumber(String(buildingInfo?.builtYear ?? "")) || null;
+      if (!builtYear) {
+        setVatAutoNote("신축연도 정보가 없어 자동계산을 사용할 수 없습니다.");
+        return;
+      }
+      const baseYear = new Date().getFullYear();
+      const residualRate = calcResidualRate(
+        builtYear,
+        DEP_GROUP_USEFUL_LIFE[RC_DEP_GROUP],
+        baseYear,
+      );
+      const locationIndex = getLocationIndex(jiga);
+      const perM2 = calcBuildingStandardPricePerM2({
+        structureIndex: STRUCTURE_INDEX_RC,
+        usageIndex: APARTMENT_USAGE_INDEX,
+        locationIndex,
+        residualRate,
+      });
+      const buildingArea = buildingInfo?.totalArea ?? parseAreaNumber(item.area) ?? 0;
+      const buildingStandardPrice = Math.round(perM2 * buildingArea);
 
-    void autoFetch();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [over85, item.address, item.landShare, item.builtYear]);
+      setVatLandArea(landArea);
+      setVatLandPricePerM2(jiga);
+      setVatBuildingStandardPrice(buildingStandardPrice);
+      setVatAutoReady(true);
+      setVatEdited(false);
+      setVatAutoNote(
+        `자동계산 완료 · 토지 ${landArea}㎡ · 건물 ${buildingArea.toFixed(2)}㎡ · 공시지가 ${jiga.toLocaleString("ko-KR")}원/㎡`,
+      );
+    } catch (err) {
+      setVatAutoNote(
+        err instanceof Error ? err.message : "부가세 자동계산에 실패했습니다.",
+      );
+    } finally {
+      setVatAutoLoading(false);
+    }
+  }
 
   // 매도가가 바뀌면 부가세도 자동으로 따라간다. 자동계산 자료가 준비됐으면
   // 국세청 공식(부가가치세 최저가)을, 아직이면 기존 추정치(매도가×10%×
@@ -426,18 +412,26 @@ export function ProfitCalculatorPanel({
                 }}
                 suffix="원"
                 helper={
-                  vatAutoLoading
-                    ? "전용 85㎡ 초과 물건: 국세청 고시 공식으로 부가세(최저가)를 자동계산하는 중..."
-                    : vatAutoReady
-                      ? "전용 85㎡ 초과 물건: 국세청 고시 공식 기준 부가가치세 최저가로 자동 계산(직접 수정 가능)"
-                      : "전용 85㎡ 초과 물건: 매도가의 10%×50%를 기본값으로 자동 계산(직접 수정 가능)"
+                  vatAutoReady
+                    ? "국세청 고시 공식 기준 부가가치세 최저가로 자동 계산됨(직접 수정 가능)"
+                    : "전용 85㎡ 초과 물건: 매도가의 10%×50%를 기본값으로 사용 중"
                 }
               />
-              {vatAutoNote && !vatAutoLoading && (
-                <p className="text-[11px] text-muted-foreground -mt-1 pb-2 leading-relaxed">
-                  {vatAutoNote}
+              <div className="flex items-center justify-between gap-3 pb-2">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {vatAutoLoading
+                    ? "물건 주소로 토지공시지가·건물면적을 조회해 정확한 부가세를 계산하는 중..."
+                    : vatAutoNote ?? "물건 주소로 정확한 부가세(국세청 고시 공식)를 계산할 수 있습니다."}
                 </p>
-              )}
+                <button
+                  type="button"
+                  onClick={() => void handleAutoCalcVat()}
+                  disabled={vatAutoLoading}
+                  className="px-3 py-1.5 text-xs rounded-sm border border-border whitespace-nowrap shrink-0 disabled:opacity-50"
+                >
+                  {vatAutoLoading ? "계산 중..." : "자동계산"}
+                </button>
+              </div>
             </>
           )}
         </div>
