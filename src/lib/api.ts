@@ -3113,3 +3113,33 @@ export async function fetchVatBuildingRegister(
     mainPurposeName: item.mainPurpsCdNm ?? null,
   };
 }
+
+export type VatCalcResult = {
+  landAlloc: number;
+  buildingAlloc: number;
+  vatLow: number;
+  vatMarket: number;
+  buildingStandardPrice: number;
+};
+
+/** 부가세 계산 공식(국세청 고시 지수표 등)을 클라이언트에 노출하지 않기
+ * 위해 서버(API Route)에서 계산하고 결과만 받는다(사용자 요청,
+ * 2026-07-21). */
+export async function fetchVatCalc(params: {
+  salePrice: number;
+  landArea: number;
+  landPricePerM2: number;
+  buildingArea: number;
+  builtYear: number;
+}): Promise<VatCalcResult> {
+  const res = await fetch(`${API_BASE}/vat/calc`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "부가세 계산에 실패했습니다.");
+  }
+  return readJsonResponse<VatCalcResult>(res);
+}

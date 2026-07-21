@@ -13,19 +13,9 @@ import { parseAuctionAddress } from "@/lib/address-parse";
 import {
   fetchVatAddressCoord,
   fetchVatBuildingRegister,
+  fetchVatCalc,
   fetchVatLandPrice,
 } from "@/lib/api";
-import {
-  DEP_GROUP_USEFUL_LIFE,
-  RC_DEP_GROUP,
-  STRUCTURE_INDEX_RC,
-  calcBuildingStandardPricePerM2,
-  calcResidualRate,
-  calcVat,
-  getLocationIndex,
-} from "@/lib/vat-calc";
-
-const APARTMENT_USAGE_INDEX = 110;
 
 function parseAreaNumber(value: string | null | undefined): number | null {
   const num = Number.parseFloat(String(value ?? "").match(/[\d.]+/)?.[0] ?? "");
@@ -154,7 +144,11 @@ export function ProfitCalculatorPanel({
   const [vatAutoReady, setVatAutoReady] = useState(false);
   const [vatLandArea, setVatLandArea] = useState<number | null>(null);
   const [vatLandPricePerM2, setVatLandPricePerM2] = useState<number | null>(null);
-  const [vatBuildingStandardPrice, setVatBuildingStandardPrice] = useState<number | null>(null);
+  const [vatBuildingArea, setVatBuildingArea] = useState<number | null>(null);
+  const [vatBuiltYear, setVatBuiltYear] = useState<number | null>(null);
+  // 부가세는 기본으로 정상가(시가) 기준을 노출하고, 체크박스를 켜면
+  // 최저가(국세청 고시상 하한) 기준으로 전환한다(사용자 요청, 2026-07-21).
+  const [vatUseLowPrice, setVatUseLowPrice] = useState(false);
 
   async function handleAutoCalcVat() {
     setVatAutoLoading(true);
@@ -191,27 +185,14 @@ export function ProfitCalculatorPanel({
         setVatAutoNote("신축연도 정보가 없어 자동계산을 사용할 수 없습니다.");
         return;
       }
-      const baseYear = new Date().getFullYear();
-      const residualRate = calcResidualRate(
-        builtYear,
-        DEP_GROUP_USEFUL_LIFE[RC_DEP_GROUP],
-        baseYear,
-      );
-      const locationIndex = getLocationIndex(jiga);
-      const perM2 = calcBuildingStandardPricePerM2({
-        structureIndex: STRUCTURE_INDEX_RC,
-        usageIndex: APARTMENT_USAGE_INDEX,
-        locationIndex,
-        residualRate,
-      });
       const exclusiveArea = parseAreaNumber(item.area) ?? 0;
       const buildingArea =
         buildingInfo?.totalArea ?? (dbSharedArea > 0 ? exclusiveArea + dbSharedArea : exclusiveArea);
-      const buildingStandardPrice = Math.round(perM2 * buildingArea);
 
       setVatLandArea(landArea);
       setVatLandPricePerM2(jiga);
-      setVatBuildingStandardPrice(buildingStandardPrice);
+      setVatBuildingArea(buildingArea);
+      setVatBuiltYear(builtYear);
       setVatAutoReady(true);
       setVatEdited(false);
       setVatAutoNote(
@@ -227,29 +208,50 @@ export function ProfitCalculatorPanel({
   }
 
   // 매도가가 바뀌면 부가세도 자동으로 따라간다. 자동계산 자료가 준비됐으면
-  // 국세청 공식(부가가치세 최저가)을, 아직이면 기존 추정치(매도가×10%×
-  // 50%)를 쓴다. 사용자가 부가세를 직접 수정한 뒤에는 더 이상 자동
-  // 갱신하지 않는다.
+  // 국세청 공식(기본: 정상가, 체크박스 선택 시 최저가)을, 아직이면 기존
+  // 추정치(매도가×10%×50%)를 쓴다. 사용자가 부가세를 직접 수정한 뒤에는
+  // 더 이상 자동 갱신하지 않는다.
   useEffect(() => {
     if (!over85 || vatEdited) return;
     if (
       vatAutoReady &&
       vatLandArea != null &&
       vatLandPricePerM2 != null &&
-      vatBuildingStandardPrice != null
+      vatBuildingArea != null &&
+      vatBuiltYear != null
     ) {
-      const vat = calcVat({
+      let cancelled = false;
+      fetchVatCalc({
         salePrice,
         landArea: vatLandArea,
         landPricePerM2: vatLandPricePerM2,
-        buildingStandardPrice: vatBuildingStandardPrice,
-      });
-      setVatAmount(vat.vatLow);
-      return;
+        buildingArea: vatBuildingArea,
+        builtYear: vatBuiltYear,
+      })
+        .then((vat) => {
+          if (cancelled) return;
+          setVatAmount(vatUseLowPrice ? vat.vatLow : vat.vatMarket);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setVatAmount(Math.round(salePrice * 0.1 * 0.5));
+        });
+      return () => {
+        cancelled = true;
+      };
     }
     setVatAmount(Math.round(salePrice * 0.1 * 0.5));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salePrice, over85, vatAutoReady, vatLandArea, vatLandPricePerM2, vatBuildingStandardPrice]);
+  }, [
+    salePrice,
+    over85,
+    vatAutoReady,
+    vatLandArea,
+    vatLandPricePerM2,
+    vatBuildingArea,
+    vatBuiltYear,
+    vatUseLowPrice,
+  ]);
 
   const input: ProfitCalculatorInput = {
     minPrice: item.minPrice,
@@ -422,10 +424,24 @@ export function ProfitCalculatorPanel({
                 suffix="원"
                 helper={
                   vatAutoReady
-                    ? "국세청 고시 공식 기준 부가가치세 최저가로 자동 계산됨(직접 수정 가능)"
+                    ? `국세청 고시 공식 기준 부가가치세 ${vatUseLowPrice ? "최저가" : "정상가"}로 자동 계산됨(직접 수정 가능)`
                     : "전용 85㎡ 초과 물건: 매도가의 10%×50%를 기본값으로 사용 중"
                 }
               />
+              {vatAutoReady && (
+                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer pb-1">
+                  <input
+                    type="checkbox"
+                    checked={vatUseLowPrice}
+                    onChange={(e) => {
+                      setVatUseLowPrice(e.target.checked);
+                      setVatEdited(false);
+                    }}
+                    className="w-3.5 h-3.5"
+                  />
+                  부가세 최저가로 표시
+                </label>
+              )}
               <div className="flex items-center justify-between gap-3 pb-2">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   {vatAutoLoading
