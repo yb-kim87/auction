@@ -171,9 +171,16 @@ export function ProfitCalculatorPanel({
         setVatAutoNote("주소를 좌표로 변환하지 못해 자동계산을 사용할 수 없습니다.");
         return;
       }
+      const dbSharedArea = parseAreaNumber(item.sharedArea ?? "") ?? 0;
+      // 크롤링 시점에 이미 공용면적을 확보한 물건은 건축물대장 API 조회를
+      // 생략한다 — 이 API가 간헐적 빈 응답으로 재시도(최대 3회×2)를 타면서
+      // 자동계산에서 가장 느린 구간이었다(실측, 2026-07-21).
+      const skipBuildingRegister = dbSharedArea > 0 && !!item.builtYear;
       const [jiga, buildingInfo] = await Promise.all([
         fetchVatLandPrice(coord.x, coord.y),
-        coord.pnu ? fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined) : null,
+        skipBuildingRegister || !coord.pnu
+          ? null
+          : fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined),
       ]);
       if (jiga == null) {
         setVatAutoNote("개별공시지가를 조회하지 못해 자동계산을 사용할 수 없습니다.");
@@ -197,7 +204,9 @@ export function ProfitCalculatorPanel({
         locationIndex,
         residualRate,
       });
-      const buildingArea = buildingInfo?.totalArea ?? parseAreaNumber(item.area) ?? 0;
+      const exclusiveArea = parseAreaNumber(item.area) ?? 0;
+      const buildingArea =
+        buildingInfo?.totalArea ?? (dbSharedArea > 0 ? exclusiveArea + dbSharedArea : exclusiveArea);
       const buildingStandardPrice = Math.round(perM2 * buildingArea);
 
       setVatLandArea(landArea);
