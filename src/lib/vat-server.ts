@@ -27,6 +27,23 @@ export async function requireAdminFromRequest(
   return null;
 }
 
+/** 물건 상세(수익계산 패널)의 85㎡ 초과 물건 부가세 자동계산은 관리자
+ * 뿐 아니라 로그인한 일반 회원(수강생/컨설턴트 등)도 사용하므로,
+ * 관리자 전용이 아니라 로그인 여부만 확인한다. */
+export async function requireAuthFromRequest(
+  request: NextRequest,
+): Promise<NextResponse | null> {
+  const token = readAuthToken(request);
+  if (!token) {
+    return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
+  }
+  const session = await verifySessionToken(token);
+  if (!session) {
+    return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
+  }
+  return null;
+}
+
 export async function fetchExternalJson(
   label: string,
   url: string,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminFromRequest } from "@/lib/vat-server";
+import { requireAuthFromRequest } from "@/lib/vat-server";
 
 export const preferredRegion = "icn1";
 export const runtime = "nodejs";
@@ -128,7 +128,7 @@ async function findUseAprDayByDong(
 }
 
 export async function GET(request: NextRequest) {
-  const authError = await requireAdminFromRequest(request);
+  const authError = await requireAuthFromRequest(request);
   if (authError) return authError;
 
   const pnu = request.nextUrl.searchParams.get("pnu")?.trim();
@@ -154,7 +154,10 @@ export async function GET(request: NextRequest) {
 
   if (dong && ho) {
     const dongNm = dong.endsWith("동") ? dong : `${dong}동`;
-    const hoNm = ho.endsWith("호") ? ho : `${ho}호`;
+    // hoNm은 "호" 접미사를 붙이면 매칭이 0건으로 나온다(실측: "2202호"는
+    // 0건, 순수 숫자 "2202"는 정상 9건 매칭, 2026-07-21) — dongNm과
+    // 달리 순수 숫자만 받는 것으로 보인다.
+    const hoNm = ho.replace(/호\s*$/, "").trim();
 
     const [rows0, rows1] = await Promise.all([
       fetchExposedWithRetry(key, params, "0", dongNm, hoNm),

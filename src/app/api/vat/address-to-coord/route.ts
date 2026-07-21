@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchExternalJson, requireAdminFromRequest } from "@/lib/vat-server";
+import { fetchExternalJson, requireAuthFromRequest } from "@/lib/vat-server";
 
 /** Vercel 서울 리전(icn1)에서 실행 — Railway(해외 리전)가 VWorld API에
  * 연결하지 못하는 문제를 우회한다(실측, 2026-07-21). */
@@ -11,7 +11,7 @@ function vworldKey(): string | null {
 }
 
 export async function GET(request: NextRequest) {
-  const authError = await requireAdminFromRequest(request);
+  const authError = await requireAuthFromRequest(request);
   if (authError) return authError;
 
   const address = request.nextUrl.searchParams.get("address")?.trim();

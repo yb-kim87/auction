@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchExternalJson, requireAdminFromRequest } from "@/lib/vat-server";
+import { fetchExternalJson, requireAuthFromRequest } from "@/lib/vat-server";
 
 export const preferredRegion = "icn1";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const authError = await requireAdminFromRequest(request);
+  const authError = await requireAuthFromRequest(request);
   if (authError) return authError;
 
   const x = request.nextUrl.searchParams.get("x");
