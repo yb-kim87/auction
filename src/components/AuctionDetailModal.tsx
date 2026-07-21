@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, Calculator } from "lucide-react";
 import type { AuctionItem, UpdateAuctionPayload } from "@/types/auction";
+import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import {
   AUCTION_FIELD_GROUPS,
   toFormState,
@@ -2125,7 +2126,7 @@ export function AuctionDetailModal({
                       )}
                       {preview.strategyTagsList && preview.strategyTagsList.length > 0 && (
                         <div className="space-y-2 mb-4">
-                          {preview.strategyTagsList.map((tag) => (
+                          {dedupeStrategyTagsByLabel(preview.strategyTagsList).map((tag) => (
                             <div
                               key={tag.code}
                               className="rounded-xl px-3.5 py-3"

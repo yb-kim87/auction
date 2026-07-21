@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, Heart, Calendar, SlidersHorizontal, Search, Wallet, X, LayoutGrid, List, ChevronDown } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
+import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import {
   fetchRecommendations,
@@ -652,7 +653,7 @@ function RecommendCard({
         </div>
 
         <div className="px-4 mt-2 min-h-[1.5rem] flex flex-wrap gap-1.5">
-          {item.strategyTagsList?.map((tag) => (
+          {dedupeStrategyTagsByLabel(item.strategyTagsList).map((tag) => (
             <span
               key={tag.code}
               title={tag.description}
@@ -838,7 +839,7 @@ function RecommendListRow({
           </p>
           {item.strategyTagsList && item.strategyTagsList.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
-              {item.strategyTagsList.map((tag) => (
+              {dedupeStrategyTagsByLabel(item.strategyTagsList).map((tag) => (
                 <span
                   key={tag.code}
                   title={tag.description}

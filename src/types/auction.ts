@@ -13,6 +13,23 @@ export interface StrategyTagItem {
   icon: string;
 }
 
+/** 서로 다른 전략 규칙(code)이 같은 label로 설정된 경우(관리자 설정
+ * 중복), 화면에는 label 기준으로 1개만 보여준다(사용자 요청,
+ * 2026-07-21). */
+export function dedupeStrategyTagsByLabel(
+  tags: StrategyTagItem[] | undefined,
+): StrategyTagItem[] {
+  if (!tags?.length) return [];
+  const seen = new Set<string>();
+  const result: StrategyTagItem[] = [];
+  for (const tag of tags) {
+    if (seen.has(tag.label)) continue;
+    seen.add(tag.label);
+    result.push(tag);
+  }
+  return result;
+}
+
 export interface AuctionItem {
   id: string;
   memo: string;
