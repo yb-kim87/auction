@@ -1151,6 +1151,12 @@ function formatFieldValue(
     const detail = String(item.priceDetail ?? "").trim();
     return detail || "-";
   }
+  if (key === "landShare") {
+    const landShare = String(item.landShare ?? "").trim();
+    if (!landShare) return "-";
+    const sharedArea = String(item.sharedArea ?? "").trim();
+    return sharedArea ? `${landShare}㎡ (공용 ${sharedArea}㎡)` : `${landShare}㎡`;
+  }
 
   const value = item[key as keyof AuctionItem];
   if (value === null || value === undefined || value === "") return "-";
