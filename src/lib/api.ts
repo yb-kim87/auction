@@ -661,6 +661,22 @@ export async function fetchTagRules(): Promise<TagRule[]> {
   return readJsonResponse(res);
 }
 
+export type TagRuleMatchCounts = {
+  factCounts: Record<string, number>;
+  strategyCounts: Record<string, number>;
+};
+
+export async function fetchTagRuleMatchCounts(): Promise<TagRuleMatchCounts> {
+  const res = await fetch(`${API_BASE}/tag-rules/match-counts`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "매칭 건수를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchTagRuleFields(): Promise<{
   fields: TagRuleFieldDef[];
   operators: TagRuleOperatorDef[];

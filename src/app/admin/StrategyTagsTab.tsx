@@ -13,9 +13,11 @@ import {
   removeStrategyLabel,
   refineStrategyDescription,
   backfillTagRules,
+  fetchTagRuleMatchCounts,
   type TagRule,
   type StrategyRule,
   type StrategyLabel,
+  type TagRuleMatchCounts,
 } from "@/lib/api";
 
 type StrategyForm = {
@@ -50,6 +52,8 @@ export function StrategyTagsTab() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
+  const [matchCounts, setMatchCounts] = useState<TagRuleMatchCounts | null>(null);
+
   const [labelForm, setLabelForm] = useState(EMPTY_LABEL_FORM);
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -66,6 +70,12 @@ export function StrategyTagsTab() {
       })
       .catch((err) => setMessage(err instanceof Error ? err.message : "불러오기 실패"))
       .finally(() => setLoading(false));
+    // 규칙 생성/수정/삭제는 백엔드에서 자동으로 전체 재계산(backfillTags)을
+    // 함께 실행하므로, 이 매칭 건수도 규칙 목록과 같은 시점에 새로 받아오면
+    // 항상 최신 상태다(사용자 요청, 2026-07-22).
+    fetchTagRuleMatchCounts()
+      .then(setMatchCounts)
+      .catch(() => setMatchCounts(null));
   }
 
   useEffect(load, []);
@@ -545,12 +555,13 @@ export function StrategyTagsTab() {
       <div className="border border-border rounded-sm overflow-x-auto">
         <table className="w-full text-sm border-collapse table-fixed">
           <colgroup>
-            <col className="w-[14%]" />
-            <col className="w-[16%]" />
-            <col className="w-[16%]" />
-            <col className="w-[28%]" />
+            <col className="w-[13%]" />
+            <col className="w-[15%]" />
+            <col className="w-[15%]" />
+            <col className="w-[25%]" />
             <col className="w-[8%]" />
-            <col className="w-[9%]" />
+            <col className="w-[7%]" />
+            <col className="w-[8%]" />
             <col className="w-[9%]" />
           </colgroup>
           <thead>
@@ -559,6 +570,7 @@ export function StrategyTagsTab() {
               <th className="px-3 py-2.5 font-semibold text-foreground">라벨</th>
               <th className="px-3 py-2.5 font-semibold text-foreground">필요한 조건</th>
               <th className="px-3 py-2.5 font-semibold text-foreground">설명</th>
+              <th className="px-3 py-2.5 font-semibold text-foreground text-center">매칭 건수</th>
               <th className="px-3 py-2.5 font-semibold text-foreground text-center">활성</th>
               <th className="px-3 py-2.5 text-center">수정</th>
               <th className="px-3 py-2.5 text-center">삭제</th>
@@ -567,7 +579,7 @@ export function StrategyTagsTab() {
           <tbody>
             {strategyRules.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                <td colSpan={8} className="px-4 py-6 text-center text-sm text-muted-foreground">
                   등록된 전략이 없습니다.
                 </td>
               </tr>
@@ -576,7 +588,7 @@ export function StrategyTagsTab() {
                 if (editingId === rule.id) {
                   return (
                     <tr key={rule.id} className="border-b border-border last:border-b-0 bg-secondary/20">
-                      <td className="px-3 py-3 align-top" colSpan={7}>
+                      <td className="px-3 py-3 align-top" colSpan={8}>
                         <div className="space-y-2">
                           <input
                             type="text"
@@ -698,6 +710,21 @@ export function StrategyTagsTab() {
                     </td>
                     <td className="px-3 py-3 align-top text-muted-foreground break-words">
                       {rule.description || "-"}
+                    </td>
+                    <td className="px-3 py-3 align-top text-center">
+                      {matchCounts ? (
+                        <span
+                          className={
+                            (matchCounts.strategyCounts[rule.strategyCode] ?? 0) === 0
+                              ? "text-destructive font-semibold"
+                              : "text-foreground font-semibold"
+                          }
+                        >
+                          {(matchCounts.strategyCounts[rule.strategyCode] ?? 0).toLocaleString("ko-KR")}건
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </td>
                     <td className="px-3 py-3 align-top text-center">
                       <input
