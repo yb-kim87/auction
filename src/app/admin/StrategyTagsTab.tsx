@@ -555,14 +555,14 @@ export function StrategyTagsTab() {
       <div className="border border-border rounded-sm overflow-x-auto">
         <table className="w-full text-sm border-collapse table-fixed">
           <colgroup>
-            <col className="w-[13%]" />
-            <col className="w-[15%]" />
-            <col className="w-[15%]" />
-            <col className="w-[25%]" />
-            <col className="w-[8%]" />
+            <col className="w-[12%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
+            <col className="w-[23%]" />
+            <col className="w-[11%]" />
             <col className="w-[7%]" />
             <col className="w-[8%]" />
-            <col className="w-[9%]" />
+            <col className="w-[8%]" />
           </colgroup>
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
@@ -570,7 +570,7 @@ export function StrategyTagsTab() {
               <th className="px-3 py-2.5 font-semibold text-foreground">라벨</th>
               <th className="px-3 py-2.5 font-semibold text-foreground">필요한 조건</th>
               <th className="px-3 py-2.5 font-semibold text-foreground">설명</th>
-              <th className="px-3 py-2.5 font-semibold text-foreground text-center">매칭 건수</th>
+              <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap">매칭 건수</th>
               <th className="px-3 py-2.5 font-semibold text-foreground text-center">활성</th>
               <th className="px-3 py-2.5 text-center">수정</th>
               <th className="px-3 py-2.5 text-center">삭제</th>
@@ -711,7 +711,7 @@ export function StrategyTagsTab() {
                     <td className="px-3 py-3 align-top text-muted-foreground break-words">
                       {rule.description || "-"}
                     </td>
-                    <td className="px-3 py-3 align-top text-center">
+                    <td className="px-3 py-3 align-top text-center whitespace-nowrap">
                       {matchCounts ? (
                         <span
                           className={
