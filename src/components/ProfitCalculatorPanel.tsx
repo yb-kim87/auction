@@ -413,7 +413,13 @@ export function ProfitCalculatorPanel({
           />
           <NumberField label="부동산 추가수수료" value={extraRealtyFee} onChange={setExtraRealtyFee} suffix="원" />
           {over85 && (
-            <>
+            <div
+              className="my-2 px-3 py-2 rounded-lg"
+              style={{
+                background: "linear-gradient(135deg,#FFF7ED,#FFFBEB)",
+                border: "1px solid rgba(234,88,12,0.25)",
+              }}
+            >
               <NumberField
                 label="부가세"
                 value={vatAmount}
@@ -442,7 +448,7 @@ export function ProfitCalculatorPanel({
                   부가세 최저가로 표시
                 </label>
               )}
-              <div className="flex items-center justify-between gap-3 pb-2">
+              <div className="flex items-center justify-between gap-3 pb-1">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   {vatAutoLoading
                     ? "물건 주소로 토지공시지가·건물면적을 조회해 정확한 부가세를 계산하는 중..."
@@ -457,7 +463,7 @@ export function ProfitCalculatorPanel({
                   {vatAutoLoading ? "계산 중..." : "자동계산"}
                 </button>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
