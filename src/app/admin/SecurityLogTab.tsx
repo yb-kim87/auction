@@ -115,7 +115,7 @@ export function SecurityLogTab() {
       <div>
         <h2 className="text-lg font-bold text-foreground">로그 감지 시스템 (이상행위 알림)</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          모든 API 요청을 로그 파일(logs/requests.log)에 기록하고, 10분마다 AI가 대량요청·
+          모든 API 요청을 DB(request_logs, 30일 보관)에 기록하고, 10분마다 AI가 대량요청·
           크롤링·자동화 스크립트로 의심되는 패턴이 있는지 분석합니다. 의심되면 텔레그램으로
           관리자에게 자동 알림이 전송됩니다. OPENAI_API_KEY, TELEGRAM_BOT_TOKEN,
           TELEGRAM_CHAT_ID 환경변수가 설정되어 있어야 동작합니다.
