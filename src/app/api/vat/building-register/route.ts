@@ -15,45 +15,65 @@ async function fetchExternal(label: string, url: string): Promise<Response | nul
   }
 }
 
-async function fetchExposedOnce(
+/** 공공데이터포털은 numOfRows를 크게 넣어도 한 페이지에 최대 100건만
+ * 준다(실측 확인, 2026-07-23) — 세대수가 많은 건물(예: 247건인 물건)은
+ * 첫 페이지(기존 numOfRows=50)에 찾는 호실이 없으면 조회 실패로 오판해
+ * 표제부(건물 전체 합산 면적)로 잘못 폴백했다(예: 86.09㎡짜리 403호가
+ * 3434.88㎡ 건물 전체 면적으로 잘못 표시됨). totalCount를 보고 남은
+ * 페이지를 전부 가져온다. */
+async function fetchExposedAll(
   key: string,
   params: PnuParams,
   platGbCd: "0" | "1",
   dongNm: string,
   hoNm: string,
 ): Promise<{ ok: boolean; rows: Record<string, unknown>[] }> {
-  const url = new URL(
-    "https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo",
-  );
-  url.searchParams.set("sigunguCd", params.sigunguCd);
-  url.searchParams.set("bjdongCd", params.bjdongCd);
-  url.searchParams.set("platGbCd", platGbCd);
-  url.searchParams.set("bun", params.bun);
-  url.searchParams.set("ji", params.ji);
-  if (dongNm) url.searchParams.set("dongNm", dongNm);
-  if (hoNm) url.searchParams.set("hoNm", hoNm);
-  url.searchParams.set("serviceKey", key);
-  url.searchParams.set("numOfRows", "50");
-  url.searchParams.set("pageNo", "1");
-  url.searchParams.set("_type", "json");
+  const pageSize = 100;
+  let pageNo = 1;
+  let totalCount = Infinity;
+  const rows: Record<string, unknown>[] = [];
 
-  const res = await fetchExternal("건축물대장(전유부) 조회", url.toString());
-  if (!res || !res.ok) return { ok: false, rows: [] };
-  try {
-    const data = (await res.json()) as {
-      response?: {
-        header?: { resultCode?: string };
-        body?: { items?: { item?: Record<string, unknown>[] } | "" };
+  while ((pageNo - 1) * pageSize < totalCount) {
+    const url = new URL(
+      "https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo",
+    );
+    url.searchParams.set("sigunguCd", params.sigunguCd);
+    url.searchParams.set("bjdongCd", params.bjdongCd);
+    url.searchParams.set("platGbCd", platGbCd);
+    url.searchParams.set("bun", params.bun);
+    url.searchParams.set("ji", params.ji);
+    if (dongNm) url.searchParams.set("dongNm", dongNm);
+    if (hoNm) url.searchParams.set("hoNm", hoNm);
+    url.searchParams.set("serviceKey", key);
+    url.searchParams.set("numOfRows", String(pageSize));
+    url.searchParams.set("pageNo", String(pageNo));
+    url.searchParams.set("_type", "json");
+
+    const res = await fetchExternal("건축물대장(전유부) 조회", url.toString());
+    if (!res || !res.ok) return { ok: rows.length > 0, rows };
+    try {
+      const data = (await res.json()) as {
+        response?: {
+          header?: { resultCode?: string };
+          body?: {
+            totalCount?: number | string;
+            items?: { item?: Record<string, unknown>[] } | "";
+          };
+        };
       };
-    };
-    if (data.response?.header?.resultCode !== "00") return { ok: false, rows: [] };
-    const items = data.response?.body?.items;
-    const rows =
-      items && typeof items === "object" && Array.isArray(items.item) ? items.item : [];
-    return { ok: true, rows };
-  } catch {
-    return { ok: false, rows: [] };
+      if (data.response?.header?.resultCode !== "00") return { ok: rows.length > 0, rows };
+      totalCount = Number(data.response?.body?.totalCount) || 0;
+      const items = data.response?.body?.items;
+      const pageRows =
+        items && typeof items === "object" && Array.isArray(items.item) ? items.item : [];
+      rows.push(...pageRows);
+      if (pageRows.length === 0) break;
+    } catch {
+      return { ok: rows.length > 0, rows };
+    }
+    pageNo += 1;
   }
+  return { ok: true, rows };
 }
 
 /** 공공데이터포털 건축물대장 API는 정상 요청에도 간헐적으로 빈 결과를
@@ -68,7 +88,7 @@ async function fetchExposedWithRetry(
 ): Promise<Record<string, unknown>[] | null> {
   let sawEmptySuccess = false;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const result = await fetchExposedOnce(key, params, platGbCd, dongNm, hoNm);
+    const result = await fetchExposedAll(key, params, platGbCd, dongNm, hoNm);
     if (result.ok && result.rows.length > 0) return result.rows;
     if (result.ok) sawEmptySuccess = true;
     if (attempt < 2) await new Promise((r) => setTimeout(r, 400));
@@ -218,7 +238,19 @@ export async function GET(request: NextRequest) {
         grndFlrCnt,
       });
     }
-    // 동/호로 못 찾으면 표제부로 폴백(오타 또는 API 표기 형식 차이).
+    // 호수가 지정됐는데 전유부에서 못 찾은 경우 표제부(건물 전체 합산
+    // 면적)로 조용히 폴백하지 않는다 — 전유부 면적(호실 단위, 수십~
+    // 백여 ㎡)과 표제부 면적(건물 전체, 수천 ㎡)은 자릿수가 완전히
+    // 달라 폴백 시 "자동조회 완료"로 표시되면서 명백히 잘못된 큰 값이
+    // 그대로 부가세 계산에 쓰이는 사고로 이어진다(실측: 86.09㎡짜리
+    // 호실이 3434.88㎡ 건물 전체 면적으로 잘못 표시됨, 2026-07-23) —
+    // 조용한 오답보다 명시적 실패가 안전하다.
+    return NextResponse.json(
+      {
+        message: `이 호실(${ho}${dong ? `, ${dong}동` : ""})의 전유부 정보를 건축물대장에서 찾지 못했습니다. 동/호수를 다시 확인하거나 매도예상가·건물기준시가를 직접 입력해 주세요.`,
+      },
+      { status: 404 },
+    );
   }
 
   const item =
