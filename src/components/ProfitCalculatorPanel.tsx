@@ -521,7 +521,7 @@ export function ProfitCalculatorPanel({
         </div>
 
         <div className="px-3 py-2 bg-secondary/30">
-          <p className="text-[12px] font-semibold text-foreground">매도/세금</p>
+          <p className="text-[12px] font-semibold text-foreground">매도 비용</p>
         </div>
         <div className="px-3">
           <NumberField
@@ -599,7 +599,7 @@ export function ProfitCalculatorPanel({
 
       <div className="rounded-lg border border-border p-3 space-y-1">
         <div className="flex items-center justify-between mb-1.5">
-          <p className="text-[12px] font-semibold text-foreground">계산 상세</p>
+          <p className="text-[12px] font-semibold text-foreground">소득세 계산상세</p>
           <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
             <input
               type="checkbox"
