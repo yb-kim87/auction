@@ -78,7 +78,7 @@ export interface AuctionItem {
   isRedevelopment: boolean;
   city: string;
   district: string;
-  propType: "아파트" | "빌라";
+  propType: "아파트" | "빌라" | "오피스텔";
   strategyTagsList?: StrategyTagItem[];
   status: AuctionStatus;
   submittedBy: string;
