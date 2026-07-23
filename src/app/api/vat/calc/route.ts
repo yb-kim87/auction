@@ -11,6 +11,14 @@ import {
 } from "@/lib/vat-calc";
 
 const APARTMENT_USAGE_INDEX = 110;
+/** 오피스텔은 atomtax-app 실측 대조 결과 주거용/상업용 카테고리 어느 쪽으로
+ * 분류하든 용도지수가 동일하게 140(시행령상 업무시설이나 주거용 임대 편의를
+ * 위해 주거 카테고리에도 동일 지수로 중복 등재됨, 2026-07-23 실측). */
+const OFFICETEL_USAGE_INDEX = 140;
+
+function isOfficetelUsage(usage: string): boolean {
+  return usage.trim().startsWith("오피스텔");
+}
 
 /** 부가세 계산 공식(국세청 고시 지수표·잔가율 산식 등)을 클라이언트
  * 번들에서 완전히 제거하기 위해 서버 전용으로 옮긴 라우트. 클라이언트는
@@ -26,6 +34,7 @@ export async function POST(request: NextRequest) {
     landPricePerM2?: unknown;
     buildingArea?: unknown;
     builtYear?: unknown;
+    usage?: unknown;
   } | null;
   if (!body) {
     return NextResponse.json({ message: "요청 본문이 올바르지 않습니다." }, { status: 400 });
@@ -50,12 +59,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "계산에 필요한 값이 올바르지 않습니다." }, { status: 400 });
   }
 
+  const usage = String(body.usage ?? "");
+  const usageIndex = isOfficetelUsage(usage) ? OFFICETEL_USAGE_INDEX : APARTMENT_USAGE_INDEX;
+
   const baseYear = new Date().getFullYear();
   const residualRate = calcResidualRate(builtYear, DEP_GROUP_USEFUL_LIFE[RC_DEP_GROUP], baseYear);
   const locationIndex = getLocationIndex(landPricePerM2);
   const perM2 = calcBuildingStandardPricePerM2({
     structureIndex: STRUCTURE_INDEX_RC,
-    usageIndex: APARTMENT_USAGE_INDEX,
+    usageIndex,
     locationIndex,
     residualRate,
   });

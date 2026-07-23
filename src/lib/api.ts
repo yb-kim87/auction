@@ -3147,6 +3147,7 @@ export async function fetchVatCalc(params: {
   landPricePerM2: number;
   buildingArea: number;
   builtYear: number;
+  usage?: string;
 }): Promise<VatCalcResult> {
   const res = await fetch(`${API_BASE}/vat/calc`, {
     method: "POST",

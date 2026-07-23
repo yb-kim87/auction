@@ -589,6 +589,7 @@ function RecommendCard({
         existingLoanWon: loanInfo.existingLoanWon,
         housingCount,
         regulatedArea: loanInfo.regulatedArea,
+        usage: item.usage,
       }).finalProfit
     : null;
 

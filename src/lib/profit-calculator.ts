@@ -18,12 +18,24 @@ function baseAcquisitionTaxRate(minPriceWon: number): number {
   return base * 1.1 + 0.007;
 }
 
+/** 오피스텔은 건축법상 업무시설(주택이 아님)이라 주택 취득세 누진/중과 체계
+ * (무주택·규제지역·다주택 등)와 무관하게 항상 건물분 4% + 지방교육세 0.4% +
+ * 농어촌특별세 0.2% = 4.6% 단일세율이 적용된다(사용자 확인, 2026-07-23). */
+export const OFFICETEL_ACQUISITION_TAX_RATE = 0.046;
+
+/** usage 문자열이 오피스텔인지 판정. 크롤러가 "오피스텔(주거)"/"오피스텔(상업)"으로
+ * 세분화해서 저장하므로 접두어만 확인한다. */
+export function isOfficetel(usage: string | null | undefined): boolean {
+  return String(usage ?? "").trim().startsWith("오피스텔");
+}
+
 /**
  * 회원의 주택수(housingCount)·물건 소재지의 조정대상지역 여부(regulatedArea)에 따른
  * 취득세율. 다주택자 중과세율 표(사용자 제공, 2026-07-18)를 그대로 반영한다.
  * 본세(8%/12%)에 지방교육세 등을 포함한 실부담세율(×1.1)을 적용한다 — 무주택자
  * 1~3% 구간 계산(baseAcquisitionTaxRate)과 동일한 방식.
  *
+ * - 오피스텔: 주택이 아니므로 위 체계와 무관하게 항상 4.6% 고정
  * - 무주택자: 주택가액에 따른 1~3% 누진 구간 그대로 적용
  * - 1주택자 + 비규제지역: 위와 동일한 1~3% 누진 구간
  * - 1주택자 + 규제지역: 본세 8% → 실부담 8.8%
@@ -38,7 +50,10 @@ export function acquisitionTaxRate(
   minPriceWon: number,
   housingCount?: number | null,
   regulatedArea?: boolean | null,
+  usage?: string | null,
 ): number {
+  if (isOfficetel(usage)) return OFFICETEL_ACQUISITION_TAX_RATE;
+
   const count = housingCount ?? 0;
 
   if (count >= 3) return 0.12 * 1.1;
@@ -53,7 +68,10 @@ export function acquisitionTaxRate(
 export function acquisitionTaxBracketLabel(
   housingCount?: number | null,
   regulatedArea?: boolean | null,
+  usage?: string | null,
 ): string {
+  if (isOfficetel(usage)) return "오피스텔(4.6% 고정)";
+
   const count = housingCount ?? 0;
   const regionLabel = regulatedArea ? "규제" : "비규제";
 
@@ -121,6 +139,7 @@ export interface ProfitCalculatorInput {
   existingIncome: number; // 기존소득(연간), 기본 0. 매매차익과 합산해 세율 구간을 판정한다
   housingCount?: number | null; // 회원 보유 주택수(취득세 중과 판정용), 기본 0(무주택)
   regulatedArea?: boolean | null; // 물건 소재지 조정대상지역 여부(취득세 중과 판정용)
+  usage?: string | null; // 물건 용도(오피스텔이면 취득세 4.6% 고정 적용)
 }
 
 export interface ProfitCalculatorResult {
@@ -167,6 +186,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     existingIncome,
     housingCount,
     regulatedArea,
+    usage,
   } = input;
 
   const bidRatio = minPrice > 0 ? bidPrice / minPrice : 0;
@@ -179,7 +199,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
   );
   const loanAmount = Math.max(0, loanLimit - Math.max(0, existingLoanWon));
 
-  const taxRate = acquisitionTaxRate(bidPrice, housingCount, regulatedArea);
+  const taxRate = acquisitionTaxRate(bidPrice, housingCount, regulatedArea, usage);
   const acquisitionTax = Math.round(bidPrice * taxRate);
 
   const loanInterest = Math.round((loanAmount * loanInterestRate) / 12 * holdingMonths);
@@ -266,6 +286,7 @@ export function estimateDefaultProfit(params: {
   existingLoanWon?: number;
   housingCount?: number | null;
   regulatedArea?: boolean | null;
+  usage?: string | null;
 }): ProfitCalculatorResult {
   const {
     minPrice,
@@ -277,8 +298,9 @@ export function estimateDefaultProfit(params: {
     existingLoanWon = 0,
     housingCount = null,
     regulatedArea = null,
+    usage = null,
   } = params;
-  const over85 = isOver85Sqm(area);
+  const over85 = isOver85Sqm(area) || isOfficetel(usage);
   return calculateProfit({
     minPrice,
     appraisedValue,
@@ -301,5 +323,6 @@ export function estimateDefaultProfit(params: {
     existingIncome: 0,
     housingCount,
     regulatedArea,
+    usage,
   });
 }

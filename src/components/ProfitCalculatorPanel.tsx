@@ -6,6 +6,7 @@ import { formatWonShort } from "@/lib/investment-money";
 import {
   calculateProfit,
   isOver85Sqm,
+  isOfficetel,
   acquisitionTaxBracketLabel,
   type ProfitCalculatorInput,
 } from "@/lib/profit-calculator";
@@ -125,7 +126,10 @@ export function ProfitCalculatorPanel({
   const [evictionCost, setEvictionCost] = useState(2_000_000);
   const [unpaidMaintenanceFee, setUnpaidMaintenanceFee] = useState(1_000_000);
   const [extraRealtyFee, setExtraRealtyFee] = useState(0);
-  const over85 = isOver85Sqm(item.area);
+  // 오피스텔은 면적(85㎡)과 무관하게 항상 부가세 부담이 발생한다(사용자
+  // 확인, 2026-07-23) — 85㎡ 초과 판정에 오피스텔 여부를 OR 조건으로 추가.
+  const isOfficetelItem = isOfficetel(item.usage);
+  const over85 = isOver85Sqm(item.area) || isOfficetelItem;
   const [vatAmount, setVatAmount] = useState(over85 ? Math.round(item.appraisedValue * 0.1 * 0.5) : 0);
   const [vatEdited, setVatEdited] = useState(false);
   const [applyProgressiveDeduction, setApplyProgressiveDeduction] = useState(true);
@@ -227,6 +231,7 @@ export function ProfitCalculatorPanel({
         landPricePerM2: vatLandPricePerM2,
         buildingArea: vatBuildingArea,
         builtYear: vatBuiltYear,
+        usage: item.usage,
       })
         .then((vat) => {
           if (cancelled) return;
@@ -275,6 +280,7 @@ export function ProfitCalculatorPanel({
     existingIncome,
     housingCount,
     regulatedArea,
+    usage: item.usage,
   };
 
   const result = useMemo(() => calculateProfit(input), [
@@ -298,6 +304,7 @@ export function ProfitCalculatorPanel({
     applyProgressiveDeduction,
     housingCount,
     regulatedArea,
+    item.usage,
   ]);
 
   return (
@@ -388,7 +395,7 @@ export function ProfitCalculatorPanel({
             value={result.acquisitionTax}
             readOnly
             suffix="원"
-            helper={`${acquisitionTaxBracketLabel(housingCount, regulatedArea)} · 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`}
+            helper={`${acquisitionTaxBracketLabel(housingCount, regulatedArea, item.usage)} · 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`}
           />
           <NumberField label="인테리어(필요경비)" value={interiorCost} onChange={setInteriorCost} suffix="원" />
           <NumberField label="명도비" value={evictionCost} onChange={setEvictionCost} suffix="원" />
