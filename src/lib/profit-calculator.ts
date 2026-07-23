@@ -167,7 +167,7 @@ export interface ProfitCalculatorResult {
   saleBrokerageRate: number;
   saleBrokerageFee: number; // 중개수수료(매도)
   totalAcquisitionCost: number; // 취득금액합계
-  saleMargin: number; // 매매차익 = 매도가 - 취득금액합계
+  saleMargin: number; // 매매차익 = 매도가 - 취득금액합계 - 부가세
   capitalGainsTaxRate: number;
   capitalGainsTaxDeduction: number;
   capitalGainsTax: number; // 소득세(양도세)
@@ -236,7 +236,11 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
 
   const equity = Math.max(0, totalAcquisitionCost - loanAmount);
 
-  const saleMargin = salePrice - totalAcquisitionCost;
+  // 부가세는 매도자가 실질적으로 갖는 돈이 아니므로(오피스텔 등 건물분
+  // 부가세는 매수인에게 별도 징수해 국가에 납부) 매매차익 자체에서 뺀다
+  // — 양도세 과세표준도 이 부가세 제외 금액을 기준으로 계산해야 정확함
+  // (사용자 확인, 2026-07-24).
+  const saleMargin = salePrice - totalAcquisitionCost - vatAmount;
   const positiveMargin = Math.max(0, saleMargin);
   const positiveExistingIncome = Math.max(0, existingIncome);
   const combinedTaxBase = positiveExistingIncome + positiveMargin;
@@ -254,7 +258,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     : positiveExistingIncome * capitalGainsTaxBracket(positiveExistingIncome).rate;
   const capitalGainsTax = saleMargin > 0 ? Math.max(0, Math.round(combinedTax - existingIncomeTax)) : 0;
 
-  const finalProfit = saleMargin - capitalGainsTax - extraRealtyFee - vatAmount;
+  const finalProfit = saleMargin - capitalGainsTax - extraRealtyFee;
   const profitRate = equity > 0 ? (finalProfit / equity) * 100 : 0;
 
   return {
