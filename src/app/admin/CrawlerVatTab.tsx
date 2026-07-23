@@ -11,6 +11,7 @@ import {
   matchUsage,
   getLocationIndex,
   calcResidualRate,
+  calcVat,
   BUILDING_BASE_PRICE_PER_M2,
 } from "@/lib/vat-calc";
 
@@ -115,12 +116,6 @@ function parseNum(value: string): number {
 
 function formatWon(value: number): string {
   return Math.round(value).toLocaleString("ko-KR");
-}
-
-/** 만원 단위로 반올림 — 참고 사이트(atomtax-app.vercel.app)가 최종 결과를
- * 항상 10,000원 단위로 딱 떨어지게 표시해, 실측 대조로 확인한 표시 규칙. */
-function roundToManWon(value: number): number {
-  return Math.round(value / 10000) * 10000;
 }
 
 function loadDaumPostcodeScript(): Promise<void> {
@@ -392,25 +387,14 @@ export function CrawlerVatTab() {
     const unitPrice = parseNum(landPricePerM2);
     const buildingStd = parseNum(buildingStandardPrice);
 
-    const landStdTotal = area * unitPrice;
-    const denominator = landStdTotal + 1.1 * buildingStd;
+    const vat = calcVat({
+      salePrice: sale,
+      landArea: area,
+      landPricePerM2: unitPrice,
+      buildingStandardPrice: buildingStd,
+    });
 
-    // 실측(atomtax-app.vercel.app, 2026-07-21): 매도예상가·토지면적·
-    // 토지공시지가(원/㎡)·건물기준시가로 여러 조합을 직접 입력해 계산
-    // 버튼을 누르고 결과를 역산해 확인한 공식이다.
-    // 1) 건물 공급가액(정상가) = 매도예상가 × 건물기준시가
-    //    / (토지공시지가×토지면적 + 1.1×건물기준시가)
-    // 2) 실제 적용 건물가액(분배 후) = 정상가 × 70%("최저가" 기준)
-    // 3) 부가세(최저가) = 건물가액(분배 후) × 10%
-    // 4) 토지가액(분배 후) = 매도예상가 − 건물가액 − 부가세
-    // 결과는 항상 만원 단위로 반올림해 표시된다(실측 확인).
-    const buildingSupplyMarket = denominator > 0 ? (sale * buildingStd) / denominator : 0;
-    const buildingAlloc = roundToManWon(buildingSupplyMarket * 0.7);
-    const vatLow = roundToManWon(buildingAlloc * 0.1);
-    const landAlloc = sale - buildingAlloc - vatLow;
-    const vatMarket = roundToManWon(buildingSupplyMarket * 0.1);
-
-    return { landAlloc, buildingAlloc, vatLow, vatMarket, sale };
+    return { ...vat, sale };
   }, [salePrice, landArea, landPricePerM2, buildingStandardPrice]);
 
   const missingFields = useMemo(() => {

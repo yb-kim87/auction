@@ -313,6 +313,10 @@ function roundToManWon(value: number): number {
   return Math.round(value / 10000) * 10000;
 }
 
+function roundToUnit(value: number, unit: number): number {
+  return Math.round(value / unit) * unit;
+}
+
 export type VatResult = {
   landAlloc: number;
   buildingAlloc: number;
@@ -322,7 +326,14 @@ export type VatResult = {
 
 /** 부가세 안분계산(atomtax-app 실측 대조로 확정한 공식) —
  * CrawlerVatTab.tsx와 동일: 건물 공급가액(정상가) 산출 → 70%를 최종
- * 건물가액으로, 그 10%를 부가세(최저가)로 삼는다. */
+ * 건물가액으로, 그 10%를 부가세(최저가)로 삼는다.
+ *
+ * 반올림 단위는 항목마다 다르다(atomtax-app 결과값 역산으로 확정,
+ * 2026-07-23 — 이전엔 buildingAlloc도 만원 단위로 반올림해 최종 결과가
+ * 최대 2만원까지 어긋났었다):
+ * - vatMarket(시가): 원 단위 반올림(소수점만 정리, 만원 단위 아님)
+ * - buildingAlloc(건물가액): 십만원 단위 반올림
+ * - vatLow(최저가): 만원 단위 반올림 */
 export function calcVat(params: {
   salePrice: number;
   landArea: number;
@@ -334,9 +345,9 @@ export function calcVat(params: {
   const denominator = landStdTotal + 1.1 * buildingStandardPrice;
   const buildingSupplyMarket =
     denominator > 0 ? (salePrice * buildingStandardPrice) / denominator : 0;
-  const buildingAlloc = roundToManWon(buildingSupplyMarket * 0.7);
+  const vatMarket = Math.round(buildingSupplyMarket * 0.1);
+  const buildingAlloc = roundToUnit(buildingSupplyMarket * 0.7, 100000);
   const vatLow = roundToManWon(buildingAlloc * 0.1);
   const landAlloc = salePrice - buildingAlloc - vatLow;
-  const vatMarket = roundToManWon(buildingSupplyMarket * 0.1);
   return { landAlloc, buildingAlloc, vatLow, vatMarket };
 }
