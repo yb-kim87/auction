@@ -229,15 +229,17 @@ export function ProfitCalculatorPanel({
         return;
       }
       const dbSharedArea = parseAreaNumber(item.sharedArea ?? "") ?? 0;
-      // 크롤링 시점에 이미 공용면적을 확보한 물건은 건축물대장 API 조회를
-      // 생략한다 — 이 API가 간헐적 빈 응답으로 재시도(최대 3회×2)를 타면서
-      // 자동계산에서 가장 느린 구간이었다(실측, 2026-07-21).
-      const skipBuildingRegister = dbSharedArea > 0 && !!item.builtYear;
+      // 크롤링 DB에 저장된 usage 텍스트는 건축물대장 실측값과 다를 수
+      // 있어(실측: "오피스텔(주거)"로 크롤링됐지만 실제 건축물대장은
+      // "공동주택"·6층이라 아파트로 계산해야 했던 사례, 2026-07-23) 용도
+      // 지수 판정에 신뢰할 수 없다 — 구조/용도/층수는 건축물대장 API를
+      // 항상 호출해 가져온다(사용자 요청: "앞으로는 api를 호출해서
+      // 가져오는걸로 하자"). 다만 면적·토지·공시지가는 이미 DB에 신뢰할
+      // 수 있는 값이 있으면 그대로 쓴다(API 재호출로 값이 흔들리지 않게,
+      // "공시가 토지는 그대로 쓰되 용도랑 구조만 가져오자").
       const [jiga, buildingInfo] = await Promise.all([
         fetchVatLandPrice(coord.x, coord.y),
-        skipBuildingRegister || !coord.pnu
-          ? null
-          : fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined),
+        !coord.pnu ? null : fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined),
       ]);
       if (jiga == null) {
         setVatAutoNote("개별공시지가를 조회하지 못해 자동계산을 사용할 수 없습니다.");
@@ -251,7 +253,7 @@ export function ProfitCalculatorPanel({
       }
       const exclusiveArea = parseAreaNumber(item.area) ?? 0;
       const buildingArea =
-        buildingInfo?.totalArea ?? (dbSharedArea > 0 ? exclusiveArea + dbSharedArea : exclusiveArea);
+        dbSharedArea > 0 ? exclusiveArea + dbSharedArea : (buildingInfo?.totalArea ?? exclusiveArea);
 
       setVatLandArea(landArea);
       setVatLandPricePerM2(jigaValue);
