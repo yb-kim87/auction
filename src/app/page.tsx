@@ -155,8 +155,9 @@ function matchesRecommendFilters(
 }
 
 /** 체크박스 목록으로 여러 값을 고를 수 있는 드롭다운. 선택된 항목이
- * 있으면 "N개 선택"으로, 없으면 placeholder("전체")로 표시한다
- * (사용자 요청: 지역/물건종류/투자 전략 중복 선택, 2026-07-23). */
+ * 있으면 실제 선택한 값들을 콤마로 나열해서, 없으면 placeholder
+ * ("전체")로 표시한다(사용자 요청: 지역/물건종류/투자 전략 중복 선택,
+ * "N개 선택" 대신 실제 값 표시, 2026-07-23). */
 function MultiSelectDropdown({
   label,
   options,
@@ -191,10 +192,11 @@ function MultiSelectDropdown({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-primary/20"
+        title={selected.length > 0 ? selected.join(", ") : undefined}
+        className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
       >
-        <span className={selected.length === 0 ? "text-muted-foreground" : ""}>
-          {selected.length === 0 ? "전체" : `${selected.length}개 선택`}
+        <span className={`truncate ${selected.length === 0 ? "text-muted-foreground" : ""}`}>
+          {selected.length === 0 ? "전체" : selected.join(", ")}
         </span>
         <ChevronDown size={16} className="text-muted-foreground shrink-0" />
       </button>
