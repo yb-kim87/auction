@@ -3058,11 +3058,20 @@ export async function fetchVatAddressCoord(
   };
 }
 
+export type VatLandPrice = {
+  jiga: number;
+  /** 고시연도(예: "2025") — VWorld 레이어가 아직 반영하지 못한 최신
+   * 고시가 있을 수 있어 화면에 고시 시점을 함께 표시해 사용자가
+   * 개별공시지가 조회에서 직접 비교하도록 안내한다. */
+  gosiYear: string | null;
+  gosiMonth: string | null;
+};
+
 /** 좌표 기준 개별공시지가(원/㎡) 조회(VWorld 프록시). */
 export async function fetchVatLandPrice(
   x: string,
   y: string,
-): Promise<number | null> {
+): Promise<VatLandPrice | null> {
   const res = await fetch(
     `${API_BASE}/vat/land-price?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`,
     { credentials: FETCH_CREDENTIALS, headers: withJsonHeaders() },
@@ -3074,16 +3083,22 @@ export async function fetchVatLandPrice(
     response?: {
       result?: {
         featureCollection?: {
-          features?: { properties?: { jiga?: string } }[];
+          features?: {
+            properties?: { jiga?: string; gosi_year?: string; gosi_month?: string };
+          }[];
         };
       };
     };
   }>(res);
-  const jigaStr =
-    data.response?.result?.featureCollection?.features?.[0]?.properties
-      ?.jiga;
-  const jiga = jigaStr ? Number(jigaStr) : NaN;
-  return Number.isFinite(jiga) ? jiga : null;
+  const props =
+    data.response?.result?.featureCollection?.features?.[0]?.properties;
+  const jiga = props?.jiga ? Number(props.jiga) : NaN;
+  if (!Number.isFinite(jiga)) return null;
+  return {
+    jiga,
+    gosiYear: props?.gosi_year ?? null,
+    gosiMonth: props?.gosi_month ?? null,
+  };
 }
 
 export type VatBuildingRegister = {

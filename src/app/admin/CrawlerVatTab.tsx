@@ -152,6 +152,11 @@ export function CrawlerVatTab() {
   const [landArea, setLandArea] = useState("");
   const [buildingArea, setBuildingArea] = useState("");
   const [salePrice, setSalePrice] = useState("");
+  const [landPriceGosi, setLandPriceGosi] = useState<{
+    year: string | null;
+    month: string | null;
+  } | null>(null);
+  const [landPriceAutoFetched, setLandPriceAutoFetched] = useState(false);
 
   const [usageType, setUsageType] = useState<"주거용" | "상업용">("주거용");
   const [structureIndex, setStructureIndex] = useState(3);
@@ -205,6 +210,8 @@ export function CrawlerVatTab() {
     setAddressLoading(true);
     setAddressMessage("");
     setPnu(null);
+    setLandPriceGosi(null);
+    setLandPriceAutoFetched(false);
     try {
       const coord = await fetchVatAddressCoord(fullAddress);
       if (!coord) {
@@ -212,13 +219,37 @@ export function CrawlerVatTab() {
         return;
       }
       setPnu(coord.pnu);
-      const jiga = await fetchVatLandPrice(coord.x, coord.y);
-      if (jiga == null) {
-        setAddressMessage("이 위치의 개별공시지가를 찾지 못했습니다. 직접 입력해 주세요.");
-        return;
-      }
-      setLandPricePerM2(String(jiga));
-      setAddressMessage(`2026년 공시 — VWorld API 자동 조회 완료 (${jiga.toLocaleString("ko-KR")}원/㎡)`);
+      await fetchLandPriceForCoord(coord.x, coord.y);
+    } catch (err) {
+      setAddressMessage(err instanceof Error ? err.message : "공시지가 조회에 실패했습니다.");
+    } finally {
+      setAddressLoading(false);
+    }
+  }
+
+  const [lastCoord, setLastCoord] = useState<{ x: string; y: string } | null>(null);
+
+  async function fetchLandPriceForCoord(x: string, y: string) {
+    setLastCoord({ x, y });
+    const result = await fetchVatLandPrice(x, y);
+    if (result == null) {
+      setAddressMessage("이 위치의 개별공시지가를 찾지 못했습니다. 직접 입력해 주세요.");
+      setLandPriceGosi(null);
+      setLandPriceAutoFetched(false);
+      return;
+    }
+    setLandPricePerM2(String(result.jiga));
+    setLandPriceGosi({ year: result.gosiYear, month: result.gosiMonth });
+    setLandPriceAutoFetched(true);
+    setAddressMessage("");
+  }
+
+  async function handleRefetchLandPrice() {
+    if (!lastCoord) return;
+    setAddressLoading(true);
+    setAddressMessage("");
+    try {
+      await fetchLandPriceForCoord(lastCoord.x, lastCoord.y);
     } catch (err) {
       setAddressMessage(err instanceof Error ? err.message : "공시지가 조회에 실패했습니다.");
     } finally {
@@ -350,6 +381,9 @@ export function CrawlerVatTab() {
     setAutoFetchMessage("");
     setAutoCalcNote("");
     setCalculated(false);
+    setLandPriceGosi(null);
+    setLandPriceAutoFetched(false);
+    setLastCoord(null);
   }
 
   const result = useMemo(() => {
@@ -585,17 +619,53 @@ export function CrawlerVatTab() {
         <h4 className={sectionTitleClass}>💰 조회 정보</h4>
 
         <label className="space-y-1 block">
-          <span className="text-sm font-medium">토지공시지가(원/㎡) *</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium">토지공시지가(원/㎡) *</span>
+            {landPriceAutoFetched && (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+                  ✓ 자동 조회됨
+                </span>
+                {lastCoord && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRefetchLandPrice()}
+                    disabled={addressLoading}
+                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    ↻ 다시 조회
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <input
             value={landPricePerM2}
             onChange={(e) => setLandPricePerM2(e.target.value)}
             placeholder="예: 3,553,000"
             className={fieldClass}
           />
-          <p className={hintClass}>
-            주소 검색 시 자동 조회됩니다. 실제 최신값은 개별공시지가
-            조회에서 확인 가능합니다.
-          </p>
+          {landPriceAutoFetched && landPriceGosi?.year ? (
+            <p className="text-xs text-destructive border border-destructive/40 rounded-sm px-2 py-1.5 bg-destructive/5">
+              {landPriceGosi.year}년 공시
+              {landPriceGosi.month ? ` (${landPriceGosi.year}-${landPriceGosi.month})` : ""} —
+              VWorld API 자동 조회. 실제 최신값은{" "}
+              <a
+                href="https://www.realtyprice.kr:447/notice/gsindividual/util/util.htm"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                개별공시지가 조회
+              </a>
+              에서 비교하세요.
+            </p>
+          ) : (
+            <p className={hintClass}>
+              주소 검색 시 자동 조회됩니다. 실제 최신값은 개별공시지가
+              조회에서 확인 가능합니다.
+            </p>
+          )}
         </label>
 
         <label className="space-y-1 block">

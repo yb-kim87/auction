@@ -185,6 +185,7 @@ export function ProfitCalculatorPanel({
         setVatAutoNote("개별공시지가를 조회하지 못해 자동계산을 사용할 수 없습니다.");
         return;
       }
+      const jigaValue = jiga.jiga;
       const builtYear = item.builtYear || parseAreaNumber(String(buildingInfo?.builtYear ?? "")) || null;
       if (!builtYear) {
         setVatAutoNote("신축연도 정보가 없어 자동계산을 사용할 수 없습니다.");
@@ -195,14 +196,14 @@ export function ProfitCalculatorPanel({
         buildingInfo?.totalArea ?? (dbSharedArea > 0 ? exclusiveArea + dbSharedArea : exclusiveArea);
 
       setVatLandArea(landArea);
-      setVatLandPricePerM2(jiga);
+      setVatLandPricePerM2(jigaValue);
       setVatBuildingArea(buildingArea);
       setVatBuiltYear(builtYear);
       setVatStructureName(buildingInfo?.structureName ?? null);
       setVatAutoReady(true);
       setVatEdited(false);
       setVatAutoNote(
-        `자동계산 완료 · 토지 ${landArea}㎡ · 건물 ${buildingArea.toFixed(2)}㎡ · 공시지가 ${jiga.toLocaleString("ko-KR")}원/㎡`,
+        `자동계산 완료 · 토지 ${landArea}㎡ · 건물 ${buildingArea.toFixed(2)}㎡ · 공시지가 ${jigaValue.toLocaleString("ko-KR")}원/㎡`,
       );
     } catch (err) {
       setVatAutoNote(
