@@ -6,6 +6,13 @@ import {
   fetchVatBuildingRegister,
   fetchVatLandPrice,
 } from "@/lib/api";
+import {
+  matchStructureIndex,
+  matchUsage,
+  getLocationIndex,
+  calcResidualRate,
+  BUILDING_BASE_PRICE_PER_M2,
+} from "@/lib/vat-calc";
 
 declare global {
   interface Window {
@@ -99,45 +106,6 @@ const COMMERCIAL_USAGE_OPTIONS = [
   { value: "115", label: "장례식장 (115)" },
   { value: "105", label: "동물 전용 장례식장 (105)" },
 ];
-
-/** 위치지수표(개별공시지가 원/㎡ 구간별) — 국세청 고시 2024.1.1. 시행
- * 기준 실측 검증(2,593,000원/㎡ → 116 등 다수 구간 확인, 2026-07-21).
- * 구간은 오름차순, 각 항목은 [상한 미만, 지수] — 상한을 초과하면 다음
- * 구간으로 넘어가고, 마지막 구간은 상한 없이 그 지수를 적용한다. */
-const LOCATION_INDEX_BRACKETS: [number, number][] = [
-  [20000, 78], [30000, 83], [50000, 85], [70000, 86], [100000, 87],
-  [130000, 88], [150000, 89], [180000, 90], [200000, 91], [300000, 92],
-  [350000, 94], [500000, 96], [650000, 98], [800000, 100], [1000000, 102],
-  [1200000, 105], [1600000, 108], [2000000, 111], [2500000, 114], [3000000, 116],
-  [3500000, 118], [4000000, 120], [4500000, 122], [5000000, 124], [5500000, 126],
-  [6000000, 128], [7000000, 130], [8000000, 132], [9000000, 134], [10000000, 137],
-  [15000000, 140], [20000000, 143], [25000000, 146], [30000000, 149], [35000000, 152],
-  [40000000, 155], [45000000, 158], [50000000, 161], [55000000, 164], [60000000, 167],
-  [65000000, 170], [70000000, 173], [75000000, 176], [80000000, 179],
-];
-const LOCATION_INDEX_MAX = 182;
-
-function getLocationIndex(pricePerM2: number): number {
-  for (const [upperBound, index] of LOCATION_INDEX_BRACKETS) {
-    if (pricePerM2 < upperBound) return index;
-  }
-  return LOCATION_INDEX_MAX;
-}
-
-/** 건물신축가격기준액(원/㎡) — 최신 고시 기준. 매년 조정되므로 국세청
- * 고시가 바뀌면 이 값만 갱신하면 된다(실측 확인값, 2026-07-21). */
-const BUILDING_BASE_PRICE_PER_M2 = 850000;
-
-/** 경과연수별잔가율(정액법) — 고시연도를 경과연수 1년으로 계산한다
- * (실측 검증: 2024년 고시에서 신축연도 2024=1.000, 2001=0.586 등
- * Ⅰ그룹(내용연수50) 표와 공식이 정확히 일치, 2026-07-21).
- * 최종잔존가치율 10%, 최소값은 그 이하로 내려가지 않는다. */
-function calcResidualRate(builtYear: number, usefulLife: number, baseYear: number): number {
-  const finalResidualRate = 0.1;
-  const annualRate = (1 - finalResidualRate) / usefulLife;
-  const elapsed = Math.max(0, baseYear - builtYear);
-  return Math.max(finalResidualRate, 1 - annualRate * elapsed);
-}
 
 function parseNum(value: string): number {
   const cleaned = value.replace(/,/g, "").trim();
@@ -276,11 +244,38 @@ export function CrawlerVatTab() {
       }
       if (info.totalArea != null) setBuildingArea(String(info.totalArea));
       if (info.builtYear) setBuiltYear(info.builtYear);
+
+      // 구조/용도 자동 채우기 — atomtax-app처럼 건축물대장 조회 결과로
+      // 드롭박스까지 자동 매칭한다(사용자 요청, 2026-07-23). 매칭 실패 시
+      // 기존 선택값을 그대로 두고 사용자가 직접 고르게 한다.
+      let matchedStructureLabel: string | null = null;
+      const structureMatch = matchStructureIndex(info.structureName);
+      if (structureMatch) {
+        const idx = STRUCTURE_OPTIONS.findIndex((s) => s.index === structureMatch.index);
+        if (idx >= 0) {
+          setStructureIndex(idx);
+          matchedStructureLabel = STRUCTURE_OPTIONS[idx].label;
+        }
+      }
+
+      let matchedUsageLabel: string | null = null;
+      const usageMatch = matchUsage(info.mainPurposeName);
+      if (usageMatch) {
+        setUsageType(usageMatch.usageType);
+        const options =
+          usageMatch.usageType === "주거용" ? RESIDENTIAL_USAGE_OPTIONS : COMMERCIAL_USAGE_OPTIONS;
+        const idx = options.findIndex((o) => o.label.startsWith(usageMatch.label));
+        if (idx >= 0) {
+          setUsageOptionIndex(idx);
+          matchedUsageLabel = options[idx].label;
+        }
+      }
+
       const parts = [
         info.totalArea != null ? `연면적 ${info.totalArea}㎡` : null,
         info.builtYear ? `사용승인 ${info.builtYear}년` : null,
-        info.structureName ? `구조 ${info.structureName}` : null,
-        info.mainPurposeName ? `주용도 ${info.mainPurposeName}` : null,
+        matchedStructureLabel ? `구조 ${matchedStructureLabel} 자동선택` : info.structureName ? `구조 ${info.structureName}(매칭 실패, 직접 선택 필요)` : null,
+        matchedUsageLabel ? `용도 ${matchedUsageLabel} 자동선택` : info.mainPurposeName ? `주용도 ${info.mainPurposeName}(매칭 실패, 직접 선택 필요)` : null,
       ].filter(Boolean);
       setAutoFetchMessage(
         parts.length > 0

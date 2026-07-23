@@ -99,13 +99,165 @@ export function matchStructureIndex(
   return null;
 }
 
-/** 위치지수표(개별공시지가 원/㎡ 구간별) — 국세청 고시 2024.1.1. 시행
- * 기준 실측 검증. */
+/** 국세청 용도지수표(CrawlerVatTab.tsx의 RESIDENTIAL/COMMERCIAL_USAGE_OPTIONS와
+ * 동일 데이터, atomtax-app 실측 대조로 확정). keywords는 건축물대장 API의
+ * mainPurpsCdNm(공공데이터포털 표준 주용도명, 예: "공동주택(아파트)",
+ * "업무시설(오피스텔)", "제2종근린생활시설(사무소)")을 매칭하기 위한 부분
+ * 문자열 목록이다. 배열 순서가 우선순위 — 더 구체적인 항목을 앞에 둔다
+ * (예: "오피스텔"이 "업무시설"보다 먼저 매칭돼야 함). */
+export const USAGE_TABLE: {
+  usageType: "주거용" | "상업용";
+  value: string;
+  label: string;
+  keywords: string[];
+}[] = [
+  // 주거용
+  { usageType: "주거용", value: "140", label: "오피스텔 (주거용 임대)", keywords: ["오피스텔"] },
+  { usageType: "주거용", value: "110", label: "아파트", keywords: ["아파트"] },
+  {
+    usageType: "주거용",
+    value: "100",
+    label: "단독·다세대·연립·기숙사 등",
+    keywords: ["단독주택", "다세대주택", "연립주택", "기숙사", "다가구주택", "공동주택"],
+  },
+  // 상업용 — 숙박
+  { usageType: "상업용", value: "140", label: "관광호텔 5/4성급", keywords: ["관광호텔"] },
+  { usageType: "상업용", value: "130", label: "호텔·콘도·펜션 등", keywords: ["호텔", "콘도", "펜션"] },
+  { usageType: "상업용", value: "120", label: "도시민박·한옥체험시설", keywords: ["민박", "한옥체험"] },
+  { usageType: "상업용", value: "115", label: "여관(모텔 포함)", keywords: ["여관", "모텔"] },
+  { usageType: "상업용", value: "105", label: "다중생활시설", keywords: ["다중생활시설"] },
+  { usageType: "상업용", value: "100", label: "여인숙", keywords: ["여인숙"] },
+  // 상업용 — 판매
+  { usageType: "상업용", value: "135", label: "백화점", keywords: ["백화점"] },
+  {
+    usageType: "상업용",
+    value: "125",
+    label: "대형점·쇼핑센터·복합쇼핑몰",
+    keywords: ["대형점", "쇼핑센터", "복합쇼핑몰", "대규모점포"],
+  },
+  { usageType: "상업용", value: "100", label: "일반상점·기타 판매시설", keywords: ["판매시설", "상점"] },
+  {
+    usageType: "상업용",
+    value: "85",
+    label: "도매시장·전통시장·공판장",
+    keywords: ["도매시장", "전통시장", "공판장"],
+  },
+  // 상업용 — 교통·유흥·집회
+  {
+    usageType: "상업용",
+    value: "120",
+    label: "여객터미널·철도·공항·항만",
+    keywords: ["여객터미널", "철도", "공항", "항만", "운수시설"],
+  },
+  { usageType: "상업용", value: "140", label: "무도장", keywords: ["무도장"] },
+  { usageType: "상업용", value: "135", label: "유흥주점·카지노", keywords: ["유흥주점", "카지노"] },
+  { usageType: "상업용", value: "120", label: "유원시설업 시설", keywords: ["유원시설"] },
+  { usageType: "상업용", value: "115", label: "단란주점", keywords: ["단란주점"] },
+  { usageType: "상업용", value: "90", label: "무도학원", keywords: ["무도학원"] },
+  {
+    usageType: "상업용",
+    value: "130",
+    label: "집회장(장외발매소 등)",
+    keywords: ["집회장", "장외발매소"],
+  },
+  { usageType: "상업용", value: "120", label: "예식장·공연장·공회당", keywords: ["예식장", "공연장", "공회당"] },
+  { usageType: "상업용", value: "110", label: "동물원·식물원·전시장", keywords: ["동물원", "식물원", "전시장"] },
+  {
+    usageType: "상업용",
+    value: "105",
+    label: "관람장·체육관·운동장",
+    keywords: ["관람장", "체육관", "운동장"],
+  },
+  { usageType: "상업용", value: "100", label: "교회·성당·사찰 등", keywords: ["교회", "성당", "사찰", "종교시설"] },
+  {
+    usageType: "상업용",
+    value: "125",
+    label: "골프장·스키장·종합체육시설",
+    keywords: ["골프장", "스키장", "종합체육시설"],
+  },
+  { usageType: "상업용", value: "105", label: "기타 체육시설", keywords: ["체육시설", "운동시설"] },
+  // 상업용 — 의료·업무
+  { usageType: "상업용", value: "125", label: "종합병원", keywords: ["종합병원"] },
+  {
+    usageType: "상업용",
+    value: "110",
+    label: "일반·치과·한방·요양 등 병원",
+    keywords: ["병원", "의원", "요양", "의료시설"],
+  },
+  { usageType: "상업용", value: "140", label: "오피스텔(상업용)", keywords: ["오피스텔"] },
+  {
+    usageType: "상업용",
+    value: "115",
+    label: "사무소·금융업소·출판사 등",
+    keywords: ["사무소", "금융업소", "출판사", "업무시설"],
+  },
+  { usageType: "상업용", value: "110", label: "방송국·통신용시설", keywords: ["방송국", "통신용시설"] },
+  {
+    usageType: "상업용",
+    value: "110",
+    label: "야외음악당·관광지 부수 시설",
+    keywords: ["야외음악당", "관광지"],
+  },
+  // 상업용 — 교육·복지
+  { usageType: "상업용", value: "107", label: "학원·교습소", keywords: ["학원", "교습소"] },
+  {
+    usageType: "상업용",
+    value: "100",
+    label: "학교·교육원·연구소·도서관",
+    keywords: ["학교", "교육원", "연구소", "도서관", "교육연구시설"],
+  },
+  {
+    usageType: "상업용",
+    value: "107",
+    label: "아동·노인·사회복지시설",
+    keywords: ["아동복지", "노인복지", "사회복지시설"],
+  },
+  { usageType: "상업용", value: "80", label: "고아원·경로당 등", keywords: ["고아원", "경로당"] },
+  { usageType: "상업용", value: "110", label: "청소년수련시설", keywords: ["청소년수련시설"] },
+  // 상업용 — 목욕·위락·장례
+  { usageType: "상업용", value: "130", label: "목욕장 3,000㎡ 이상", keywords: ["목욕장"] },
+  {
+    usageType: "상업용",
+    value: "105",
+    label: "풍속영업시설(노래방·게임장 등)",
+    keywords: ["노래방", "게임장", "풍속영업"],
+  },
+  {
+    usageType: "상업용",
+    value: "100",
+    label: "일반 근린생활시설(음식점·미용원·소형 학원 등)",
+    keywords: ["근린생활시설", "음식점", "미용원"],
+  },
+  { usageType: "상업용", value: "130", label: "화장시설·봉안당", keywords: ["화장시설", "봉안당"] },
+  { usageType: "상업용", value: "115", label: "장례식장", keywords: ["장례식장"] },
+];
+
+/** 건축물대장 API의 주용도명(mainPurpsCdNm)을 국세청 용도지수표에
+ * 매칭한다. 매칭 실패 시 null(호출자가 usageType="주거용", 첫 옵션인
+ * 아파트(110)로 폴백). */
+export function matchUsage(
+  mainPurposeName: string | null | undefined,
+): { usageType: "주거용" | "상업용"; value: string; label: string } | null {
+  const name = String(mainPurposeName ?? "").trim();
+  if (!name) return null;
+  for (const row of USAGE_TABLE) {
+    if (row.keywords.some((keyword) => name.includes(keyword))) {
+      return { usageType: row.usageType, value: row.value, label: row.label };
+    }
+  }
+  return null;
+}
+
+/** 위치지수표(개별공시지가 원/㎡ 구간별) — 국세청 최신 고시 기준(atomtax-app
+ * "2025년 국세청 고시 기준" 재실측으로 갱신, 2026-07-23). 기존 표(2024.1.1.
+ * 시행 기준으로 기록돼 있었음)와 비교해 전 구간에서 지수가 상향 조정됨
+ * (예: 20,000원/㎡ 미만 78→변동없음이나 20,000원대는 78→83, 1,000,000원대는
+ * 102→104 등) — 고시가 최신화된 것으로 판단해 표 전체를 교체함. */
 const LOCATION_INDEX_BRACKETS: [number, number][] = [
   [20000, 78], [30000, 83], [50000, 85], [70000, 86], [100000, 87],
   [130000, 88], [150000, 89], [180000, 90], [200000, 91], [300000, 92],
-  [350000, 94], [500000, 96], [650000, 98], [800000, 100], [1000000, 102],
-  [1200000, 105], [1600000, 108], [2000000, 111], [2500000, 114], [3000000, 116],
+  [350000, 93], [500000, 94], [650000, 97], [800000, 100], [1000000, 102],
+  [1200000, 104], [1600000, 106], [2000000, 108], [2500000, 114], [3000000, 116],
   [3500000, 118], [4000000, 120], [4500000, 122], [5000000, 124], [5500000, 126],
   [6000000, 128], [7000000, 130], [8000000, 132], [9000000, 134], [10000000, 137],
   [15000000, 140], [20000000, 143], [25000000, 146], [30000000, 149], [35000000, 152],
