@@ -100,7 +100,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "aiOps", label: "AI운영" },
   { id: "users", label: "회원권한 관리" },
   { id: "securityLog", label: "보안 로그" },
-  { id: "swimApply", label: "수영신청" },
+  // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
 ];
 
 const AI_OPS_SUB_TABS: { id: AiOpsSubTab; label: string }[] = [
