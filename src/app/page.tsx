@@ -703,10 +703,10 @@ function RecommendCard({
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/5 to-transparent" />
 
           <div className="absolute top-2.5 left-2.5 right-11 flex items-center gap-1.5 min-w-0">
+            <CaseStateBadge caseState={item.caseState} />
             <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[0.65rem] font-semibold border border-transparent bg-white/90 text-[#2A5298] backdrop-blur-sm">
               {item.usage || "물건"}
             </span>
-            <CaseStateBadge caseState={item.caseState} />
             {displaySpecialNote(item.specialNote) && (
               <span className="min-w-0 px-1.5 py-0.5 rounded-md text-[0.65rem] font-medium border bg-red-50/95 text-red-600 border-red-100 truncate backdrop-blur-sm">
                 {displaySpecialNote(item.specialNote)}

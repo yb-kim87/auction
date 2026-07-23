@@ -14,10 +14,10 @@ export function CaseStateBadge({ caseState }: { caseState?: string }) {
   if (!isWithdrawn && !isChanged && !isSold) return null;
   return (
     <span
-      className={`shrink-0 px-1.5 py-0.5 rounded-sm text-[11px] font-semibold ${
+      className={`shrink-0 px-1.5 py-0.5 rounded-md text-[0.65rem] font-bold border shadow-sm ${
         isWithdrawn || isSold
-          ? "bg-destructive/10 text-destructive"
-          : "bg-blue-100 text-blue-700"
+          ? "bg-destructive text-white border-destructive"
+          : "bg-blue-600 text-white border-blue-600"
       }`}
     >
       {isSold ? "낙찰" : trimmed}
