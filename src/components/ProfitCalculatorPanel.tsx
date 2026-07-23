@@ -124,17 +124,23 @@ function ResultRow({
   emphasis,
   positive,
   helper,
+  labelDark,
 }: {
   label: string;
   value: string;
   emphasis?: boolean;
   positive?: boolean;
   helper?: string;
+  labelDark?: boolean;
 }) {
   return (
     <div className="py-1.5">
       <div className="flex items-center justify-between">
-        <span className={`text-[13px] ${emphasis ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+        <span
+          className={`text-[13px] ${
+            emphasis ? "font-semibold text-foreground" : labelDark ? "font-medium text-foreground" : "text-muted-foreground"
+          }`}
+        >
           {label}
         </span>
         <span
@@ -429,9 +435,15 @@ export function ProfitCalculatorPanel({
             value={bidPrice}
             onChange={setBidPrice}
             suffix="원"
-            helper={`최저가 ${formatWonShort(item.minPrice)} · 감정가 ${formatWonShort(item.appraisedValue)}`}
+            helper={`최저가 ${formatWonShort(item.minPrice)}`}
           />
-          <NumberField label="매도가" value={salePrice} onChange={setSalePrice} suffix="원" />
+          <NumberField
+            label="매도가"
+            value={salePrice}
+            onChange={setSalePrice}
+            suffix="원"
+            helper={`감정가 ${formatWonShort(item.appraisedValue)}`}
+          />
           <NumberField label="보유기간" value={holdingMonths} onChange={setHoldingMonths} suffix="개월" />
         </div>
 
@@ -472,14 +484,18 @@ export function ProfitCalculatorPanel({
             value={result.acquisitionTax}
             readOnly
             suffix="원"
-            helper={`${acquisitionTaxBracketLabel(housingCount, regulatedArea, item.usage)} · 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`}
+            helper={
+              isOfficetel(item.usage)
+                ? `오피스텔 고정 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`
+                : `${acquisitionTaxBracketLabel(housingCount, regulatedArea, item.usage)} · 취득세율 ${(result.acquisitionTaxRate * 100).toFixed(2)}% 자동 계산`
+            }
           />
           <NumberField
             label="법무비"
             value={result.legalFee}
             readOnly
             suffix="원"
-            helper="법무사 보수·채권매입비 등 추정치(낙찰가의 0.7%, 임의 적용값이므로 실제와 다를 수 있습니다)"
+            helper="법무사 보수비 추정치(낙찰가의 0.7%, 임의 적용값이므로 실제와 다를 수 있습니다)"
           />
           <NumberField label="인테리어(필요경비)" value={interiorCost} onChange={setInteriorCost} suffix="원" />
           <NumberField label="명도비" value={evictionCost} onChange={setEvictionCost} suffix="원" />
@@ -593,6 +609,7 @@ export function ProfitCalculatorPanel({
         />
         <ResultRow
           label="양도세"
+          labelDark
           value={formatWonShort(result.capitalGainsTax)}
           helper={
             applyProgressiveDeduction
