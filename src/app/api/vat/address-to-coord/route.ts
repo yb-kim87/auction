@@ -26,8 +26,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 1) 도로명주소 → 좌표(ROAD). 카카오 우편번호가 도로명주소를 주므로
-  // PARCEL(지번)로 조회하면 대부분 NOT_FOUND가 난다(실측, 2026-07-21).
+  // 도로명주소 → 좌표(ROAD)와 지번주소 → 좌표(PARCEL) 둘 다 시도한다.
+  // 카카오 우편번호가 도로명주소를 주는 케이스가 많아 기존엔 ROAD를
+  // 항상 먼저 시도했는데, "번지 숫자"로 끝나는 지번주소를 ROAD로 조회
+  // 하면 VWorld가 그 숫자를 "도로명+건물번호"로 잘못 해석해 완전히
+  // 엉뚱한 위치의 status:OK를 반환하는 사고가 있었다(실측: "경기도
+  // 안양시 만안구 안양동 16-2"를 ROAD로 조회 → "냉천로172번길 16-2"로
+  // 오매칭되어 실제 안양동 16-2(디아망)가 아닌 안양동 627-236 좌표가
+  // 나옴 — 결과적으로 PNU가 틀려 존재하는 호실(1102호)의 전유부를
+  // "찾지 못함" 오류로 처리, 2026-07-23). 주소가 지번 형태(끝이
+  // "숫자" 또는 "숫자-숫자")로 끝나면 PARCEL을 먼저 시도해 이런 오매칭을
+  // 피하고, 그 외(도로명 형태)는 기존대로 ROAD를 먼저 시도한다.
   async function tryGetCoord(addr: string, type: "ROAD" | "PARCEL") {
     const url = new URL("https://api.vworld.kr/req/address");
     url.searchParams.set("service", "address");
@@ -41,7 +50,22 @@ export async function GET(request: NextRequest) {
     return fetchExternalJson("VWorld 주소 변환", url.toString());
   }
 
-  let coordResult = await tryGetCoord(address, "ROAD");
+  function isOk(data: unknown): boolean {
+    const d = data as { response?: { status?: string; result?: { point?: { x?: string; y?: string } } } };
+    return d.response?.status === "OK" && !!d.response.result?.point?.x && !!d.response.result?.point?.y;
+  }
+
+  // 도로명("...로"/"...길" + 건물번호)과 지번("...동"/"...읍"/"...면" +
+  // 번지)은 둘 다 "숫자" 또는 "숫자-숫자"로 끝나 그 패턴만으로는 구분이
+  // 안 된다(실측: "경인로653번길 69-1"도, "안양동 16-2"도 둘 다
+  // \d+(-\d+)?$ 에 매칭됨) — 숫자 바로 앞 단어가 "로"/"길"로 끝나는지로
+  // 구분한다.
+  const looksLikeRoad = /(로|길)\d*번?길?\s+\d+(-\d+)?$/.test(address);
+  const looksLikeJibun = !looksLikeRoad && /\d+(-\d+)?$/.test(address);
+  const primaryType = looksLikeJibun ? "PARCEL" : "ROAD";
+  const secondaryType = looksLikeJibun ? "ROAD" : "PARCEL";
+
+  let coordResult = await tryGetCoord(address, primaryType);
   if (!coordResult.ok) {
     return NextResponse.json({ message: coordResult.message }, { status: coordResult.status });
   }
@@ -54,21 +78,12 @@ export async function GET(request: NextRequest) {
   };
   let point = coordData.response?.result?.point;
 
-  // 지번주소(예: "인천광역시 미추홀구 용현동 630-70")는 ROAD 타입으로
-  // NOT_FOUND가 나므로 PARCEL 타입으로 재시도한다(실측: 도로명주소가
-  // 없는 오피스텔 등 물건에서 발생, "...630-70 모던하우스 3층301호"에서
-  // 건물명/층/호를 제거한 "...630-70"으로 PARCEL 조회 시 정상 매칭,
-  // 2026-07-23).
-  if (coordData.response?.status !== "OK" || !point?.x || !point?.y) {
-    const parcelResult = await tryGetCoord(address, "PARCEL");
-    if (parcelResult.ok) {
-      const parcelData = parcelResult.data as typeof coordData;
-      const parcelPoint = parcelData.response?.result?.point;
-      if (parcelData.response?.status === "OK" && parcelPoint?.x && parcelPoint?.y) {
-        coordResult = parcelResult;
-        coordData = parcelData;
-        point = parcelPoint;
-      }
+  if (!isOk(coordData)) {
+    const secondaryResult = await tryGetCoord(address, secondaryType);
+    if (secondaryResult.ok && isOk(secondaryResult.data)) {
+      coordResult = secondaryResult;
+      coordData = secondaryResult.data as typeof coordData;
+      point = coordData.response?.result?.point;
     }
   }
 
