@@ -39,6 +39,7 @@ import { AiPlatformPanel } from "./AiPlatformPanel";
 import { KakaoNotifyPanel } from "./KakaoNotifyPanel";
 import { CoupangSourcingTab } from "./CoupangSourcingTab";
 import { SecurityLogTab } from "./SecurityLogTab";
+import { SwimApplyTab } from "./SwimApplyTab";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -85,6 +86,7 @@ type AdminTab =
   | "users"
   | "aiOps"
   | "securityLog"
+  | "swimApply"
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
   | "coupangSourcing";
 type AiOpsSubTab = "knowledge" | "loanPolicy" | "strategyTags" | "aiPlatform";
@@ -98,6 +100,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "aiOps", label: "AI운영" },
   { id: "users", label: "회원권한 관리" },
   { id: "securityLog", label: "보안 로그" },
+  { id: "swimApply", label: "수영신청" },
 ];
 
 const AI_OPS_SUB_TABS: { id: AiOpsSubTab; label: string }[] = [
@@ -876,6 +879,8 @@ export default function AdminPage() {
           {activeTab === "coupangSourcing" && <CoupangSourcingTab />}
 
           {activeTab === "securityLog" && <SecurityLogTab />}
+
+          {activeTab === "swimApply" && <SwimApplyTab />}
 
           {activeTab === "aiOps" && (
             <div>
