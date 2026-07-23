@@ -232,14 +232,35 @@ export const USAGE_TABLE: {
   { usageType: "상업용", value: "115", label: "장례식장", keywords: ["장례식장"] },
 ];
 
+/** 건축법상 "아파트"는 5개층 이상 공동주택, "연립·다세대주택"은 4개층
+ * 이하다(건축법 시행령 별표1) — 건축물대장 API의 mainPurpsCdNm은 둘 다
+ * "공동주택"으로 뭉뚱그려 나와 이 값만으로는 구분이 안 된다(실측:
+ * "인천 미추홀구 용현동 630-70"은 mainPurpsCdNm="공동주택",
+ * grndFlrCnt=6 — atomtax-app은 이를 "아파트(110)"로 분류했는데 우리는
+ * groundFloors 없이 무조건 "단독·다세대·연립·기숙사 등(100)"으로
+ * 잘못 매칭하고 있었다, 2026-07-23). */
+const APARTMENT_MIN_FLOORS = 5;
+
 /** 건축물대장 API의 주용도명(mainPurpsCdNm)을 국세청 용도지수표에
  * 매칭한다. 매칭 실패 시 null(호출자가 usageType="주거용", 첫 옵션인
- * 아파트(110)로 폴백). */
+ * 아파트(110)로 폴백).
+ * groundFloors(지상층수)를 넘기면 "공동주택"이 "아파트" 키워드보다
+ * 먼저 매칭되는 것을 층수로 교정한다: 5층 이상이면 아파트(110), 4층
+ * 이하면 단독·다세대·연립 등(100). */
 export function matchUsage(
   mainPurposeName: string | null | undefined,
+  groundFloors?: number | null,
 ): { usageType: "주거용" | "상업용"; value: string; label: string } | null {
   const name = String(mainPurposeName ?? "").trim();
   if (!name) return null;
+
+  if (name.includes("공동주택") && !name.includes("아파트") && groundFloors != null) {
+    const apartmentRow = USAGE_TABLE.find((r) => r.label === "아파트");
+    const etcRow = USAGE_TABLE.find((r) => r.label === "단독·다세대·연립·기숙사 등");
+    const row = groundFloors >= APARTMENT_MIN_FLOORS ? apartmentRow : etcRow;
+    if (row) return { usageType: row.usageType, value: row.value, label: row.label };
+  }
+
   for (const row of USAGE_TABLE) {
     if (row.keywords.some((keyword) => name.includes(keyword))) {
       return { usageType: row.usageType, value: row.value, label: row.label };

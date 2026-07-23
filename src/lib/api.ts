@@ -3110,6 +3110,9 @@ export type VatBuildingRegister = {
    * 달라 그대로 매칭은 안 되지만 참고용으로 표시. */
   structureName: string | null;
   mainPurposeName: string | null;
+  /** 지상층수 — mainPurposeName이 "공동주택"(아파트/연립/다세대 통칭)일
+   * 때 5층 이상이면 아파트, 4층 이하면 연립·다세대로 구분하는 데 쓴다. */
+  groundFloors: number | null;
 };
 
 /** PNU 기준 건축물대장 표제부 자동조회(연면적·신축연도). 공공데이터포털
@@ -3136,12 +3139,14 @@ export async function fetchVatBuildingRegister(
     useAprDay?: string;
     strctCdNm?: string;
     mainPurpsCdNm?: string;
+    grndFlrCnt?: number;
   }>(res);
   return {
     totalArea: typeof item.totArea === "number" ? item.totArea : null,
     builtYear: item.useAprDay?.trim() ? item.useAprDay.slice(0, 4) : null,
     structureName: item.strctCdNm ?? null,
     mainPurposeName: item.mainPurpsCdNm ?? null,
+    groundFloors: typeof item.grndFlrCnt === "number" ? item.grndFlrCnt : null,
   };
 }
 

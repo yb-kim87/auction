@@ -285,7 +285,7 @@ export function CrawlerVatTab() {
       }
 
       let matchedUsageLabel: string | null = null;
-      const usageMatch = matchUsage(info.mainPurposeName);
+      const usageMatch = matchUsage(info.mainPurposeName, info.groundFloors);
       if (usageMatch) {
         setUsageType(usageMatch.usageType);
         const options =

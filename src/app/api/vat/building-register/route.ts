@@ -206,11 +206,16 @@ export async function GET(request: NextRequest) {
         typeof title?.mainPurpsCdNm === "string" && title.mainPurpsCdNm.trim()
           ? title.mainPurpsCdNm
           : undefined;
+      const grndFlrCnt =
+        typeof title?.grndFlrCnt === "number"
+          ? title.grndFlrCnt
+          : Number(title?.grndFlrCnt) || undefined;
       return NextResponse.json({
         totArea,
         useAprDay: titleUseAprDay,
         strctCdNm: typeof first.strctCdNm === "string" ? first.strctCdNm : undefined,
         mainPurpsCdNm: titleMainPurpsCdNm,
+        grndFlrCnt,
       });
     }
     // 동/호로 못 찾으면 표제부로 폴백(오타 또는 API 표기 형식 차이).
