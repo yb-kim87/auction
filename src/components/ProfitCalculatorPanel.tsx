@@ -503,6 +503,13 @@ export function ProfitCalculatorPanel({
             suffix="원"
             helper="법무사 보수비 추정치(낙찰가의 0.7%, 임의 적용값이므로 실제와 다를 수 있습니다)"
           />
+          <NumberField
+            label="대출이자"
+            value={result.loanInterest}
+            readOnly
+            suffix="원"
+            helper="대출금×연이자율÷12×보유기간(개월)"
+          />
           <NumberField label="인테리어(필요경비)" value={interiorCost} onChange={setInteriorCost} suffix="원" />
           <NumberField label="명도비" value={evictionCost} onChange={setEvictionCost} suffix="원" />
           <NumberField
@@ -603,8 +610,8 @@ export function ProfitCalculatorPanel({
             누진공제 적용
           </label>
         </div>
+        <ResultRow label="매도가" value={formatWonShort(salePrice)} />
         <ResultRow label="취득금액합계" value={formatWonShort(result.totalAcquisitionCost)} />
-        <ResultRow label="대출이자" value={formatWonShort(result.loanInterest)} />
         <ResultRow label="매매차익" value={formatWonShort(result.saleMargin)} />
         <NumberField
           label="기존소득(연간)"
