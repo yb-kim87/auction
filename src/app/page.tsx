@@ -93,21 +93,26 @@ function finalLoanAmount(item: AuctionItem, loanInfo: LoanInfo | undefined): num
 }
 
 type RecommendFilters = {
-  city: string;
-  propType: string;
+  /** 다중 선택 가능(사용자 요청, 2026-07-23). */
+  city: string[];
+  propType: string[];
   maxFailureRate: string;
   favoritesOnly: boolean;
   progressStatus: string;
-  strategyLabel: string;
+  strategyLabel: string[];
+  minArea: string;
+  maxArea: string;
 };
 
 const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
-  city: "",
-  propType: "",
+  city: [],
+  propType: [],
   maxFailureRate: "",
   favoritesOnly: false,
   progressStatus: PROGRESS_STATUS_LABELS.active,
-  strategyLabel: "",
+  strategyLabel: [],
+  minArea: "",
+  maxArea: "",
 };
 
 // favoritesOnly는 토글 즉시 반영을 위해 서버로 보내지 않고 클라이언트에서만
@@ -116,20 +121,24 @@ function toApiFilters(
   filters: RecommendFilters,
   searchText: string,
 ): {
-  city?: string;
-  propType?: string;
+  city?: string[];
+  propType?: string[];
   maxFailureRate?: string;
   progressStatus?: "all" | "active" | "ended";
   search?: string;
-  strategyLabel?: string;
+  strategyLabel?: string[];
+  minArea?: number;
+  maxArea?: number;
 } {
   return {
-    city: filters.city || undefined,
-    propType: filters.propType || undefined,
+    city: filters.city.length > 0 ? filters.city : undefined,
+    propType: filters.propType.length > 0 ? filters.propType : undefined,
     maxFailureRate: filters.maxFailureRate || undefined,
     progressStatus: progressLabelToStatus(filters.progressStatus),
     search: searchText.trim() || undefined,
-    strategyLabel: filters.strategyLabel || undefined,
+    strategyLabel: filters.strategyLabel.length > 0 ? filters.strategyLabel : undefined,
+    minArea: filters.minArea ? Number(filters.minArea) || undefined : undefined,
+    maxArea: filters.maxArea ? Number(filters.maxArea) || undefined : undefined,
   };
 }
 
@@ -143,6 +152,72 @@ function matchesRecommendFilters(
 ): boolean {
   if (filters.favoritesOnly && !favoriteIds.has(item.id)) return false;
   return true;
+}
+
+/** 체크박스 목록으로 여러 값을 고를 수 있는 드롭다운. 선택된 항목이
+ * 있으면 "N개 선택"으로, 없으면 placeholder("전체")로 표시한다
+ * (사용자 요청: 지역/물건종류/투자 전략 중복 선택, 2026-07-23). */
+function MultiSelectDropdown({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  function toggle(value: string) {
+    onChange(
+      selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value],
+    );
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-primary/20"
+      >
+        <span className={selected.length === 0 ? "text-muted-foreground" : ""}>
+          {selected.length === 0 ? "전체" : `${selected.length}개 선택`}
+        </span>
+        <ChevronDown size={16} className="text-muted-foreground shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto border border-border rounded-sm bg-card shadow-lg py-1">
+          {options.map((opt) => (
+            <label
+              key={opt}
+              className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary cursor-pointer select-none"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(opt)}
+                onChange={() => toggle(opt)}
+                className="accent-primary"
+              />
+              {opt}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function RecommendFilterModal({
@@ -164,6 +239,8 @@ function RecommendFilterModal({
   const [favoritesOnly, setFavoritesOnly] = useState(filters.favoritesOnly);
   const [progressStatus, setProgressStatus] = useState(filters.progressStatus);
   const [strategyLabel, setStrategyLabel] = useState(filters.strategyLabel);
+  const [minArea, setMinArea] = useState(filters.minArea);
+  const [maxArea, setMaxArea] = useState(filters.maxArea);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
@@ -182,33 +259,43 @@ function RecommendFilterModal({
         </p>
 
         <div className="space-y-4">
-          <label className="block text-sm space-y-1.5">
+          <div className="space-y-1.5">
             <span className="text-muted-foreground text-[13px]">지역</span>
-            <select
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">전체</option>
-              {CITIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </label>
+            <MultiSelectDropdown label="지역" options={CITIES} selected={city} onChange={setCity} />
+          </div>
 
-          <label className="block text-sm space-y-1.5">
+          <div className="space-y-1.5">
             <span className="text-muted-foreground text-[13px]">물건종류</span>
-            <select
-              value={propType}
-              onChange={(e) => setPropType(e.target.value)}
-              className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">전체</option>
-              {PROPERTY_TYPE_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </label>
+            <MultiSelectDropdown
+              label="물건종류"
+              options={[...PROPERTY_TYPE_OPTIONS]}
+              selected={propType}
+              onChange={setPropType}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-muted-foreground text-[13px]">전용면적(㎡)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                value={minArea}
+                onChange={(e) => setMinArea(e.target.value)}
+                placeholder="최소"
+                className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <span className="text-muted-foreground text-sm shrink-0">~</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={maxArea}
+                onChange={(e) => setMaxArea(e.target.value)}
+                placeholder="최대"
+                className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
 
           <label className="block text-sm space-y-1.5">
             <span className="text-muted-foreground text-[13px]">유찰률(감정가 대비 최저가, 이하)</span>
@@ -240,19 +327,15 @@ function RecommendFilterModal({
           </label>
 
           {strategyLabelOptions.length > 0 && (
-            <label className="block text-sm space-y-1.5">
+            <div className="space-y-1.5">
               <span className="text-muted-foreground text-[13px]">투자 전략</span>
-              <select
-                value={strategyLabel}
-                onChange={(e) => setStrategyLabel(e.target.value)}
-                className="w-full h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">전체</option>
-                {strategyLabelOptions.map((label) => (
-                  <option key={label} value={label}>{label}</option>
-                ))}
-              </select>
-            </label>
+              <MultiSelectDropdown
+                label="투자 전략"
+                options={strategyLabelOptions}
+                selected={strategyLabel}
+                onChange={setStrategyLabel}
+              />
+            </div>
           )}
 
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
@@ -271,12 +354,14 @@ function RecommendFilterModal({
           <button
             type="button"
             onClick={() => {
-              setCity("");
-              setPropType("");
+              setCity([]);
+              setPropType([]);
               setMaxFailureRate("");
               setFavoritesOnly(false);
               setProgressStatus(PROGRESS_STATUS_LABELS.active);
-              setStrategyLabel("");
+              setStrategyLabel([]);
+              setMinArea("");
+              setMaxArea("");
             }}
             className="px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
           >
@@ -285,7 +370,16 @@ function RecommendFilterModal({
           <button
             type="button"
             onClick={() =>
-              onApply({ city, propType, maxFailureRate, favoritesOnly, progressStatus, strategyLabel })
+              onApply({
+                city,
+                propType,
+                maxFailureRate,
+                favoritesOnly,
+                progressStatus,
+                strategyLabel,
+                minArea,
+                maxArea,
+              })
             }
             className="px-5 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
           >
@@ -1138,11 +1232,13 @@ export default function HomePage() {
   );
 
   const activeFilterCount =
-    (filters.city ? 1 : 0) +
-    (filters.propType ? 1 : 0) +
+    (filters.city.length > 0 ? 1 : 0) +
+    (filters.propType.length > 0 ? 1 : 0) +
     (filters.maxFailureRate ? 1 : 0) +
     (filters.favoritesOnly ? 1 : 0) +
-    (filters.progressStatus !== PROGRESS_STATUS_LABELS.active ? 1 : 0);
+    (filters.progressStatus !== PROGRESS_STATUS_LABELS.active ? 1 : 0) +
+    (filters.strategyLabel.length > 0 ? 1 : 0) +
+    (filters.minArea || filters.maxArea ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>

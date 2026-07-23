@@ -1135,14 +1135,19 @@ export async function updateAiManualTags(
 }
 
 export type RecommendationFilters = {
-  city?: string;
-  propType?: string;
+  /** 다중 선택 가능(사용자 요청, 2026-07-23). */
+  city?: string[];
+  propType?: string[];
   maxFailureRate?: string;
   favoritesOnly?: boolean;
   progressStatus?: "all" | "active" | "ended";
   search?: string;
-  /** 사용자에게 노출되는 전략 라벨(예: "경쟁이 적은 투자")로 필터링. */
-  strategyLabel?: string;
+  /** 사용자에게 노출되는 전략 라벨(예: "경쟁이 적은 투자")로 필터링,
+   * 다중 선택 가능. */
+  strategyLabel?: string[];
+  /** 전용면적(㎡) 범위 필터. */
+  minArea?: number;
+  maxArea?: number;
 };
 
 /** 추천 물건 화면의 라벨 필터 드롭박스를 채울 전략 라벨 전체 목록. */
@@ -1191,13 +1196,17 @@ export async function fetchRecommendations(
     query.set("limit", String(page.limit));
     query.set("offset", String(page.offset));
   }
-  if (filters?.city) query.set("city", filters.city);
-  if (filters?.propType) query.set("propType", filters.propType);
+  if (filters?.city && filters.city.length > 0) query.set("city", filters.city.join(","));
+  if (filters?.propType && filters.propType.length > 0)
+    query.set("propType", filters.propType.join(","));
   if (filters?.maxFailureRate) query.set("maxFailureRate", filters.maxFailureRate);
   if (filters?.favoritesOnly) query.set("favoritesOnly", "true");
   if (filters?.progressStatus) query.set("progressStatus", filters.progressStatus);
   if (filters?.search) query.set("search", filters.search);
-  if (filters?.strategyLabel) query.set("strategyLabel", filters.strategyLabel);
+  if (filters?.strategyLabel && filters.strategyLabel.length > 0)
+    query.set("strategyLabel", filters.strategyLabel.join(","));
+  if (filters?.minArea != null) query.set("minArea", String(filters.minArea));
+  if (filters?.maxArea != null) query.set("maxArea", String(filters.maxArea));
   const qs = query.toString();
   const res = await fetch(`${API_BASE}/recommendations${qs ? `?${qs}` : ""}`, {
     cache: "no-store",

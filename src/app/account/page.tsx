@@ -15,17 +15,6 @@ import {
   HEADER_NAV_TRAILING,
   HEADER_TITLE,
 } from "@/components/AppHeader";
-import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { SelectField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
-import {
-  EXISTING_LOAN_OPTIONS,
-  HOUSING_COUNT_OPTIONS,
-  INVESTABLE_FUNDS_OPTIONS,
-  TARGET_RETURN_OPTIONS,
-  CREDIT_SCORE_OPTIONS,
-  ANNUAL_NET_INCOME_OPTIONS,
-} from "@/data/investment-options";
-
 const inputClass =
   "w-full px-3 py-2 border border-border rounded-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
 const readOnlyClass =
@@ -35,14 +24,6 @@ export default function AccountPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [name, setName] = useState("");
-  const [investableFunds, setInvestableFunds] = useState("");
-  const [existingLoanAmount, setExistingLoanAmount] = useState("");
-  const [housingCount, setHousingCount] = useState("");
-  const [creditScore, setCreditScore] = useState("");
-  const [annualNetIncome, setAnnualNetIncome] = useState("");
-  const [targetReturn, setTargetReturn] = useState("");
-  const [investmentGoal, setInvestmentGoal] = useState("");
-  const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -51,22 +32,12 @@ export default function AccountPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(
     null,
   );
-  // 목표 수익은 선택 항목이라 제외 — 비워두지 못하게 막을 필수 필드만 담는다.
-  const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
 
   const homeHref = profile ? getLoginRedirect(profile.role) : "/";
 
   function applyProfile(data: UserProfile) {
     setProfile(data);
     setName(data.name);
-    setInvestableFunds(data.investableFunds ?? "");
-    setExistingLoanAmount(data.existingLoanAmount ?? "");
-    setHousingCount(String(data.housingCount ?? 0));
-    setCreditScore(data.creditScore ?? "");
-    setAnnualNetIncome(data.annualNetIncome ?? "");
-    setTargetReturn(data.targetReturn ?? "");
-    setInvestmentGoal(data.investmentGoal ?? "");
-    setFirstTimeBuyer(data.firstTimeBuyer ?? false);
   }
 
   useEffect(() => {
@@ -98,59 +69,8 @@ export default function AccountPage() {
     if (!profile) return;
 
     const trimmedName = name.trim();
-    const trimmedInvestableFunds = investableFunds.trim();
-    const trimmedExistingLoanAmount = existingLoanAmount.trim();
-    const trimmedCreditScore = creditScore.trim();
-    const trimmedAnnualNetIncome = annualNetIncome.trim();
-    const trimmedTargetReturn = targetReturn.trim();
-    const trimmedInvestmentGoal = investmentGoal.trim();
-    const parsedHousingCount = Number.parseInt(housingCount, 10);
-
     const nameChanged = trimmedName !== profile.name;
-    const investableFundsChanged = trimmedInvestableFunds !== (profile.investableFunds ?? "");
-    const existingLoanAmountChanged =
-      trimmedExistingLoanAmount !== (profile.existingLoanAmount ?? "");
-    const housingCountChanged = parsedHousingCount !== (profile.housingCount ?? 0);
-    const creditScoreChanged = trimmedCreditScore !== (profile.creditScore ?? "");
-    const annualNetIncomeChanged = trimmedAnnualNetIncome !== (profile.annualNetIncome ?? "");
-    const targetReturnChanged = trimmedTargetReturn !== (profile.targetReturn ?? "");
-    const investmentGoalChanged = trimmedInvestmentGoal !== (profile.investmentGoal ?? "");
-    const firstTimeBuyerChanged = firstTimeBuyer !== (profile.firstTimeBuyer ?? false);
-    const profileFieldsChanged =
-      investableFundsChanged ||
-      existingLoanAmountChanged ||
-      housingCountChanged ||
-      creditScoreChanged ||
-      annualNetIncomeChanged ||
-      targetReturnChanged ||
-      investmentGoalChanged ||
-      firstTimeBuyerChanged;
     const passwordChanging = Boolean(newPassword || confirmPassword || currentPassword);
-
-    if (profileFieldsChanged) {
-      // 목표 수익은 선택 항목 — 비워두면 목표수익 필터 없이 추천된다.
-      const missing = new Set<string>();
-      if (!trimmedInvestableFunds) missing.add("investableFunds");
-      if (!trimmedExistingLoanAmount) missing.add("existingLoanAmount");
-      if (!trimmedCreditScore) missing.add("creditScore");
-      if (!trimmedAnnualNetIncome) missing.add("annualNetIncome");
-      if (!trimmedInvestmentGoal) missing.add("investmentGoal");
-      if (Number.isNaN(parsedHousingCount) || parsedHousingCount < 0) {
-        missing.add("housingCount");
-      }
-      if (missing.size > 0) {
-        setInvalidFields(missing);
-        setMessage({
-          type: "error",
-          text:
-            missing.has("housingCount") && missing.size === 1
-              ? "주택수는 0 이상의 숫자로 입력해 주세요."
-              : "빨간색으로 표시된 항목을 입력해 주세요.",
-        });
-        return;
-      }
-      setInvalidFields(new Set());
-    }
 
     if (passwordChanging) {
       if (!currentPassword) {
@@ -171,7 +91,7 @@ export default function AccountPage() {
       }
     }
 
-    if (!nameChanged && !profileFieldsChanged && !passwordChanging) {
+    if (!nameChanged && !passwordChanging) {
       setMessage({ type: "error", text: "변경할 내용이 없습니다." });
       return;
     }
@@ -182,25 +102,9 @@ export default function AccountPage() {
         name?: string;
         currentPassword?: string;
         newPassword?: string;
-        investableFunds?: string;
-        existingLoanAmount?: string;
-        housingCount?: number;
-        creditScore?: string;
-        annualNetIncome?: string;
-        targetReturn?: string;
-        investmentGoal?: string;
-        firstTimeBuyer?: boolean;
       } = {};
 
       if (nameChanged) payload.name = trimmedName;
-      if (investableFundsChanged) payload.investableFunds = trimmedInvestableFunds;
-      if (existingLoanAmountChanged) payload.existingLoanAmount = trimmedExistingLoanAmount;
-      if (housingCountChanged) payload.housingCount = parsedHousingCount;
-      if (creditScoreChanged) payload.creditScore = trimmedCreditScore;
-      if (annualNetIncomeChanged) payload.annualNetIncome = trimmedAnnualNetIncome;
-      if (targetReturnChanged) payload.targetReturn = trimmedTargetReturn;
-      if (investmentGoalChanged) payload.investmentGoal = trimmedInvestmentGoal;
-      if (firstTimeBuyerChanged) payload.firstTimeBuyer = firstTimeBuyer;
       if (passwordChanging) {
         payload.currentPassword = currentPassword;
         payload.newPassword = newPassword;
@@ -254,7 +158,8 @@ export default function AccountPage() {
         <div className="bg-card border border-border rounded-sm shadow-sm p-4 sm:p-6">
           <h1 className="text-lg font-bold text-foreground mb-1">내 정보 수정</h1>
           <p className="text-sm text-muted-foreground mb-6">
-            이름, 투자정보, 비밀번호를 변경할 수 있습니다. 아이디는 변경할 수 없습니다.
+            이름, 비밀번호를 변경할 수 있습니다. 아이디는 변경할 수 없습니다. 투자정보는 메인
+            화면의 [투자정보]에서 변경할 수 있습니다.
           </p>
 
           {loading ? (
@@ -289,117 +194,6 @@ export default function AccountPage() {
                   <input readOnly value={ROLE_LABELS[profile.role]} className={readOnlyClass} />
                 </label>
               </div>
-
-              <InvestmentInfoSection className="rounded-sm">
-                <SelectField
-                  label="투자가능자금"
-                  placeholder="투자가능자금 선택"
-                  value={investableFunds}
-                  onChange={(v) => {
-                    setInvestableFunds(v);
-                    setInvalidFields((prev) => {
-                      const next = new Set(prev);
-                      next.delete("investableFunds");
-                      return next;
-                    });
-                  }}
-                  options={INVESTABLE_FUNDS_OPTIONS}
-                  invalid={invalidFields.has("investableFunds")}
-                />
-                <SelectField
-                  label="연순소득"
-                  placeholder="연순소득 선택"
-                  value={annualNetIncome}
-                  onChange={(v) => {
-                    setAnnualNetIncome(v);
-                    setInvalidFields((prev) => {
-                      const next = new Set(prev);
-                      next.delete("annualNetIncome");
-                      return next;
-                    });
-                  }}
-                  options={ANNUAL_NET_INCOME_OPTIONS}
-                  hint="* 매출이 아닌 순소득정보입니다."
-                  invalid={invalidFields.has("annualNetIncome")}
-                />
-                <SelectField
-                  label="기존대출금액"
-                  placeholder="기존대출금액 선택"
-                  value={existingLoanAmount}
-                  onChange={(v) => {
-                    setExistingLoanAmount(v);
-                    setInvalidFields((prev) => {
-                      const next = new Set(prev);
-                      next.delete("existingLoanAmount");
-                      return next;
-                    });
-                  }}
-                  options={EXISTING_LOAN_OPTIONS}
-                  invalid={invalidFields.has("existingLoanAmount")}
-                />
-                <div className="flex items-end gap-4">
-                  <div className="flex-1">
-                    <SelectField
-                      label="주택수"
-                      placeholder="보유 주택수 선택"
-                      value={housingCount}
-                      onChange={(v) => {
-                        setHousingCount(v);
-                        if (v !== "0") setFirstTimeBuyer(false);
-                        setInvalidFields((prev) => {
-                          const next = new Set(prev);
-                          next.delete("housingCount");
-                          return next;
-                        });
-                      }}
-                      options={HOUSING_COUNT_OPTIONS}
-                      invalid={invalidFields.has("housingCount")}
-                    />
-                  </div>
-                  <div className={`h-11 flex items-center ${housingCount !== "0" ? "opacity-40 pointer-events-none" : ""}`}>
-                    <CheckboxField
-                      label="생애최초 주택구입"
-                      checked={firstTimeBuyer}
-                      onChange={setFirstTimeBuyer}
-                    />
-                  </div>
-                </div>
-                <SelectField
-                  label="신용점수"
-                  placeholder="신용점수 선택"
-                  value={creditScore}
-                  onChange={(v) => {
-                    setCreditScore(v);
-                    setInvalidFields((prev) => {
-                      const next = new Set(prev);
-                      next.delete("creditScore");
-                      return next;
-                    });
-                  }}
-                  options={CREDIT_SCORE_OPTIONS}
-                  hint="* 나이스/KCB 신용점수는 토스/카카오를 통해 확인가능합니다."
-                  invalid={invalidFields.has("creditScore")}
-                />
-                <SelectField
-                  label="목표 수익 (선택)"
-                  placeholder="목표 수익 선택 — 선택 안 하면 필터 없이 추천"
-                  value={targetReturn}
-                  onChange={setTargetReturn}
-                  options={TARGET_RETURN_OPTIONS}
-                />
-                <InvestmentGoalField
-                  value={investmentGoal}
-                  onChange={(v) => {
-                    setInvestmentGoal(v);
-                    setInvalidFields((prev) => {
-                      const next = new Set(prev);
-                      next.delete("investmentGoal");
-                      return next;
-                    });
-                  }}
-                  invalid={invalidFields.has("investmentGoal")}
-                />
-              </InvestmentInfoSection>
 
               <div className="rounded-sm border border-border bg-secondary/25 p-4 sm:p-5 space-y-4">
                 <div>
