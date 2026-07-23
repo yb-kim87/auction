@@ -611,16 +611,16 @@ export function ProfitCalculatorPanel({
           value={existingIncome}
           onChange={setExistingIncome}
           suffix="원"
-          helper="입력한 기존소득과 매매차익을 합산해 양도세율 구간을 판정합니다"
+          helper="입력한 기존소득과 매매차익을 합산해 소득세율 구간을 판정합니다"
         />
         <ResultRow
-          label="양도세"
+          label="소득세"
           labelDark
           value={formatWonShort(result.capitalGainsTax)}
           helper={
             applyProgressiveDeduction
-              ? `양도세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 ${formatWonShort(result.capitalGainsTaxDeduction)})`
-              : `양도세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 미적용)`
+              ? `소득세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 ${formatWonShort(result.capitalGainsTaxDeduction)})`
+              : `소득세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 미적용)`
           }
         />
       </div>
