@@ -443,7 +443,9 @@ export function ProfitCalculatorPanel({
                 helper={
                   vatAutoReady
                     ? `국세청 고시 공식 기준 부가가치세 ${vatUseLowPrice ? "최저가" : "정상가"}로 자동 계산됨(직접 수정 가능)`
-                    : "전용 85㎡ 초과 물건: 매도가의 10%×50%를 기본값으로 사용 중"
+                    : isOfficetelItem
+                      ? "오피스텔 물건: 건물분 부가가치세가 발생하여 매도가의 10%×50%를 기본값으로 사용 중"
+                      : "전용 85㎡ 초과 물건: 매도가의 10%×50%를 기본값으로 사용 중"
                 }
               />
               {vatAutoReady && (
