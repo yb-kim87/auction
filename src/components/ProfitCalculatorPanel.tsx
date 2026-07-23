@@ -150,6 +150,7 @@ export function ProfitCalculatorPanel({
   const [vatLandPricePerM2, setVatLandPricePerM2] = useState<number | null>(null);
   const [vatBuildingArea, setVatBuildingArea] = useState<number | null>(null);
   const [vatBuiltYear, setVatBuiltYear] = useState<number | null>(null);
+  const [vatStructureName, setVatStructureName] = useState<string | null>(null);
   // 부가세는 기본으로 정상가(시가) 기준을 노출하고, 체크박스를 켜면
   // 최저가(국세청 고시상 하한) 기준으로 전환한다(사용자 요청, 2026-07-21).
   const [vatUseLowPrice, setVatUseLowPrice] = useState(false);
@@ -197,6 +198,7 @@ export function ProfitCalculatorPanel({
       setVatLandPricePerM2(jiga);
       setVatBuildingArea(buildingArea);
       setVatBuiltYear(builtYear);
+      setVatStructureName(buildingInfo?.structureName ?? null);
       setVatAutoReady(true);
       setVatEdited(false);
       setVatAutoNote(
@@ -232,6 +234,7 @@ export function ProfitCalculatorPanel({
         buildingArea: vatBuildingArea,
         builtYear: vatBuiltYear,
         usage: item.usage,
+        structureName: vatStructureName,
       })
         .then((vat) => {
           if (cancelled) return;
@@ -255,6 +258,7 @@ export function ProfitCalculatorPanel({
     vatLandPricePerM2,
     vatBuildingArea,
     vatBuiltYear,
+    vatStructureName,
     vatUseLowPrice,
   ]);
 

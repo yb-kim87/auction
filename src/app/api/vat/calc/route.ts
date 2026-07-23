@@ -8,6 +8,7 @@ import {
   calcResidualRate,
   calcVat,
   getLocationIndex,
+  matchStructureIndex,
 } from "@/lib/vat-calc";
 
 const APARTMENT_USAGE_INDEX = 110;
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
     buildingArea?: unknown;
     builtYear?: unknown;
     usage?: unknown;
+    structureName?: unknown;
   } | null;
   if (!body) {
     return NextResponse.json({ message: "요청 본문이 올바르지 않습니다." }, { status: 400 });
@@ -62,11 +64,22 @@ export async function POST(request: NextRequest) {
   const usage = String(body.usage ?? "");
   const usageIndex = isOfficetelUsage(usage) ? OFFICETEL_USAGE_INDEX : APARTMENT_USAGE_INDEX;
 
+  // 건축물대장 API의 구조명(strctCdNm)을 국세청 구조지수표에 매칭한다.
+  // 매칭 실패(정보 없음/미등재 구조)면 아파트 대다수가 해당하는 RC(100,
+  // 내용연수 50년)로 폴백한다(2026-07-23).
+  const matchedStructure = matchStructureIndex(
+    typeof body.structureName === "string" ? body.structureName : null,
+  );
+  const structureIndex = matchedStructure?.index ?? STRUCTURE_INDEX_RC;
+  const usefulLife = matchedStructure
+    ? DEP_GROUP_USEFUL_LIFE[matchedStructure.depGroup]
+    : DEP_GROUP_USEFUL_LIFE[RC_DEP_GROUP];
+
   const baseYear = new Date().getFullYear();
-  const residualRate = calcResidualRate(builtYear, DEP_GROUP_USEFUL_LIFE[RC_DEP_GROUP], baseYear);
+  const residualRate = calcResidualRate(builtYear, usefulLife, baseYear);
   const locationIndex = getLocationIndex(landPricePerM2);
   const perM2 = calcBuildingStandardPricePerM2({
-    structureIndex: STRUCTURE_INDEX_RC,
+    structureIndex,
     usageIndex,
     locationIndex,
     residualRate,

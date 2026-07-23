@@ -17,6 +17,88 @@ export const DEP_GROUP_USEFUL_LIFE: Record<1 | 2 | 3 | 4, number> = {
 };
 export const RC_DEP_GROUP = 1 as const;
 
+/** 국세청 「건물 기준시가 계산방법 해설」 구조지수·잔가율 그룹표(고시
+ * 원문, CrawlerVatTab.tsx의 STRUCTURE_OPTIONS와 동일 — 실측 검증,
+ * 2026-07-21). keywords는 건축물대장 API의 strctCdNm(공공데이터포털
+ * 표준 구조코드명, 예: "철근콘크리트구조")을 매칭하기 위한 부분 문자열
+ * 목록이다. */
+export const STRUCTURE_TABLE: {
+  label: string;
+  index: number;
+  depGroup: 1 | 2 | 3 | 4;
+  keywords: string[];
+}[] = [
+  { label: "통나무조", index: 135, depGroup: 1, keywords: ["통나무"] },
+  { label: "목구조", index: 125, depGroup: 1, keywords: ["목구조"] },
+  {
+    label: "철골(철골철근)콘크리트조",
+    index: 110,
+    depGroup: 1,
+    keywords: ["철골철근콘크리트", "철골콘크리트", "SRC"],
+  },
+  {
+    label: "철근콘크리트조, 석조, 프리캐스트콘크리트조, 목조, 라멘조, ALC조, 스틸하우스조",
+    index: 100,
+    depGroup: 1,
+    keywords: [
+      "철근콘크리트",
+      "석조",
+      "프리캐스트콘크리트",
+      "라멘조",
+      "ALC",
+      "스틸하우스",
+    ],
+  },
+  {
+    label: "연와조, 철골조, 보강콘크리트조, 보강블록조",
+    index: 97,
+    depGroup: 2,
+    keywords: ["연와조", "철골조", "보강콘크리트", "보강블록"],
+  },
+  {
+    label: "시멘트벽돌조, 황토조, 시멘트블록조, 와이어패널조",
+    index: 95,
+    depGroup: 2,
+    keywords: ["시멘트벽돌", "황토조", "시멘트블록", "와이어패널"],
+  },
+  {
+    label: "철골조 중 조립식패널(EPS패널)",
+    index: 85,
+    depGroup: 3,
+    keywords: ["EPS패널"],
+  },
+  { label: "조립식패널조", index: 80, depGroup: 3, keywords: ["조립식패널"] },
+  { label: "경량철골조", index: 79, depGroup: 3, keywords: ["경량철골"] },
+  {
+    label: "석회 및 흙벽돌조, 돌담 및 토담조",
+    index: 60,
+    depGroup: 3,
+    keywords: ["흙벽돌", "돌담", "토담"],
+  },
+  {
+    label: "철파이프조, 컨테이너건물",
+    index: 59,
+    depGroup: 4,
+    keywords: ["철파이프", "컨테이너"],
+  },
+];
+
+/** 건축물대장 API의 구조명(strctCdNm, 예: "철근콘크리트구조")을 국세청
+ * 구조지수표에 매칭한다. 매칭 실패 시(구조명이 없거나 표에 없는 값)
+ * null을 반환 — 호출자가 기본값(RC, 100)으로 폴백한다. */
+export function matchStructureIndex(
+  structureName: string | null | undefined,
+): { index: number; depGroup: 1 | 2 | 3 | 4 } | null {
+  const name = String(structureName ?? "").trim();
+  if (!name) return null;
+  for (const row of STRUCTURE_TABLE) {
+    if (row.keywords.some((keyword) => name.includes(keyword))) {
+      return { index: row.index, depGroup: row.depGroup };
+    }
+  }
+  return null;
+}
+
 /** 위치지수표(개별공시지가 원/㎡ 구간별) — 국세청 고시 2024.1.1. 시행
  * 기준 실측 검증. */
 const LOCATION_INDEX_BRACKETS: [number, number][] = [
