@@ -47,6 +47,14 @@ export interface AuctionItem {
   area: string;
   sharedArea?: string;
   builtYear: number;
+  /** 부가세계산기 자동계산이 조회해 캐싱한 물건 고유값(PNU·구조명·
+   * 주용도명·지상층수) — 있으면 VWorld/건축물대장 API 재호출 없이
+   * 재사용한다. 공시지가는 매년 갱신될 수 있어 여기 포함하지 않고
+   * 항상 API로 새로 받는다. */
+  vatPnu?: string | null;
+  vatStructureName?: string | null;
+  vatMainPurposeName?: string | null;
+  vatGroundFloors?: number | null;
   bidDate: string;
   appraisedValue: number;
   minPrice: number;

@@ -16,6 +16,7 @@ import {
   fetchVatBuildingRegister,
   fetchVatCalc,
   fetchVatLandPrice,
+  saveVatBuildingInfo,
 } from "@/lib/api";
 
 function parseAreaNumber(value: string | null | undefined): number | null {
@@ -251,20 +252,33 @@ export function ProfitCalculatorPanel({
       // 크롤링 DB에 저장된 usage 텍스트는 건축물대장 실측값과 다를 수
       // 있어(실측: "오피스텔(주거)"로 크롤링됐지만 실제 건축물대장은
       // "공동주택"·6층이라 아파트로 계산해야 했던 사례, 2026-07-23) 용도
-      // 지수 판정에 신뢰할 수 없다 — 구조/용도/층수는 건축물대장 API를
-      // 항상 호출해 가져온다(사용자 요청: "앞으로는 api를 호출해서
-      // 가져오는걸로 하자"). 다만 면적·토지·공시지가는 이미 DB에 신뢰할
-      // 수 있는 값이 있으면 그대로 쓴다(API 재호출로 값이 흔들리지 않게,
-      // "공시가 토지는 그대로 쓰되 용도랑 구조만 가져오자").
+      // 지수 판정에 신뢰할 수 없다 — 구조/용도/층수는 건축물대장 API로
+      // 확보한다. 단, 물건 고유값(PNU·구조·용도·층수)은 한 번 조회하면
+      // 바뀌지 않으므로 DB에 캐싱된 값이 있으면 재호출을 생략한다
+      // (사용자 요청: "공시지가는 매년 바뀔 수 있으니 호출해오고 나머지
+      // 고유값은 저장해두자", 2026-07-24) — 공시지가만 항상 새로 받는다.
+      const hasCachedBuildingInfo =
+        !!item.vatStructureName || !!item.vatMainPurposeName || item.vatGroundFloors != null;
       const [jiga, buildingInfo] = await Promise.all([
         fetchVatLandPrice(coord.x, coord.y),
-        !coord.pnu ? null : fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined),
+        hasCachedBuildingInfo || !coord.pnu
+          ? null
+          : fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined),
       ]);
       if (jiga == null) {
         setVatAutoNote("개별공시지가를 조회하지 못해 자동계산을 사용할 수 없습니다.");
         return;
       }
       const jigaValue = jiga.jiga;
+      const structureName = hasCachedBuildingInfo
+        ? (item.vatStructureName ?? null)
+        : (buildingInfo?.structureName ?? null);
+      const mainPurposeName = hasCachedBuildingInfo
+        ? (item.vatMainPurposeName ?? null)
+        : (buildingInfo?.mainPurposeName ?? null);
+      const groundFloors = hasCachedBuildingInfo
+        ? (item.vatGroundFloors ?? null)
+        : (buildingInfo?.groundFloors ?? null);
       const builtYear = item.builtYear || parseAreaNumber(String(buildingInfo?.builtYear ?? "")) || null;
       if (!builtYear) {
         setVatAutoNote("신축연도 정보가 없어 자동계산을 사용할 수 없습니다.");
@@ -278,14 +292,26 @@ export function ProfitCalculatorPanel({
       setVatLandPricePerM2(jigaValue);
       setVatBuildingArea(buildingArea);
       setVatBuiltYear(builtYear);
-      setVatStructureName(buildingInfo?.structureName ?? null);
-      setVatMainPurposeName(buildingInfo?.mainPurposeName ?? null);
-      setVatGroundFloors(buildingInfo?.groundFloors ?? null);
+      setVatStructureName(structureName);
+      setVatMainPurposeName(mainPurposeName);
+      setVatGroundFloors(groundFloors);
       setVatAutoReady(true);
       setVatEdited(false);
       setVatAutoNote(
         `자동계산 완료 · 토지 ${landArea}㎡ · 건물 ${buildingArea.toFixed(2)}㎡ · 공시지가 ${jigaValue.toLocaleString("ko-KR")}원/㎡`,
       );
+
+      // 새로 조회한 건축물대장 정보(처음 자동계산하는 물건)는 DB에
+      // 캐싱해 다음번엔 API 호출을 건너뛴다. 이미 캐싱돼 있던 물건은
+      // 다시 저장할 필요 없다.
+      if (!hasCachedBuildingInfo && buildingInfo) {
+        void saveVatBuildingInfo(item.id, {
+          vatPnu: coord.pnu ?? null,
+          vatStructureName: buildingInfo.structureName ?? null,
+          vatMainPurposeName: buildingInfo.mainPurposeName ?? null,
+          vatGroundFloors: buildingInfo.groundFloors ?? null,
+        });
+      }
     } catch (err) {
       setVatAutoNote(
         err instanceof Error ? err.message : "부가세 자동계산에 실패했습니다.",

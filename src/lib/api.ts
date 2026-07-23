@@ -3159,6 +3159,32 @@ export async function fetchVatBuildingRegister(
   };
 }
 
+/** 부가세계산기 자동계산이 조회한 물건 고유값(PNU·구조명·주용도명·
+ * 지상층수)을 물건 DB에 캐싱한다 — 다음 자동계산부터는 이 값이 있으면
+ * VWorld/건축물대장 API 호출을 건너뛴다(사용자 요청, 2026-07-24).
+ * 실패해도 자동계산 자체는 이미 끝난 뒤이므로 조용히 무시한다(캐싱은
+ * 최적화일 뿐 실패해도 기능에 영향 없음). */
+export async function saveVatBuildingInfo(
+  itemId: string,
+  info: {
+    vatPnu?: string | null;
+    vatStructureName?: string | null;
+    vatMainPurposeName?: string | null;
+    vatGroundFloors?: number | null;
+  },
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auctions/${itemId}/vat-building-info`, {
+      method: "PATCH",
+      credentials: FETCH_CREDENTIALS,
+      headers: withJsonHeaders(),
+      body: JSON.stringify(info),
+    });
+  } catch {
+    // 캐싱 실패는 무시 — 다음에 또 자동계산 버튼을 누르면 API로 재조회된다.
+  }
+}
+
 export type VatCalcResult = {
   landAlloc: number;
   buildingAlloc: number;
