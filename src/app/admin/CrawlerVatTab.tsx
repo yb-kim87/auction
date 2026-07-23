@@ -44,10 +44,60 @@ const DEP_GROUP_USEFUL_LIFE: Record<1 | 2 | 3 | 4, number> = {
   4: 20,
 };
 
-const USAGE_OPTIONS = [
+/** 주거용/상업용 용도지수표 — atomtax-app.vercel.app 실측 대조로 확인한
+ * 옵션 목록(2026-07-23). 오피스텔은 시행령상 업무시설로 분류되나 주거용
+ * 임대 케이스 편의를 위해 주거 카테고리에도 동일 지수(140)로 중복 등재
+ * 되어 있음 — 두 카테고리 어느 쪽을 선택해도 계산 결과는 같다. */
+const RESIDENTIAL_USAGE_OPTIONS = [
   { value: "110", label: "아파트 (110)" },
   { value: "100", label: "단독·다세대·연립·기숙사 등 (100)" },
   { value: "140", label: "오피스텔 (주거용 임대) (140)" },
+];
+
+const COMMERCIAL_USAGE_OPTIONS = [
+  { value: "140", label: "관광호텔 5/4성급 (140)" },
+  { value: "130", label: "호텔·콘도·펜션 등 (130)" },
+  { value: "120", label: "도시민박·한옥체험시설 (120)" },
+  { value: "115", label: "여관(모텔 포함) (115)" },
+  { value: "105", label: "다중생활시설 (105)" },
+  { value: "100", label: "여인숙 (100)" },
+  { value: "135", label: "백화점 (135)" },
+  { value: "125", label: "대형점·쇼핑센터·복합쇼핑몰 (125)" },
+  { value: "100", label: "일반상점·기타 판매시설 (100)" },
+  { value: "85", label: "도매시장·전통시장·공판장 (85)" },
+  { value: "120", label: "여객터미널·철도·공항·항만 (120)" },
+  { value: "140", label: "무도장 (140)" },
+  { value: "135", label: "유흥주점·카지노 (135)" },
+  { value: "120", label: "유원시설업 시설 (120)" },
+  { value: "115", label: "단란주점 (115)" },
+  { value: "90", label: "무도학원 (90)" },
+  { value: "130", label: "집회장(장외발매소 등) (130)" },
+  { value: "120", label: "예식장·공연장·공회당 (120)" },
+  { value: "110", label: "동물원·식물원·전시장 (110)" },
+  { value: "105", label: "관람장·체육관·운동장 (105)" },
+  { value: "100", label: "교회·성당·사찰 등 (100)" },
+  { value: "125", label: "골프장·스키장·종합체육시설 (125)" },
+  { value: "105", label: "기타 체육시설 (105)" },
+  { value: "125", label: "종합병원 (125)" },
+  { value: "110", label: "일반·치과·한방·요양 등 병원 (110)" },
+  { value: "140", label: "오피스텔 (140)" },
+  { value: "115", label: "사무소·금융업소·출판사 등 (115)" },
+  { value: "110", label: "방송국·통신용시설 (110)" },
+  { value: "110", label: "야외음악당·관광지 부수 시설 (110)" },
+  { value: "107", label: "학원·교습소 (107)" },
+  { value: "100", label: "학교·교육원·연구소·도서관 (100)" },
+  { value: "107", label: "아동·노인·사회복지시설 (107)" },
+  { value: "80", label: "고아원·경로당 등 (80)" },
+  { value: "110", label: "청소년수련시설 (110)" },
+  { value: "130", label: "목욕장 3,000㎡ 이상 (130)" },
+  { value: "115", label: "목욕장 1,000~3,000㎡ (115)" },
+  { value: "110", label: "목욕장 1,000㎡ 미만 (110)" },
+  { value: "105", label: "풍속영업시설(노래방·게임장 등) (105)" },
+  { value: "100", label: "일반 근린생활시설(음식점·미용원·소형 학원 등) (100)" },
+  { value: "130", label: "화장시설·봉안당 (130)" },
+  { value: "105", label: "동물 화장·납골시설 (105)" },
+  { value: "115", label: "장례식장 (115)" },
+  { value: "105", label: "동물 전용 장례식장 (105)" },
 ];
 
 /** 위치지수표(개별공시지가 원/㎡ 구간별) — 국세청 고시 2024.1.1. 시행
@@ -137,8 +187,21 @@ export function CrawlerVatTab() {
 
   const [usageType, setUsageType] = useState<"주거용" | "상업용">("주거용");
   const [structureIndex, setStructureIndex] = useState(3);
-  const [usage, setUsage] = useState(USAGE_OPTIONS[0].value);
+  // 카테고리(주거용/상업용)별로 옵션 목록 자체가 다르므로 선택된 "인덱스"를
+  // 들고, 실제 지수값은 렌더링 시 usageOptions[usageOptionIndex]에서 구한다
+  // — 카테고리를 바꿔도 유효하지 않은 value가 남지 않게 하기 위함
+  // (사용자 지적: 상업용을 눌러도 반영이 안 됨, 2026-07-23).
+  const [usageOptionIndex, setUsageOptionIndex] = useState(0);
   const [builtYear, setBuiltYear] = useState("");
+
+  const usageOptions =
+    usageType === "주거용" ? RESIDENTIAL_USAGE_OPTIONS : COMMERCIAL_USAGE_OPTIONS;
+  const usage = usageOptions[usageOptionIndex] ?? usageOptions[0];
+
+  function handleUsageTypeChange(next: "주거용" | "상업용") {
+    setUsageType(next);
+    setUsageOptionIndex(0);
+  }
 
   const [landPricePerM2, setLandPricePerM2] = useState("");
   const [buildingStandardPrice, setBuildingStandardPrice] = useState("");
@@ -244,7 +307,7 @@ export function CrawlerVatTab() {
       return;
     }
     const structureOption = STRUCTURE_OPTIONS[structureIndex];
-    const usageIndex = parseNum(usage);
+    const usageIndex = parseNum(usage.value);
     const locationIndex = getLocationIndex(landUnitPrice);
     const usefulLife = DEP_GROUP_USEFUL_LIFE[structureOption.depGroup];
     // 고시연도(경과연수 1년 기준)는 현재 연도로 근사한다 — 국세청은
@@ -285,7 +348,7 @@ export function CrawlerVatTab() {
     setSalePrice("");
     setUsageType("주거용");
     setStructureIndex(3);
-    setUsage(USAGE_OPTIONS[0].value);
+    setUsageOptionIndex(0);
     setBuiltYear("");
     setLandPricePerM2("");
     setBuildingStandardPrice("");
@@ -468,7 +531,7 @@ export function CrawlerVatTab() {
               <button
                 key={v}
                 type="button"
-                onClick={() => setUsageType(v)}
+                onClick={() => handleUsageTypeChange(v)}
                 className={`px-4 py-2 text-sm rounded-sm border ${
                   usageType === v
                     ? "bg-primary text-primary-foreground border-primary"
@@ -490,7 +553,7 @@ export function CrawlerVatTab() {
           >
             {STRUCTURE_OPTIONS.map((s, i) => (
               <option key={s.label} value={i}>
-                {s.label} ({s.index})
+                {s.label}
               </option>
             ))}
           </select>
@@ -499,12 +562,12 @@ export function CrawlerVatTab() {
         <label className="space-y-1 block">
           <span className="text-sm font-medium">용도*</span>
           <select
-            value={usage}
-            onChange={(e) => setUsage(e.target.value)}
+            value={usageOptionIndex}
+            onChange={(e) => setUsageOptionIndex(Number(e.target.value))}
             className={fieldClass}
           >
-            {USAGE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
+            {usageOptions.map((o, i) => (
+              <option key={`${o.value}-${o.label}`} value={i}>
                 {o.label}
               </option>
             ))}
