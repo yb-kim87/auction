@@ -13,7 +13,8 @@
  *    아예 없어 1)의 "NNN동" 패턴이 매칭되지 않고 건물명+층+호까지
  *    통째로 검색 주소에 남아 VWorld가 NOT_FOUND를 반환하는 버그가
  *    있었다(실측: "...630-70 모던하우스 3층301호"를 그대로 넘기면
- *    NOT_FOUND, "...630-70"까지만 자르면 OK, 2026-07-23) — 지번(숫자-숫자)
+ *    NOT_FOUND, "...630-70"까지만 자르면 OK, 2026-07-23) — 지번(숫자-숫자
+ *    또는 하이픈 없는 단일 지번, 예: "구월동 1128 탑클래스 9층906호")
  *    뒤에 남은 건물명/층/호 텍스트를 전부 잘라낸다.
  */
 export type ParsedAuctionAddress = {
@@ -40,10 +41,12 @@ export function parseAuctionAddress(raw: string): ParsedAuctionAddress {
     .replace(/,\s*$/, "")
     .trim();
 
-  // "동" 표기가 없는 단일 건물(오피스텔 등) — 지번(숫자-숫자) 뒤에 남은
-  // 건물명/층/호 텍스트를 잘라내고, 호수만 별도로 추출한다.
+  // "동" 표기가 없는 단일 건물(오피스텔 등) — 지번(하이픈 있는 "630-70"
+  // 형태 또는 하이픈 없는 "1128" 단일 지번) 뒤에 남은 건물명/층/호
+  // 텍스트를 잘라내고, 호수만 별도로 추출한다. 지번 뒤에 공백+한글
+  // (건물명)이나 "N층"이 이어지는 지점을 지번의 끝으로 간주한다.
   if (!dongHoMatch) {
-    const jibunMatch = searchAddress.match(/^(.*?\d+-\d+)/);
+    const jibunMatch = searchAddress.match(/^(.*?\d+(?:-\d+)?)(?=\s|,)/);
     if (jibunMatch) {
       const hoOnlyMatch = searchAddress
         .slice(jibunMatch[1].length)
