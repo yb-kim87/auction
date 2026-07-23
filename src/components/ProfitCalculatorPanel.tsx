@@ -72,9 +72,19 @@ function NumberField({
               setDraft(String(value));
             }}
             onChange={(e) => {
-              const digitsOnly = e.target.value.replace(/[^\d]/g, "");
-              setDraft(digitsOnly);
-              onChange?.(Number(digitsOnly) || 0);
+              // 앞자리 불필요한 0 제거("0" 뒤에 숫자를 이어 쳐도
+              // "0172032000"처럼 0이 안 지워지고 남는 문제 수정,
+              // 사용자 지적 2026-07-23) — 소수점(대출 연이자율 등)은
+              // 유지하되, 정수부 선행 0만 없앤다. 전부 지운 빈 값이나
+              // "." 하나만 남은 상태는 정규화하지 않고 그대로 둔다
+              // (소수점 입력 도중에 값이 사라지는 것을 방지).
+              const raw = e.target.value.replace(/[^\d.]/g, "");
+              const normalized =
+                raw === "" || raw === "."
+                  ? raw
+                  : raw.replace(/^0+(?=\d)/, "");
+              setDraft(normalized);
+              onChange?.(Number(normalized) || 0);
             }}
             onBlur={() => setEditing(false)}
             className="w-32 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
