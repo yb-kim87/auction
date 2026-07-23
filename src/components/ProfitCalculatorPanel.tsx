@@ -467,6 +467,9 @@ export function ProfitCalculatorPanel({
                   {vatAutoLoading
                     ? "물건 주소로 토지공시지가·건물면적을 조회해 정확한 부가세를 계산하는 중..."
                     : vatAutoNote ?? "물건 주소로 정확한 부가세(국세청 고시 공식)를 계산할 수 있습니다."}
+                  {!vatAutoLoading && vatAutoReady && (
+                    <> · 매도가 {salePrice.toLocaleString("ko-KR")}원</>
+                  )}
                 </p>
                 <button
                   type="button"
