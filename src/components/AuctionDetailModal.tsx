@@ -1794,7 +1794,7 @@ export function AuctionDetailModal({
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
             <div className="absolute top-3 left-3 flex items-center gap-1.5">
               <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-white/90 backdrop-blur text-primary border border-white/60">
-                {preview.propType}
+                {preview.usage || preview.propType}
               </span>
               {isNewCase && (
                 <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-500/90 backdrop-blur text-white">
@@ -1808,7 +1808,7 @@ export function AuctionDetailModal({
           <div className="flex sm:hidden items-center justify-between gap-2 bg-primary text-primary-foreground px-4 py-3">
             <p className="flex items-center gap-2 min-w-0 flex-1">
               <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm shrink-0`}>
-                {preview.propType}
+                {preview.usage || preview.propType}
               </span>
               <span className={`font-mono font-bold ${SECTION_TEXT} truncate`}>
                 {(editable ? form.auctionNo : preview.auctionNo) || "경매번호 없음"}
