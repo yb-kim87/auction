@@ -117,24 +117,23 @@ async function fetchTitleInfo(
 /** 동이 없는 건물(오피스텔·상가 등 단일 건물)은 표제부에도 동 구분이 없어
  * dongNm 매칭이 애초에 불가능하다 — 이 경우 표제부 목록의 첫 항목을 그대로
  * 쓴다(실측: 동 없는 건물은 표제부 자체가 1건뿐인 경우가 대부분,
- * 2026-07-23). */
-async function findUseAprDayByDong(
+ * 2026-07-23).
+ *
+ * mainPurpsCdNm은 반드시 표제부(getBrTitleInfo) 값을 써야 한다 — 전유부
+ * (getBrExposPubuseAreaInfo)의 mainPurpsCdNm은 건축법상 세부 용도명
+ * ("오피스텔")이라 국세청 용도지수표 매칭 기준과 다르다. 표제부 값
+ * ("업무시설")을 써야 atomtax-app과 동일하게 "사무소·금융업소·출판사 등
+ * (115)"로 매칭된다(실측, 2026-07-23 — 전유부 값을 쓰면 "오피스텔(140)"로
+ * 잘못 매칭되던 버그). */
+async function findTitleInfoByDong(
   key: string,
   params: PnuParams,
   dong: string,
-): Promise<string | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const rows = await fetchTitleInfoList(key, params, "0");
-  if (!dong) {
-    const first = rows[0];
-    return typeof first?.useAprDay === "string" && first.useAprDay.trim()
-      ? first.useAprDay
-      : undefined;
-  }
+  if (!dong) return rows[0];
   const dongNm = dong.endsWith("동") ? dong : `${dong}동`;
-  const match = rows.find((r) => r.dongNm === dongNm);
-  return typeof match?.useAprDay === "string" && match.useAprDay.trim()
-    ? match.useAprDay
-    : undefined;
+  return rows.find((r) => r.dongNm === dongNm) ?? rows[0];
 }
 
 export async function GET(request: NextRequest) {
@@ -198,12 +197,20 @@ export async function GET(request: NextRequest) {
       // 계산이 원본 사이트 결과와 어긋난다(실측, 2026-07-21).
       const totArea = sum("1") + sum("2");
       const first = rows[0];
-      const titleUseAprDay = await findUseAprDayByDong(key, params, dong ?? "");
+      const title = await findTitleInfoByDong(key, params, dong ?? "");
+      const titleUseAprDay =
+        typeof title?.useAprDay === "string" && title.useAprDay.trim()
+          ? title.useAprDay
+          : undefined;
+      const titleMainPurpsCdNm =
+        typeof title?.mainPurpsCdNm === "string" && title.mainPurpsCdNm.trim()
+          ? title.mainPurpsCdNm
+          : undefined;
       return NextResponse.json({
         totArea,
         useAprDay: titleUseAprDay,
         strctCdNm: typeof first.strctCdNm === "string" ? first.strctCdNm : undefined,
-        mainPurpsCdNm: typeof first.mainPurpsCdNm === "string" ? first.mainPurpsCdNm : undefined,
+        mainPurpsCdNm: titleMainPurpsCdNm,
       });
     }
     // 동/호로 못 찾으면 표제부로 폴백(오타 또는 API 표기 형식 차이).
