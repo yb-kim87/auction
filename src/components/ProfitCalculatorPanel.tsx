@@ -174,13 +174,15 @@ export function ProfitCalculatorPanel({
   housingCount?: number | null;
   regulatedArea?: boolean | null;
 }) {
-  // 이미 낙찰된 물건(caseState="낙찰")은 예상 최저가가 아니라 실제
-  // 낙찰가(item.salePrice, DB 엑셀 컬럼명 "낙찰가")로 초기값을 채운다
-  // (사용자 요청: "낙찰된 물건은 낙찰가에 최저가를 넣지 말고 실제
-  // 낙찰가정보를 넣어줘", 2026-07-23).
-  const [bidPrice, setBidPrice] = useState(
-    item.caseState === "낙찰" && item.salePrice ? item.salePrice : item.minPrice,
-  );
+  // 이미 낙찰된 물건은 예상 최저가가 아니라 실제 낙찰가(item.salePrice,
+  // DB 엑셀 컬럼명 "낙찰가")로 초기값을 채운다(사용자 요청: "낙찰된
+  // 물건은 낙찰가에 최저가를 넣지 말고 실제 낙찰가정보를 넣어줘",
+  // 2026-07-23). caseState만으로 판정하면 안 된다 — 낙찰 이후에도
+  // "허가"/"지급기한"/"배당기일"/"배당종결" 등 여러 후속 상태를 거치며
+  // (실측: "2024타경109501"이 caseState="배당종결"인데도 salePrice가
+  // 정상 존재) caseState==="낙찰"만 좁게 검사하면 이런 물건들을 놓친다.
+  // salePrice 존재 여부 자체가 낙찰 여부의 더 정확한 신호다.
+  const [bidPrice, setBidPrice] = useState(item.salePrice ?? item.minPrice);
   const [salePrice, setSalePrice] = useState(item.appraisedValue);
   const [holdingMonths, setHoldingMonths] = useState(4);
   const [loanRatioByAppraisal, setLoanRatioByAppraisal] = useState(
@@ -441,7 +443,11 @@ export function ProfitCalculatorPanel({
             value={bidPrice}
             onChange={setBidPrice}
             suffix="원"
-            helper={`최저가 ${formatWonShort(item.minPrice)}`}
+            helper={
+              item.salePrice
+                ? `낙찰가 ${formatWonShort(item.salePrice)}`
+                : `최저가 ${formatWonShort(item.minPrice)}`
+            }
           />
           <NumberField
             label="매도가"
