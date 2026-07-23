@@ -5,7 +5,11 @@
  */
 
 /** 무주택자/1주택자·비규제지역 적용, 낙찰가(취득세 과세표준) 구간별 1~3% 누진 취득세율
- * (지방교육세 등 포함, 시트의 C8 수식) */
+ * (지방교육세 등 포함, 시트의 C8 수식). 법무비는 별도(LEGAL_FEE_RATE)로 분리해서
+ * 더한다 — 원래 이 함수 안에 "+0.007"로 섞여 있었는데, 이는 등기 시 실제 발생하는
+ * 법무사 보수·채권매입비 등의 평균치를 사용자가 임의로 어림잡아 넣은 값이라
+ * 취득세 자체와는 성격이 다르고(사용자 확인, 2026-07-23), 다주택 중과 로직
+ * (acquisitionTaxRate)을 추가할 때 이 구간에는 반영이 안 됐던 문제도 있었다. */
 function baseAcquisitionTaxRate(minPriceWon: number): number {
   let base: number;
   if (minPriceWon <= 600_000_000) base = 0.01;
@@ -15,8 +19,14 @@ function baseAcquisitionTaxRate(minPriceWon: number): number {
   else if (minPriceWon <= 800_000_000) base = 0.0233;
   else if (minPriceWon <= 850_000_000) base = 0.0267;
   else base = 0.03;
-  return base * 1.1 + 0.007;
+  return base * 1.1;
 }
+
+/** 등기 시 발생하는 법무사 보수·국민주택채권 매입비용·인지세 등의 평균 추정
+ * 비율(사용자가 임의로 어림잡은 값, 2026-07-23). 취득세와 별개 항목이라
+ * "등기비용(취득세 등)"과 분리해 "법무비"로 화면에 표시한다. 주택수/규제지역/
+ * 오피스텔 여부와 무관하게 낙찰가 기준으로 동일하게 적용한다. */
+export const LEGAL_FEE_RATE = 0.007;
 
 /** 오피스텔은 건축법상 업무시설(주택이 아님)이라 주택 취득세 누진/중과 체계
  * (무주택·규제지역·다주택 등)와 무관하게 항상 건물분 4% + 지방교육세 0.4% +
@@ -150,7 +160,8 @@ export interface ProfitCalculatorResult {
   loanAmount: number; // 최종 대출금 = max(0, 대출한도 - 기존대출)
   equity: number; // 실투자금(내자본금) = 취득금액합계 - 대출금
   acquisitionTaxRate: number;
-  acquisitionTax: number; // 등기비용(취득세 등)
+  acquisitionTax: number; // 취득세(등기비용 중 취득세분)
+  legalFee: number; // 법무비(법무사 보수·채권매입비 등 추정, 낙찰가의 0.7%)
   loanInterest: number; // 대출이자(보유기간 반영)
   earlyRepaymentFee: number;
   saleBrokerageRate: number;
@@ -201,6 +212,10 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
 
   const taxRate = acquisitionTaxRate(bidPrice, housingCount, regulatedArea, usage);
   const acquisitionTax = Math.round(bidPrice * taxRate);
+  // 법무비는 주택수·규제지역·오피스텔 여부와 무관하게 낙찰가 기준으로
+  // 동일하게 적용한다(사용자 확인: "등기비는 주택수 상관없이 모든
+  // 거에 다 들어가", 2026-07-23).
+  const legalFee = Math.round(bidPrice * LEGAL_FEE_RATE);
 
   const loanInterest = Math.round((loanAmount * loanInterestRate) / 12 * holdingMonths);
   const earlyRepaymentFee = Math.round(loanAmount * earlyRepaymentFeeRate);
@@ -211,6 +226,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
   const totalAcquisitionCost =
     bidPrice +
     acquisitionTax +
+    legalFee +
     interiorCost +
     evictionCost +
     unpaidMaintenanceFee +
@@ -250,6 +266,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     equity,
     acquisitionTaxRate: taxRate,
     acquisitionTax,
+    legalFee,
     loanInterest,
     earlyRepaymentFee,
     saleBrokerageRate: brokerageRate,
