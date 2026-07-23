@@ -115,8 +115,13 @@ const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
   maxArea: "",
 };
 
-// favoritesOnly는 토글 즉시 반영을 위해 서버로 보내지 않고 클라이언트에서만
-// 필터링한다(나머지는 서버에서 걸러 정확히 PAGE_SIZE만큼 채워서 온다).
+// favoritesOnly도 서버에 그대로 보낸다(백엔드는 이미 지원) — 예전엔
+// "토글 즉시 반영을 위해" 클라이언트에서만 걸렀는데, 그러면 관심물건이
+// 현재 로드된 페이지(예: 30건)에 없을 때 실제로는 다른 페이지에 있는
+// 관심물건인데도 "검색 결과 없음"으로 잘못 보였다(실측: 검색어로
+// 좁혀서 그 물건을 서버가 직접 찾아 반환할 때만 보이고, 검색어를
+// 지우면 사라짐 — 클라이언트 필터링이 "로드된 목록 중에서만" 걸렀기
+// 때문, 2026-07-24).
 function toApiFilters(
   filters: RecommendFilters,
   searchText: string,
@@ -124,6 +129,7 @@ function toApiFilters(
   city?: string[];
   propType?: string[];
   maxFailureRate?: string;
+  favoritesOnly?: boolean;
   progressStatus?: "all" | "active" | "ended";
   search?: string;
   strategyLabel?: string[];
@@ -134,24 +140,13 @@ function toApiFilters(
     city: filters.city.length > 0 ? filters.city : undefined,
     propType: filters.propType.length > 0 ? filters.propType : undefined,
     maxFailureRate: filters.maxFailureRate || undefined,
+    favoritesOnly: filters.favoritesOnly || undefined,
     progressStatus: progressLabelToStatus(filters.progressStatus),
     search: searchText.trim() || undefined,
     strategyLabel: filters.strategyLabel.length > 0 ? filters.strategyLabel : undefined,
     minArea: filters.minArea ? Number(filters.minArea) || undefined : undefined,
     maxArea: filters.maxArea ? Number(filters.maxArea) || undefined : undefined,
   };
-}
-
-// city/propType/maxFailureRate/progressStatus/search와 목표수익(추정 수익) 필터는
-// 이제 서버에서 필터링된 결과로 오므로, 여기서는 즉시 반영이 필요한 favoritesOnly만
-// 클라이언트에서 걸러낸다.
-function matchesRecommendFilters(
-  item: AuctionItem,
-  filters: RecommendFilters,
-  favoriteIds: Set<string>,
-): boolean {
-  if (filters.favoritesOnly && !favoriteIds.has(item.id)) return false;
-  return true;
 }
 
 /** 체크박스 목록으로 여러 값을 고를 수 있는 드롭다운. 선택된 항목이
@@ -1227,11 +1222,7 @@ export default function HomePage() {
     }
   }
 
-  const filteredItems = sortRecommendItems(
-    items.filter((item) => matchesRecommendFilters(item, filters, favoriteIds)),
-    sortBy,
-    loanInfoByItemId,
-  );
+  const filteredItems = sortRecommendItems(items, sortBy, loanInfoByItemId);
 
   const activeFilterCount =
     (filters.city.length > 0 ? 1 : 0) +
