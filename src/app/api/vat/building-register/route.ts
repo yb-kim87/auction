@@ -114,13 +114,23 @@ async function fetchTitleInfo(
   return rows[0] ?? null;
 }
 
+/** 동이 없는 건물(오피스텔·상가 등 단일 건물)은 표제부에도 동 구분이 없어
+ * dongNm 매칭이 애초에 불가능하다 — 이 경우 표제부 목록의 첫 항목을 그대로
+ * 쓴다(실측: 동 없는 건물은 표제부 자체가 1건뿐인 경우가 대부분,
+ * 2026-07-23). */
 async function findUseAprDayByDong(
   key: string,
   params: PnuParams,
   dong: string,
 ): Promise<string | undefined> {
-  const dongNm = dong.endsWith("동") ? dong : `${dong}동`;
   const rows = await fetchTitleInfoList(key, params, "0");
+  if (!dong) {
+    const first = rows[0];
+    return typeof first?.useAprDay === "string" && first.useAprDay.trim()
+      ? first.useAprDay
+      : undefined;
+  }
+  const dongNm = dong.endsWith("동") ? dong : `${dong}동`;
   const match = rows.find((r) => r.dongNm === dongNm);
   return typeof match?.useAprDay === "string" && match.useAprDay.trim()
     ? match.useAprDay
@@ -152,8 +162,13 @@ export async function GET(request: NextRequest) {
     ji: pnu.slice(15, 19),
   };
 
-  if (dong && ho) {
-    const dongNm = dong.endsWith("동") ? dong : `${dong}동`;
+  if (ho) {
+    // 동이 없는 건물(오피스텔·상가 등 단일 건물)은 dongNm을 빈 문자열로
+    // 넘긴다 — 공공데이터포털 API가 "동 구분 없음"으로 해석해 호별 전유부를
+    // 정상 반환함을 실측 확인(2026-07-23, 이전에는 dong이 없으면 아예 이
+    // 블록을 건너뛰고 표제부(여러 동/부속건물 합산)로 잘못 폴백하던 버그
+    // — 예: 80㎡ 물건이 단지 표제부 첫 항목인 1178㎡로 잘못 나옴).
+    const dongNm = dong ? (dong.endsWith("동") ? dong : `${dong}동`) : "";
     // hoNm은 "호" 접미사를 붙이면 매칭이 0건으로 나온다(실측: "2202호"는
     // 0건, 순수 숫자 "2202"는 정상 9건 매칭, 2026-07-21) — dongNm과
     // 달리 순수 숫자만 받는 것으로 보인다.
@@ -179,7 +194,7 @@ export async function GET(request: NextRequest) {
       // 계산이 원본 사이트 결과와 어긋난다(실측, 2026-07-21).
       const totArea = sum("1") + sum("2");
       const first = rows[0];
-      const titleUseAprDay = await findUseAprDayByDong(key, params, dong);
+      const titleUseAprDay = await findUseAprDayByDong(key, params, dong ?? "");
       return NextResponse.json({
         totArea,
         useAprDay: titleUseAprDay,
