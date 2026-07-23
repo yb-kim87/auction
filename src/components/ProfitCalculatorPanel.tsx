@@ -38,6 +38,16 @@ function NumberField({
   helper?: string;
   readOnly?: boolean;
 }) {
+  // 값이 커서 콤마 없이는 자릿수를 헷갈리기 쉽다는 지적(사용자 요청,
+  // 2026-07-23) — type="number" input은 브라우저가 콤마 포함 문자열을
+  // 거부해 표시할 수 없으므로 text input + 직접 포맷팅으로 전환.
+  // 입력 중 커서가 튀지 않도록 편집 중엔 로컬 텍스트 상태를 그대로
+  // 보여주고, blur 시점에만 콤마 포맷을 다시 적용한다.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const displayValue = editing ? draft : value.toLocaleString("ko-KR");
+
   return (
     <div className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
@@ -54,10 +64,21 @@ function NumberField({
           </span>
         ) : (
           <input
-            type="number"
-            value={value}
-            onChange={(e) => onChange?.(Number(e.target.value) || 0)}
+            type="text"
+            inputMode="numeric"
+            value={displayValue}
+            onFocus={() => {
+              setEditing(true);
+              setDraft(String(value));
+            }}
+            onChange={(e) => {
+              const digitsOnly = e.target.value.replace(/[^\d]/g, "");
+              setDraft(digitsOnly);
+              onChange?.(Number(digitsOnly) || 0);
+            }}
+            onBlur={() => setEditing(false)}
             className="w-32 px-2 py-1.5 text-sm text-right border border-border rounded-sm bg-card"
+            style={{ fontFamily: "'Inter', sans-serif" }}
           />
         )}
         {suffix && <span className="text-xs text-muted-foreground w-6">{suffix}</span>}
