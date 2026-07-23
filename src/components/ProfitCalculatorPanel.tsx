@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AuctionItem } from "@/types/auction";
 import { formatWonShort } from "@/lib/investment-money";
 import {
@@ -41,12 +41,30 @@ function NumberField({
   // 값이 커서 콤마 없이는 자릿수를 헷갈리기 쉽다는 지적(사용자 요청,
   // 2026-07-23) — type="number" input은 브라우저가 콤마 포함 문자열을
   // 거부해 표시할 수 없으므로 text input + 직접 포맷팅으로 전환.
-  // 입력 중 커서가 튀지 않도록 편집 중엔 로컬 텍스트 상태를 그대로
-  // 보여주고, blur 시점에만 콤마 포맷을 다시 적용한다.
+  // 편집 중에도 콤마를 계속 보여달라는 요청(2026-07-23)에 따라, draft는
+  // 콤마 없는 순수 숫자만 들고 화면엔 항상 포맷팅해서 표시한다. 커서
+  // 위치는 "끝에서부터 남은 글자 수"로 재계산해 콤마가 늘거나 줄어도
+  // 입력 지점이 튀지 않게 유지한다.
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const caretFromEndRef = useRef<number | null>(null);
 
-  const displayValue = editing ? draft : value.toLocaleString("ko-KR");
+  function formatDraft(raw: string): string {
+    if (raw === "" || raw === ".") return raw;
+    const [intPart, decPart] = raw.split(".");
+    const formattedInt = intPart === "" ? "" : Number(intPart).toLocaleString("ko-KR");
+    return decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
+  }
+
+  const displayValue = editing ? formatDraft(draft) : value.toLocaleString("ko-KR");
+
+  useEffect(() => {
+    if (!editing || caretFromEndRef.current == null || !inputRef.current) return;
+    const pos = Math.max(0, displayValue.length - caretFromEndRef.current);
+    inputRef.current.setSelectionRange(pos, pos);
+    caretFromEndRef.current = null;
+  }, [displayValue, editing]);
 
   return (
     <div className="flex items-center justify-between gap-3 py-2">
@@ -64,6 +82,7 @@ function NumberField({
           </span>
         ) : (
           <input
+            ref={inputRef}
             type="text"
             inputMode="numeric"
             value={displayValue}
@@ -78,6 +97,8 @@ function NumberField({
               // 유지하되, 정수부 선행 0만 없앤다. 전부 지운 빈 값이나
               // "." 하나만 남은 상태는 정규화하지 않고 그대로 둔다
               // (소수점 입력 도중에 값이 사라지는 것을 방지).
+              const caretPos = e.target.selectionStart ?? e.target.value.length;
+              caretFromEndRef.current = e.target.value.length - caretPos;
               const raw = e.target.value.replace(/[^\d.]/g, "");
               const normalized =
                 raw === "" || raw === "."
