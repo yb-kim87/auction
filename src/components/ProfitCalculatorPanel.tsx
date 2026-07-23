@@ -123,25 +123,30 @@ function ResultRow({
   value,
   emphasis,
   positive,
+  helper,
 }: {
   label: string;
   value: string;
   emphasis?: boolean;
   positive?: boolean;
+  helper?: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className={`text-[13px] ${emphasis ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-        {label}
-      </span>
-      <span
-        className={`text-sm ${emphasis ? "font-bold" : "font-medium"} ${
-          positive === true ? "text-blue-600" : positive === false ? "text-red-500" : "text-foreground"
-        }`}
-        style={{ fontFamily: "'Inter', sans-serif" }}
-      >
-        {value}
-      </span>
+    <div className="py-1.5">
+      <div className="flex items-center justify-between">
+        <span className={`text-[13px] ${emphasis ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+          {label}
+        </span>
+        <span
+          className={`text-sm ${emphasis ? "font-bold" : "font-medium"} ${
+            positive === true ? "text-blue-600" : positive === false ? "text-red-500" : "text-foreground"
+          }`}
+          style={{ fontFamily: "'Inter', sans-serif" }}
+        >
+          {value}
+        </span>
+      </div>
+      {helper && <p className="text-[11px] text-muted-foreground mt-0.5">{helper}</p>}
     </div>
   );
 }
@@ -587,12 +592,13 @@ export function ProfitCalculatorPanel({
           helper="입력한 기존소득과 매매차익을 합산해 양도세율 구간을 판정합니다"
         />
         <ResultRow
-          label={
+          label="양도세"
+          value={formatWonShort(result.capitalGainsTax)}
+          helper={
             applyProgressiveDeduction
               ? `양도세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 ${formatWonShort(result.capitalGainsTaxDeduction)})`
               : `양도세율 ${(result.capitalGainsTaxRate * 100).toFixed(0)}% (누진공제 미적용)`
           }
-          value={`-${formatWonShort(result.capitalGainsTax)}`}
         />
       </div>
     </div>
