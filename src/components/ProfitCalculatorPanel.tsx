@@ -174,7 +174,13 @@ export function ProfitCalculatorPanel({
   housingCount?: number | null;
   regulatedArea?: boolean | null;
 }) {
-  const [bidPrice, setBidPrice] = useState(item.minPrice);
+  // 이미 낙찰된 물건(caseState="낙찰")은 예상 최저가가 아니라 실제
+  // 낙찰가(item.salePrice, DB 엑셀 컬럼명 "낙찰가")로 초기값을 채운다
+  // (사용자 요청: "낙찰된 물건은 낙찰가에 최저가를 넣지 말고 실제
+  // 낙찰가정보를 넣어줘", 2026-07-23).
+  const [bidPrice, setBidPrice] = useState(
+    item.caseState === "낙찰" && item.salePrice ? item.salePrice : item.minPrice,
+  );
   const [salePrice, setSalePrice] = useState(item.appraisedValue);
   const [holdingMonths, setHoldingMonths] = useState(4);
   const [loanRatioByAppraisal, setLoanRatioByAppraisal] = useState(
