@@ -30,8 +30,8 @@ async function fetchExposedOnce(
   url.searchParams.set("platGbCd", platGbCd);
   url.searchParams.set("bun", params.bun);
   url.searchParams.set("ji", params.ji);
-  url.searchParams.set("dongNm", dongNm);
-  url.searchParams.set("hoNm", hoNm);
+  if (dongNm) url.searchParams.set("dongNm", dongNm);
+  if (hoNm) url.searchParams.set("hoNm", hoNm);
   url.searchParams.set("serviceKey", key);
   url.searchParams.set("numOfRows", "50");
   url.searchParams.set("pageNo", "1");
@@ -163,20 +163,17 @@ export async function GET(request: NextRequest) {
   };
 
   if (ho) {
-    // 동이 없는 건물(오피스텔·상가 등 단일 건물)은 dongNm을 빈 문자열로
-    // 넘긴다 — 공공데이터포털 API가 "동 구분 없음"으로 해석해 호별 전유부를
-    // 정상 반환함을 실측 확인(2026-07-23, 이전에는 dong이 없으면 아예 이
-    // 블록을 건너뛰고 표제부(여러 동/부속건물 합산)로 잘못 폴백하던 버그
-    // — 예: 80㎡ 물건이 단지 표제부 첫 항목인 1178㎡로 잘못 나옴).
+    // dongNm/hoNm을 API 파라미터로 넘기지 않고 항상 전체 목록을 받아 직접
+    // 필터링한다 — 물건마다 API 내부에 hoNm이 "201"(숫자만) 또는
+    // "201호"(접미사 포함)로 제각각 저장돼 있어(실측, 2026-07-23) 서버
+    // 파라미터 매칭에 의존하면 절반의 경우 0건이 나온다. dongNm도 빈
+    // 문자열을 명시하면 0건이 되므로(실측) 아예 생략해야 한다.
     const dongNm = dong ? (dong.endsWith("동") ? dong : `${dong}동`) : "";
-    // hoNm은 "호" 접미사를 붙이면 매칭이 0건으로 나온다(실측: "2202호"는
-    // 0건, 순수 숫자 "2202"는 정상 9건 매칭, 2026-07-21) — dongNm과
-    // 달리 순수 숫자만 받는 것으로 보인다.
-    const hoNm = ho.replace(/호\s*$/, "").trim();
+    const hoDigits = ho.replace(/호\s*$/, "").trim();
 
     const [rows0, rows1] = await Promise.all([
-      fetchExposedWithRetry(key, params, "0", dongNm, hoNm),
-      fetchExposedWithRetry(key, params, "1", dongNm, hoNm),
+      fetchExposedWithRetry(key, params, "0", "", ""),
+      fetchExposedWithRetry(key, params, "1", "", ""),
     ]);
     if (rows0 === null && rows1 === null) {
       return NextResponse.json(
@@ -184,7 +181,14 @@ export async function GET(request: NextRequest) {
         { status: 503 },
       );
     }
-    const rows = [...(rows0 ?? []), ...(rows1 ?? [])];
+    const allRows = [...(rows0 ?? []), ...(rows1 ?? [])];
+    const rows = allRows.filter((r) => {
+      const rHo = String(r.hoNm ?? "").replace(/호\s*$/, "").trim();
+      if (rHo !== hoDigits) return false;
+      if (!dongNm) return true;
+      const rDong = String(r.dongNm ?? "").trim();
+      return !rDong || rDong === dongNm;
+    });
     if (rows.length > 0) {
       const sum = (gb: string) =>
         rows
