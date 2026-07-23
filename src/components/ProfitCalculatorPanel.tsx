@@ -151,6 +151,12 @@ export function ProfitCalculatorPanel({
   const [vatBuildingArea, setVatBuildingArea] = useState<number | null>(null);
   const [vatBuiltYear, setVatBuiltYear] = useState<number | null>(null);
   const [vatStructureName, setVatStructureName] = useState<string | null>(null);
+  const [vatMainPurposeName, setVatMainPurposeName] = useState<string | null>(null);
+  const [vatGroundFloors, setVatGroundFloors] = useState<number | null>(null);
+  // 계산에 실제 쓰인 용도지수 라벨 — 화면 helper에 함께 표시해 "매도가는
+  // 맞는데 결과가 다르다"는 문의가 왔을 때 용도 판정 자체가 어긋난 건
+  // 아닌지 바로 확인할 수 있게 한다(사용자 요청, 2026-07-23).
+  const [vatUsageLabel, setVatUsageLabel] = useState<string | null>(null);
   // 부가세는 기본으로 정상가(시가) 기준을 노출하고, 체크박스를 켜면
   // 최저가(국세청 고시상 하한) 기준으로 전환한다(사용자 요청, 2026-07-21).
   const [vatUseLowPrice, setVatUseLowPrice] = useState(false);
@@ -200,6 +206,8 @@ export function ProfitCalculatorPanel({
       setVatBuildingArea(buildingArea);
       setVatBuiltYear(builtYear);
       setVatStructureName(buildingInfo?.structureName ?? null);
+      setVatMainPurposeName(buildingInfo?.mainPurposeName ?? null);
+      setVatGroundFloors(buildingInfo?.groundFloors ?? null);
       setVatAutoReady(true);
       setVatEdited(false);
       setVatAutoNote(
@@ -236,10 +244,13 @@ export function ProfitCalculatorPanel({
         builtYear: vatBuiltYear,
         usage: item.usage,
         structureName: vatStructureName,
+        mainPurposeName: vatMainPurposeName,
+        groundFloors: vatGroundFloors,
       })
         .then((vat) => {
           if (cancelled) return;
           setVatAmount(vatUseLowPrice ? vat.vatLow : vat.vatMarket);
+          setVatUsageLabel(vat.usageLabel ?? null);
         })
         .catch(() => {
           if (cancelled) return;
@@ -260,6 +271,8 @@ export function ProfitCalculatorPanel({
     vatBuildingArea,
     vatBuiltYear,
     vatStructureName,
+    vatMainPurposeName,
+    vatGroundFloors,
     vatUseLowPrice,
   ]);
 
@@ -468,7 +481,11 @@ export function ProfitCalculatorPanel({
                     ? "물건 주소로 토지공시지가·건물면적을 조회해 정확한 부가세를 계산하는 중..."
                     : vatAutoNote ?? "물건 주소로 정확한 부가세(국세청 고시 공식)를 계산할 수 있습니다."}
                   {!vatAutoLoading && vatAutoReady && (
-                    <> · 매도가 {salePrice.toLocaleString("ko-KR")}원</>
+                    <>
+                      {" "}
+                      · 매도가 {salePrice.toLocaleString("ko-KR")}원
+                      {vatUsageLabel && <> · 용도 {vatUsageLabel}</>}
+                    </>
                   )}
                 </p>
                 <button

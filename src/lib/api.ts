@@ -3156,6 +3156,9 @@ export type VatCalcResult = {
   vatLow: number;
   vatMarket: number;
   buildingStandardPrice: number;
+  /** 계산에 실제 적용된 용도 라벨(예: "아파트", "오피스텔") — 화면에
+   * 표시해 용도 판정이 어긋난 경우를 바로 확인할 수 있게 한다. */
+  usageLabel?: string;
 };
 
 /** 부가세 계산 공식(국세청 고시 지수표 등)을 클라이언트에 노출하지 않기
@@ -3169,6 +3172,8 @@ export async function fetchVatCalc(params: {
   builtYear: number;
   usage?: string;
   structureName?: string | null;
+  mainPurposeName?: string | null;
+  groundFloors?: number | null;
 }): Promise<VatCalcResult> {
   const res = await fetch(`${API_BASE}/vat/calc`, {
     method: "POST",

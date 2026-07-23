@@ -9,6 +9,7 @@ import {
   calcVat,
   getLocationIndex,
   matchStructureIndex,
+  matchUsage,
 } from "@/lib/vat-calc";
 
 const APARTMENT_USAGE_INDEX = 110;
@@ -37,6 +38,8 @@ export async function POST(request: NextRequest) {
     builtYear?: unknown;
     usage?: unknown;
     structureName?: unknown;
+    mainPurposeName?: unknown;
+    groundFloors?: unknown;
   } | null;
   if (!body) {
     return NextResponse.json({ message: "요청 본문이 올바르지 않습니다." }, { status: 400 });
@@ -62,7 +65,25 @@ export async function POST(request: NextRequest) {
   }
 
   const usage = String(body.usage ?? "");
-  const usageIndex = isOfficetelUsage(usage) ? OFFICETEL_USAGE_INDEX : APARTMENT_USAGE_INDEX;
+  // 건축물대장 실측 용도(mainPurpsCdNm)+층수가 있으면 이를 우선 신뢰한다.
+  // 탱크옥션 크롤링 usage 텍스트("오피스텔(주거)" 등)는 부동산 시장에서
+  // 통용되는 상품유형 명칭이라 건축물대장상 실제 분류와 다를 수 있다
+  // (실측: "인천 미추홀구 용현동 630-70"은 크롤링 usage="오피스텔(주거)"
+  // 였지만 건축물대장 mainPurpsCdNm="공동주택"·6층 → 실제로는 아파트,
+  // atomtax-app도 아파트(110)로 계산 — usage 텍스트만 믿으면 오피스텔
+  // (140)로 잘못 계산됨, 2026-07-23). mainPurposeName이 없으면(건축물대장
+  // 조회를 건너뛴 경우) 기존처럼 usage 텍스트로 폴백.
+  const mainPurposeName =
+    typeof body.mainPurposeName === "string" ? body.mainPurposeName : null;
+  const groundFloors =
+    typeof body.groundFloors === "number" ? body.groundFloors : null;
+  const usageMatch = mainPurposeName ? matchUsage(mainPurposeName, groundFloors) : null;
+  const usageIndex = usageMatch
+    ? Number(usageMatch.value)
+    : isOfficetelUsage(usage)
+      ? OFFICETEL_USAGE_INDEX
+      : APARTMENT_USAGE_INDEX;
+  const usageLabel = usageMatch?.label ?? (isOfficetelUsage(usage) ? "오피스텔" : "아파트");
 
   // 건축물대장 API의 구조명(strctCdNm)을 국세청 구조지수표에 매칭한다.
   // 매칭 실패(정보 없음/미등재 구조)면 아파트 대다수가 해당하는 RC(100,
@@ -88,5 +109,5 @@ export async function POST(request: NextRequest) {
 
   const result = calcVat({ salePrice, landArea, landPricePerM2, buildingStandardPrice });
 
-  return NextResponse.json({ ...result, buildingStandardPrice });
+  return NextResponse.json({ ...result, buildingStandardPrice, usageLabel });
 }
