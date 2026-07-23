@@ -413,6 +413,15 @@ export function CrawlerVatTab() {
     return { landAlloc, buildingAlloc, vatLow, vatMarket, sale };
   }, [salePrice, landArea, landPricePerM2, buildingStandardPrice]);
 
+  const missingFields = useMemo(() => {
+    const missing: string[] = [];
+    if (parseNum(salePrice) <= 0) missing.push("매도예상가");
+    if (parseNum(landArea) <= 0) missing.push("토지면적");
+    if (parseNum(landPricePerM2) <= 0) missing.push("토지공시지가");
+    if (parseNum(buildingStandardPrice) <= 0) missing.push("건물기준시가");
+    return missing;
+  }, [salePrice, landArea, landPricePerM2, buildingStandardPrice]);
+
   const fieldClass =
     "w-full px-3 py-2 text-sm border border-border rounded-sm bg-card";
   const sectionTitleClass = "text-sm font-bold flex items-center gap-1.5";
@@ -705,7 +714,15 @@ export function CrawlerVatTab() {
         부가가치세 계산하기
       </button>
 
-      {calculated && (
+      {calculated && missingFields.length > 0 && (
+        <div className="border border-destructive/40 rounded-sm p-4 bg-destructive/5">
+          <p className="text-sm text-destructive font-medium">
+            다음 항목을 입력해야 계산할 수 있습니다: {missingFields.join(", ")}
+          </p>
+        </div>
+      )}
+
+      {calculated && missingFields.length === 0 && (
         <div className="space-y-3 border border-border rounded-sm p-4 bg-secondary/20">
           <h4 className="text-sm font-bold">계산 결과</h4>
           <p className="text-xs text-amber-600">
