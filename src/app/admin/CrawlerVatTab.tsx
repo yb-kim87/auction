@@ -553,7 +553,7 @@ export function CrawlerVatTab() {
           >
             {STRUCTURE_OPTIONS.map((s, i) => (
               <option key={s.label} value={i}>
-                {s.label}
+                {s.label} ({s.index})
               </option>
             ))}
           </select>
