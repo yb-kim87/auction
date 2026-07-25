@@ -1378,6 +1378,8 @@ export type CrawlerScheduleConfig = {
   repeatDaily: boolean;
   oneTimeCompleted?: boolean;
   crawlerVersion?: CrawlerVersion;
+  /** 매일 작업을 실행하지 않을 요일 목록. 0=일 1=월 2=화 3=수 4=목 5=금 6=토(KST 기준). */
+  excludeWeekdays?: number[];
 };
 
 export type CrawlerCredentialsConfig = {
@@ -3220,4 +3222,83 @@ export async function fetchVatCalc(params: {
     throw new Error((await parseErrorMessage(res)) ?? "부가세 계산에 실패했습니다.");
   }
   return readJsonResponse<VatCalcResult>(res);
+}
+
+export type LectureFieldLayout = {
+  top: number;
+  left: number;
+  fontSize: number;
+  color?: string;
+  fontWeight?: number;
+  textAlign?: "left" | "center" | "right";
+  /** 형광펜 강조 표시용 배경색(예: 노란 하이라이트). 없으면 배경 없음. */
+  backgroundColor?: string;
+};
+
+/** 관리자가 붙여넣기/업로드로 슬라이드에 얹는 자유위치 이미지. */
+export type LectureImagePlacement = {
+  id: string;
+  src: string;
+  top: number;
+  left: number;
+  width: number;
+};
+
+export type LectureSlide = {
+  id: string;
+  deckId: string;
+  sortOrder: number;
+  label: string;
+  content: Record<string, string>;
+  layout: Record<string, LectureFieldLayout> | null;
+  images: LectureImagePlacement[] | null;
+  updatedAt: string;
+};
+
+export async function fetchLectureSlides(deckId: string): Promise<LectureSlide[]> {
+  const res = await fetch(
+    `${API_BASE}/lecture-materials/slides?deckId=${encodeURIComponent(deckId)}`,
+    { cache: "no-store", credentials: FETCH_CREDENTIALS },
+  );
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "강의자료를 불러오지 못했습니다.");
+  }
+  return readJsonResponse<LectureSlide[]>(res);
+}
+
+export async function updateLectureSlide(
+  id: string,
+  input: {
+    content?: Record<string, string>;
+    layout?: Record<string, LectureFieldLayout>;
+    images?: LectureImagePlacement[];
+  },
+): Promise<LectureSlide> {
+  const res = await fetch(`${API_BASE}/lecture-materials/slides/${id}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "강의자료 저장에 실패했습니다.");
+  }
+  return readJsonResponse<LectureSlide>(res);
+}
+
+/** 클립보드 붙여넣기(Ctrl+V) 또는 파일 선택으로 받은 이미지를 서버에 업로드하고
+ *  정적 서빙 URL을 받는다. */
+export async function uploadLectureImage(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/lecture-materials/upload-image`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    body: formData,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "이미지 업로드에 실패했습니다.");
+  }
+  const data = await readJsonResponse<{ url: string }>(res);
+  return data.url;
 }

@@ -15,6 +15,8 @@ import {
 } from "@/lib/api";
 import { renderLogMessage } from "@/lib/crawler-log-format";
 
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
 function formatTime(iso: string) {
   try {
     return new Date(iso).toLocaleTimeString("ko-KR", { hour12: false });
@@ -149,6 +151,14 @@ export function CrawlerDailyJobTab() {
     updateSchedule({ presets: next });
   }
 
+  function toggleExcludeWeekday(day: number) {
+    const current = schedule?.excludeWeekdays ?? [];
+    const next = current.includes(day)
+      ? current.filter((d) => d !== day)
+      : [...current, day].sort();
+    updateSchedule({ excludeWeekdays: next });
+  }
+
   async function handleSave() {
     if (!schedule) return;
     setSaving(true);
@@ -210,7 +220,15 @@ export function CrawlerDailyJobTab() {
             </p>
             <p className="text-[11px] text-muted-foreground">
               {savedSchedule?.enabled
-                ? `매일 ${savedSchedule.time}에 아래 관심조건 목록을 순서대로 자동 수집·조회합니다. (저장된 설정 기준)`
+                ? `매일 ${savedSchedule.time}에 아래 관심조건 목록을 순서대로 자동 수집·조회합니다.${
+                    savedSchedule.excludeWeekdays && savedSchedule.excludeWeekdays.length > 0
+                      ? ` (${savedSchedule.excludeWeekdays
+                          .slice()
+                          .sort()
+                          .map((d) => WEEKDAY_LABELS[d])
+                          .join(", ")}요일 제외)`
+                      : ""
+                  } (저장된 설정 기준)`
                 : "켜두면 지정한 시간에 서버가 관심조건 목록을 순서대로 자동 수집·조회합니다. 지금은 자동으로 실행되지 않습니다."}
             </p>
           </div>
@@ -233,7 +251,10 @@ export function CrawlerDailyJobTab() {
       </div>
       <p className="text-xs text-muted-foreground -mt-3">
         {schedule.enabled !== savedSchedule?.enabled ||
-        schedule.time !== savedSchedule?.time
+        schedule.time !== savedSchedule?.time ||
+        schedule.repeatDaily !== savedSchedule?.repeatDaily ||
+        JSON.stringify((schedule.excludeWeekdays ?? []).slice().sort()) !==
+          JSON.stringify((savedSchedule?.excludeWeekdays ?? []).slice().sort())
           ? "변경된 내용이 있습니다 — 아래 \"설정 저장\"을 눌러야 반영됩니다."
           : "토글/시간을 바꾼 뒤 아래 \"설정 저장\"을 눌러야 반영됩니다."}
       </p>
@@ -265,6 +286,33 @@ export function CrawlerDailyJobTab() {
             </span>
           )}
         </label>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">
+          제외 요일 <span className="text-xs">(체크한 요일에는 자동 실행하지 않습니다)</span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {WEEKDAY_LABELS.map((label, day) => {
+            const checked = (schedule.excludeWeekdays ?? []).includes(day);
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => toggleExcludeWeekday(day)}
+                disabled={!schedule.enabled}
+                aria-pressed={checked}
+                className={`px-3 py-1.5 text-sm rounded-sm border transition-colors disabled:opacity-50 ${
+                  checked
+                    ? "border-destructive bg-destructive/10 text-destructive font-semibold"
+                    : "border-border bg-card text-foreground hover:bg-secondary/40"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="space-y-3">
