@@ -78,6 +78,12 @@ export interface AuctionItem {
   officialLandPrice: number;
   tenantInfo: string;
   specialNote: string;
+  /** 탱크옥션이 관리사무소에 개별 문의해 조사한 미납 관리비(체납금액).
+   * 조사가 안 된 물건은 0/빈 문자열 — 크롤링 누락이 아니라 원본 조사
+   * 자체가 없는 정상 케이스. */
+  unpaidFeeAmount?: number;
+  unpaidFeeNote?: string;
+  unpaidFeeCheckedAt?: string;
   tenantDetail: string;
   priceDetail: string;
   tradingDetail: string;

@@ -2119,10 +2119,29 @@ export function AuctionDetailModal({
                 {(() => {
                   const noteText = String(preview.specialNote ?? "").trim();
                   const hasNote = noteText && noteText !== "없음";
+                  const unpaidFeeAmount = preview.unpaidFeeAmount ?? 0;
+                  const hasUnpaidFee = unpaidFeeAmount > 0;
                   return (
                     <>
                       {hasNote && (
                         <p className="text-[0.82rem] font-semibold text-red-600 mb-3">{noteText}</p>
+                      )}
+                      {hasUnpaidFee && (
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 mb-3">
+                          <p className="text-[0.82rem] font-bold text-red-600">
+                            미납 관리비(체납금액) {unpaidFeeAmount.toLocaleString("ko-KR")}원
+                          </p>
+                          {preview.unpaidFeeNote && (
+                            <p className="text-[0.72rem] text-red-600/80 mt-0.5 whitespace-pre-wrap">
+                              {preview.unpaidFeeNote}
+                            </p>
+                          )}
+                          {preview.unpaidFeeCheckedAt && (
+                            <p className="text-[0.68rem] text-muted-foreground mt-1">
+                              조사일 {preview.unpaidFeeCheckedAt} 기준
+                            </p>
+                          )}
+                        </div>
                       )}
                       {preview.strategyTagsList && preview.strategyTagsList.length > 0 && (
                         <div className="space-y-2 mb-4">
