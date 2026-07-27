@@ -252,12 +252,12 @@ export function CrawlerWorkPanel() {
         <div className="p-6 space-y-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-foreground">크롤링 작업창</h2>
+              <h2 className="text-lg font-bold text-foreground">물건 작업창</h2>
               <p className="text-sm text-muted-foreground mt-1">
                 탱크옥션 로그인 → 검색조건(관심조건/직접설정) → 주소 추가 → 조회 시작
                 {status?.remoteWorker && (
                   <span className="block mt-1 text-amber-700">
-                    운영 웹: 관리자 PC 크롤러 워커에 원격 연결됩니다. PC가 꺼져 있으면
+                    운영 웹: 관리자 PC 수집 워커에 원격 연결됩니다. PC가 꺼져 있으면
                     조회가 시작되지 않습니다.
                   </span>
                 )}
@@ -315,7 +315,7 @@ export function CrawlerWorkPanel() {
           {status?.remoteWorker && (
             <div className="rounded-sm border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 space-y-2">
               <p className="font-semibold">
-                원격 크롤 — Chrome은 이 브라우저 탭이 아니라 관리자 PC 화면에서
+                원격 수집 — Chrome은 이 브라우저 탭이 아니라 관리자 PC 화면에서
                 열립니다
               </p>
               <ul className="list-disc pl-5 space-y-1 text-xs">
@@ -325,11 +325,11 @@ export function CrawlerWorkPanel() {
                 </li>
                 <li>
                   Chrome 창을 보면서 버튼을 누르려면{" "}
-                  <strong>크롤 워커가 돌아가는 PC</strong>에서 로컬 작업창을
+                  <strong>수집 워커가 돌아가는 PC</strong>에서 로컬 작업창을
                   여세요.
                 </li>
                 <li>
-                  운영 URL을 연 PC가 워커 PC와 다르면, 그 PC에서는 크롤을 실행할
+                  운영 URL을 연 PC가 워커 PC와 다르면, 그 PC에서는 수집을 실행할
                   수 없습니다(워커·터널 설치 필요).
                 </li>
                 {isRunning && (

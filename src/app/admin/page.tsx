@@ -95,7 +95,7 @@ type StrategyTagsSubTab = "tagRules" | "strategyRules";
 
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
-  { id: "crawler", label: "크롤링 작업" },
+  { id: "crawler", label: "물건 작업" },
   { id: "kakaoNotify", label: "알림톡 관리" },
   { id: "aiOps", label: "AI운영" },
   { id: "users", label: "회원권한 관리" },
@@ -151,6 +151,12 @@ function AdminTabs({
           )}
         </button>
       ))}
+      <Link
+        href="/admin/lecture-materials"
+        className="px-5 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+      >
+        강의자료
+      </Link>
     </div>
   );
 }
@@ -744,7 +750,7 @@ export default function AdminPage() {
             <div>
               <h2 className="text-sm font-semibold text-foreground">DB 데이터 관리</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                등록·갱신 최신순 · 크롤 조회 후 목록 갱신은 새로고침 버튼을 눌러 주세요.
+                등록·갱신 최신순 · 물건 조회 후 목록 갱신은 새로고침 버튼을 눌러 주세요.
                 행을 클릭하면 수정할 수 있습니다.
               </p>
             </div>
