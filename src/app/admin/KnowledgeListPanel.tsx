@@ -422,7 +422,9 @@ export function KnowledgeListPanel() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {[...items]
+                .sort((a, b) => (a.grade ?? 3) - (b.grade ?? 3))
+                .map((item) => (
                 <tr key={item.id} className="border-b border-border hover:bg-secondary/20">
                   <td className="px-3 py-2.5 font-medium max-w-[200px] truncate">{item.title}</td>
                   <td className="px-3 py-2.5">{item.category || "-"}</td>
@@ -464,7 +466,7 @@ export function KnowledgeListPanel() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                ))}
             </tbody>
           </table>
         </div>
