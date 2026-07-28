@@ -195,7 +195,10 @@ export function KnowledgeListPanel() {
       }));
       setMessage({
         type: "success",
-        text: "AI가 정리했습니다. 내용을 확인·수정한 뒤 저장하면 등록됩니다.",
+        text:
+          form.category === "권리분석"
+            ? "AI가 권리분석 규칙 양식으로 정리했습니다. 법적 근거와 판정 규칙을 확인한 뒤 저장해 주세요."
+            : "AI가 정리했습니다. 내용을 확인·수정한 뒤 저장하면 등록됩니다.",
       });
     } catch (err) {
       setMessage({
@@ -294,7 +297,11 @@ export function KnowledgeListPanel() {
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
                 rows={5}
-                placeholder="분류를 먼저 선택한 뒤, 여기에 원본 내용을 입력하고 「AI로 정리」를 눌러 주세요."
+                placeholder={
+                  form.category === "권리분석"
+                    ? "알고 있는 권리분석 원칙을 자유롭게 입력하세요. AI가 적용 범위·필수 입력·IF/THEN 판정·금지 규칙·추가 자료·출력 예·법적 근거 양식으로 정리합니다."
+                    : "분류를 먼저 선택한 뒤, 여기에 원본 내용을 입력하고 「AI로 정리」를 눌러 주세요."
+                }
                 className="w-full px-3 py-2 border border-border rounded-sm bg-background resize-y"
               />
             </label>
