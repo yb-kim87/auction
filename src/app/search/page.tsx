@@ -178,7 +178,7 @@ const buildColumns = (
   { key: "area", label: "평형", defaultWidth: 64, render: (r) => <span className="font-medium">{r.area}</span> },
   { key: "builtYear", label: "연식", defaultWidth: 64, render: (r) => <span className="font-mono">{r.builtYear}년</span> },
   { key: "bidDate", label: "입찰기일", defaultWidth: 96, render: (r) => (
-    <span className={`font-mono ${isBidDateEnded(r.bidDate) ? "text-red-600 font-semibold" : ""}`}>{r.bidDate}</span>
+    <span className={`font-mono ${isBidDateEnded(r.bidDate, r.caseState) ? "text-red-600 font-semibold" : ""}`}>{r.bidDate}</span>
   ) },
   { key: "appraisedValue", label: "감정가", defaultWidth: 96, render: (r) => <span className="font-mono">{fmtEok(r.appraisedValue)}</span> },
   { key: "minPrice", label: "최저가", defaultWidth: 96, render: (r) => (
@@ -572,7 +572,7 @@ function AuctionMobileCard({
         </span>
         <span
           className={`shrink-0 font-mono text-[13px] ${
-            isBidDateEnded(item.bidDate) ? "text-red-600 font-semibold" : "text-muted-foreground"
+            isBidDateEnded(item.bidDate, item.caseState) ? "text-red-600 font-semibold" : "text-muted-foreground"
           }`}
         >
           {item.bidDate || "-"}
@@ -1144,7 +1144,7 @@ export default function Home() {
     if (minPriceMaxInput && item.minPrice > Number(minPriceMaxInput)) return false;
     if (!matchesFailureRateFilter(item.minPrice, item.appraisedValue, failureRateInput)) return false;
     if (!matchesAuctionNoFilter(item.auctionNo, auctionYear, auctionCaseNo)) return false;
-    if (!matchesProgressStatus(item.bidDate, progressLabelToStatus(progressStatus))) return false;
+    if (!matchesProgressStatus(item.bidDate, progressLabelToStatus(progressStatus), item.caseState)) return false;
     return true;
   });
 

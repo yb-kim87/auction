@@ -1,4 +1,5 @@
 const SOLD_CASE_STATES = new Set([
+  "낙찰",
   "허가",
   "매각결정기일",
   "지급기한",

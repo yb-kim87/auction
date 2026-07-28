@@ -1,5 +1,16 @@
 export type ProgressStatus = "all" | "active" | "ended";
 
+const ENDED_CASE_STATES = new Set([
+  "낙찰",
+  "허가",
+  "매각결정기일",
+  "지급기한",
+  "배당기일",
+  "배당종결",
+  "취하",
+  "종결",
+]);
+
 export const PROGRESS_STATUS_LABELS = {
   all: "전체",
   active: "진행중",
@@ -37,12 +48,17 @@ export function parseBidDate(value: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function isBidDateEnded(bidDate: string) {
-  return matchesProgressStatus(bidDate, "ended");
+export function isBidDateEnded(bidDate: string, caseState?: string) {
+  return matchesProgressStatus(bidDate, "ended", caseState);
 }
 
-export function matchesProgressStatus(bidDate: string, status: ProgressStatus) {
+export function matchesProgressStatus(
+  bidDate: string,
+  status: ProgressStatus,
+  caseState?: string,
+) {
   if (status === "all") return true;
+  if (ENDED_CASE_STATES.has((caseState ?? "").trim())) return status === "ended";
 
   const parsed = parseBidDate(bidDate);
   if (!parsed) return false;

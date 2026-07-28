@@ -741,7 +741,7 @@ function RecommendCard({
           <p className="font-semibold text-foreground text-[0.88rem] truncate">{item.address}</p>
           <p className="mt-1 text-[0.7rem] text-muted-foreground flex items-center gap-3 flex-wrap">
             <span>{formatAreaLabel(item.area)}</span>
-            <span className={`inline-flex items-center gap-1 ${isBidDateEnded(item.bidDate ?? "") ? "text-red-600 font-medium" : ""}`}>
+            <span className={`inline-flex items-center gap-1 ${isBidDateEnded(item.bidDate ?? "", item.caseState) ? "text-red-600 font-medium" : ""}`}>
               <Calendar size={11} />
               {item.bidDate || "-"}
             </span>
@@ -929,7 +929,7 @@ function RecommendListRow({
           <p className="font-semibold text-sm text-foreground truncate">{item.address}</p>
           <p className="text-[0.72rem] text-muted-foreground truncate">
             {formatAreaLabel(item.area)} ·{" "}
-            <span className={isBidDateEnded(item.bidDate ?? "") ? "text-red-600 font-medium" : ""}>
+            <span className={isBidDateEnded(item.bidDate ?? "", item.caseState) ? "text-red-600 font-medium" : ""}>
               {item.bidDate || "-"}
             </span>
           </p>
