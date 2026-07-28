@@ -136,6 +136,12 @@ function toApiFilters(
   minArea?: number;
   maxArea?: number;
 } {
+  // 관심물건 보기는 상세 필터·검색과 독립된 목록 모드다. 켜져 있을 때는
+  // 이전에 선택한 조건을 API로 보내지 않아 관심 등록한 전체 물건을 보여준다.
+  if (filters.favoritesOnly) {
+    return { favoritesOnly: true };
+  }
+
   return {
     city: filters.city.length > 0 ? filters.city : undefined,
     propType: filters.propType.length > 0 ? filters.propType : undefined,
@@ -219,13 +225,11 @@ function MultiSelectDropdown({
 
 function RecommendFilterModal({
   filters,
-  favoriteCount,
   strategyLabelOptions,
   onClose,
   onApply,
 }: {
   filters: RecommendFilters;
-  favoriteCount: number;
   strategyLabelOptions: string[];
   onClose: () => void;
   onApply: (next: RecommendFilters) => void;
@@ -233,7 +237,6 @@ function RecommendFilterModal({
   const [city, setCity] = useState(filters.city);
   const [propType, setPropType] = useState(filters.propType);
   const [maxFailureRate, setMaxFailureRate] = useState(filters.maxFailureRate);
-  const [favoritesOnly, setFavoritesOnly] = useState(filters.favoritesOnly);
   const [progressStatus, setProgressStatus] = useState(filters.progressStatus);
   const [strategyLabel, setStrategyLabel] = useState(filters.strategyLabel);
   const [minArea, setMinArea] = useState(filters.minArea);
@@ -335,16 +338,6 @@ function RecommendFilterModal({
             </div>
           )}
 
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={favoritesOnly}
-              onChange={(e) => setFavoritesOnly(e.target.checked)}
-              className="accent-primary"
-            />
-            관심물건만 보기
-            <span className="text-muted-foreground text-[13px]">({favoriteCount}건)</span>
-          </label>
         </div>
 
         <div className="flex justify-between gap-2 mt-6">
@@ -354,7 +347,6 @@ function RecommendFilterModal({
               setCity([]);
               setPropType([]);
               setMaxFailureRate("");
-              setFavoritesOnly(false);
               setProgressStatus(PROGRESS_STATUS_LABELS.active);
               setStrategyLabel([]);
               setMinArea("");
@@ -371,7 +363,7 @@ function RecommendFilterModal({
                 city,
                 propType,
                 maxFailureRate,
-                favoritesOnly,
+                favoritesOnly: filters.favoritesOnly,
                 progressStatus,
                 strategyLabel,
                 minArea,
@@ -1232,7 +1224,6 @@ export default function HomePage() {
     (filters.city.length > 0 ? 1 : 0) +
     (filters.propType.length > 0 ? 1 : 0) +
     (filters.maxFailureRate ? 1 : 0) +
-    (filters.favoritesOnly ? 1 : 0) +
     (filters.progressStatus !== PROGRESS_STATUS_LABELS.active ? 1 : 0) +
     (filters.strategyLabel.length > 0 ? 1 : 0) +
     (filters.minArea || filters.maxArea ? 1 : 0);
@@ -1308,6 +1299,27 @@ export default function HomePage() {
               >
                 <Wallet size={14} />
                 <span>투자정보</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    favoritesOnly: !current.favoritesOnly,
+                  }))
+                }
+                aria-pressed={filters.favoritesOnly}
+                className={`h-9 px-3 sm:px-4 flex items-center gap-1.5 sm:gap-2 border text-sm font-medium transition-colors shrink-0 ${
+                  filters.favoritesOnly
+                    ? "border-rose-300 bg-rose-50 text-rose-700"
+                    : "border-border text-foreground/70 hover:bg-secondary/60"
+                }`}
+                style={{ borderRadius: "0.5rem" }}
+              >
+                <Heart size={14} fill={filters.favoritesOnly ? "currentColor" : "none"} />
+                <span className="hidden sm:inline">관심물건</span>
+                <span className="sm:hidden">관심</span>
+                <span className="text-[11px]">({favoriteIds.size})</span>
               </button>
             </div>
 
@@ -1533,7 +1545,6 @@ export default function HomePage() {
       {showFilterModal && (
         <RecommendFilterModal
           filters={filters}
-          favoriteCount={favoriteIds.size}
           strategyLabelOptions={strategyLabelOptions}
           onClose={() => setShowFilterModal(false)}
           onApply={(next) => {
