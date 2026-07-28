@@ -6,6 +6,7 @@ import {
   opposabilityTone,
   parseAnyTenantStatus,
 } from "@/lib/tenant-status";
+import type { AuctionAnalysisResult } from "@/types/auction";
 
 const toneClass: Record<string, string> = {
   danger: "text-red-600 font-medium",
@@ -29,9 +30,11 @@ function extractSuccessorKey(tenantName: string): string | null {
 export function TenantStatusPanel({
   value,
   compact = false,
+  rightsAnalysis,
 }: {
   value: string;
   compact?: boolean;
+  rightsAnalysis?: AuctionAnalysisResult | null;
 }) {
   const parsed = parseAnyTenantStatus(value);
 
@@ -93,7 +96,23 @@ export function TenantStatusPanel({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {rows.map((row, i) => {
+              const baselineDate =
+                rightsAnalysis?.structuredRights?.baselineRight.date ?? "";
+              const moveInDate =
+                row.dates.match(/전입:(\d{4}-\d{2}-\d{2})/)?.[1] ?? "";
+              const serverConfirmedNoOpposability =
+                rightsAnalysis?.structuredRights?.tenant.opposability === "none" &&
+                Boolean(baselineDate) &&
+                Boolean(moveInDate) &&
+                moveInDate >= baselineDate;
+              const displayedOpposability =
+                row.opposability && row.opposability !== "-"
+                  ? row.opposability
+                  : serverConfirmedNoOpposability
+                    ? "X"
+                    : "-";
+              return (
               <tr key={i} className="border-t border-border/60">
                 <td className={bodyCellClass}>{row.occupancyNo || "-"}</td>
                 <td className={`${bodyCellClass} whitespace-nowrap font-medium`}>
@@ -110,10 +129,19 @@ export function TenantStatusPanel({
                 </td>
                 <td
                   className={`${bodyCellClass} whitespace-nowrap ${
-                    opposabilityTone(row.opposability) === "danger" ? "text-red-600 font-semibold" : ""
+                    displayedOpposability === "X"
+                      ? "text-emerald-700 font-bold"
+                      : opposabilityTone(displayedOpposability) === "danger"
+                        ? "text-red-600 font-semibold"
+                        : ""
                   }`}
+                  title={
+                    displayedOpposability === "X"
+                      ? "전입일이 말소기준권리일과 같거나 늦어 대항력 없음"
+                      : undefined
+                  }
                 >
-                  {row.opposability || "-"}
+                  {displayedOpposability}
                 </td>
                 <td className={`${bodyCellClass} whitespace-pre-line break-words`}>
                   {row.analysis.length > 0
@@ -128,7 +156,8 @@ export function TenantStatusPanel({
                   {row.other || "-"}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

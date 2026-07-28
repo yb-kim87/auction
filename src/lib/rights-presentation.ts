@@ -8,6 +8,22 @@ export function rightsOnlyRisks(result: AuctionAnalysisResult | null | undefined
   );
 }
 
+export function hasNoTenantAssumption(
+  result: AuctionAnalysisResult | null | undefined,
+) {
+  const structured = result?.structuredRights;
+  if (structured?.tenant.opposability !== "none") return false;
+  if (
+    structured.assumption.status === "none" &&
+    structured.assumption.estimatedAmount === 0
+  ) {
+    return true;
+  }
+  return /인수할\s*임차보증금(?:은|이)?\s*없|임차보증금\s*인수[^.\n]*없/.test(
+    `${result?.summary ?? ""} ${result?.rightsAnalysis ?? ""}`,
+  );
+}
+
 export function rightsPresentation(
   result: AuctionAnalysisResult | null | undefined,
 ) {
@@ -27,10 +43,7 @@ export function rightsPresentation(
   }
 
   const structured = result.structuredRights;
-  const noTenantAssumption =
-    structured?.tenant.opposability === "none" &&
-    structured.assumption.status === "none" &&
-    structured.assumption.estimatedAmount === 0;
+  const noTenantAssumption = hasNoTenantAssumption(result);
   const risks = rightsOnlyRisks(result);
 
   if (noTenantAssumption && risks.length === 0) {

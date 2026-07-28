@@ -2799,7 +2799,10 @@ export function AuctionDetailModal({
                                   editable={false}
                                 />
                               ) : field.key === "tenantDetail" ? (
-                                <TenantStatusPanel value={String(item.tenantDetail ?? "")} />
+                                <TenantStatusPanel
+                                  value={String(item.tenantDetail ?? "")}
+                                  rightsAnalysis={cachedAnalysis}
+                                />
                               ) : field.key === "priceDetail" ? (
                                 <ListingPriceTable
                                   value={

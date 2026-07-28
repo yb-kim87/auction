@@ -14,6 +14,7 @@ import {
   saveAuctionRightsReview,
 } from "@/lib/api";
 import {
+  hasNoTenantAssumption,
   positiveRightsSummary,
   rightsOnlyRisks,
   rightsPresentation,
@@ -473,7 +474,7 @@ export function AuctionAnalysisPanel({
       ? Math.max(0, aiAnalysisLimit - aiAnalysisUsed)
       : null;
 
-  const canRunAnalysis = !result;
+  const canRunAnalysis = !result || Boolean(result.stale);
   const presentation = rightsPresentation(result);
   const majorRightsRisks = rightsOnlyRisks(result);
   const displayedSummary =
@@ -586,9 +587,7 @@ export function AuctionAnalysisPanel({
             const review = rightsReviewStatus(result);
             const autoRights = result.autoRights;
             const structured = result.structuredRights;
-            const assumptionNone =
-              structured?.assumption.status === "none" &&
-              structured.assumption.estimatedAmount === 0;
+            const assumptionNone = hasNoTenantAssumption(result);
             const assumptionLabel = assumptionNone
               ? "0원"
               : autoRights?.calculationReady
@@ -652,7 +651,7 @@ export function AuctionAnalysisPanel({
                     }
                   />
                   <RightsSummaryCard
-                    label="낙찰 후 부담 가능 금액"
+                    label="인수예상금액"
                     value={assumptionLabel}
                     description={
                       assumptionNone
@@ -661,7 +660,9 @@ export function AuctionAnalysisPanel({
                           : "대항력 있는 임차인이 없어 인수할 임차보증금이 없습니다."
                         : autoRights?.calculationReady
                           ? "확인 가능한 자료를 기준으로 산정한 예상 금액입니다."
-                        : "필수 자료가 부족하면 계산기에 임의 금액을 넣지 않습니다."
+                        : structured?.tenant.opposability === "none"
+                          ? "권리분석상 인수할 금액이 없을 가능성이 높습니다."
+                          : "권리자료를 추가로 확인해야 예상 금액을 판단할 수 있습니다."
                     }
                     icon={<FileQuestion size={13} />}
                     tone={
