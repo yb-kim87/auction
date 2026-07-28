@@ -16,7 +16,7 @@ const toneClass: Record<string, string> = {
 
 const headCellClass =
   "px-3 py-2 text-left text-[0.68rem] font-medium text-muted-foreground whitespace-nowrap";
-const bodyCellClass = "px-3 py-2 text-[0.78rem] text-foreground align-top";
+const bodyCellClass = "px-3 py-2.5 text-[0.78rem] leading-relaxed text-foreground align-top";
 
 function extractSuccessorKey(tenantName: string): string | null {
   const match = tenantName.match(/\(([^)]*승계인[^)]*)\)/);
@@ -69,7 +69,17 @@ export function TenantStatusPanel({
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="overflow-x-auto max-h-72 overflow-y-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[1020px] table-fixed border-collapse">
+          <colgroup>
+            <col className="w-[72px]" />
+            <col className="w-[105px]" />
+            <col className="w-[150px]" />
+            <col className="w-[155px]" />
+            <col className="w-[135px]" />
+            <col className="w-[90px]" />
+            <col className="w-[140px]" />
+            <col className="w-[173px]" />
+          </colgroup>
           <thead className="sticky top-0 bg-card border-b border-border shadow-[0_1px_0_0_var(--border)]">
             <tr>
               <th className={headCellClass}>점유목록</th>
@@ -86,26 +96,26 @@ export function TenantStatusPanel({
             {rows.map((row, i) => (
               <tr key={i} className="border-t border-border/60">
                 <td className={bodyCellClass}>{row.occupancyNo || "-"}</td>
-                <td className={`${bodyCellClass} whitespace-normal font-medium`}>
+                <td className={`${bodyCellClass} whitespace-nowrap font-medium`}>
                   {row.tenantName || "-"}
                 </td>
-                <td className={`${bodyCellClass} whitespace-normal`}>{row.occupancy || "-"}</td>
-                <td className={`${bodyCellClass} whitespace-normal`}>
+                <td className={`${bodyCellClass} whitespace-pre-line break-words`}>{row.occupancy || "-"}</td>
+                <td className={`${bodyCellClass} whitespace-nowrap`}>
                   {row.dates
                     ? row.dates.split(" / ").map((part, idx) => <div key={idx}>{part}</div>)
                     : "-"}
                 </td>
-                <td className={`${bodyCellClass} whitespace-normal font-semibold`}>
+                <td className={`${bodyCellClass} whitespace-pre-line break-words font-semibold`}>
                   {row.depositRent || "-"}
                 </td>
                 <td
-                  className={`${bodyCellClass} whitespace-normal ${
+                  className={`${bodyCellClass} whitespace-nowrap ${
                     opposabilityTone(row.opposability) === "danger" ? "text-red-600 font-semibold" : ""
                   }`}
                 >
                   {row.opposability || "-"}
                 </td>
-                <td className={`${bodyCellClass} whitespace-normal`}>
+                <td className={`${bodyCellClass} whitespace-pre-line break-words`}>
                   {row.analysis.length > 0
                     ? row.analysis.map((line, idx) => (
                         <div key={idx} className={toneClass[analysisTone(line)]}>
@@ -114,7 +124,7 @@ export function TenantStatusPanel({
                       ))
                     : "-"}
                 </td>
-                <td className={`${bodyCellClass} whitespace-normal text-muted-foreground`}>
+                <td className={`${bodyCellClass} whitespace-pre-line break-words text-muted-foreground`}>
                   {row.other || "-"}
                 </td>
               </tr>
@@ -123,8 +133,7 @@ export function TenantStatusPanel({
         </table>
       </div>
       {rows.length > 0 && (
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border/60 bg-secondary/20 text-[0.72rem] text-muted-foreground">
-          <span>계 (승계된 임차인이 중복으로 표기될 수 있습니다.)</span>
+        <div className="flex items-center justify-end px-3 py-2 border-t border-border/60 bg-secondary/20 text-[0.72rem] text-muted-foreground">
           <span className="font-semibold text-foreground">
             임차인 {rows.length}건, 임차보증금합계: {totalDeposit.toLocaleString("ko-KR")}원
           </span>
