@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+staged=$(git diff --cached --name-only)
+
+code_changed=$(echo "$staged" | grep -E '\.(ts|tsx|js|mjs)$' | grep -v -E '^(tests/|scripts/_tmp)' || true)
+
+if [ -n "$code_changed" ]; then
+  printf '\n\033[33m[알림] 코드 변경을 커밋합니다.\033[0m\n'
+  printf '  이 저장소(auction, 프론트)에는 자체 docs/history가 없습니다 — 작업 기록은\n'
+  printf '  ../auction-api/docs/history/*.md 에 追記하거나 신규 문서로 남겨주세요.\n'
+  printf '  이미 문서화했거나 문서화가 불필요한 사소한 변경이면 이 메시지는 무시해도 됩니다.\n\n'
+fi

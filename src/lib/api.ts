@@ -3338,3 +3338,65 @@ export async function uploadLectureImage(file: File): Promise<string> {
   const data = await readJsonResponse<{ url: string }>(res);
   return data.url;
 }
+
+export type ResaleMatchQaItem = {
+  matchId: string;
+  auctionId: string;
+  scoreTotal: number;
+  confidenceTier: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW";
+  isDisplayed: boolean;
+  isPreCompletion: boolean;
+  status: "CANDIDATE" | "CONFIRMED" | "REJECTED" | "SUPERSEDED";
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  computedAt: string;
+  runnerUpScore: number | null;
+  ambiguous: boolean;
+  auctionNo: string;
+  court: string;
+  address: string;
+  paymentCompletedAt: string | null;
+  salePrice: number | null;
+  aptNm: string;
+  floor: number;
+  exclusiveArea: string;
+  dealAmount: string;
+  contractDate: string;
+};
+
+export async function fetchResaleMatches(): Promise<ResaleMatchQaItem[]> {
+  const res = await fetch(`${API_BASE}/resale-match/matches`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "재판매 매칭 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function reviewResaleMatch(
+  matchId: string,
+  status: "CONFIRMED" | "REJECTED",
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/resale-match/matches/${matchId}/review`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "검토 상태 저장에 실패했습니다.");
+  }
+}
+
+export async function runResaleMatchNow(): Promise<{ ok: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/resale-match/run-now`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "재판매 매칭 실행에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
