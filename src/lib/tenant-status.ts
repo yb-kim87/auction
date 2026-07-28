@@ -19,12 +19,15 @@ export type TenantStatusData = {
 };
 
 function normalizeRow(row: Partial<TenantStatusRow>): TenantStatusRow {
+  const depositRent = String(row.depositRent ?? "")
+    .trim()
+    .replace(/(^|\s)보:(?:이상|불상)(?=\s|$)/g, "$1보:미상");
   return {
     occupancyNo: String(row.occupancyNo ?? "").trim(),
     tenantName: String(row.tenantName ?? "").trim(),
     occupancy: String(row.occupancy ?? "").trim(),
     dates: String(row.dates ?? "").trim(),
-    depositRent: String(row.depositRent ?? "").trim(),
+    depositRent,
     opposability: String(row.opposability ?? "").trim(),
     analysis: Array.isArray(row.analysis)
       ? row.analysis.map((line) => String(line ?? "").trim()).filter(Boolean)
