@@ -22,6 +22,7 @@ import { getFailureRateRatio } from "@/lib/failure-rate";
 import { formatWonShort } from "@/lib/investment-money";
 import { housingLoanLabel } from "@/lib/loan-policy-label";
 import { ProfitCalculatorPanel } from "@/components/ProfitCalculatorPanel";
+import { rightsPresentation } from "@/lib/rights-presentation";
 
 const LIST_TEXT = "text-[15px] leading-snug";
 const LABEL_TEXT = "text-[14px] leading-snug";
@@ -88,15 +89,18 @@ function bidDateSummary(value: string | null | undefined, caseState: string | nu
 }
 
 function rightsSummary(result: AuctionAnalysisResult | null, loading: boolean) {
-  if (loading) return { value: "확인 중", detail: "저장된 분석을 불러오는 중" };
-  if (!result) return { value: "분석 전", detail: "AI 권리분석 필요" };
-  if (result.stale) return { value: "재확인 필요", detail: "물건 정보 변경 후 미분석" };
-  if (result.risks?.length) {
-    return { value: `확인 필요 ${result.risks.length}건`, detail: result.risks[0] };
+  if (loading) {
+    return {
+      value: "확인 중",
+      detail: "저장된 분석을 불러오는 중",
+      tone: "neutral" as const,
+    };
   }
+  const presentation = rightsPresentation(result);
   return {
-    value: result.recommendation || "분석 완료",
-    detail: result.summary || "저장된 권리분석 있음",
+    value: presentation.label,
+    detail: presentation.detail,
+    tone: presentation.tone,
   };
 }
 
@@ -113,16 +117,28 @@ function InvestmentSummaryCard({
   detail?: string;
   missingReason?: string;
   icon: ReactNode;
-  accent?: "default" | "primary" | "warning";
+  accent?: "default" | "primary" | "warning" | "positive" | "danger";
 }) {
   const accentClass =
     accent === "primary"
       ? "text-primary"
+      : accent === "positive"
+        ? "text-emerald-800"
+        : accent === "danger"
+          ? "text-red-800"
       : accent === "warning"
         ? "text-amber-700"
         : "text-foreground";
+  const cardClass =
+    accent === "positive"
+      ? "border-emerald-200 bg-emerald-50/80"
+      : accent === "danger"
+        ? "border-red-200 bg-red-50/80"
+        : accent === "warning"
+          ? "border-amber-200 bg-amber-50/70"
+          : "border-border bg-card";
   return (
-    <div className="min-w-0 rounded-xl border border-border bg-card px-3.5 py-3">
+    <div className={`min-w-0 rounded-xl border px-3.5 py-3 ${cardClass}`}>
       <div className="flex items-center gap-1.5 text-[0.68rem] font-medium text-muted-foreground">
         {icon}
         <span>{label}</span>
@@ -2225,7 +2241,15 @@ export function AuctionDetailModal({
                     : undefined
                 }
                 icon={<ShieldCheck size={13} />}
-                accent={cachedAnalysis?.risks?.length || cachedAnalysis?.stale ? "warning" : "default"}
+                accent={
+                  rights.tone === "positive"
+                    ? "positive"
+                    : rights.tone === "danger"
+                      ? "danger"
+                      : rights.tone === "caution"
+                        ? "warning"
+                        : "default"
+                }
               />
               <InvestmentSummaryCard
                 label="입찰 일정"

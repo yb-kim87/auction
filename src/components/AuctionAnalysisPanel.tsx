@@ -13,15 +13,22 @@ import {
   fetchAuctionRightsReview,
   saveAuctionRightsReview,
 } from "@/lib/api";
+import {
+  positiveRightsSummary,
+  rightsOnlyRisks,
+  rightsPresentation,
+  type RightsTone,
+} from "@/lib/rights-presentation";
 
 const ANALYSIS_ENGINE_LABEL = "경매코치 AI";
 const SECTION = "text-[14px] leading-relaxed";
 const TITLE = "text-[15px] font-semibold text-foreground";
 
-function recommendationStyle(rec: string) {
-  if (rec.includes("적극")) return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  if (rec.includes("관망")) return "bg-slate-100 text-slate-700 border-slate-200";
-  return "bg-amber-100 text-amber-800 border-amber-200";
+function recommendationStyle(tone: RightsTone) {
+  if (tone === "positive") return "bg-emerald-100 text-emerald-800 border-emerald-300";
+  if (tone === "danger") return "bg-red-100 text-red-800 border-red-300";
+  if (tone === "caution") return "bg-amber-100 text-amber-800 border-amber-300";
+  return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
 function AnalysisSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -93,25 +100,37 @@ function RightsSummaryCard({
   value,
   description,
   icon,
-  warning = false,
+  tone = "neutral",
 }: {
   label: string;
   value: string;
   description: string;
   icon: React.ReactNode;
-  warning?: boolean;
+  tone?: RightsTone;
 }) {
+  const cardClass =
+    tone === "positive"
+      ? "border-emerald-200 bg-emerald-50/80"
+      : tone === "danger"
+        ? "border-red-200 bg-red-50/80"
+        : tone === "caution"
+          ? "border-amber-200 bg-amber-50/80"
+          : "border-border bg-card";
+  const valueClass =
+    tone === "positive"
+      ? "text-emerald-800"
+      : tone === "danger"
+        ? "text-red-800"
+        : tone === "caution"
+          ? "text-amber-800"
+          : "text-foreground";
   return (
-    <div
-      className={`rounded-xl border px-3.5 py-3 ${
-        warning ? "border-amber-200 bg-amber-50/70" : "border-border bg-card"
-      }`}
-    >
+    <div className={`rounded-xl border px-3.5 py-3 ${cardClass}`}>
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
         {icon}
         <span>{label}</span>
       </div>
-      <p className={`mt-1.5 text-sm font-bold ${warning ? "text-amber-800" : "text-foreground"}`}>
+      <p className={`mt-1.5 text-sm font-bold ${valueClass}`}>
         {value}
       </p>
       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{description}</p>
@@ -455,9 +474,10 @@ export function AuctionAnalysisPanel({
       : null;
 
   const canRunAnalysis = !result;
-  const majorRightsRisks = (result?.risks ?? []).filter(
-    (risk) => !/미납\s*관리비|관리비[^.\n]*미납/.test(risk),
-  );
+  const presentation = rightsPresentation(result);
+  const majorRightsRisks = rightsOnlyRisks(result);
+  const displayedSummary =
+    presentation.tone === "positive" ? positiveRightsSummary() : result?.summary;
 
   return (
     <div className="space-y-4">
@@ -525,9 +545,9 @@ export function AuctionAnalysisPanel({
         <div className="space-y-5 border-t border-border pt-5">
           <div className="flex flex-wrap items-center gap-2">
             <span
-              className={`inline-flex px-2.5 py-1 text-xs font-bold rounded-sm border ${recommendationStyle(result.recommendation)}`}
+              className={`inline-flex px-2.5 py-1 text-xs font-bold rounded-sm border ${recommendationStyle(presentation.tone)}`}
             >
-              {result.recommendation}
+              {presentation.label}
             </span>
             {result.model && (
               <span className="text-[11px] text-muted-foreground ml-auto">
@@ -548,9 +568,17 @@ export function AuctionAnalysisPanel({
             )}
           </div>
 
-          {result.summary && (
-            <p className={`${SECTION} font-medium text-foreground bg-secondary/40 rounded-sm px-3 py-2.5`}>
-              {result.summary}
+          {displayedSummary && (
+            <p className={`${SECTION} font-medium rounded-sm border px-3 py-2.5 ${
+              presentation.tone === "positive"
+                ? "border-emerald-200 bg-emerald-50/70 text-emerald-950"
+                : presentation.tone === "danger"
+                  ? "border-red-200 bg-red-50/70 text-red-950"
+                  : presentation.tone === "caution"
+                    ? "border-amber-200 bg-amber-50/70 text-amber-950"
+                    : "border-border bg-secondary/40 text-foreground"
+            }`}>
+              {displayedSummary}
             </p>
           )}
 
@@ -613,7 +641,15 @@ export function AuctionAnalysisPanel({
                     value={review.label}
                     description={review.description}
                     icon={review.tone === "clear" ? <ShieldCheck size={13} /> : <CircleAlert size={13} />}
-                    warning={review.tone === "warning"}
+                    tone={
+                      presentation.tone === "positive"
+                        ? "positive"
+                        : presentation.tone === "danger"
+                          ? "danger"
+                          : presentation.tone === "caution"
+                            ? "caution"
+                            : "neutral"
+                    }
                   />
                   <RightsSummaryCard
                     label="낙찰 후 부담 가능 금액"
@@ -628,21 +664,33 @@ export function AuctionAnalysisPanel({
                         : "필수 자료가 부족하면 계산기에 임의 금액을 넣지 않습니다."
                     }
                     icon={<FileQuestion size={13} />}
-                    warning={!assumptionNone && !autoRights?.calculationReady}
+                    tone={
+                      assumptionNone
+                        ? "positive"
+                        : structured?.assumption.status === "possible"
+                          ? "danger"
+                          : "caution"
+                    }
                   />
                   <RightsSummaryCard
                     label="임차인 상태"
                     value={tenantValue}
                     description={tenantDescription}
                     icon={<Users size={13} />}
-                    warning={tenantValue === "확인 필요" || tenantValue === "선순위 가능"}
+                    tone={
+                      tenantValue === "임차인 없음" || tenantValue === "대항력 없음"
+                        ? "positive"
+                        : tenantValue === "선순위 가능"
+                          ? "danger"
+                          : "caution"
+                    }
                   />
                   <RightsSummaryCard
                     label="말소기준권리"
                     value={baselineValue}
                     description={baselineDescription}
                     icon={<ShieldCheck size={13} />}
-                    warning={baselineValue === "확인 필요"}
+                    tone={baselineValue === "확인 필요" ? "caution" : "positive"}
                   />
                 </div>
 
