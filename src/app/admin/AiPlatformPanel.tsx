@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import {
-  fetchAdminAuctions,
+  fetchAllAdminAuctions,
   fetchAiFeatureHistory,
   fetchAiFeatureList,
   fetchAiTagHistory,
@@ -72,7 +72,7 @@ export function AiPlatformPanel({ engine }: { engine: EngineKey }) {
           : engine === "feature"
             ? fetchAiFeatureList()
             : fetchAiTagList(),
-        fetchAdminAuctions(),
+        fetchAllAdminAuctions(),
       ]);
       setRows(rowsData);
       setAuctions(auctionsData);

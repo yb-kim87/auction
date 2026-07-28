@@ -170,6 +170,12 @@ export default function AdminPage() {
   const [total, setTotal] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [items, setItems] = useState<AuctionItem[]>([]);
+  const [listTotal, setListTotal] = useState(0);
+  const [listPage, setListPage] = useState(1);
+  const [listPageSize, setListPageSize] = useState(20);
+  const [listTotalPages, setListTotalPages] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [pendingItems, setPendingItems] = useState<AuctionItem[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -202,15 +208,27 @@ export default function AdminPage() {
   const loadItems = useCallback(async () => {
     setLoadingItems(true);
     try {
-      const data = await fetchAdminAuctions();
-      setItems(data);
+      const data = await fetchAdminAuctions({
+        page: listPage,
+        pageSize: listPageSize,
+        search: appliedSearch,
+      });
+      if (listPage > data.totalPages) {
+        setListPage(data.totalPages);
+        return;
+      }
+      setItems(data.items);
+      setListTotal(data.total);
+      setListTotalPages(data.totalPages);
       setSelectedIds(new Set());
     } catch {
       setItems([]);
+      setListTotal(0);
+      setListTotalPages(1);
     } finally {
       setLoadingItems(false);
     }
-  }, []);
+  }, [appliedSearch, listPage, listPageSize]);
 
   const loadPending = useCallback(async () => {
     setLoadingPending(true);
@@ -241,8 +259,24 @@ export default function AdminPage() {
   }, [loadCounts, loadItems, loadPending, loadUsers]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    void Promise.all([loadCounts(), loadPending(), loadUsers()]);
+  }, [loadCounts, loadPending, loadUsers]);
+
+  useEffect(() => {
+    void loadItems();
+  }, [loadItems]);
+
+  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setListPage(1);
+    setAppliedSearch(searchInput.trim());
+  };
+
+  const clearSearch = () => {
+    setSearchInput("");
+    setAppliedSearch("");
+    setListPage(1);
+  };
 
   const handleFile = (selected: File | null) => {
     if (!selected) return;
@@ -786,15 +820,69 @@ export default function AdminPage() {
             </div>
           </div>
 
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <form onSubmit={handleSearch} className="flex min-w-[280px] flex-1 items-center gap-2">
+              <div className="relative max-w-xl flex-1">
+                <Search
+                  size={14}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  type="search"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="경매번호, 주소, 법원, 등록자 검색"
+                  className="h-9 w-full rounded-sm border border-border bg-background pl-9 pr-3 text-xs outline-none transition-colors focus:border-primary"
+                />
+              </div>
+              <button
+                type="submit"
+                className="h-9 px-4 text-xs font-semibold text-primary-foreground bg-primary rounded-sm hover:bg-accent transition-colors"
+              >
+                검색
+              </button>
+              {appliedSearch && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="h-9 px-3 text-xs font-medium text-muted-foreground border border-border rounded-sm hover:text-foreground"
+                >
+                  초기화
+                </button>
+              )}
+            </form>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>
+                {appliedSearch ? `검색 결과 ${listTotal.toLocaleString()}건` : `총 ${listTotal.toLocaleString()}건`}
+              </span>
+              <select
+                value={listPageSize}
+                onChange={(event) => {
+                  setListPageSize(Number(event.target.value));
+                  setListPage(1);
+                }}
+                className="h-9 rounded-sm border border-border bg-background px-2 text-xs text-foreground"
+                aria-label="페이지당 물건 수"
+              >
+                <option value={20}>20개씩</option>
+                <option value={50}>50개씩</option>
+                <option value={100}>100개씩</option>
+              </select>
+            </div>
+          </div>
+
           {loadingItems ? (
             <p className="text-sm text-muted-foreground py-8 text-center">데이터를 불러오는 중...</p>
           ) : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">등록된 물건이 없습니다.</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              {appliedSearch ? "검색 조건에 맞는 물건이 없습니다." : "등록된 물건이 없습니다."}
+            </p>
           ) : (
-            <div className="border border-border rounded-sm overflow-hidden">
-              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+            <>
+              <div className="border border-border rounded-sm overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs border-collapse">
-                  <thead className="sticky top-0 bg-secondary/80 backdrop-blur-sm">
+                  <thead className="bg-secondary/80">
                     <tr className="border-b border-border">
                       <th className="w-10 px-3 py-2.5 text-center">
                         <input
@@ -874,8 +962,32 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
-            </div>
+              <div className="mt-3 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setListPage((page) => Math.max(1, page - 1))}
+                  disabled={listPage <= 1 || loadingItems}
+                  className="h-9 px-3 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  이전
+                </button>
+                <span className="min-w-24 text-center text-xs text-muted-foreground">
+                  <strong className="text-foreground">{listPage.toLocaleString()}</strong>
+                  {" / "}
+                  {listTotalPages.toLocaleString()} 페이지
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setListPage((page) => Math.min(listTotalPages, page + 1))}
+                  disabled={listPage >= listTotalPages || loadingItems}
+                  className="h-9 px-3 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  다음
+                </button>
+              </div>
+            </>
           )}
         </div>
             </div>

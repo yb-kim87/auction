@@ -216,8 +216,26 @@ export function logUserActionsBatch(items: LogActionInput[]): void {
   });
 }
 
-export async function fetchAdminAuctions(): Promise<AuctionItem[]> {
-  const res = await fetch(`${API_BASE}/auctions/manage`, {
+export interface AdminAuctionPage {
+  items: AuctionItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function fetchAdminAuctions(options: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+} = {}): Promise<AdminAuctionPage> {
+  const params = new URLSearchParams({
+    page: String(options.page ?? 1),
+    pageSize: String(options.pageSize ?? 20),
+  });
+  if (options.search?.trim()) params.set("search", options.search.trim());
+
+  const res = await fetch(`${API_BASE}/auctions/manage?${params.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -226,7 +244,20 @@ export async function fetchAdminAuctions(): Promise<AuctionItem[]> {
       (await parseErrorMessage(res)) ?? "물건 데이터를 불러오지 못했습니다.",
     );
   }
-  return readJsonResponse(res);
+  return readJsonResponse<AdminAuctionPage>(res);
+}
+
+/** AI 운영 화면처럼 전체 물건 매핑이 필요한 곳에서만 페이지를 순차 조회한다. */
+export async function fetchAllAdminAuctions(): Promise<AuctionItem[]> {
+  const first = await fetchAdminAuctions({ page: 1, pageSize: 100 });
+  if (first.totalPages <= 1) return first.items;
+
+  const rest = await Promise.all(
+    Array.from({ length: first.totalPages - 1 }, (_, index) =>
+      fetchAdminAuctions({ page: index + 2, pageSize: 100 }),
+    ),
+  );
+  return [first, ...rest].flatMap((page) => page.items);
 }
 
 export async function fetchPendingAuctions(): Promise<AuctionItem[]> {
