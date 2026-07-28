@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AuctionItem } from "@/types/auction";
+import type { AuctionAnalysisResult, AuctionItem } from "@/types/auction";
 import { formatWonShort } from "@/lib/investment-money";
 import {
   calculateProfit,
@@ -158,8 +158,48 @@ function ResultRow({
   );
 }
 
+function CashBreakdownRow({
+  label,
+  value,
+  status,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  status: string;
+  tone?: "default" | "deduction" | "warning";
+}) {
+  const statusClass =
+    tone === "warning"
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : tone === "deduction"
+        ? "bg-blue-50 text-blue-700 border-blue-200"
+        : "bg-secondary/60 text-muted-foreground border-border";
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 border-b border-border/60 last:border-b-0">
+      <div className="min-w-0 flex items-center gap-2">
+        <span className="text-[12px] text-foreground">{label}</span>
+        <span className={`px-1.5 py-0.5 rounded border text-[10px] whitespace-nowrap ${statusClass}`}>
+          {status}
+        </span>
+      </div>
+      <span
+        className={`text-[12px] font-medium whitespace-nowrap ${
+          value < 0 ? "text-blue-600" : "text-foreground"
+        }`}
+        style={{ fontFamily: "'Inter', sans-serif" }}
+      >
+        {value < 0 ? "−" : ""}
+        {formatWonShort(Math.abs(value))}
+      </span>
+    </div>
+  );
+}
+
 export function ProfitCalculatorPanel({
   item,
+  rightsAnalysis,
   loanRatio,
   appraisalRatio,
   incomeLoanLimit,
@@ -168,6 +208,7 @@ export function ProfitCalculatorPanel({
   regulatedArea,
 }: {
   item: AuctionItem;
+  rightsAnalysis?: AuctionAnalysisResult | null;
   loanRatio?: number | null;
   appraisalRatio?: number | null;
   incomeLoanLimit?: number | null;
@@ -196,7 +237,15 @@ export function ProfitCalculatorPanel({
   const [earlyRepaymentFeeRate, setEarlyRepaymentFeeRate] = useState(0);
   const [interiorCost, setInteriorCost] = useState(2_000_000);
   const [evictionCost, setEvictionCost] = useState(2_000_000);
-  const [unpaidMaintenanceFee, setUnpaidMaintenanceFee] = useState(1_000_000);
+  const hasUnpaidFeeInvestigation = Boolean(item.unpaidFeeCheckedAt?.trim());
+  const investigatedUnpaidFee = hasUnpaidFeeInvestigation
+    ? Math.max(0, item.unpaidFeeAmount ?? 0)
+    : 0;
+  const [unpaidMaintenanceFee, setUnpaidMaintenanceFee] = useState(investigatedUnpaidFee);
+  const confirmedRightsAssumption =
+    rightsAnalysis?.autoRights?.calculationReady
+      ? Math.max(0, rightsAnalysis.autoRights.assumptionAmount ?? 0)
+      : 0;
   const [extraRealtyFee, setExtraRealtyFee] = useState(0);
   // 오피스텔은 면적(85㎡)과 무관하게 항상 부가세 부담이 발생한다(사용자
   // 확인, 2026-07-23) — 85㎡ 초과 판정에 오피스텔 여부를 OR 조건으로 추가.
@@ -390,6 +439,7 @@ export function ProfitCalculatorPanel({
     interiorCost,
     evictionCost,
     unpaidMaintenanceFee,
+    rightsAssumptionAmount: confirmedRightsAssumption,
     extraRealtyFee,
     isOver85sqm: over85,
     vatAmount,
@@ -416,6 +466,7 @@ export function ProfitCalculatorPanel({
     interiorCost,
     evictionCost,
     unpaidMaintenanceFee,
+    confirmedRightsAssumption,
     extraRealtyFee,
     vatAmount,
     applyProgressiveDeduction,
@@ -423,6 +474,7 @@ export function ProfitCalculatorPanel({
     regulatedArea,
     item.usage,
   ]);
+  const safetyMargin = salePrice - bidPrice;
 
   return (
     <div className="space-y-5">
@@ -441,7 +493,22 @@ export function ProfitCalculatorPanel({
       >
         <div className="grid grid-cols-2 gap-x-6 gap-y-1">
           <ResultRow label="대출금(LTV)" value={formatWonShort(result.loanAmount)} />
-          <ResultRow label="실투자금(내자본금)" value={formatWonShort(result.equity)} />
+          <ResultRow
+            label="실제 준비자금"
+            value={formatWonShort(result.requiredCash)}
+            helper="대출 실행 후 낙찰·취득·수리·명도 등에 필요한 현금"
+          />
+          <ResultRow
+            label="감정가 대비 낙찰가율"
+            value={`${(result.bidRatio * 100).toFixed(1)}%`}
+            helper="입찰가 ÷ 감정가"
+          />
+          <ResultRow
+            label="안전마진"
+            value={formatWonShort(safetyMargin)}
+            positive={safetyMargin >= 0}
+            helper="매도가 − 입찰가(세금·비용 차감 전)"
+          />
           <ResultRow
             label="수익률"
             value={`${result.profitRate.toFixed(1)}%`}
@@ -457,6 +524,68 @@ export function ProfitCalculatorPanel({
             positive={result.finalProfit >= 0}
           />
         </div>
+        <details className="mt-3 pt-3 border-t border-primary/10 group">
+          <summary className="flex items-center justify-between cursor-pointer list-none text-[12px] font-semibold text-primary">
+            <span>실제 준비자금 상세보기</span>
+            <span className="text-[11px] font-normal text-muted-foreground group-open:hidden">
+              펼치기
+            </span>
+            <span className="text-[11px] font-normal text-muted-foreground hidden group-open:inline">
+              접기
+            </span>
+          </summary>
+          <div className="mt-2 px-3 rounded-lg bg-white/70 border border-primary/10">
+            <CashBreakdownRow label="낙찰대금" value={bidPrice} status="입력값" />
+            <CashBreakdownRow
+              label="대출금 차감"
+              value={-result.loanAmount}
+              status="자동 계산"
+              tone="deduction"
+            />
+            <CashBreakdownRow label="취득세" value={result.acquisitionTax} status="자동 계산" />
+            <CashBreakdownRow label="법무비" value={result.legalFee} status="자동 계산" />
+            <CashBreakdownRow label="인테리어 비용" value={interiorCost} status="예상 입력" />
+            <CashBreakdownRow label="명도비" value={evictionCost} status="예상 입력" />
+            <CashBreakdownRow
+              label="미납 관리비"
+              value={unpaidMaintenanceFee}
+              status={
+                hasUnpaidFeeInvestigation
+                  ? "조사 완료"
+                  : unpaidMaintenanceFee > 0
+                    ? "미조사·직접 입력"
+                    : "미조사"
+              }
+              tone={hasUnpaidFeeInvestigation ? "default" : "warning"}
+            />
+            {confirmedRightsAssumption > 0 && (
+              <CashBreakdownRow
+                label="권리 인수 예상금액"
+                value={confirmedRightsAssumption}
+                status="관리자 확인"
+              />
+            )}
+            <CashBreakdownRow label="대출이자" value={result.loanInterest} status="자동 계산" />
+            <CashBreakdownRow
+              label="중도상환수수료"
+              value={result.earlyRepaymentFee}
+              status="자동 계산"
+            />
+            <div className="flex items-center justify-between py-2.5 border-t border-primary/20">
+              <span className="text-[12px] font-bold text-foreground">최종 실제 준비자금</span>
+              <span
+                className="text-sm font-bold text-primary"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
+                {formatWonShort(result.requiredCash)}
+              </span>
+            </div>
+          </div>
+          <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+            매도 중개수수료와 부동산 추가수수료는 매도 시 발생하는 비용이므로 준비자금에서
+            제외하고 예상 수익 계산에만 반영합니다.
+          </p>
+        </details>
       </div>
 
       <div className="rounded-lg border border-border divide-y divide-border">
@@ -549,7 +678,23 @@ export function ProfitCalculatorPanel({
             value={unpaidMaintenanceFee}
             onChange={setUnpaidMaintenanceFee}
             suffix="원"
+            helper={
+              hasUnpaidFeeInvestigation
+                ? investigatedUnpaidFee > 0
+                  ? `물건 조사금액 ${investigatedUnpaidFee.toLocaleString("ko-KR")}원 자동 반영`
+                  : "조사 결과 미납 관리비 없음"
+                : "아직 조사되지 않은 항목입니다. 확인 후 직접 입력해 주세요."
+            }
           />
+          {confirmedRightsAssumption > 0 && (
+            <NumberField
+              label="권리 인수 예상금액"
+              value={confirmedRightsAssumption}
+              readOnly
+              suffix="원"
+              helper="관리자가 권리자료를 확인한 금액만 자동 반영"
+            />
+          )}
         </div>
 
         <div className="px-3 py-2 bg-secondary/30">

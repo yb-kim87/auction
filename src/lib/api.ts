@@ -1,6 +1,7 @@
 import type {
   AuctionItem,
   AuctionAnalysisResult,
+  AuctionRightsReview,
   AuctionKnowledgeItem,
   CafeCrawlStatus,
   KnowledgeDraftItem,
@@ -1765,6 +1766,41 @@ export async function analyzeAuction(
   if (!data) {
     throw new Error("경매코치 AI 분석 응답이 비어 있습니다.");
   }
+  return data;
+}
+
+export async function fetchAuctionRightsReview(
+  auctionId: string,
+): Promise<AuctionRightsReview | null> {
+  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/rights-review`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "확정 권리분석을 불러오지 못했습니다.",
+    );
+  }
+  return parseJsonResponse<AuctionRightsReview | null>(res);
+}
+
+export async function saveAuctionRightsReview(
+  auctionId: string,
+  review: Partial<AuctionRightsReview>,
+): Promise<AuctionRightsReview> {
+  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/rights-review`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(review),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "확정 권리분석 저장에 실패했습니다.",
+    );
+  }
+  const data = await parseJsonResponse<AuctionRightsReview>(res);
+  if (!data) throw new Error("확정 권리분석 저장 응답이 비어 있습니다.");
   return data;
 }
 

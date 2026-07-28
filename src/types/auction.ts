@@ -78,6 +78,7 @@ export interface AuctionItem {
   officialLandPrice: number;
   tenantInfo: string;
   specialNote: string;
+  rightsReview?: AuctionRightsReview | null;
   /** 탱크옥션이 관리사무소에 개별 문의해 조사한 미납 관리비(체납금액).
    * 조사가 안 된 물건은 0/빈 문자열 — 크롤링 누락이 아니라 원본 조사
    * 자체가 없는 정상 케이스. */
@@ -100,6 +101,28 @@ export interface AuctionItem {
   updatedAt: string | null;
   updatedBy: string;
   createdAt: string;
+}
+
+export type RightsReviewStatus =
+  | "uninvestigated"
+  | "in_progress"
+  | "none"
+  | "confirmed"
+  | "unverifiable";
+
+export interface AuctionRightsReview {
+  status: RightsReviewStatus;
+  baselineRightType: string;
+  baselineRightDate: string;
+  seniorTenantStatus: "unknown" | "none" | "possible" | "confirmed";
+  opposabilityStatus: "unknown" | "none" | "possible" | "confirmed";
+  depositAmount: number | null;
+  expectedDividendAmount: number | null;
+  assumptionAmount: number | null;
+  specialRights: string;
+  evidenceNote: string;
+  confirmedAt: string;
+  confirmedBy: string;
 }
 
 export type UpdateAuctionPayload = Omit<
@@ -176,6 +199,30 @@ export interface AuctionAnalysisResult {
   risks: string[];
   citations?: string[];
   knowledgeCount?: number;
+  structuredRights?: {
+    reviewStatus: "unknown" | "possible" | "none";
+    baselineRight: { type: string; date: string; reason: string };
+    tenant: {
+      priorityStatus: "unknown" | "possible" | "none";
+      opposability: "unknown" | "possible" | "none";
+      depositAmount: number | null;
+    };
+    assumption: {
+      status: "unknown" | "possible" | "none";
+      estimatedAmount: number | null;
+      reason: string;
+    };
+    missingEvidence: string[];
+    evidence: string[];
+  };
+  autoRights?: {
+    status: "auto_complete" | "risk_detected" | "needs_data" | "unavailable";
+    label: string;
+    calculationReady: boolean;
+    assumptionAmount: number | null;
+    confidence: "high" | "medium" | "low";
+    exceptionReasons: string[];
+  };
 }
 
 export interface AuctionKnowledgeItem {

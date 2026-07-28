@@ -681,6 +681,10 @@ function RecommendCard({
         housingCount,
         regulatedArea: loanInfo.regulatedArea,
         usage: item.usage,
+        unpaidFeeAmount: item.unpaidFeeAmount,
+        unpaidFeeCheckedAt: item.unpaidFeeCheckedAt,
+        // 목록에는 물건별 AI 분석 결과가 없으므로 임의의 인수금액을 반영하지 않는다.
+        rightsAssumptionAmount: 0,
       }).finalProfit
     : null;
 

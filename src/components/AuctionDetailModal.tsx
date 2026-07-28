@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, Calculator } from "lucide-react";
-import type { AuctionItem, UpdateAuctionPayload } from "@/types/auction";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, Calculator, WalletCards, TrendingDown, ShieldCheck, CircleAlert } from "lucide-react";
+import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload } from "@/types/auction";
 import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import {
   AUCTION_FIELD_GROUPS,
@@ -60,21 +60,97 @@ const diff = (a: number, b: number) => {
   return { val: fmtDiffAmount(d), positive: d >= 0, amount: d };
 };
 
+function parseBidDate(value: string | null | undefined): Date | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const match = raw.match(/((?:19|20)\d{2})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function bidDateSummary(value: string | null | undefined, caseState: string | null | undefined) {
+  const state = String(caseState ?? "").trim();
+  if (/(취하|정지|종결|낙찰|매각|배당)/.test(state)) {
+    return { value: state, detail: "현재 사건 진행 상태" };
+  }
+
+  const date = parseBidDate(value);
+  if (!date) return { value: "확인 필요", detail: "입찰일 정보 없음" };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.ceil((date.getTime() - today.getTime()) / 86_400_000);
+  const dateLabel = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+  if (days > 0) return { value: `${days}일 남음`, detail: dateLabel };
+  if (days === 0) return { value: "오늘 입찰", detail: dateLabel };
+  return { value: "기일 경과", detail: dateLabel };
+}
+
+function rightsSummary(result: AuctionAnalysisResult | null, loading: boolean) {
+  if (loading) return { value: "확인 중", detail: "저장된 분석을 불러오는 중" };
+  if (!result) return { value: "분석 전", detail: "AI 권리분석 필요" };
+  if (result.stale) return { value: "재확인 필요", detail: "물건 정보 변경 후 미분석" };
+  if (result.risks?.length) {
+    return { value: `확인 필요 ${result.risks.length}건`, detail: result.risks[0] };
+  }
+  return {
+    value: result.recommendation || "분석 완료",
+    detail: result.summary || "저장된 권리분석 있음",
+  };
+}
+
+function InvestmentSummaryCard({
+  label,
+  value,
+  detail,
+  missingReason,
+  icon,
+  accent = "default",
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  missingReason?: string;
+  icon: ReactNode;
+  accent?: "default" | "primary" | "warning";
+}) {
+  const accentClass =
+    accent === "primary"
+      ? "text-primary"
+      : accent === "warning"
+        ? "text-amber-700"
+        : "text-foreground";
+  return (
+    <div className="min-w-0 rounded-xl border border-border bg-card px-3.5 py-3">
+      <div className="flex items-center gap-1.5 text-[0.68rem] font-medium text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p className={`mt-1.5 text-[0.95rem] font-bold leading-snug ${accentClass}`}>{value}</p>
+      {detail && (
+        <p className="mt-1 text-[0.68rem] leading-snug text-muted-foreground line-clamp-2" title={detail}>
+          {detail}
+        </p>
+      )}
+      {missingReason && (
+        <p className="mt-1.5 text-[0.65rem] leading-snug text-amber-700">
+          관리자 확인: {missingReason}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const DETAIL_HIDDEN_FIELDS = new Set<keyof UpdateAuctionPayload>([
   "memo",
   "views",
   "link",
   "auctionNo",
   "address",
-  "usage",
-  "area",
-  "builtYear",
-  "bidDate",
-  "totalUnits",
   "appraisedValue",
   "minPrice",
   "naverPrice",
-  "officialLandPrice",
   "salePrice",
   "tradingCount",
   "specialNote",
@@ -82,6 +158,32 @@ const DETAIL_HIDDEN_FIELDS = new Set<keyof UpdateAuctionPayload>([
 
 function detailVisibleFields(group: (typeof AUCTION_FIELD_GROUPS)[number]) {
   return group.fields.filter((field) => !DETAIL_HIDDEN_FIELDS.has(field.key));
+}
+
+function hasDisplayValue(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  if (typeof value === "boolean") return value;
+  const text = String(value).trim();
+  return text !== "" && text !== "-" && text !== "정보없음";
+}
+
+/** 일반 사용자 화면에서는 빈 참고정보를 숨긴다. 관리자 편집 화면은 값을
+ * 입력할 수 있어야 하므로 기존처럼 모든 필드를 유지한다. */
+function shouldShowUserDetailField(
+  key: keyof UpdateAuctionPayload,
+  item: AuctionItem,
+): boolean {
+  if (key === "isRedevelopment") return item.isRedevelopment === true;
+  if (key === "recordTime") return hasDisplayValue(item.recordTime);
+  if (key === "unpaidFeeAmount") return (item.unpaidFeeAmount ?? 0) > 0;
+  if (key === "unpaidFeeNote") return hasDisplayValue(item.unpaidFeeNote);
+  if (key === "tenantDetail") return hasDisplayValue(item.tenantDetail);
+  if (key === "buildingRegistry") return hasDisplayValue(item.buildingRegistry);
+  if (key === "priceDetail") {
+    return hasNaverPrice(item.naverPrice) && hasDisplayValue(item.priceDetail);
+  }
+  return hasDisplayValue(item[key as keyof AuctionItem]);
 }
 
 const EXPANDABLE_DETAIL_KEYS = new Set<keyof UpdateAuctionPayload>([
@@ -1035,7 +1137,14 @@ function RegistryTable({ value }: { value: string }) {
                       <span>{row.amount}</span>
                     </span>
                   ) : (
-                    row.amount || ""
+                    row.amount ||
+                    (/근저당|가압류/.test(row.rightType) ? (
+                      <span className="text-[0.68rem] font-normal text-amber-700">
+                        미수집
+                      </span>
+                    ) : (
+                      ""
+                    ))
                   )}
                 </td>
                 <td className={`${detailTableBodyCellClass} whitespace-normal text-muted-foreground`}>
@@ -1163,14 +1272,14 @@ function formatFieldValue(
   const value = item[key as keyof AuctionItem];
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "number") {
-    if (
-      key === "views" ||
-      key === "totalUnits" ||
-      key === "builtYear"
-    ) {
-      return fmt(value);
-    }
+    if (key === "totalUnits") return `${fmt(value)}세대`;
+    if (key === "builtYear") return `${fmt(value)}년`;
+    if (key === "views") return fmt(value);
     return fmtEok(value);
+  }
+  if (key === "area") {
+    const text = String(value).trim();
+    return /㎡|평/.test(text) ? text : `${text}㎡`;
   }
   return String(value);
 }
@@ -1513,6 +1622,7 @@ export function AuctionDetailModal({
   const [showMemo, setShowMemo] = useState(false);
   const [activeTab, setActiveTab] = useState<"info" | "ai" | "profit">("info");
   const [editingViews, setEditingViews] = useState(false);
+  const [cachedAnalysis, setCachedAnalysis] = useState<AuctionAnalysisResult | null>(null);
   const auctionNoInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLTextAreaElement>(null);
   const onCloseRef = useRef(onClose);
@@ -1540,6 +1650,7 @@ export function AuctionDetailModal({
     setShowMemo(false);
     setActiveTab("info");
     setEditingViews(false);
+    setCachedAnalysis(null);
   }, [item]);
 
   // Push a history entry when the modal opens so mobile "back" closes the
@@ -1623,6 +1734,33 @@ export function AuctionDetailModal({
     positive: true,
     suffixEligible: false as const,
   };
+  const priceMargin =
+    hasNaver && minPrice > 0
+      ? {
+          value:
+            naverPrice >= minPrice
+              ? `호가보다 ${fmtEok(naverPrice - minPrice)} 낮음`
+              : `호가보다 ${fmtEok(minPrice - naverPrice)} 높음`,
+          detail: `네이버 호가 ${naverPriceDisplay} · 최저가 ${fmtEok(minPrice)}`,
+        }
+      : {
+          value: "확인 필요",
+          detail: !hasNaver ? "네이버 호가 정보 없음" : "최저가 정보 없음",
+        };
+  const equitySummary =
+    requiredEquity != null && requiredEquity >= 0
+      ? {
+          value: formatWonShort(requiredEquity),
+          detail: loanPolicyLabel
+            ? housingLoanLabel(loanPolicyLabel, firstTimeBuyer)
+            : "회원 조건을 반영한 예상 금액",
+        }
+      : {
+          value: "확인 필요",
+          detail: "적용 가능한 대출정책 정보 없음",
+        };
+  const rights = rightsSummary(cachedAnalysis, false);
+  const bidSchedule = bidDateSummary(form.bidDate, preview.caseState);
 
   const setField = (key: keyof UpdateAuctionPayload, value: string) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -2040,6 +2178,107 @@ export function AuctionDetailModal({
           </div>
           )}
 
+          <section className="px-4 py-4 sm:px-5 sm:pt-5 sm:pb-4 bg-[#f4f6f9]">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-primary/60">
+                  {editable ? "사용자 화면 미리보기" : "투자 판단 요약"}
+                </p>
+                <h2 className="mt-0.5 text-base font-bold text-foreground">이 물건 한눈에 보기</h2>
+              </div>
+              {preview.caseState && <CaseStateBadge caseState={preview.caseState} />}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <InvestmentSummaryCard
+                label="최소 필요자금"
+                value={equitySummary.value}
+                detail={equitySummary.detail}
+                missingReason={
+                  editable && requiredEquity == null
+                    ? "회원별 대출정책 또는 필요자금 계산값이 없습니다."
+                    : undefined
+                }
+                icon={<WalletCards size={13} />}
+                accent="primary"
+              />
+              <InvestmentSummaryCard
+                label="가격 여유"
+                value={priceMargin.value}
+                detail={priceMargin.detail}
+                missingReason={
+                  editable && (!hasNaver || minPrice <= 0)
+                    ? !hasNaver
+                      ? "네이버 호가를 입력해야 가격 여유를 계산할 수 있습니다."
+                      : "최저가를 입력해야 가격 여유를 계산할 수 있습니다."
+                    : undefined
+                }
+                icon={<TrendingDown size={13} />}
+                accent={hasNaver && naverPrice < minPrice ? "warning" : "default"}
+              />
+              <InvestmentSummaryCard
+                label="권리분석 상태"
+                value={rights.value}
+                detail={rights.detail}
+                missingReason={
+                  editable && !cachedAnalysis
+                    ? "저장된 AI 권리분석이 없습니다."
+                    : undefined
+                }
+                icon={<ShieldCheck size={13} />}
+                accent={cachedAnalysis?.risks?.length || cachedAnalysis?.stale ? "warning" : "default"}
+              />
+              <InvestmentSummaryCard
+                label="입찰 일정"
+                value={bidSchedule.value}
+                detail={bidSchedule.detail}
+                missingReason={
+                  editable && !parseBidDate(form.bidDate) && !preview.caseState
+                    ? "입찰기일 또는 사건 진행 상태를 입력해 주세요."
+                    : undefined
+                }
+                icon={<Calendar size={13} />}
+                accent={bidSchedule.value === "기일 경과" ? "warning" : "default"}
+              />
+            </div>
+            {editable && (
+              <div className="mt-2.5 flex items-start gap-1.5 text-[0.68rem] leading-relaxed text-muted-foreground">
+                <CircleAlert size={13} className="mt-0.5 shrink-0" />
+                <span>가격·입찰일을 수정하면 위 미리보기에 즉시 반영됩니다. 최소 필요자금은 회원별 조건에 따라 달라질 수 있습니다.</span>
+              </div>
+            )}
+          </section>
+
+          {!editable && preview.address && (
+            <div className="border-b border-border bg-card px-4 py-3 sm:px-5">
+              <a
+                href={`https://map.naver.com/p/search/${encodeURIComponent(preview.address)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-start gap-2.5 rounded-lg px-1 py-1 text-left transition-colors hover:text-primary"
+                title="네이버 지도에서 주소 보기"
+              >
+                <MapPin
+                  size={17}
+                  className="mt-0.5 shrink-0 text-primary"
+                  aria-hidden
+                />
+                <span className="min-w-0">
+                  <span className="block text-[0.68rem] font-semibold text-muted-foreground">
+                    물건 소재지
+                  </span>
+                  <span className="mt-0.5 block text-sm font-semibold leading-relaxed text-foreground group-hover:text-primary">
+                    {preview.address}
+                  </span>
+                </span>
+                <ExternalLink
+                  size={13}
+                  className="ml-auto mt-1 shrink-0 text-muted-foreground opacity-60"
+                  aria-hidden
+                />
+              </a>
+            </div>
+          )}
+
           <div className="sticky top-0 z-10 bg-card border-b border-border flex items-center sm:px-5">
             <button
               type="button"
@@ -2089,16 +2328,19 @@ export function AuctionDetailModal({
             item && (
               <AuctionAnalysisPanel
                 auctionId={item.id}
+                item={item}
                 isAdmin={isAdmin}
                 aiAnalysisLimit={aiAnalysisLimit}
                 aiAnalysisUsed={aiAnalysisUsed}
                 onAnalysisUsed={onAiAnalysisUsed}
+                onResult={setCachedAnalysis}
               />
             )
           ) : activeTab === "profit" ? (
             item && (
               <ProfitCalculatorPanel
                 item={item}
+                rightsAnalysis={cachedAnalysis}
                 loanRatio={loanRatio}
                 appraisalRatio={appraisalRatio}
                 incomeLoanLimit={incomeLoanLimit}
@@ -2113,7 +2355,7 @@ export function AuctionDetailModal({
             <div className="rounded-2xl bg-card border border-border overflow-hidden">
               <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
                 <Home size={16} className="text-muted-foreground" />
-                <h3 className="text-sm font-bold text-foreground">기본 물건 정보</h3>
+                <h3 className="text-sm font-bold text-foreground">입찰 전 확인사항</h3>
               </div>
               <div className="px-5 py-4">
                 {(() => {
@@ -2121,6 +2363,10 @@ export function AuctionDetailModal({
                   const hasNote = noteText && noteText !== "없음";
                   const unpaidFeeAmount = preview.unpaidFeeAmount ?? 0;
                   const hasUnpaidFee = unpaidFeeAmount > 0;
+                  const hasUnpaidFeeCheck = hasDisplayValue(preview.unpaidFeeCheckedAt);
+                  const hasTenantData =
+                    hasDisplayValue(preview.tenantInfo) || hasDisplayValue(preview.tenantDetail);
+                  const hasRegistryData = hasDisplayValue(preview.buildingRegistry);
                   return (
                     <>
                       {hasNote && (
@@ -2140,6 +2386,38 @@ export function AuctionDetailModal({
                             <p className="text-[0.68rem] text-muted-foreground mt-1">
                               조사일 {preview.unpaidFeeCheckedAt} 기준
                             </p>
+                          )}
+                        </div>
+                      )}
+                      {!hasUnpaidFee && hasUnpaidFeeCheck && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 mb-3">
+                          <p className="text-[0.82rem] font-semibold text-emerald-700">
+                            조사된 미납 관리비 없음
+                          </p>
+                          <p className="text-[0.68rem] text-muted-foreground mt-1">
+                            조사일 {preview.unpaidFeeCheckedAt} 기준
+                          </p>
+                        </div>
+                      )}
+                      {(!hasTenantData || !hasRegistryData || (!hasUnpaidFee && !hasUnpaidFeeCheck)) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+                          {!hasTenantData && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                              <p className="text-[0.72rem] font-semibold text-amber-800">임차인 정보 미확인</p>
+                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">입찰 전 점유·전입 확인 필요</p>
+                            </div>
+                          )}
+                          {!hasRegistryData && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                              <p className="text-[0.72rem] font-semibold text-amber-800">등기 자료 미확인</p>
+                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">권리분석 전 자료 확인 필요</p>
+                            </div>
+                          )}
+                          {!hasUnpaidFee && !hasUnpaidFeeCheck && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                              <p className="text-[0.72rem] font-semibold text-amber-800">미납 관리비 미조사</p>
+                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">관리사무소 확인 권장</p>
+                            </div>
                           )}
                         </div>
                       )}
@@ -2167,18 +2445,6 @@ export function AuctionDetailModal({
                           ))}
                         </div>
                       )}
-                      <p className="text-sm font-medium text-foreground mb-4 flex items-start gap-2">
-                        <MapPin size={15} className="shrink-0 mt-0.5 text-muted-foreground" />
-                        <span>{preview.address || "-"}</span>
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-                        <DataRow label="소유자" value={preview.owner || "-"} />
-                        <DataRow label="전용면적" value={<AreaLabel area={preview.area} />} />
-                        <DataRow label="사용승인일" value={preview.builtYear ? `${preview.builtYear}년` : "-"} />
-                        <DataRow label="총 세대수" value={formatTotalUnitsLabel(preview.totalUnits)} />
-                        <DataRow label="공시가격" value={formatOfficialLandPriceLabel(preview.officialLandPrice)} />
-                        <DataRow label="입찰기일" value={preview.bidDate || "-"} />
-                      </div>
                     </>
                   );
                 })()}
@@ -2223,7 +2489,7 @@ export function AuctionDetailModal({
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4 border-b border-border/50">
               <div className="flex items-center gap-2">
                 <Home size={16} className="text-muted-foreground" />
-                <h3 className="text-sm font-bold text-foreground">물건 요약</h3>
+                <h3 className="text-sm font-bold text-foreground">핵심 가격 요약</h3>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -2320,7 +2586,7 @@ export function AuctionDetailModal({
                 }
               />
               <PriceColumn
-                priceLabel="최저가"
+                priceLabel="현재 최저 입찰가"
                 priceValue={minPrice ? fmtEok(minPrice) : "-"}
                 accent="orange"
                 valueSlot={
@@ -2348,7 +2614,7 @@ export function AuctionDetailModal({
                 }
               />
               <PriceColumn
-                priceLabel="네이버 호가"
+                priceLabel="주변 매물 호가"
                 priceValue={naverPriceDisplay}
                 accent="primary"
                 labelAction={<NaverComplexLink naverId={naverId} inLabelRow />}
@@ -2381,7 +2647,7 @@ export function AuctionDetailModal({
                 }
               />
               <PriceColumn
-                priceLabel="낙찰가"
+                priceLabel="실제 낙찰가"
                 priceValue={salePrice ? fmtEok(salePrice) : "-"}
                 accent="green"
                 valueSlot={
@@ -2404,57 +2670,6 @@ export function AuctionDetailModal({
             </div>
             </div>
           </div>
-
-          {!editable && (
-            <div className="rounded-2xl bg-card border border-border overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
-                <MapPin size={16} className="text-muted-foreground" />
-                <h3 className="text-sm font-bold text-foreground">소재지</h3>
-              </div>
-              <div className="px-5 py-4 space-y-3">
-                <div>
-                  <p className="text-[0.72rem] text-muted-foreground mb-0.5">지번 주소</p>
-                  <p className="text-sm font-medium text-foreground">{preview.address || "-"}</p>
-                </div>
-                {preview.address ? (
-                  <a
-                    href={`https://map.naver.com/p/search/${encodeURIComponent(preview.address)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 h-40 rounded-xl bg-[#EEF1F6] border border-border flex items-center justify-center overflow-hidden relative group hover:border-primary/40 transition-colors"
-                  >
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        backgroundImage:
-                          "linear-gradient(rgba(30,58,95,0.04) 1px, transparent 1px), linear-gradient(90deg,rgba(30,58,95,0.04) 1px, transparent 1px)",
-                        backgroundSize: "20px 20px",
-                      }}
-                    />
-                    <div className="relative z-10 flex flex-col items-center gap-2 text-muted-foreground group-hover:text-primary transition-colors">
-                      <MapPin size={28} className="text-primary/40 group-hover:text-primary" />
-                      <span className="text-xs font-medium">네이버 지도에서 보기</span>
-                    </div>
-                  </a>
-                ) : (
-                  <div className="mt-2 h-40 rounded-xl bg-[#EEF1F6] border border-border flex items-center justify-center overflow-hidden relative">
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        backgroundImage:
-                          "linear-gradient(rgba(30,58,95,0.04) 1px, transparent 1px), linear-gradient(90deg,rgba(30,58,95,0.04) 1px, transparent 1px)",
-                        backgroundSize: "20px 20px",
-                      }}
-                    />
-                    <div className="relative z-10 flex flex-col items-center gap-2 text-muted-foreground">
-                      <MapPin size={28} className="text-primary/40" />
-                      <span className="text-xs">주소 정보 없음</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {editable ? (
             <>
@@ -2529,14 +2744,7 @@ export function AuctionDetailModal({
               const fields = detailVisibleFields(group).filter((field) => {
                 if (field.key === "owner" || field.key === "tenantInfo") return false;
                 if (field.key === "recordTime" && !isAdmin) return false;
-                if (field.key === "bidInfo") {
-                  const bidInfoValue = String(item.bidInfo ?? "").trim();
-                  return bidInfoValue && bidInfoValue !== "없음";
-                }
-                if (field.key === "isRedevelopment") {
-                  return item.isRedevelopment === true;
-                }
-                return true;
+                return shouldShowUserDetailField(field.key, item);
               });
               if (fields.length === 0) return null;
 

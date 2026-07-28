@@ -142,6 +142,7 @@ export interface ProfitCalculatorInput {
   interiorCost: number; // 인테리어(필요경비), 기본 300만원
   evictionCost: number; // 명도비, 기본 0
   unpaidMaintenanceFee: number; // 미납관리비, 기본 0
+  rightsAssumptionAmount: number; // AI가 자료 근거로 자동 산정한 낙찰자 인수 예상금액
   extraRealtyFee: number; // 부동산 추가수수료, 기본 0
   isOver85sqm: boolean; // 85㎡ 초과 여부(부가세 적용 대상)
   vatAmount: number; // 부가세(85㎡ 초과 물건에 한해 직접 입력, 기본 0)
@@ -153,12 +154,13 @@ export interface ProfitCalculatorInput {
 }
 
 export interface ProfitCalculatorResult {
-  bidRatio: number; // 입찰가율(낙찰가/최저가)
+  bidRatio: number; // 감정가 대비 입찰가율(입찰가/감정가)
   loanByAppraisal: number; // 감정가 기준 대출한도
   loanByBidPrice: number; // 낙찰가 기준 대출한도
   loanLimit: number; // 대출한도(감정가·낙찰가·소득 기준 중 최저, 기존대출 차감 전)
   loanAmount: number; // 최종 대출금 = max(0, 대출한도 - 기존대출)
   equity: number; // 실투자금(내자본금) = 취득금액합계 - 대출금
+  requiredCash: number; // 실제 준비자금 = 낙찰가+취득·보유 초기비용-대출금
   acquisitionTaxRate: number;
   acquisitionTax: number; // 취득세(등기비용 중 취득세분)
   legalFee: number; // 법무비(법무사 보수·채권매입비 등 추정, 낙찰가의 0.7%)
@@ -191,6 +193,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     interiorCost,
     evictionCost,
     unpaidMaintenanceFee,
+    rightsAssumptionAmount,
     extraRealtyFee,
     vatAmount,
     applyProgressiveDeduction,
@@ -200,7 +203,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     usage,
   } = input;
 
-  const bidRatio = minPrice > 0 ? bidPrice / minPrice : 0;
+  const bidRatio = appraisedValue > 0 ? bidPrice / appraisedValue : 0;
 
   const loanByAppraisal = Math.floor(appraisedValue * loanRatioByAppraisal);
   const loanByBidPrice = Math.floor(bidPrice * loanRatioByBidPrice);
@@ -230,11 +233,25 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     interiorCost +
     evictionCost +
     unpaidMaintenanceFee +
+    rightsAssumptionAmount +
     saleBrokerageFee +
     loanInterest +
     earlyRepaymentFee;
 
   const equity = Math.max(0, totalAcquisitionCost - loanAmount);
+  const requiredCash = Math.max(
+    0,
+    bidPrice +
+      acquisitionTax +
+      legalFee +
+      interiorCost +
+      evictionCost +
+      unpaidMaintenanceFee +
+      rightsAssumptionAmount +
+      loanInterest +
+      earlyRepaymentFee -
+      loanAmount,
+  );
 
   // 부가세는 매도자가 실질적으로 갖는 돈이 아니므로(오피스텔 등 건물분
   // 부가세는 매수인에게 별도 징수해 국가에 납부) 매매차익 자체에서 뺀다
@@ -268,6 +285,7 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     loanLimit,
     loanAmount,
     equity,
+    requiredCash,
     acquisitionTaxRate: taxRate,
     acquisitionTax,
     legalFee,
@@ -308,6 +326,9 @@ export function estimateDefaultProfit(params: {
   housingCount?: number | null;
   regulatedArea?: boolean | null;
   usage?: string | null;
+  unpaidFeeAmount?: number | null;
+  unpaidFeeCheckedAt?: string | null;
+  rightsAssumptionAmount?: number | null;
 }): ProfitCalculatorResult {
   const {
     minPrice,
@@ -320,6 +341,9 @@ export function estimateDefaultProfit(params: {
     housingCount = null,
     regulatedArea = null,
     usage = null,
+    unpaidFeeAmount = 0,
+    unpaidFeeCheckedAt = null,
+    rightsAssumptionAmount = 0,
   } = params;
   const over85 = isOver85Sqm(area) || isOfficetel(usage);
   return calculateProfit({
@@ -336,7 +360,8 @@ export function estimateDefaultProfit(params: {
     earlyRepaymentFeeRate: 0,
     interiorCost: 2_000_000,
     evictionCost: 2_000_000,
-    unpaidMaintenanceFee: 1_000_000,
+    unpaidMaintenanceFee: unpaidFeeCheckedAt ? Math.max(0, unpaidFeeAmount ?? 0) : 0,
+    rightsAssumptionAmount: Math.max(0, rightsAssumptionAmount ?? 0),
     extraRealtyFee: 0,
     isOver85sqm: over85,
     vatAmount: over85 ? Math.round(appraisedValue * 0.1 * 0.5) : 0,

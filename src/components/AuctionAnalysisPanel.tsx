@@ -1,9 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Brain, Loader2, RefreshCw, Send } from "lucide-react";
-import type { AuctionAnalysisResult } from "@/types/auction";
-import { analyzeAuction, askAi, fetchAuctionAnalysis } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Brain, CircleAlert, FileQuestion, Loader2, RefreshCw, Send, ShieldCheck, Users } from "lucide-react";
+import type {
+  AuctionAnalysisResult,
+  AuctionItem,
+  AuctionRightsReview,
+} from "@/types/auction";
+import {
+  analyzeAuction,
+  askAi,
+  fetchAuctionRightsReview,
+  saveAuctionRightsReview,
+} from "@/lib/api";
 
 const ANALYSIS_ENGINE_LABEL = "경매코치 AI";
 const SECTION = "text-[14px] leading-relaxed";
@@ -20,6 +29,77 @@ function AnalysisSection({ title, children }: { title: string; children: React.R
     <div className="space-y-2">
       <h4 className={TITLE}>{title}</h4>
       <div className={`${SECTION} text-foreground/90 whitespace-pre-wrap`}>{children}</div>
+    </div>
+  );
+}
+
+function hasText(value: unknown): boolean {
+  const text = String(value ?? "").trim();
+  return text !== "" && text !== "-";
+}
+
+function rightsReviewStatus(result: AuctionAnalysisResult) {
+  if (result.stale) {
+    return {
+      label: "재분석 필요",
+      description: "물건 또는 내부 경매지식이 변경되었습니다.",
+      tone: "warning" as const,
+    };
+  }
+  if (result.risks?.length > 0) {
+    const highRisk = result.risks.some((risk) =>
+      /(인수|선순위|유치권|법정지상권|대항력|전세권|가처분|가등기)/.test(risk),
+    );
+    return {
+      label: highRisk ? "주의 필요" : "추가 확인 필요",
+      description: `확인할 위험요소 ${result.risks.length}건`,
+      tone: "warning" as const,
+    };
+  }
+  return {
+    label: "입찰 검토 가능",
+    description: "현재 확보된 자료와 AI 분석 기준",
+    tone: "clear" as const,
+  };
+}
+
+const RIGHTS_TERMS = [
+  { term: "대항력", meaning: "임차인이 낙찰자에게도 보증금 반환을 요구할 수 있는 권리" },
+  { term: "말소기준권리", meaning: "낙찰 후 없어지는 권리를 판단하는 기준이 되는 권리" },
+  { term: "선순위 임차인", meaning: "낙찰자가 보증금을 부담할 수 있어 먼저 확인해야 하는 임차인" },
+  { term: "근저당", meaning: "채무를 담보하기 위해 부동산에 설정된 권리" },
+  { term: "유치권", meaning: "공사대금 등을 받을 때까지 부동산을 점유할 수 있다고 주장하는 권리" },
+  { term: "법정지상권", meaning: "토지와 건물 소유자가 달라질 때 건물을 계속 사용할 수 있는 권리" },
+  { term: "가등기", meaning: "향후 소유권 이전 등을 먼저 확보하기 위해 임시로 해 둔 등기" },
+] as const;
+
+function RightsSummaryCard({
+  label,
+  value,
+  description,
+  icon,
+  warning = false,
+}: {
+  label: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+  warning?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border px-3.5 py-3 ${
+        warning ? "border-amber-200 bg-amber-50/70" : "border-border bg-card"
+      }`}
+    >
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p className={`mt-1.5 text-sm font-bold ${warning ? "text-amber-800" : "text-foreground"}`}>
+        {value}
+      </p>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -78,40 +158,262 @@ function AskAboutItemBox({ auctionId }: { auctionId: string }) {
   );
 }
 
+const EMPTY_RIGHTS_REVIEW: AuctionRightsReview = {
+  status: "uninvestigated",
+  baselineRightType: "",
+  baselineRightDate: "",
+  seniorTenantStatus: "unknown",
+  opposabilityStatus: "unknown",
+  depositAmount: null,
+  expectedDividendAmount: null,
+  assumptionAmount: null,
+  specialRights: "",
+  evidenceNote: "",
+  confirmedAt: "",
+  confirmedBy: "",
+};
+
+function RightsReviewEditor({
+  auctionId,
+  analysis,
+  initialReview,
+  onSaved,
+}: {
+  auctionId: string;
+  analysis: AuctionAnalysisResult;
+  initialReview: AuctionRightsReview | null;
+  onSaved: (review: AuctionRightsReview) => void;
+}) {
+  const [form, setForm] = useState<AuctionRightsReview>(
+    initialReview ?? EMPTY_RIGHTS_REVIEW,
+  );
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setForm(initialReview ?? EMPTY_RIGHTS_REVIEW);
+  }, [initialReview]);
+
+  const setAmount = (
+    key: "depositAmount" | "expectedDividendAmount" | "assumptionAmount",
+    raw: string,
+  ) => {
+    const cleaned = raw.replace(/[^\d]/g, "");
+    setForm((prev) => ({ ...prev, [key]: cleaned ? Number(cleaned) : null }));
+  };
+
+  const applyAiDraft = () => {
+    const draft = analysis.structuredRights;
+    if (!draft) {
+      setMessage("현재 분석에는 구조화 초안이 없습니다. 다시 분석해 주세요.");
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      status: draft.reviewStatus === "none" ? "none" : "in_progress",
+      baselineRightType: draft.baselineRight.type,
+      baselineRightDate: draft.baselineRight.date,
+      seniorTenantStatus: draft.tenant.priorityStatus,
+      opposabilityStatus: draft.tenant.opposability,
+      depositAmount: draft.tenant.depositAmount,
+      assumptionAmount: draft.assumption.estimatedAmount,
+      evidenceNote: [
+        ...draft.evidence,
+        ...draft.missingEvidence.map((value) => `미확인: ${value}`),
+        draft.assumption.reason,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    }));
+    setMessage("AI 초안을 불러왔습니다. 근거 자료와 금액을 확인한 뒤 저장하세요.");
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setMessage("");
+    try {
+      const saved = await saveAuctionRightsReview(auctionId, form);
+      setForm(saved);
+      onSaved(saved);
+      setMessage("관리자 확인값을 저장했습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const findingOptions = [
+    ["unknown", "미확인"],
+    ["none", "해당 없음"],
+    ["possible", "가능성 있음"],
+    ["confirmed", "확인 완료"],
+  ] as const;
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-card px-4 py-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h4 className={TITLE}>관리자 권리분석 확인</h4>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            AI 초안은 참고용이며, 저장한 관리자 확인값만 사용자 화면과 계산기에 사용됩니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={applyAiDraft}
+          className="rounded-sm border border-primary/30 px-3 py-1.5 text-xs font-semibold text-primary"
+        >
+          AI 초안 불러오기
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-xs font-medium">
+          검토 상태
+          <select
+            value={form.status}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                status: event.target.value as AuctionRightsReview["status"],
+              }))
+            }
+            className="mt-1 block w-full rounded-sm border border-border bg-card px-2.5 py-2 text-sm"
+          >
+            <option value="uninvestigated">미조사</option>
+            <option value="in_progress">조사 중</option>
+            <option value="none">해당 없음</option>
+            <option value="confirmed">확인 완료</option>
+            <option value="unverifiable">확인 불가</option>
+          </select>
+        </label>
+        <label className="text-xs font-medium">
+          말소기준권리
+          <input
+            value={form.baselineRightType}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, baselineRightType: event.target.value }))
+            }
+            className="mt-1 block w-full rounded-sm border border-border px-2.5 py-2 text-sm"
+            placeholder="예: 근저당권"
+          />
+        </label>
+        <label className="text-xs font-medium">
+          말소기준권리 일자
+          <input
+            type="date"
+            value={form.baselineRightDate}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, baselineRightDate: event.target.value }))
+            }
+            className="mt-1 block w-full rounded-sm border border-border px-2.5 py-2 text-sm"
+          />
+        </label>
+        {[
+          ["seniorTenantStatus", "선순위 임차인"],
+          ["opposabilityStatus", "대항력"],
+        ].map(([key, label]) => (
+          <label key={key} className="text-xs font-medium">
+            {label}
+            <select
+              value={form[key as "seniorTenantStatus" | "opposabilityStatus"]}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  [key]: event.target.value,
+                }))
+              }
+              className="mt-1 block w-full rounded-sm border border-border bg-card px-2.5 py-2 text-sm"
+            >
+              {findingOptions.map(([value, text]) => (
+                <option key={value} value={value}>{text}</option>
+              ))}
+            </select>
+          </label>
+        ))}
+        {[
+          ["depositAmount", "임차보증금"],
+          ["expectedDividendAmount", "예상 배당액"],
+          ["assumptionAmount", "낙찰자 인수 예상금액"],
+        ].map(([key, label]) => (
+          <label key={key} className="text-xs font-medium">
+            {label}
+            <input
+              inputMode="numeric"
+              value={
+                form[key as "depositAmount" | "expectedDividendAmount" | "assumptionAmount"]
+                  ?.toLocaleString("ko-KR") ?? ""
+              }
+              onChange={(event) =>
+                setAmount(
+                  key as "depositAmount" | "expectedDividendAmount" | "assumptionAmount",
+                  event.target.value,
+                )
+              }
+              className="mt-1 block w-full rounded-sm border border-border px-2.5 py-2 text-right text-sm"
+              placeholder="확인 전에는 비워두세요"
+            />
+          </label>
+        ))}
+      </div>
+      <label className="block text-xs font-medium">
+        특수권리
+        <textarea
+          value={form.specialRights}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, specialRights: event.target.value }))
+          }
+          rows={2}
+          className="mt-1 block w-full rounded-sm border border-border px-2.5 py-2 text-sm"
+        />
+      </label>
+      <label className="block text-xs font-medium">
+        확인 근거·미확인 자료
+        <textarea
+          value={form.evidenceNote}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, evidenceNote: event.target.value }))
+          }
+          rows={4}
+          className="mt-1 block w-full rounded-sm border border-border px-2.5 py-2 text-sm"
+        />
+      </label>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] text-muted-foreground">{message}</p>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving}
+          className="rounded-sm bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {saving ? "저장 중..." : "관리자 확인값 저장"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AuctionAnalysisPanel({
   auctionId,
+  item,
   isAdmin = false,
   aiAnalysisLimit,
   aiAnalysisUsed,
   onAnalysisUsed,
+  onResult,
 }: {
   auctionId: string;
+  item?: AuctionItem;
   isAdmin?: boolean;
   aiAnalysisLimit?: number;
   aiAnalysisUsed?: number;
   onAnalysisUsed?: () => void;
+  onResult?: (result: AuctionAnalysisResult) => void;
 }) {
   const [result, setResult] = useState<AuctionAnalysisResult | null>(null);
-  const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
-
-  const loadCached = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await fetchAuctionAnalysis(auctionId);
-      setResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "분석 결과를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }, [auctionId]);
-
-  useEffect(() => {
-    void loadCached();
-  }, [loadCached]);
 
   const wasCachedBeforeRun = result != null;
 
@@ -121,6 +423,7 @@ export function AuctionAnalysisPanel({
     try {
       const data = await analyzeAuction(auctionId, refresh);
       setResult(data);
+      onResult?.(data);
       if (!isAdmin && !data.cached && !wasCachedBeforeRun) {
         onAnalysisUsed?.();
       }
@@ -136,16 +439,7 @@ export function AuctionAnalysisPanel({
       ? Math.max(0, aiAnalysisLimit - aiAnalysisUsed)
       : null;
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-        <Loader2 size={16} className="animate-spin" />
-        분석 기록 확인 중...
-      </div>
-    );
-  }
-
-  const canRunAnalysis = isAdmin || !result;
+  const canRunAnalysis = !result;
 
   return (
     <div className="space-y-4">
@@ -186,17 +480,6 @@ export function AuctionAnalysisPanel({
                 </>
               )}
             </button>
-            {result && isAdmin && (
-              <button
-                type="button"
-                onClick={() => void runAnalysis(true)}
-                disabled={analyzing}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-sm border border-border bg-card disabled:opacity-50"
-                title="캐시 무시하고 새로 분석"
-              >
-                <RefreshCw size={13} />
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -216,7 +499,7 @@ export function AuctionAnalysisPanel({
       {analyzing && (
         <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 size={24} className="animate-spin text-primary" />
-          {ANALYSIS_ENGINE_LABEL}가 물건 정보와 회원 투자정보를 분석하고 있습니다...
+          {ANALYSIS_ENGINE_LABEL}가 이 물건의 등기·임차인 권리관계를 분석하고 있습니다...
         </div>
       )}
 
@@ -228,16 +511,22 @@ export function AuctionAnalysisPanel({
             >
               {result.recommendation}
             </span>
-            {result.cached && (
-              <span className="text-[11px] text-muted-foreground">저장된 분석</span>
-            )}
-            {result.stale && (
-              <span className="text-[11px] text-amber-700">물건 정보 변경됨 — 다시 분석 권장</span>
-            )}
             {result.model && (
               <span className="text-[11px] text-muted-foreground ml-auto">
                 {ANALYSIS_ENGINE_LABEL}
               </span>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => void runAnalysis(true)}
+                disabled={analyzing}
+                className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+                title="현재 RAG 지식을 반영해 공용 권리분석을 새로 생성합니다."
+              >
+                <RefreshCw size={12} />
+                새 지식 반영해 다시 분석
+              </button>
             )}
           </div>
 
@@ -247,14 +536,148 @@ export function AuctionAnalysisPanel({
             </p>
           )}
 
-          <AnalysisSection title="가격·시세 분석">{result.priceAnalysis || "-"}</AnalysisSection>
-          <AnalysisSection title="권리분석">{result.rightsAnalysis || "-"}</AnalysisSection>
-          <AnalysisSection title="대출·자금 분석">{result.loanAnalysis || "-"}</AnalysisSection>
-          <AnalysisSection title="투자 적합도">{result.investmentFit || "-"}</AnalysisSection>
+          {(() => {
+            const review = rightsReviewStatus(result);
+            const tenantAvailable =
+              hasText(item?.tenantInfo) || hasText(item?.tenantDetail);
+            const registryAvailable = hasText(item?.buildingRegistry);
+            const missingDocuments = [
+              !registryAvailable ? "등기 자료" : null,
+              !tenantAvailable ? "임차인·점유 자료" : null,
+              !hasText(item?.unpaidFeeCheckedAt) ? "미납 관리비 조사" : null,
+            ].filter((value): value is string => Boolean(value));
+            const evidenceSources = [
+              { label: "물건 기본정보", available: true },
+              { label: "등기 자료", available: registryAvailable },
+              { label: "임차인 조사", available: tenantAvailable },
+              {
+                label: `내부 경매지식 ${result.knowledgeCount ?? 0}건`,
+                available: (result.knowledgeCount ?? 0) > 0,
+              },
+            ];
+            const autoRights = result.autoRights;
+            const assumptionLabel = autoRights?.calculationReady
+              ? autoRights.assumptionAmount && autoRights.assumptionAmount > 0
+                ? `${autoRights.assumptionAmount.toLocaleString("ko-KR")}원`
+                : "인수금액 없음"
+              : "금액 확인 필요";
+
+            return (
+              <div className="rounded-xl border border-primary/15 bg-primary/[0.025] p-4 space-y-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/60">
+                    Rights Summary
+                  </p>
+                  <h4 className="mt-0.5 text-[15px] font-bold text-foreground">
+                    권리분석 한눈에 보기
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <RightsSummaryCard
+                    label="쉬운 결론"
+                    value={review.label}
+                    description={review.description}
+                    icon={review.tone === "clear" ? <ShieldCheck size={13} /> : <CircleAlert size={13} />}
+                    warning={review.tone === "warning"}
+                  />
+                  <RightsSummaryCard
+                    label="낙찰 후 부담 가능 금액"
+                    value={assumptionLabel}
+                    description={
+                      autoRights?.calculationReady
+                        ? "확인 가능한 자료를 기준으로 AI가 자동 계산한 예상 금액입니다."
+                        : "필수 자료가 부족하면 계산기에 임의 금액을 넣지 않습니다."
+                    }
+                    icon={<FileQuestion size={13} />}
+                    warning={!autoRights?.calculationReady}
+                  />
+                  <RightsSummaryCard
+                    label="임차인 상태"
+                    value={tenantAvailable ? "자료 있음" : "확인 필요"}
+                    description={
+                      tenantAvailable
+                        ? "아래 권리분석에서 대항력·보증금을 확인하세요."
+                        : "저장된 임차인·점유 자료가 없습니다."
+                    }
+                    icon={<Users size={13} />}
+                    warning={!tenantAvailable}
+                  />
+                  <RightsSummaryCard
+                    label="등기 자료"
+                    value={registryAvailable ? "자료 있음" : "확인 필요"}
+                    description={
+                      registryAvailable
+                        ? "아래 상세 분석과 최신 등기부를 함께 확인하세요."
+                        : "저장된 건물등기 자료가 없습니다."
+                    }
+                    icon={<ShieldCheck size={13} />}
+                    warning={!registryAvailable}
+                  />
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-foreground">미확인 자료</p>
+                  {missingDocuments.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {missingDocuments.map((document) => (
+                        <span
+                          key={document}
+                          className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800"
+                        >
+                          {document}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      화면에서 확인 가능한 주요 자료가 등록되어 있습니다.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-foreground">분석에 사용한 근거</p>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {evidenceSources.map((source) => (
+                      <span
+                        key={source.label}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] ${
+                          source.available
+                            ? "border-blue-200 bg-blue-50 text-blue-800"
+                            : "border-slate-200 bg-slate-50 text-slate-500"
+                        }`}
+                      >
+                        {source.available ? "확인" : "미확인"} · {source.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  위 상태는 현재 저장된 자료와 AI 분석을 정리한 참고 정보입니다. 최신 등기부,
+                  매각물건명세서와 실제 점유 상태를 확인한 뒤 입찰을 결정하세요.
+                </p>
+              </div>
+            );
+          })()}
+
+          {(result.autoRights?.exceptionReasons?.length ?? 0) > 0 && result.autoRights && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
+              <p className="text-sm font-semibold text-amber-900">
+                {result.autoRights.label} · 아래 항목만 추가 확인하세요
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-800">
+                {result.autoRights.exceptionReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {result.risks?.length > 0 && (
-            <div className="space-y-2">
-              <h4 className={TITLE}>주요 리스크</h4>
+            <div className="space-y-2 rounded-xl border border-red-200 bg-red-50/60 px-4 py-3.5">
+              <h4 className="text-[15px] font-semibold text-red-800">먼저 확인할 주요 리스크</h4>
               <ul className="list-disc pl-5 space-y-1 text-sm text-destructive/90">
                 {result.risks.map((r, i) => (
                   <li key={i}>{r}</li>
@@ -264,19 +687,52 @@ export function AuctionAnalysisPanel({
           )}
 
           {result.checklist?.length > 0 && (
-            <div className="space-y-2">
-              <h4 className={TITLE}>입찰 전 체크리스트</h4>
-              <ul className="list-decimal pl-5 space-y-1 text-sm text-foreground/90">
+            <div className="space-y-2 rounded-xl border border-border bg-card px-4 py-3.5">
+              <h4 className={TITLE}>입찰 전 반드시 확인하세요</h4>
+              <ul className="space-y-2 text-sm text-foreground/90">
                 {result.checklist.map((c, i) => (
-                  <li key={i}>{c}</li>
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <span>{c}</span>
+                  </li>
                 ))}
               </ul>
             </div>
           )}
 
+          <AnalysisSection title="권리분석 상세">{result.rightsAnalysis || "-"}</AnalysisSection>
+
+          {(() => {
+            const analysisText = [
+              result.rightsAnalysis,
+              ...(result.risks ?? []),
+              ...(result.checklist ?? []),
+            ].join(" ");
+            const termsToExplain = RIGHTS_TERMS.filter(({ term }) =>
+              analysisText.includes(term),
+            );
+            if (termsToExplain.length === 0) return null;
+            return (
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3.5">
+                <h4 className={TITLE}>어려운 용어 쉽게 보기</h4>
+                <dl className="mt-2.5 space-y-2">
+                  {termsToExplain.map(({ term, meaning }) => (
+                    <div key={term} className="grid gap-0.5 sm:grid-cols-[7rem_1fr]">
+                      <dt className="text-sm font-semibold text-blue-900">{term}</dt>
+                      <dd className="text-sm leading-relaxed text-foreground/80">{meaning}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })()}
+
+
           {result.citations && result.citations.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-border">
-              <h4 className={TITLE}>참고한 경매지식</h4>
+              <h4 className={TITLE}>분석에 참고한 내부 경매지식</h4>
               <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
                 {result.citations.map((c, i) => (
                   <li key={i}>{c}</li>
