@@ -17,9 +17,21 @@ import { renderLogMessage } from "@/lib/crawler-log-format";
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-function formatTime(iso: string) {
+function formatLogDateTime(iso: string) {
   try {
-    return new Date(iso).toLocaleTimeString("ko-KR", { hour12: false });
+    const parts = new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date(iso));
+    const value = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? "";
+    return `${value("year")}.${value("month")}.${value("day")} ${value("hour")}:${value("minute")}:${value("second")}`;
   } catch {
     return iso;
   }
@@ -450,7 +462,7 @@ export function CrawlerDailyJobTab() {
                   }
                 >
                   <span className="text-muted-foreground">
-                    [{formatTime(entry.at)}]
+                    [{formatLogDateTime(entry.at)}]
                   </span>{" "}
                   {renderLogMessage(entry.message)}
                 </div>
