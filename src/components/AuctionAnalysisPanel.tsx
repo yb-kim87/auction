@@ -541,20 +541,6 @@ export function AuctionAnalysisPanel({
             const tenantAvailable =
               hasText(item?.tenantInfo) || hasText(item?.tenantDetail);
             const registryAvailable = hasText(item?.buildingRegistry);
-            const missingDocuments = [
-              !registryAvailable ? "등기 자료" : null,
-              !tenantAvailable ? "임차인·점유 자료" : null,
-              !hasText(item?.unpaidFeeCheckedAt) ? "미납 관리비 조사" : null,
-            ].filter((value): value is string => Boolean(value));
-            const evidenceSources = [
-              { label: "물건 기본정보", available: true },
-              { label: "등기 자료", available: registryAvailable },
-              { label: "임차인 조사", available: tenantAvailable },
-              {
-                label: `내부 경매지식 ${result.knowledgeCount ?? 0}건`,
-                available: (result.knowledgeCount ?? 0) > 0,
-              },
-            ];
             const autoRights = result.autoRights;
             const assumptionLabel = autoRights?.calculationReady
               ? autoRights.assumptionAmount && autoRights.assumptionAmount > 0
@@ -616,44 +602,6 @@ export function AuctionAnalysisPanel({
                   />
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold text-foreground">미확인 자료</p>
-                  {missingDocuments.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {missingDocuments.map((document) => (
-                        <span
-                          key={document}
-                          className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800"
-                        >
-                          {document}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      화면에서 확인 가능한 주요 자료가 등록되어 있습니다.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold text-foreground">분석에 사용한 근거</p>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {evidenceSources.map((source) => (
-                      <span
-                        key={source.label}
-                        className={`rounded-full border px-2.5 py-1 text-[11px] ${
-                          source.available
-                            ? "border-blue-200 bg-blue-50 text-blue-800"
-                            : "border-slate-200 bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        {source.available ? "확인" : "미확인"} · {source.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   위 상태는 현재 저장된 자료와 AI 분석을 정리한 참고 정보입니다. 최신 등기부,
                   매각물건명세서와 실제 점유 상태를 확인한 뒤 입찰을 결정하세요.
@@ -661,19 +609,6 @@ export function AuctionAnalysisPanel({
               </div>
             );
           })()}
-
-          {(result.autoRights?.exceptionReasons?.length ?? 0) > 0 && result.autoRights && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
-              <p className="text-sm font-semibold text-amber-900">
-                {result.autoRights.label} · 아래 항목만 추가 확인하세요
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-800">
-                {result.autoRights.exceptionReasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-            </div>
-          )}
 
           {result.risks?.length > 0 && (
             <div className="space-y-2 rounded-xl border border-red-200 bg-red-50/60 px-4 py-3.5">
@@ -730,16 +665,6 @@ export function AuctionAnalysisPanel({
           })()}
 
 
-          {result.citations && result.citations.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-border">
-              <h4 className={TITLE}>분석에 참고한 내부 경매지식</h4>
-              <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                {result.citations.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
       </div>
