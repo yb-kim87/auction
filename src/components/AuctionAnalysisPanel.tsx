@@ -39,6 +39,11 @@ function hasText(value: unknown): boolean {
 }
 
 function rightsReviewStatus(result: AuctionAnalysisResult) {
+  const structured = result.structuredRights;
+  const assumptionNone =
+    structured?.assumption.status === "none" &&
+    structured.assumption.estimatedAmount === 0;
+  const tenantOpposabilityNone = structured?.tenant.opposability === "none";
   if (result.stale) {
     return {
       label: "재분석 필요",
@@ -46,13 +51,23 @@ function rightsReviewStatus(result: AuctionAnalysisResult) {
       tone: "warning" as const,
     };
   }
-  if (result.risks?.length > 0) {
-    const highRisk = result.risks.some((risk) =>
+  if (assumptionNone && tenantOpposabilityNone) {
+    return {
+      label: "인수사항 없음",
+      description: "대항력 있는 임차인이 없어 입찰 검토 가능",
+      tone: "clear" as const,
+    };
+  }
+  const rightsRisks = (result.risks ?? []).filter(
+    (risk) => !/미납\s*관리비|관리비[^.\n]*미납/.test(risk),
+  );
+  if (rightsRisks.length > 0) {
+    const highRisk = rightsRisks.some((risk) =>
       /(인수|선순위|유치권|법정지상권|대항력|전세권|가처분|가등기)/.test(risk),
     );
     return {
       label: highRisk ? "주의 필요" : "추가 확인 필요",
-      description: `확인할 위험요소 ${result.risks.length}건`,
+      description: `확인할 권리 위험 ${rightsRisks.length}건`,
       tone: "warning" as const,
     };
   }
@@ -440,6 +455,9 @@ export function AuctionAnalysisPanel({
       : null;
 
   const canRunAnalysis = !result;
+  const majorRightsRisks = (result?.risks ?? []).filter(
+    (risk) => !/미납\s*관리비|관리비[^.\n]*미납/.test(risk),
+  );
 
   return (
     <div className="space-y-4">
@@ -538,15 +556,45 @@ export function AuctionAnalysisPanel({
 
           {(() => {
             const review = rightsReviewStatus(result);
-            const tenantAvailable =
-              hasText(item?.tenantInfo) || hasText(item?.tenantDetail);
-            const registryAvailable = hasText(item?.buildingRegistry);
             const autoRights = result.autoRights;
-            const assumptionLabel = autoRights?.calculationReady
+            const structured = result.structuredRights;
+            const assumptionNone =
+              structured?.assumption.status === "none" &&
+              structured.assumption.estimatedAmount === 0;
+            const assumptionLabel = assumptionNone
+              ? "0원"
+              : autoRights?.calculationReady
               ? autoRights.assumptionAmount && autoRights.assumptionAmount > 0
                 ? `${autoRights.assumptionAmount.toLocaleString("ko-KR")}원`
-                : "인수금액 없음"
+                : "0원"
               : "금액 확인 필요";
+            const noInvestigatedTenant =
+              /조사된 임차내역이 없어|조사된 임차내역 없음/.test(
+                `${result.summary} ${result.rightsAnalysis}`,
+              );
+            const tenantValue =
+              structured?.tenant.opposability === "none"
+                ? noInvestigatedTenant
+                  ? "임차인 없음"
+                  : "대항력 없음"
+                : structured?.tenant.opposability === "possible"
+                  ? "선순위 가능"
+                  : "확인 필요";
+            const tenantDescription =
+              tenantValue === "임차인 없음"
+                ? "법원 조사자료상 확인된 임차인이 없습니다."
+                : tenantValue === "대항력 없음"
+                  ? "확인된 임차인은 낙찰자에게 대항할 수 없습니다."
+                  : tenantValue === "선순위 가능"
+                    ? "보증금 인수 가능성을 추가로 확인해야 합니다."
+                    : "전입일과 대항요건 확인이 필요합니다.";
+            const baseline = structured?.baselineRight;
+            const baselineValue = hasText(baseline?.type)
+              ? baseline!.type
+              : "확인 필요";
+            const baselineDescription = hasText(baseline?.date)
+              ? `말소기준일 ${baseline!.date}`
+              : "말소기준권리 종류와 일자를 확인하세요.";
 
             return (
               <div className="rounded-xl border border-primary/15 bg-primary/[0.025] p-4 space-y-4">
@@ -571,50 +619,54 @@ export function AuctionAnalysisPanel({
                     label="낙찰 후 부담 가능 금액"
                     value={assumptionLabel}
                     description={
-                      autoRights?.calculationReady
-                        ? "확인 가능한 자료를 기준으로 AI가 자동 계산한 예상 금액입니다."
+                      assumptionNone
+                        ? tenantValue === "임차인 없음"
+                          ? "임차인이 없어 인수할 임차보증금이 없습니다."
+                          : "대항력 있는 임차인이 없어 인수할 임차보증금이 없습니다."
+                        : autoRights?.calculationReady
+                          ? "확인 가능한 자료를 기준으로 산정한 예상 금액입니다."
                         : "필수 자료가 부족하면 계산기에 임의 금액을 넣지 않습니다."
                     }
                     icon={<FileQuestion size={13} />}
-                    warning={!autoRights?.calculationReady}
+                    warning={!assumptionNone && !autoRights?.calculationReady}
                   />
                   <RightsSummaryCard
                     label="임차인 상태"
-                    value={tenantAvailable ? "자료 있음" : "확인 필요"}
-                    description={
-                      tenantAvailable
-                        ? "아래 권리분석에서 대항력·보증금을 확인하세요."
-                        : "저장된 임차인·점유 자료가 없습니다."
-                    }
+                    value={tenantValue}
+                    description={tenantDescription}
                     icon={<Users size={13} />}
-                    warning={!tenantAvailable}
+                    warning={tenantValue === "확인 필요" || tenantValue === "선순위 가능"}
                   />
                   <RightsSummaryCard
-                    label="등기 자료"
-                    value={registryAvailable ? "자료 있음" : "확인 필요"}
-                    description={
-                      registryAvailable
-                        ? "아래 상세 분석과 최신 등기부를 함께 확인하세요."
-                        : "저장된 건물등기 자료가 없습니다."
-                    }
+                    label="말소기준권리"
+                    value={baselineValue}
+                    description={baselineDescription}
                     icon={<ShieldCheck size={13} />}
-                    warning={!registryAvailable}
+                    warning={baselineValue === "확인 필요"}
                   />
                 </div>
 
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  위 상태는 현재 저장된 자료와 AI 분석을 정리한 참고 정보입니다. 최신 등기부,
-                  매각물건명세서와 실제 점유 상태를 확인한 뒤 입찰을 결정하세요.
+                  법원 제공자료를 기준으로 정리한 결과입니다. 입찰 전 최신 등기부와
+                  매각물건명세서를 반드시 확인하세요.
                 </p>
+                {item?.unpaidFeeAmount != null && item.unpaidFeeAmount > 0 && (
+                  <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] text-muted-foreground">
+                    참고 · 조사된 미납 관리비{" "}
+                    <span className="font-semibold text-foreground">
+                      {item.unpaidFeeAmount.toLocaleString("ko-KR")}원
+                    </span>
+                  </p>
+                )}
               </div>
             );
           })()}
 
-          {result.risks?.length > 0 && (
+          {majorRightsRisks.length > 0 && (
             <div className="space-y-2 rounded-xl border border-red-200 bg-red-50/60 px-4 py-3.5">
               <h4 className="text-[15px] font-semibold text-red-800">먼저 확인할 주요 리스크</h4>
               <ul className="list-disc pl-5 space-y-1 text-sm text-destructive/90">
-                {result.risks.map((r, i) => (
+                {majorRightsRisks.map((r, i) => (
                   <li key={i}>{r}</li>
                 ))}
               </ul>
