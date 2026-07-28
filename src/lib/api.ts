@@ -247,6 +247,53 @@ export async function fetchAdminAuctions(options: {
   return readJsonResponse<AdminAuctionPage>(res);
 }
 
+export type RightsRuleOption = {
+  value: string;
+  label: string;
+  description: string;
+};
+
+export type RightsAnalysisRule = {
+  code: string;
+  title: string;
+  description: string;
+  legalBasis: string;
+  defaultValue: string;
+  value: string;
+  options: RightsRuleOption[];
+  editable: boolean;
+  sortOrder: number;
+  updatedBy: string;
+  updatedAt: string | null;
+};
+
+export async function fetchRightsAnalysisRules(): Promise<RightsAnalysisRule[]> {
+  const res = await fetch(`${API_BASE}/ai/rights-rules`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "권리분석 규칙을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateRightsAnalysisRule(
+  code: string,
+  value: string,
+): Promise<RightsAnalysisRule> {
+  const res = await fetch(`${API_BASE}/ai/rights-rules/${encodeURIComponent(code)}`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ value }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "권리분석 규칙을 저장하지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 /** AI 운영 화면처럼 전체 물건 매핑이 필요한 곳에서만 페이지를 순차 조회한다. */
 export async function fetchAllAdminAuctions(): Promise<AuctionItem[]> {
   const first = await fetchAdminAuctions({ page: 1, pageSize: 100 });

@@ -32,6 +32,7 @@ import { AccountNavLink } from "@/components/AccountNavLink";
 import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
 import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
+import { RightsRulesTab } from "./RightsRulesTab";
 import { LoanPolicyTab } from "./LoanPolicyTab";
 import { TagRulesTab } from "./TagRulesTab";
 import { StrategyTagsTab } from "./StrategyTagsTab";
@@ -91,7 +92,7 @@ type AdminTab =
   | "resaleMatch"
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
   | "coupangSourcing";
-type AiOpsSubTab = "knowledge" | "loanPolicy" | "strategyTags" | "aiPlatform";
+type AiOpsSubTab = "rightsRules" | "knowledge" | "loanPolicy" | "strategyTags" | "aiPlatform";
 type AiPlatformSubTab = "normalizer" | "feature" | "tag";
 type StrategyTagsSubTab = "tagRules" | "strategyRules";
 
@@ -107,6 +108,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
 ];
 
 const AI_OPS_SUB_TABS: { id: AiOpsSubTab; label: string }[] = [
+  { id: "rightsRules", label: "권리분석" },
   { id: "knowledge", label: "AI지식" },
   { id: "loanPolicy", label: "대출정책" },
   { id: "strategyTags", label: "물건추천" },
@@ -194,7 +196,7 @@ export default function AdminPage() {
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [aiLimitUpdating, setAiLimitUpdating] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>("data");
-  const [aiOpsSubTab, setAiOpsSubTab] = useState<AiOpsSubTab>("knowledge");
+  const [aiOpsSubTab, setAiOpsSubTab] = useState<AiOpsSubTab>("rightsRules");
   const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
   const [strategyTagsSubTab, setStrategyTagsSubTab] = useState<StrategyTagsSubTab>("strategyRules");
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
@@ -1023,6 +1025,7 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
+              {aiOpsSubTab === "rightsRules" && <RightsRulesTab />}
               {aiOpsSubTab === "knowledge" && <KnowledgePanel />}
               {aiOpsSubTab === "loanPolicy" && <LoanPolicyTab />}
               {aiOpsSubTab === "strategyTags" && (
