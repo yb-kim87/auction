@@ -344,15 +344,15 @@ export function KnowledgeListPanel() {
               </select>
             </label>
             <label className="block text-sm space-y-1">
-              <span className="text-muted-foreground">등급</span>
+              <span className="text-muted-foreground">RAG 적용 방식</span>
               <select
                 value={form.grade}
                 onChange={(e) => setForm((f) => ({ ...f, grade: Number(e.target.value) }))}
                 className="w-full px-3 py-2 border border-border rounded-sm bg-background"
               >
-                <option value={1}>1등급</option>
-                <option value={2}>2등급</option>
-                <option value={3}>3등급 (기본)</option>
+                <option value={1}>항상 적용</option>
+                <option value={2}>관련 물건에 조건부 적용</option>
+                <option value={3}>참고 자료 (기본)</option>
               </select>
             </label>
             <label className="block text-sm space-y-1">
@@ -415,7 +415,7 @@ export function KnowledgeListPanel() {
               <tr className="border-b border-border">
                 <th className="px-3 py-2.5 text-left font-semibold">제목</th>
                 <th className="px-3 py-2.5 text-left font-semibold">분류</th>
-                <th className="px-3 py-2.5 text-left font-semibold">등급</th>
+                <th className="px-3 py-2.5 text-left font-semibold">RAG 적용</th>
                 <th className="px-3 py-2.5 text-left font-semibold">태그</th>
                 <th className="px-3 py-2.5 text-left font-semibold">상태</th>
                 <th className="px-3 py-2.5 text-left font-semibold">관리</th>
@@ -426,7 +426,13 @@ export function KnowledgeListPanel() {
                 <tr key={item.id} className="border-b border-border hover:bg-secondary/20">
                   <td className="px-3 py-2.5 font-medium max-w-[200px] truncate">{item.title}</td>
                   <td className="px-3 py-2.5">{item.category || "-"}</td>
-                  <td className="px-3 py-2.5">{item.grade ?? 3}등급</td>
+                  <td className="px-3 py-2.5">
+                    {(item.grade ?? 3) === 1
+                      ? "항상 적용"
+                      : (item.grade ?? 3) === 2
+                        ? "조건부 적용"
+                        : "참고 자료"}
+                  </td>
                   <td className="px-3 py-2.5 text-muted-foreground max-w-[160px] truncate">
                     {item.tags || "-"}
                   </td>

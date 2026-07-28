@@ -231,7 +231,7 @@ export interface AuctionKnowledgeItem {
   category: string;
   tags: string;
   content: string;
-  /** 중요도 등급. 1이 가장 중요, 숫자가 클수록 낮음. 기본값 3. */
+  /** RAG 적용 정책. 1=항상 적용, 2=조건부 적용, 3=참고 자료. */
   grade: number;
   active: boolean;
   createdAt: string;
