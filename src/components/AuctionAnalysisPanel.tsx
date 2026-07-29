@@ -556,6 +556,24 @@ export function AuctionAnalysisPanel({
               </span>
             )}
             {isAdmin && (
+              <span
+                className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  result.analysisSource === "rules_only"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : result.analysisSource === "ai_with_rag"
+                      ? "border-violet-200 bg-violet-50 text-violet-800"
+                      : "border-slate-200 bg-slate-50 text-slate-600"
+                }`}
+                title="일반 사용자가 이 물건을 새로 분석할 때 AI 이용횟수가 차감되는지 보여줍니다."
+              >
+                {result.analysisSource === "rules_only"
+                  ? "규칙 분석 · 이용횟수 차감 없음"
+                  : result.analysisSource === "ai_with_rag"
+                    ? "AI+RAG 분석 · 이용횟수 차감 대상"
+                    : "이전 분석 · 차감 여부 확인 불가"}
+              </span>
+            )}
+            {isAdmin && (
               <button
                 type="button"
                 onClick={() => void runAnalysis(true)}

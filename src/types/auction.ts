@@ -199,6 +199,8 @@ export interface AuctionAnalysisResult {
   risks: string[];
   citations?: string[];
   knowledgeCount?: number;
+  /** rules_only는 외부 AI와 사용자 이용횟수를 사용하지 않는다. */
+  analysisSource?: "rules_only" | "ai_with_rag";
   structuredRights?: {
     reviewStatus: "unknown" | "possible" | "none";
     baselineRight: { type: string; date: string; reason: string };
