@@ -2348,9 +2348,10 @@ export function AuctionDetailModal({
           </div>
 
           <div className="bg-card px-5 py-5 space-y-6">
-          {activeTab === "ai" ? (
-            item && (
+          <div className={activeTab === "ai" ? "block" : "hidden"} aria-hidden={activeTab !== "ai"}>
+            {item && (
               <AuctionAnalysisPanel
+                key={`analysis-${item.id}`}
                 auctionId={item.id}
                 item={item}
                 isAdmin={isAdmin}
@@ -2359,10 +2360,12 @@ export function AuctionDetailModal({
                 onAnalysisUsed={onAiAnalysisUsed}
                 onResult={setCachedAnalysis}
               />
-            )
-          ) : activeTab === "profit" ? (
-            item && (
+            )}
+          </div>
+          <div className={activeTab === "profit" ? "block" : "hidden"} aria-hidden={activeTab !== "profit"}>
+            {item && (
               <ProfitCalculatorPanel
+                key={`profit-${item.id}`}
                 item={item}
                 rightsAnalysis={cachedAnalysis}
                 loanRatio={loanRatio}
@@ -2372,9 +2375,9 @@ export function AuctionDetailModal({
                 housingCount={housingCount}
                 regulatedArea={regulatedArea}
               />
-            )
-          ) : (
-          <>
+            )}
+          </div>
+          <div className={activeTab === "info" ? "block" : "hidden"} aria-hidden={activeTab !== "info"}>
           {!editable && (
             <div className="rounded-2xl bg-card border border-border overflow-hidden">
               <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
@@ -2835,8 +2838,7 @@ export function AuctionDetailModal({
               );
             })
           )}
-          </>
-          )}
+          </div>
           </div>
         </div>
 
