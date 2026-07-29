@@ -1010,6 +1010,7 @@ type RegistryRow = {
   isClaimAmount: boolean;
   note: string;
   cancelled: boolean;
+  isBaseline: boolean;
 };
 
 // 헤더 뒤에 날짜만 오고 줄이 끝나는 형태("갑(1) 2023-03-31")와, 같은 줄에 곧바로
@@ -1079,7 +1080,8 @@ function parseRegistryDetail(raw: string): RegistryRow[] {
       }
     }
 
-    rows.push({ section, seq, date, rightType, holder, amount, isClaimAmount, note, cancelled });
+    const isBaseline = /말소기준등기/.test(note);
+    rows.push({ section, seq, date, rightType, holder, amount, isClaimAmount, note, cancelled, isBaseline });
     block = [];
   };
 
@@ -1139,12 +1141,26 @@ function RegistryTable({ value }: { value: string }) {
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className="border-t border-border/60">
+              <tr
+                key={i}
+                className={`border-t border-border/60 ${
+                  row.isBaseline ? "bg-amber-50 dark:bg-amber-950/30" : ""
+                }`}
+              >
                 <td className={detailTableBodyCellClass}>
                   {row.section}({row.seq})
                 </td>
                 <td className={detailTableBodyCellClass}>{row.date}</td>
-                <td className={detailTableBodyCellClass}>{row.rightType}</td>
+                <td className={detailTableBodyCellClass}>
+                  <span className={row.isBaseline ? "font-semibold text-amber-700 dark:text-amber-400" : ""}>
+                    {row.rightType}
+                  </span>
+                  {row.isBaseline && (
+                    <span className="ml-1 inline-flex px-1.5 py-0.5 text-[0.6rem] font-semibold rounded-sm border border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                      말소기준
+                    </span>
+                  )}
+                </td>
                 <td className={detailTableBodyCellClass}>{row.holder || "-"}</td>
                 <td className={`${detailTableBodyCellClass} text-right font-semibold`}>
                   {row.isClaimAmount ? (
