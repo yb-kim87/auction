@@ -80,12 +80,12 @@ function BrandPanel() {
               lineHeight: 1.35,
             }}
           >
-            경매코치
+            코치픽
             <br />
             경매 물건 분석 리스트
           </h1>
           <p className="text-white/60 text-[0.95rem] leading-relaxed">
-            경매코치가 제안하는 경매 투자 솔루션
+            코치픽이 제안하는 경매 투자 솔루션
           </p>
         </div>
 
@@ -562,7 +562,7 @@ export default function LoginPage() {
             {tab === "signup" && <SignupSteps />}
 
             <p className="text-center text-[0.75rem] text-muted-foreground/60 mt-8">
-              © 2026 경매코치. All rights reserved.
+              © 2026 코치픽. All rights reserved.
             </p>
           </div>
         </div>

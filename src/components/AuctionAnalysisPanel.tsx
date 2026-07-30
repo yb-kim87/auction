@@ -21,7 +21,7 @@ import {
   type RightsTone,
 } from "@/lib/rights-presentation";
 
-const ANALYSIS_ENGINE_LABEL = "경매코치 AI";
+const ANALYSIS_ENGINE_LABEL = "코치픽 AI";
 const SECTION = "text-[14px] leading-relaxed";
 const TITLE = "text-[15px] font-semibold text-foreground";
 
@@ -463,7 +463,7 @@ export function AuctionAnalysisPanel({
         onAnalysisUsed?.();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "경매코치 AI 분석에 실패했습니다.");
+      setError(err instanceof Error ? err.message : "코치픽 AI 분석에 실패했습니다.");
     } finally {
       setAnalyzing(false);
     }

@@ -254,7 +254,7 @@ export function KnowledgeListPanel() {
         <div>
           <h2 className="text-lg font-bold text-foreground">경매지식 관리</h2>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            경매코치 AI 분석 시 참고할 내부 지식을 등록합니다. 물건 분석 시 관련 지식이 자동 검색되어 반영됩니다.
+            코치픽 AI 분석 시 참고할 내부 지식을 등록합니다. 물건 분석 시 관련 지식이 자동 검색되어 반영됩니다.
           </p>
         </div>
         <button

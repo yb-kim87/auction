@@ -1819,7 +1819,7 @@ export async function fetchAuctionAnalysis(
   }
   if (!res.ok) {
     throw new Error(
-      (await parseErrorMessage(res)) ?? "경매코치 AI 분석 결과를 불러오지 못했습니다.",
+      (await parseErrorMessage(res)) ?? "코치픽 AI 분석 결과를 불러오지 못했습니다.",
     );
   }
   return parseJsonResponse<AuctionAnalysisResult>(res);
@@ -1837,12 +1837,12 @@ export async function analyzeAuction(
   });
   if (!res.ok) {
     throw new Error(
-      (await parseErrorMessage(res)) ?? "경매코치 AI 분석에 실패했습니다.",
+      (await parseErrorMessage(res)) ?? "코치픽 AI 분석에 실패했습니다.",
     );
   }
   const data = await parseJsonResponse<AuctionAnalysisResult>(res);
   if (!data) {
-    throw new Error("경매코치 AI 분석 응답이 비어 있습니다.");
+    throw new Error("코치픽 AI 분석 응답이 비어 있습니다.");
   }
   return data;
 }

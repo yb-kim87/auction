@@ -5,7 +5,7 @@ import { AuthInit } from "@/components/AuthInit";
 
 
 export const metadata: Metadata = {
-  title: "경매코치옥션",
+  title: "코치픽",
   description: "경매 물건 검색 및 분석 서비스",
   icons: {
     icon: "/logo.png",

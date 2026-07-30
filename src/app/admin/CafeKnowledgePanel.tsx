@@ -477,7 +477,7 @@ export function CafeKnowledgePanel() {
       <div>
         <h2 className="text-lg font-bold text-foreground">네이버 카페 → 경매지식</h2>
         <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-          카페 글을 수집한 뒤 경매코치 AI가 권리분석·대출 등으로 정리합니다.
+          카페 글을 수집한 뒤 코치픽 AI가 권리분석·대출 등으로 정리합니다.
           승인하기 전까지 RAG에는 반영되지 않습니다.
         </p>
       </div>

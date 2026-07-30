@@ -24,12 +24,12 @@ export function AppHeader({ maxWidth = "1600", nav }: AppHeaderProps) {
   return (
     <header className="h-14 bg-white border-b border-border sticky top-0 z-50">
       <div className={`${maxW} h-full mx-auto px-3 sm:px-6 flex items-center gap-2 sm:gap-6`}>
-        <Link href="/" className="flex items-center gap-2.5 shrink-0" aria-label="경매코치 홈">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0" aria-label="코치픽 홈">
           <div className="w-7 h-7 bg-primary flex items-center justify-center shrink-0" style={{ borderRadius: "0.5rem" }}>
             <Search className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="font-bold text-foreground text-[0.9rem] tracking-tight whitespace-nowrap">
-            코치경매
+            코치픽
           </span>
         </Link>
 
