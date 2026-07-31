@@ -54,6 +54,8 @@ import {
   type KakaoScheduledDispatchStatus,
   type KakaoDailyStat,
   type KakaoAdCreative,
+  type KakaoDispatchChannel,
+  type KakaoNotifySetting,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<KakaoLeadStatus, string> = {
@@ -312,6 +314,17 @@ function DispatchLogDetail({ log, templates }: { log: KakaoDispatchLog; template
   const template = templates.find((t) => t.templateId === log.templateCode);
   const variables = parsed?.variables ?? {};
   const renderedContent = template ? renderTemplateContent(template.content, variables) : null;
+
+  if (log.channel === "sms") {
+    return (
+      <div className="mt-2 space-y-2">
+        <p className="text-xs text-muted-foreground">[문자]</p>
+        <p className="text-xs text-foreground whitespace-pre-wrap border border-border rounded-sm p-2 bg-secondary/20">
+          {log.messageText || "(내용 없음)"}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-2 space-y-2">
@@ -813,13 +826,50 @@ function ScheduleToggle({
   );
 }
 
+function ChannelToggle({
+  channel,
+  onChange,
+}: {
+  channel: KakaoDispatchChannel;
+  onChange: (v: KakaoDispatchChannel) => void;
+}) {
+  return (
+    <div className="inline-flex border border-border rounded-sm overflow-hidden text-xs font-medium">
+      <button
+        type="button"
+        onClick={() => onChange("alimtalk")}
+        className={`px-3 py-1.5 ${
+          channel === "alimtalk"
+            ? "bg-primary text-primary-foreground"
+            : "bg-card text-muted-foreground hover:bg-secondary/30"
+        }`}
+      >
+        알림톡
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("sms")}
+        className={`px-3 py-1.5 border-l border-border ${
+          channel === "sms"
+            ? "bg-primary text-primary-foreground"
+            : "bg-card text-muted-foreground hover:bg-secondary/30"
+        }`}
+      >
+        문자(SMS)
+      </button>
+    </div>
+  );
+}
+
 function TestSendCard() {
   const [phone, setPhone] = useState("");
+  const [channel, setChannel] = useState<KakaoDispatchChannel>("alimtalk");
   const [templateCode, setTemplateCode] = useState("");
   const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState("");
   const [varValues, setVarValues] = useState<Record<string, string>>({});
+  const [smsText, setSmsText] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<KakaoDispatchLog | null>(null);
   const [scheduleResult, setScheduleResult] = useState<KakaoScheduledDispatch | null>(null);
@@ -840,6 +890,9 @@ function TestSendCard() {
 
   const selectedTemplate = templates.find((t) => t.templateId === templateCode);
   const templateVarNames = selectedTemplate ? extractTemplateVars(selectedTemplate) : [];
+  const smsVarNames = Array.from(
+    new Set((smsText.match(/#\{[^}]+\}/g) ?? []).map((m) => m.slice(2, -1))),
+  );
 
   function handleSelectTemplate(id: string) {
     setTemplateCode(id);
@@ -855,8 +908,12 @@ function TestSendCard() {
       setError("전화번호를 입력해 주세요.");
       return;
     }
-    if (!templateCode) {
+    if (channel === "alimtalk" && !templateCode) {
       setError("템플릿을 선택해 주세요.");
+      return;
+    }
+    if (channel === "sms" && !smsText.trim()) {
+      setError("문자 내용을 입력해 주세요.");
       return;
     }
     setSending(true);
@@ -867,8 +924,10 @@ function TestSendCard() {
       const res = await sendKakaoTestMessage({
         name: varValues["회원명"] ?? varValues["이름"] ?? "",
         phone,
-        templateCode,
-        templateName: selectedTemplate?.name,
+        channel,
+        templateCode: channel === "alimtalk" ? templateCode : undefined,
+        templateName: channel === "alimtalk" ? selectedTemplate?.name : undefined,
+        smsText: channel === "sms" ? smsText : undefined,
         variables: varValues,
         scheduledAt: scheduled ? scheduleInputToISOString(scheduledAt) : undefined,
       });
@@ -897,6 +956,8 @@ function TestSendCard() {
         <span className="text-xs text-muted-foreground shrink-0 ml-2 hidden group-open:inline">접기</span>
       </summary>
       <div className="space-y-3 mt-3">
+      <ChannelToggle channel={channel} onChange={setChannel} />
+
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
@@ -905,24 +966,26 @@ function TestSendCard() {
           onChange={(e) => setPhone(e.target.value)}
           className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-card"
         />
-        <select
-          value={templateCode}
-          onChange={(e) => handleSelectTemplate(e.target.value)}
-          disabled={templatesLoading}
-          className="sm:min-w-[14rem] px-2 py-2 text-sm border border-border rounded-sm bg-card disabled:opacity-50"
-        >
-          <option value="">
-            {templatesLoading ? "템플릿 불러오는 중..." : "템플릿 선택"}
-          </option>
-          {templates.map((t) => (
-            <option key={t.templateId} value={t.templateId}>
-              {t.name}
+        {channel === "alimtalk" && (
+          <select
+            value={templateCode}
+            onChange={(e) => handleSelectTemplate(e.target.value)}
+            disabled={templatesLoading}
+            className="sm:min-w-[14rem] px-2 py-2 text-sm border border-border rounded-sm bg-card disabled:opacity-50"
+          >
+            <option value="">
+              {templatesLoading ? "템플릿 불러오는 중..." : "템플릿 선택"}
             </option>
-          ))}
-        </select>
+            {templates.map((t) => (
+              <option key={t.templateId} value={t.templateId}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
-      {selectedTemplate && (
+      {channel === "alimtalk" && selectedTemplate && (
         <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
           <div className="flex justify-center">
             <AlimtalkPreview
@@ -944,6 +1007,40 @@ function TestSendCard() {
                       setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
                     }
                     className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card resize-y"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {channel === "sms" && (
+        <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
+          <textarea
+            rows={4}
+            placeholder="문자 내용을 입력하세요. #{회원명}처럼 변수를 넣을 수 있습니다."
+            value={smsText}
+            onChange={(e) => setSmsText(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card resize-y"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {new TextEncoder().encode(smsText).length}바이트 (90바이트 초과 시 자동으로 장문(LMS)으로 발송됩니다)
+          </p>
+          {smsVarNames.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {smsVarNames.map((varName) => (
+                <div key={varName} className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground w-20 shrink-0">
+                    #{varName}
+                  </label>
+                  <input
+                    type="text"
+                    value={varValues[varName] ?? ""}
+                    onChange={(e) =>
+                      setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
+                    }
+                    className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card"
                   />
                 </div>
               ))}
@@ -1066,7 +1163,9 @@ function BulkSendModal({
 }) {
   const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
   const [leadFields, setLeadFields] = useState<KakaoLeadFieldOption[]>([]);
+  const [channel, setChannel] = useState<KakaoDispatchChannel>("alimtalk");
   const [templateCode, setTemplateCode] = useState("");
+  const [smsText, setSmsText] = useState("");
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [nameVar, setNameVar] = useState("회원명");
   const [loading, setLoading] = useState(true);
@@ -1090,6 +1189,9 @@ function BulkSendModal({
 
   const selectedTemplate = templates.find((t) => t.templateId === templateCode);
   const templateVarNames = selectedTemplate ? extractTemplateVars(selectedTemplate) : [];
+  const smsVarNames = Array.from(
+    new Set((smsText.match(/#\{[^}]+\}/g) ?? []).map((m) => m.slice(2, -1))),
+  );
 
   function handleSelectTemplate(id: string) {
     const tmpl = templates.find((t) => t.templateId === id);
@@ -1117,13 +1219,18 @@ function BulkSendModal({
   }
 
   async function handleSend() {
-    if (!templateCode) {
+    if (channel === "alimtalk" && !templateCode) {
       setError("템플릿을 선택해 주세요.");
       return;
     }
+    if (channel === "sms" && !smsText.trim()) {
+      setError("문자 내용을 입력해 주세요.");
+      return;
+    }
+    const channelLabel = channel === "sms" ? "문자" : "알림톡";
     const confirmMessage = scheduled
-      ? `선택한 고객 ${leadIds.length}명에게 예약된 시각에 알림톡을 발송하도록 등록합니다. 계속할까요?`
-      : `선택한 고객 ${leadIds.length}명에게 알림톡을 발송합니다. 계속할까요?`;
+      ? `선택한 고객 ${leadIds.length}명에게 예약된 시각에 ${channelLabel}을 발송하도록 등록합니다. 계속할까요?`
+      : `선택한 고객 ${leadIds.length}명에게 ${channelLabel}을 발송합니다. 계속할까요?`;
     if (!window.confirm(confirmMessage)) {
       return;
     }
@@ -1132,8 +1239,10 @@ function BulkSendModal({
     try {
       const res = await bulkSendKakaoLeads({
         ids: leadIds,
-        templateCode,
-        templateName: selectedTemplate?.name,
+        channel,
+        templateCode: channel === "alimtalk" ? templateCode : undefined,
+        templateName: channel === "alimtalk" ? selectedTemplate?.name : undefined,
+        smsText: channel === "sms" ? smsText : undefined,
         variables: varValues,
         templateNameVar: nameVar,
         scheduledAt: scheduled ? scheduleInputToISOString(scheduledAt) : undefined,
@@ -1160,7 +1269,7 @@ function BulkSendModal({
         <div>
           <h3 className="text-base font-bold text-foreground">선택 발송</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            선택한 고객 {leadIds.length}명에게 지정한 템플릿으로 알림톡을 즉시 발송합니다.
+            선택한 고객 {leadIds.length}명에게 지정한 템플릿(또는 문자 내용)으로 즉시 발송합니다.
           </p>
         </div>
 
@@ -1170,6 +1279,9 @@ function BulkSendModal({
           <p className="text-xs text-destructive">{loadError}</p>
         ) : (
           <div className="space-y-3">
+            <ChannelToggle channel={channel} onChange={setChannel} />
+
+            {channel === "alimtalk" && (
             <select
               value={templateCode}
               onChange={(e) => handleSelectTemplate(e.target.value)}
@@ -1182,8 +1294,63 @@ function BulkSendModal({
                 </option>
               ))}
             </select>
+            )}
 
-            {selectedTemplate && (
+            {channel === "sms" && (
+              <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
+                <textarea
+                  rows={4}
+                  placeholder="문자 내용을 입력하세요. #{회원명}처럼 변수를 넣을 수 있습니다."
+                  value={smsText}
+                  onChange={(e) => setSmsText(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card resize-y"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {new TextEncoder().encode(smsText).length}바이트 (90바이트 초과 시 자동으로 장문(LMS)으로 발송됩니다)
+                </p>
+                {smsVarNames.length > 0 && (
+                  <div className="grid grid-cols-1 gap-2 pt-1">
+                    {smsVarNames.map((varName) => {
+                      const selectValue = fieldRefValue(varName);
+                      const isCustom = selectValue === CUSTOM_VALUE;
+                      return (
+                        <div key={varName} className="flex items-center gap-1.5">
+                          <label className="text-xs text-muted-foreground w-20 shrink-0">
+                            #{varName}
+                          </label>
+                          <select
+                            value={selectValue}
+                            onChange={(e) => handleSelectChange(varName, e.target.value)}
+                            className="shrink-0 w-[92px] px-1.5 py-1.5 text-xs border border-border rounded-sm bg-card"
+                          >
+                            <option value={CUSTOM_VALUE}>직접입력</option>
+                            {leadFields.map((f) => (
+                              <option key={f.field} value={f.field}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
+                          <textarea
+                            rows={isCustom ? 2 : 1}
+                            value={isCustom ? (varValues[varName] ?? "") : ""}
+                            onChange={(e) =>
+                              setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
+                            }
+                            placeholder={
+                              isCustom ? "" : `${leadFields.find((f) => f.field === selectValue)?.label ?? ""} 값으로 자동 대체됨`
+                            }
+                            disabled={!isCustom}
+                            className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card disabled:opacity-50 resize-y"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {channel === "alimtalk" && selectedTemplate && (
               <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
                 <p className="text-[11px] font-semibold text-muted-foreground">템플릿 미리보기</p>
                 <div className="flex justify-center">
@@ -1306,8 +1473,10 @@ function BulkSendModal({
 function TemplateSettingsCard() {
   const [templates, setTemplates] = useState<SolapiTemplate[]>([]);
   const [leadFields, setLeadFields] = useState<KakaoLeadFieldOption[]>([]);
+  const [channel, setChannel] = useState<KakaoDispatchChannel>("alimtalk");
   const [templateCode, setTemplateCode] = useState("");
   const [templateName, setTemplateName] = useState("");
+  const [smsText, setSmsText] = useState("");
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [nameVar, setNameVar] = useState("회원명");
   const [loading, setLoading] = useState(true);
@@ -1326,8 +1495,10 @@ function TemplateSettingsCard() {
       ]);
       setTemplates(tmpl);
       setLeadFields(fields);
+      setChannel(setting.channel || "alimtalk");
       setTemplateCode(setting.templateCode);
       setTemplateName(setting.templateName);
+      setSmsText(setting.smsText || "");
       setNameVar(setting.templateNameVar || "회원명");
       try {
         setVarValues(JSON.parse(setting.variablesJson || "{}"));
@@ -1347,6 +1518,9 @@ function TemplateSettingsCard() {
 
   const selectedTemplate = templates.find((t) => t.templateId === templateCode);
   const templateVarNames = selectedTemplate ? extractTemplateVars(selectedTemplate) : [];
+  const smsVarNames = Array.from(
+    new Set((smsText.match(/#\{[^}]+\}/g) ?? []).map((m) => m.slice(2, -1))),
+  );
 
   function handleSelectTemplate(id: string) {
     const tmpl = templates.find((t) => t.templateId === id);
@@ -1378,8 +1552,12 @@ function TemplateSettingsCard() {
   }
 
   async function handleSave() {
-    if (!templateCode) {
+    if (channel === "alimtalk" && !templateCode) {
       setMessage("템플릿을 선택해 주세요.");
+      return;
+    }
+    if (channel === "sms" && !smsText.trim()) {
+      setMessage("문자 내용을 입력해 주세요.");
       return;
     }
     setSaving(true);
@@ -1390,8 +1568,14 @@ function TemplateSettingsCard() {
         templateName,
         variables: varValues,
         templateNameVar: nameVar,
+        channel,
+        smsText,
       });
-      setMessage("템플릿 설정이 저장되었습니다. 이후 신규 고객에게 이 템플릿으로 자동 발송됩니다.");
+      setMessage(
+        channel === "sms"
+          ? "문자 설정이 저장되었습니다. 이후 신규 고객에게 이 문자로 자동 발송됩니다."
+          : "템플릿 설정이 저장되었습니다. 이후 신규 고객에게 이 템플릿으로 자동 발송됩니다.",
+      );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "저장에 실패했습니다.");
     } finally {
@@ -1418,6 +1602,9 @@ function TemplateSettingsCard() {
         <p className="text-xs text-destructive">{loadError}</p>
       ) : (
         <div className="space-y-3">
+          <ChannelToggle channel={channel} onChange={setChannel} />
+
+          {channel === "alimtalk" && (
           <select
             value={templateCode}
             onChange={(e) => handleSelectTemplate(e.target.value)}
@@ -1430,8 +1617,63 @@ function TemplateSettingsCard() {
               </option>
             ))}
           </select>
+          )}
 
-          {selectedTemplate && (
+          {channel === "sms" && (
+            <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
+              <textarea
+                rows={4}
+                placeholder="문자 내용을 입력하세요. #{회원명}처럼 변수를 넣을 수 있습니다."
+                value={smsText}
+                onChange={(e) => setSmsText(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-border rounded-sm bg-card resize-y"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {new TextEncoder().encode(smsText).length}바이트 (90바이트 초과 시 자동으로 장문(LMS)으로 발송됩니다)
+              </p>
+              {smsVarNames.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {smsVarNames.map((varName) => {
+                    const selectValue = fieldRefValue(varName);
+                    const isCustom = selectValue === CUSTOM_VALUE;
+                    return (
+                      <div key={varName} className="flex items-center gap-1.5">
+                        <label className="text-xs text-muted-foreground w-20 shrink-0">
+                          #{varName}
+                        </label>
+                        <select
+                          value={selectValue}
+                          onChange={(e) => handleSelectChange(varName, e.target.value)}
+                          className="shrink-0 w-[92px] px-1.5 py-1.5 text-xs border border-border rounded-sm bg-card"
+                        >
+                          <option value={CUSTOM_VALUE}>직접입력</option>
+                          {leadFields.map((f) => (
+                            <option key={f.field} value={f.field}>
+                              {f.label}
+                            </option>
+                          ))}
+                        </select>
+                        <textarea
+                          rows={isCustom ? 2 : 1}
+                          value={isCustom ? (varValues[varName] ?? "") : ""}
+                          onChange={(e) =>
+                            setVarValues((prev) => ({ ...prev, [varName]: e.target.value }))
+                          }
+                          placeholder={
+                            isCustom ? "" : `${leadFields.find((f) => f.field === selectValue)?.label ?? ""} 값으로 자동 대체됨`
+                          }
+                          disabled={!isCustom}
+                          className="flex-1 px-2 py-1.5 text-xs border border-border rounded-sm bg-card disabled:opacity-50 resize-y"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {channel === "alimtalk" && selectedTemplate && (
             <div className="border border-border rounded-sm p-3 space-y-3 bg-secondary/20">
               <p className="text-[11px] font-semibold text-muted-foreground">템플릿 미리보기</p>
               <div className="flex justify-center">
@@ -2503,8 +2745,10 @@ function ScheduledDispatchDetailPanel({
             </p>
           </div>
           <div>
-            <p className="text-muted-foreground">템플릿</p>
-            <p className="font-medium text-foreground">{item.templateName || item.templateCode}</p>
+            <p className="text-muted-foreground">{item.channel === "sms" ? "문자 내용" : "템플릿"}</p>
+            <p className="font-medium text-foreground">
+              {item.channel === "sms" ? item.smsText : item.templateName || item.templateCode}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground">등록자</p>
@@ -2691,7 +2935,14 @@ function ScheduledDispatchesTab() {
                   <td className="px-3 py-2">
                     {item.kind === "bulk" ? `${item.targetCount}명` : item.testPhone}
                   </td>
-                  <td className="px-3 py-2">{item.templateName || item.templateCode}</td>
+                  <td className="px-3 py-2">
+                    <span className="text-[11px] text-muted-foreground mr-1">
+                      [{item.channel === "sms" ? "문자" : "알림톡"}]
+                    </span>
+                    {item.channel === "sms"
+                      ? item.smsText.slice(0, 20) || "(문자)"
+                      : item.templateName || item.templateCode}
+                  </td>
                   <td className="px-3 py-2">
                     <span
                       className={`inline-block px-2 py-0.5 rounded-sm border text-[11px] ${SCHEDULE_STATUS_STYLES[item.status]}`}

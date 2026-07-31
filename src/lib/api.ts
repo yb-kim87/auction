@@ -2384,11 +2384,15 @@ export interface KakaoLead {
   hasDuplicateApplications?: boolean;
 }
 
+export type KakaoDispatchChannel = "alimtalk" | "sms";
+
 export interface KakaoDispatchLog {
   id: string;
   leadId: string | null;
   attemptNo: number;
+  channel: KakaoDispatchChannel;
   templateCode: string;
+  messageText: string | null;
   requestPayload: string;
   responsePayload: string;
   result: "success" | "failed";
@@ -2563,8 +2567,10 @@ export async function resendKakaoLead(id: string): Promise<KakaoDispatchLog> {
 export async function sendKakaoTestMessage(input: {
   name: string;
   phone: string;
+  channel?: KakaoDispatchChannel;
   templateCode?: string;
   templateName?: string;
+  smsText?: string;
   variables?: Record<string, string>;
   source?: KakaoLeadSource;
   scheduledAt?: string;
@@ -2812,8 +2818,10 @@ export interface KakaoScheduledDispatch {
   leadIdsJson: string;
   testPhone: string;
   testName: string;
+  channel: KakaoDispatchChannel;
   templateCode: string;
   templateName: string;
+  smsText: string;
   variablesJson: string;
   templateNameVar: string;
   scheduledAt: string;
@@ -2837,8 +2845,10 @@ export { isScheduledDispatch };
 
 export async function bulkSendKakaoLeads(input: {
   ids: string[];
-  templateCode: string;
+  channel?: KakaoDispatchChannel;
+  templateCode?: string;
   templateName?: string;
+  smsText?: string;
   variables: Record<string, string>;
   templateNameVar?: string;
   scheduledAt?: string;
@@ -3005,6 +3015,8 @@ export interface KakaoNotifySetting {
   templateName: string;
   variablesJson: string;
   templateNameVar: string;
+  channel: KakaoDispatchChannel;
+  smsText: string;
 }
 
 export async function fetchKakaoSettings(): Promise<KakaoNotifySetting> {
@@ -3023,6 +3035,8 @@ export async function updateKakaoSetting(input: {
   templateName: string;
   variables: Record<string, string>;
   templateNameVar?: string;
+  channel?: KakaoDispatchChannel;
+  smsText?: string;
 }): Promise<KakaoNotifySetting> {
   const res = await fetch(`${API_BASE}/kakao-notify/settings`, {
     method: "POST",
