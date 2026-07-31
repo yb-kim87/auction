@@ -33,7 +33,8 @@ export function dedupeStrategyTagsByLabel(
 export interface AuctionItem {
   id: string;
   memo: string;
-  link: string;
+  /** 크롤링 출처 원본 링크. 관리자/컨설턴트에게만 내려온다(수강생 응답에는 없음). */
+  link?: string;
   views: number;
   auctionNo: string;
   /** 담당 법원+계(예: "수원지방법원 9계"). 사건번호는 법원마다 겹칠 수 있어

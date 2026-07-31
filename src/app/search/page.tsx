@@ -165,7 +165,7 @@ const buildColumns = (
   { key: "memo", label: "메모", defaultWidth: 80, sticky: true, render: (r) => r.memo ? <span className="text-amber-600"><StickyNote size={16} className="inline mr-1" />{r.memo}</span> : <span className="text-muted-foreground/40">-</span> },
   { key: "usage", label: "용도", defaultWidth: 96, render: (r) => <span className="whitespace-nowrap">{r.usage}</span> },
   { key: "specialNote", label: "특이사항", defaultWidth: 160, render: (r) => <span className="text-red-600">{r.specialNote}</span> },
-  { key: "link", label: "링크", defaultWidth: 56, render: (r) => <a href={r.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary hover:text-accent inline-flex justify-center"><ExternalLink size={16} /></a> },
+  { key: "link", label: "링크", defaultWidth: 56, render: (r) => r.link ? <a href={r.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary hover:text-accent inline-flex justify-center"><ExternalLink size={16} /></a> : null },
   { key: "views", label: "조회수", defaultWidth: 68, render: (r) => <span className="font-mono">{fmt(r.views)}</span> },
   { key: "auctionNo", label: "경매번호", defaultWidth: 168, align: "left", render: (r) => (
     <span className="font-mono text-primary font-semibold inline-flex items-center gap-1.5">
