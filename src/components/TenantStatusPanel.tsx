@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   analysisTone,
   displayTenantDetail,
   opposabilityTone,
   parseAnyTenantStatus,
 } from "@/lib/tenant-status";
+import { fetchTenantSummary } from "@/lib/api";
 import type { AuctionAnalysisResult } from "@/types/auction";
 
 const toneClass: Record<string, string> = {
@@ -27,16 +29,68 @@ function extractSuccessorKey(tenantName: string): string | null {
   return nameMatch ? nameMatch[1] : null;
 }
 
+/** 원문(법률 용어 위주)을 AI가 1~2문장으로 풀어쓴 핵심요약 배너. 물건당
+ * 1회만 생성/캐싱되므로 모달을 다시 열어도 추가 비용 없이 캐시를 받는다.
+ * 원문은 이 배너 아래(표/기타사항)에 그대로 유지된다 — 요약은 "먼저 보는
+ * 헤드라인"이지 원문을 대체하지 않는다(사용자 요청, 2026-08-01). */
+function TenantSummaryBanner({ auctionId, hasContent }: { auctionId?: string; hasContent: boolean }) {
+  const [summary, setSummary] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!auctionId || !hasContent) return;
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    fetchTenantSummary(auctionId)
+      .then((res) => {
+        if (!cancelled) setSummary(res.summary || null);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "요약을 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auctionId, hasContent]);
+
+  if (!auctionId || !hasContent) return null;
+  if (!loading && !error && !summary) return null;
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/5 px-3.5 py-2.5 mb-3 flex gap-2">
+      <span className="text-primary shrink-0" aria-hidden>
+        ✨
+      </span>
+      <div className="min-w-0">
+        <p className="text-[0.68rem] font-semibold text-primary mb-0.5">AI 핵심요약</p>
+        {loading && <p className="text-[0.8rem] text-muted-foreground">요약 생성 중...</p>}
+        {error && <p className="text-[0.75rem] text-muted-foreground">{error}</p>}
+        {!loading && summary && (
+          <p className="text-[0.82rem] text-foreground leading-relaxed">{summary}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TenantStatusPanel({
   value,
   compact = false,
   rightsAnalysis,
+  auctionId,
 }: {
   value: string;
   compact?: boolean;
   rightsAnalysis?: AuctionAnalysisResult | null;
+  auctionId?: string;
 }) {
   const parsed = parseAnyTenantStatus(value);
+  const hasContent = Boolean(displayTenantDetail(value));
 
   if (!parsed || parsed.rows.length === 0) {
     const text = displayTenantDetail(value);
@@ -49,6 +103,7 @@ export function TenantStatusPanel({
             : "min-w-0 rounded-sm border border-border/70 bg-secondary/5 px-3 py-2.5"
         }
       >
+        {!compact && <TenantSummaryBanner auctionId={auctionId} hasContent={hasContent} />}
         <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
           {text}
         </div>
@@ -70,7 +125,9 @@ export function TenantStatusPanel({
   }, 0);
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div>
+      {!compact && <TenantSummaryBanner auctionId={auctionId} hasContent={hasContent} />}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="overflow-x-auto max-h-72 overflow-y-auto">
         <table className="w-full min-w-[1020px] table-fixed border-collapse">
           <colgroup>
@@ -173,6 +230,7 @@ export function TenantStatusPanel({
           {miscNotes}
         </div>
       )}
+      </div>
     </div>
   );
 }

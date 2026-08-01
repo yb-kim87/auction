@@ -1847,6 +1847,20 @@ export async function analyzeAuction(
   return data;
 }
 
+/** 임차인 점유현황 원문을 AI가 1~2문장으로 풀어쓴 요약. 물건당 1회만
+ * 생성되고 서버에 캐싱되므로, 다시 열어도 추가 비용 없이 캐시를 받는다. */
+export async function fetchTenantSummary(auctionId: string): Promise<{ summary: string }> {
+  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/tenant-summary`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "임차인 현황 요약을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchAuctionRightsReview(
   auctionId: string,
 ): Promise<AuctionRightsReview | null> {
