@@ -1080,7 +1080,12 @@ export function parseRegistryDetail(raw: string): RegistryRow[] {
       }
     }
 
-    const isBaseline = /말소기준등기/.test(note);
+    // note에서만 찾으면, 채권금액이 없는 행(예: 압류)은 "(말소기준등기)"
+    // 괄호가 amount 분리 로직을 못 타서 note가 아니라 holder 쪽에 그대로
+    // 남아 하이라이트를 놓친다(실측: "2025타경512175" 남동세무서장 압류
+    // 행, 2026-08-01). rest(분리 전 원문) 전체에서 검사해 위치와 무관하게
+    // 항상 잡히게 한다.
+    const isBaseline = /말소기준등기/.test(rest) || /말소기준등기/.test(note);
     rows.push({ section, seq, date, rightType, holder, amount, isClaimAmount, note, cancelled, isBaseline });
     block = [];
   };
