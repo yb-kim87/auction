@@ -2813,7 +2813,6 @@ export function AuctionDetailModal({
                                 />
                               ) : field.key === "tenantDetail" ? (
                                 <TenantStatusPanel
-                                  auctionId={item.id}
                                   value={String(item.tenantDetail ?? "")}
                                   rightsAnalysis={cachedAnalysis}
                                   baselineDate={
