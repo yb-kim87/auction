@@ -86,6 +86,11 @@ export interface AuctionItem {
   unpaidFeeAmount?: number;
   unpaidFeeNote?: string;
   unpaidFeeCheckedAt?: string;
+  /** 매도분석(재판매 매칭) 결과 — 관리자에게만 내려온다(아직 내부 검증
+   * 중인 신호라 컨설턴트·수강생 응답에는 없음, 2026-08-01). */
+  resaleMatchedTradeId?: string | null;
+  resaleMatchScore?: number | null;
+  resaleMatchTier?: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | null;
   tenantDetail: string;
   priceDetail: string;
   tradingDetail: string;

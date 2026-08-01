@@ -2656,6 +2656,18 @@ export function AuctionDetailModal({
                 )}
               </div>
             )}
+            {preview.resaleMatchTier && (
+              <div className="mb-3 rounded-sm border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-xs font-bold text-emerald-800">
+                  매도분석: 매도(재판매) 추정됨 — 등급 {preview.resaleMatchTier}
+                  {preview.resaleMatchScore != null ? ` (점수 ${preview.resaleMatchScore})` : ""}
+                </p>
+                <p className="text-[0.68rem] text-emerald-800/70 mt-0.5">
+                  국토부 실거래가와 대조해 낙찰자가 이 물건을 되판 것으로 추정됩니다. 관리자에게만
+                  표시되는 내부 검증 중인 신호입니다.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <PriceColumn
                 priceLabel="감정가"
