@@ -78,16 +78,43 @@ function TenantSummaryBanner({ auctionId, hasContent }: { auctionId?: string; ha
   );
 }
 
+/** 임차인 이름에 이 이름들이 포함되면 보증기관 승계로 보고, [기타사항]에
+ * 임차보증금반환채권 포기 문구가 있으면 "임차권 포기" 배지를 붙인다
+ * (사용자 요청, 2026-08-01 — 인수조건변경이면서 보증금반환채권을 포기한
+ * 경우를 표에서 바로 알아볼 수 있게). rights-analysis-context.util.ts의
+ * hasCreditorWaiver 정규식과 동일 패턴을 프론트에서도 재사용. */
+const GUARANTEE_CORP_RE = /보증공사|주택도시보증|\bHUG\b|\bLH\b/;
+const CREDITOR_WAIVER_RE =
+  /잔존\s*임차보증금반환채권을?\s*포기|보증금\s*전액을\s*(배당받지|변제받지)\s*못하더라도[^.\n]*포기|대항력은?\s*포기/;
+
+/**
+ * 대항력은 탱크옥션이 내려주는 원본 값을 그대로 믿지 않고, 전입일과
+ * 말소기준등기일을 직접 비교해 우리가 판단한다(전입일이 말소기준일보다
+ * 빠르면 대항력 있음). 원본 값이 행마다 서로 다른 임차인(양도인/승계인
+ * 등)을 뭉뚱그려 잘못 표시하는 사례가 실측 확인됨(2026-08-01,
+ * "최연정" 케이스 — 양도인 행은 "없음", 승계인 행은 "인수조건변경"인데
+ * 실제 전입일 기준으로는 대항력이 있는 임차인이었음). 날짜를 비교할 수
+ * 없는 경우에만 원본 값으로 폴백한다. */
+function computeOpposability(moveInDate: string, baselineDate?: string): "있음" | "없음" | null {
+  if (!baselineDate || !moveInDate) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(baselineDate) || !/^\d{4}-\d{2}-\d{2}$/.test(moveInDate)) {
+    return null;
+  }
+  return moveInDate < baselineDate ? "있음" : "없음";
+}
+
 export function TenantStatusPanel({
   value,
   compact = false,
   rightsAnalysis,
   auctionId,
+  baselineDate,
 }: {
   value: string;
   compact?: boolean;
   rightsAnalysis?: AuctionAnalysisResult | null;
   auctionId?: string;
+  baselineDate?: string;
 }) {
   const parsed = parseAnyTenantStatus(value);
   const hasContent = Boolean(displayTenantDetail(value));
@@ -154,26 +181,29 @@ export function TenantStatusPanel({
           </thead>
           <tbody>
             {rows.map((row, i) => {
-              const baselineDate =
-                rightsAnalysis?.structuredRights?.baselineRight.date ?? "";
               const moveInDate =
                 row.dates.match(/전입:(\d{4}-\d{2}-\d{2})/)?.[1] ?? "";
-              const serverConfirmedNoOpposability =
-                rightsAnalysis?.structuredRights?.tenant.opposability === "none" &&
-                Boolean(baselineDate) &&
-                Boolean(moveInDate) &&
-                moveInDate >= baselineDate;
+              // 등기부에서 파싱한 말소기준일(props)을 우선 쓰고, 없으면
+              // 이미 AI 권리분석을 돌린 적이 있을 때만 그 결과를 보조로 쓴다.
+              const ownOpposability = computeOpposability(
+                moveInDate,
+                baselineDate || rightsAnalysis?.structuredRights?.baselineRight.date,
+              );
               const displayedOpposability =
-                row.opposability && row.opposability !== "-"
-                  ? row.opposability
-                  : serverConfirmedNoOpposability
-                    ? "X"
-                    : "-";
+                ownOpposability ??
+                (row.opposability && row.opposability !== "-" ? row.opposability : "-");
+              const isGuaranteeCorp = GUARANTEE_CORP_RE.test(row.tenantName);
+              const hasWaiver = isGuaranteeCorp && CREDITOR_WAIVER_RE.test(miscNotes || "");
               return (
               <tr key={i} className="border-t border-border/60">
                 <td className={bodyCellClass}>{row.occupancyNo || "-"}</td>
                 <td className={`${bodyCellClass} whitespace-nowrap font-medium`}>
                   {row.tenantName || "-"}
+                  {hasWaiver && (
+                    <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.6rem] font-semibold bg-amber-100 text-amber-700 align-middle">
+                      임차권 포기
+                    </span>
+                  )}
                 </td>
                 <td className={`${bodyCellClass} whitespace-pre-line break-words`}>{row.occupancy || "-"}</td>
                 <td className={`${bodyCellClass} whitespace-nowrap`}>
@@ -186,15 +216,15 @@ export function TenantStatusPanel({
                 </td>
                 <td
                   className={`${bodyCellClass} whitespace-nowrap ${
-                    displayedOpposability === "X"
+                    ownOpposability === "없음"
                       ? "text-emerald-700 font-bold"
                       : opposabilityTone(displayedOpposability) === "danger"
                         ? "text-red-600 font-semibold"
                         : ""
                   }`}
                   title={
-                    displayedOpposability === "X"
-                      ? "전입일이 말소기준권리일과 같거나 늦어 대항력 없음"
+                    ownOpposability
+                      ? `전입일(${moveInDate})과 말소기준등기일 비교로 코치픽이 직접 판단한 값`
                       : undefined
                   }
                 >

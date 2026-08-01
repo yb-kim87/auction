@@ -1000,7 +1000,7 @@ function EducationTable({ value }: { value: string }) {
   );
 }
 
-type RegistryRow = {
+export type RegistryRow = {
   section: string;
   seq: string;
   date: string;
@@ -1019,7 +1019,7 @@ type RegistryRow = {
 // 은 본문이 헤더와 한 줄에 붙어 있어 종전 정규식(줄 끝 고정)이 통째로 못 읽었음).
 const REGISTRY_HEADER_RE = /^([갑을])\((\d+)\)\s+(\d{4}-\d{2}-\d{2})\s*(.*)$/;
 
-function parseRegistryDetail(raw: string): RegistryRow[] {
+export function parseRegistryDetail(raw: string): RegistryRow[] {
   const lines = raw
     .split("\n")
     .map((l) => l.trim())
@@ -2816,6 +2816,11 @@ export function AuctionDetailModal({
                                   auctionId={item.id}
                                   value={String(item.tenantDetail ?? "")}
                                   rightsAnalysis={cachedAnalysis}
+                                  baselineDate={
+                                    parseRegistryDetail(String(item.buildingRegistry ?? "")).find(
+                                      (r) => r.isBaseline,
+                                    )?.date
+                                  }
                                 />
                               ) : field.key === "priceDetail" ? (
                                 <ListingPriceTable
