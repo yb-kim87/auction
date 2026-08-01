@@ -3609,3 +3609,18 @@ export async function fetchResaleSoldStats(auctionIds: string[]): Promise<Resale
   }
   return readJsonResponse(res);
 }
+
+/** 물건작업창(CrawlerWorkPanel)에서 "주소 추가"로 가져온 사건번호
+ * 목록을 그대로 넘겨 매도분석한다(아직 auctionId를 모르는 시점). */
+export async function fetchResaleSoldStatsByCaseNo(auctionNos: string[]): Promise<ResaleSoldStats> {
+  const res = await fetch(`${API_BASE}/resale-match/sold-stats-by-case-no`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ auctionNos }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "매도분석 통계를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}

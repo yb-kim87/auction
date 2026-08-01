@@ -14,9 +14,11 @@ import {
   fetchCrawlerConfig,
   fetchCrawlerLogs,
   fetchCrawlerStatus,
+  fetchResaleSoldStatsByCaseNo,
   type CrawlerLogEntry,
   type CrawlerStatus,
   type CrawlerUrlEntry,
+  type ResaleSoldStats,
 } from "@/lib/api";
 import { CrawlerAlgorithmTab } from "./CrawlerAlgorithmTab";
 import { CrawlerDailyJobTab } from "./CrawlerDailyJobTab";
@@ -81,6 +83,13 @@ export function CrawlerWorkPanel() {
   // 갱신되도록 한다 — 이게 없으면 버튼을 눌러도 응답 전까지 화면이 멈춘
   // 것처럼 보인다.
   const [collectingLocal, setCollectingLocal] = useState(false);
+  // "주소 추가"로 가져온 사건번호들 중 낙찰된 것만 매도분석까지 같이
+  // 돌린다(사용자 요청, 2026-08-01) — 진행상태를 "매각"으로 걸고 주소
+  // 추가하면 낙찰물건 목록도 받고 매도분석도 같이 되는 방식.
+  const [resaleAnalysisEnabled, setResaleAnalysisEnabled] = useState(false);
+  const [resaleStats, setResaleStats] = useState<ResaleSoldStats | null>(null);
+  const [resaleStatsLoading, setResaleStatsLoading] = useState(false);
+  const [resaleStatsError, setResaleStatsError] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -490,6 +499,23 @@ export function CrawlerWorkPanel() {
                   );
                 });
               }
+              if (resaleAnalysisEnabled && result.urls.length > 0) {
+                // label 형식: "{사건번호}_{탱크옥션URL}" — 사건번호만 추출.
+                const auctionNos = (result.urls as CrawlerUrlEntry[])
+                  .map((u) => u.label.split("_")[0]?.trim())
+                  .filter((no): no is string => Boolean(no));
+                setResaleStatsLoading(true);
+                setResaleStatsError("");
+                setResaleStats(null);
+                fetchResaleSoldStatsByCaseNo(auctionNos)
+                  .then(setResaleStats)
+                  .catch((err) =>
+                    setResaleStatsError(
+                      err instanceof Error ? err.message : "매도분석 조회에 실패했습니다.",
+                    ),
+                  )
+                  .finally(() => setResaleStatsLoading(false));
+              }
               void refresh();
             }}
             onCollectFinished={() => {
@@ -500,7 +526,7 @@ export function CrawlerWorkPanel() {
 
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
             <div className="space-y-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <label className="flex items-center gap-2 px-2 text-sm">
                   <input
                     type="checkbox"
@@ -518,7 +544,106 @@ export function CrawlerWorkPanel() {
                   title="알고리즘 탭에서 예약 시간 설정"
                   className="px-3 py-2 text-sm border border-border rounded-sm bg-secondary/30"
                 />
+                <label className="flex items-center gap-2 px-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={resaleAnalysisEnabled}
+                    onChange={(e) => setResaleAnalysisEnabled(e.target.checked)}
+                    className="accent-primary"
+                  />
+                  매도분석(진행상태를 "매각"으로 걸고 주소 추가 시, 낙찰물건만 분석)
+                </label>
               </div>
+
+              {(resaleStatsLoading || resaleStats || resaleStatsError) && (
+                <div className="rounded-sm border border-border bg-card p-4 space-y-3">
+                  {resaleStatsLoading ? (
+                    <p className="text-sm text-muted-foreground">매도분석 조회 중...</p>
+                  ) : resaleStatsError ? (
+                    <p className="text-sm text-destructive">{resaleStatsError}</p>
+                  ) : resaleStats ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-foreground">
+                          방금 가져온 물건의 매도분석 결과
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setResaleStats(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          닫기
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="p-3 border border-border rounded-sm">
+                          <p className="text-xs text-muted-foreground">낙찰 물건</p>
+                          <p className="text-xl font-bold text-foreground mt-0.5">{resaleStats.total}건</p>
+                        </div>
+                        <div className="p-3 border border-border rounded-sm">
+                          <p className="text-xs text-muted-foreground">QA 후보 있음(55점+)</p>
+                          <p className="text-xl font-bold text-foreground mt-0.5">
+                            {resaleStats.withCandidate}건
+                            <span className="text-xs font-normal text-muted-foreground ml-1">
+                              (
+                              {resaleStats.total > 0
+                                ? Math.round((resaleStats.withCandidate / resaleStats.total) * 100)
+                                : 0}
+                              %)
+                            </span>
+                          </p>
+                        </div>
+                        <div className="p-3 border border-border rounded-sm">
+                          <p className="text-xs text-muted-foreground">매도 확정 표시(70점+)</p>
+                          <p className="text-xl font-bold text-emerald-700 mt-0.5">
+                            {resaleStats.displayed}건
+                            <span className="text-xs font-normal text-muted-foreground ml-1">
+                              (
+                              {resaleStats.total > 0
+                                ? Math.round((resaleStats.displayed / resaleStats.total) * 100)
+                                : 0}
+                              %)
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      {resaleStats.items.length > 0 && (
+                        <div className="max-h-60 overflow-y-auto border border-border rounded-sm">
+                          <table className="w-full text-xs border-collapse">
+                            <thead className="sticky top-0 bg-secondary/50">
+                              <tr className="text-left">
+                                <th className="px-3 py-2 font-semibold whitespace-nowrap">사건번호</th>
+                                <th className="px-3 py-2 font-semibold">주소</th>
+                                <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">점수</th>
+                                <th className="px-3 py-2 font-semibold whitespace-nowrap">등급</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {resaleStats.items.map((row) => (
+                                <tr key={row.id} className="border-t border-border">
+                                  <td className="px-3 py-2 whitespace-nowrap">{row.auctionNo}</td>
+                                  <td className="px-3 py-2">{row.address}</td>
+                                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                                    {row.candidateScore ?? "-"}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap">
+                                    {row.candidateTier ?? (
+                                      <span className="text-muted-foreground">후보 없음</span>
+                                    )}
+                                    {row.displayed && (
+                                      <span className="ml-1 text-emerald-700 font-semibold">(노출됨)</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                 <div>
