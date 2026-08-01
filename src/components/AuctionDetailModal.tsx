@@ -2442,8 +2442,8 @@ export function AuctionDetailModal({
                           </p>
                         </div>
                       )}
-                      {(!hasTenantData || !hasRegistryData || (!hasUnpaidFee && !hasUnpaidFeeCheck)) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+                      {(!hasTenantData || !hasRegistryData) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
                           {!hasTenantData && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
                               <p className="text-[0.72rem] font-semibold text-amber-800">임차인 정보 미확인</p>
@@ -2454,12 +2454,6 @@ export function AuctionDetailModal({
                             <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
                               <p className="text-[0.72rem] font-semibold text-amber-800">등기 자료 미확인</p>
                               <p className="text-[0.65rem] text-amber-800/65 mt-0.5">권리분석 전 자료 확인 필요</p>
-                            </div>
-                          )}
-                          {!hasUnpaidFee && !hasUnpaidFeeCheck && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
-                              <p className="text-[0.72rem] font-semibold text-amber-800">미납 관리비 미조사</p>
-                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">관리사무소 확인 권장</p>
                             </div>
                           )}
                         </div>
