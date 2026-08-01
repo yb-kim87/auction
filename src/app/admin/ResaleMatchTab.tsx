@@ -205,7 +205,13 @@ export function ResaleMatchTab() {
             MEDIUM(55점) 이상 후보가 아직 없습니다.
           </p>
         ) : (
-          <table className="text-xs border-collapse" style={{ tableLayout: "fixed", width: "max-content" }}>
+          <table
+            className="text-xs border-collapse"
+            style={{
+              tableLayout: "fixed",
+              width: COLUMN_KEYS.reduce((sum, key) => sum + colWidths[key], 0),
+            }}
+          >
             <colgroup>
               {COLUMN_KEYS.map((key) => (
                 <col key={key} style={{ width: colWidths[key] }} />
