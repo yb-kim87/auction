@@ -1657,6 +1657,12 @@ export function AuctionDetailModal({
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
   const [showMemo, setShowMemo] = useState(false);
+  // 전체 편집모드(editable)가 아닌 화면(예: 홈 "추천 물건" 미리보기)에서도
+  // 관리자는 메모만큼은 바로 수정할 수 있어야 한다(사용자 요청,
+  // 2026-08-01) — 전체 폼을 편집모드로 바꾸지 않고 메모 칸만 인라인으로
+  // 수정 가능하게 별도 토글을 둔다.
+  const [memoInlineEditing, setMemoInlineEditing] = useState(false);
+  const [memoInlineSaving, setMemoInlineSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"info" | "ai" | "profit">("info");
   const [editingViews, setEditingViews] = useState(false);
   const [cachedAnalysis, setCachedAnalysis] = useState<AuctionAnalysisResult | null>(null);
@@ -2592,10 +2598,61 @@ export function AuctionDetailModal({
                     placeholder="메모 입력"
                     className={`w-full ${LIST_TEXT} bg-input-background border border-border rounded-sm px-3 py-2 text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary/20`}
                   />
+                ) : isAdmin && memoInlineEditing ? (
+                  <div className="space-y-2">
+                    <textarea
+                      rows={3}
+                      autoFocus
+                      value={String(form.memo ?? "")}
+                      onChange={(e) => setField("memo", e.target.value)}
+                      placeholder="메모 입력"
+                      className={`w-full ${LIST_TEXT} bg-input-background border border-border rounded-sm px-3 py-2 text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary/20`}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={memoInlineSaving}
+                        onClick={async () => {
+                          setMemoInlineSaving(true);
+                          try {
+                            await handleSave();
+                            setMemoInlineEditing(false);
+                          } finally {
+                            setMemoInlineSaving(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+                      >
+                        {memoInlineSaving ? "저장 중..." : "저장"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={memoInlineSaving}
+                        onClick={() => {
+                          setField("memo", preview.memo ?? "");
+                          setMemoInlineEditing(false);
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-50"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <p className={`${LIST_TEXT} text-foreground whitespace-pre-wrap break-words`}>
-                    {preview.memo?.trim() ? preview.memo : "메모 없음"}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`${LIST_TEXT} text-foreground whitespace-pre-wrap break-words`}>
+                      {preview.memo?.trim() ? preview.memo : "메모 없음"}
+                    </p>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setMemoInlineEditing(true)}
+                        className="shrink-0 text-xs font-medium text-primary hover:underline"
+                      >
+                        수정
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}
