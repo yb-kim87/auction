@@ -17,6 +17,10 @@ import {
   fetchVatCalc,
   fetchVatLandPrice,
   saveVatBuildingInfo,
+  fetchBidPlan,
+  saveBidPlan,
+  deleteBidPlan,
+  type BidPlan,
 } from "@/lib/api";
 
 function parseAreaNumber(value: string | null | undefined): number | null {
@@ -282,6 +286,105 @@ export function ProfitCalculatorPanel({
   // 최저가(국세청 고시상 하한) 기준으로 전환한다(사용자 요청, 2026-07-21).
   const [vatUseLowPrice, setVatUseLowPrice] = useState(false);
 
+  // 입찰 계획 저장 — "이 가격에 이렇게 입찰하겠다"는 계산기 입력값을
+  // 물건+회원 단위로 서버에 스냅샷 저장해두고, 다시 열면 그대로
+  // 불러온다(사용자 요청, 2026-08-01).
+  const [bidPlanMemo, setBidPlanMemo] = useState("");
+  const [savedBidPlan, setSavedBidPlan] = useState<BidPlan | null>(null);
+  const [bidPlanSaving, setBidPlanSaving] = useState(false);
+  const [bidPlanMessage, setBidPlanMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchBidPlan(item.id)
+      .then((plan) => {
+        if (cancelled || !plan) return;
+        setSavedBidPlan(plan);
+        setBidPlanMemo(plan.memo ?? "");
+        try {
+          const saved = JSON.parse(plan.inputsJson || "{}") as Record<string, unknown>;
+          if (typeof saved.bidPrice === "number") setBidPrice(saved.bidPrice);
+          if (typeof saved.salePrice === "number") setSalePrice(saved.salePrice);
+          if (typeof saved.holdingMonths === "number") setHoldingMonths(saved.holdingMonths);
+          if (typeof saved.loanRatioByAppraisal === "number") setLoanRatioByAppraisal(saved.loanRatioByAppraisal);
+          if (typeof saved.loanRatioByBidPrice === "number") setLoanRatioByBidPrice(saved.loanRatioByBidPrice);
+          if (typeof saved.loanInterestRate === "number") setLoanInterestRate(saved.loanInterestRate);
+          if (typeof saved.earlyRepaymentFeeRate === "number") setEarlyRepaymentFeeRate(saved.earlyRepaymentFeeRate);
+          if (typeof saved.interiorCost === "number") setInteriorCost(saved.interiorCost);
+          if (typeof saved.evictionCost === "number") setEvictionCost(saved.evictionCost);
+          if (typeof saved.unpaidMaintenanceFee === "number") setUnpaidMaintenanceFee(saved.unpaidMaintenanceFee);
+          if (typeof saved.extraRealtyFee === "number") setExtraRealtyFee(saved.extraRealtyFee);
+          if (typeof saved.vatAmount === "number") {
+            setVatAmount(saved.vatAmount);
+            setVatEdited(true);
+          }
+          if (typeof saved.applyProgressiveDeduction === "boolean") {
+            setApplyProgressiveDeduction(saved.applyProgressiveDeduction);
+          }
+          if (typeof saved.existingIncome === "number") setExistingIncome(saved.existingIncome);
+        } catch {
+          // 저장된 입력값 파싱 실패는 무시하고 계산기 기본값을 그대로 둔다.
+        }
+      })
+      .catch(() => {
+        // 저장된 계획이 없거나 조회 실패 — 조용히 무시(기본값 사용).
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
+  async function handleSaveBidPlan() {
+    setBidPlanSaving(true);
+    setBidPlanMessage("");
+    try {
+      const plan = await saveBidPlan(item.id, {
+        bidPrice,
+        salePrice,
+        finalProfit: result.finalProfit,
+        requiredEquity: result.equity,
+        memo: bidPlanMemo,
+        inputs: {
+          bidPrice,
+          salePrice,
+          holdingMonths,
+          loanRatioByAppraisal,
+          loanRatioByBidPrice,
+          loanInterestRate,
+          earlyRepaymentFeeRate,
+          interiorCost,
+          evictionCost,
+          unpaidMaintenanceFee,
+          extraRealtyFee,
+          vatAmount,
+          applyProgressiveDeduction,
+          existingIncome,
+        },
+      });
+      setSavedBidPlan(plan);
+      setBidPlanMessage("입찰 계획을 저장했습니다.");
+    } catch (err) {
+      setBidPlanMessage(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setBidPlanSaving(false);
+    }
+  }
+
+  async function handleDeleteBidPlan() {
+    setBidPlanSaving(true);
+    setBidPlanMessage("");
+    try {
+      await deleteBidPlan(item.id);
+      setSavedBidPlan(null);
+      setBidPlanMessage("저장된 입찰 계획을 삭제했습니다.");
+    } catch (err) {
+      setBidPlanMessage(err instanceof Error ? err.message : "삭제에 실패했습니다.");
+    } finally {
+      setBidPlanSaving(false);
+    }
+  }
+
   async function handleAutoCalcVat() {
     setVatAutoLoading(true);
     setVatAutoNote(null);
@@ -485,6 +588,47 @@ export function ProfitCalculatorPanel({
           min(감정가×감정가비율, 낙찰가×낙찰가비율)로 계산되며, 아래 비율은 이 물건에 적용된
           대출정책 값으로 기본 설정되어 있습니다.
         </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-foreground">
+            입찰 계획 저장
+            {savedBidPlan && (
+              <span className="ml-2 font-normal text-muted-foreground">
+                {new Date(savedBidPlan.updatedAt).toLocaleString("ko-KR")} 저장됨
+              </span>
+            )}
+          </p>
+        </div>
+        <textarea
+          rows={2}
+          placeholder="메모(예: 이 가격 이하로만 입찰, 전세가 확인 후 결정 등)"
+          value={bidPlanMemo}
+          onChange={(e) => setBidPlanMemo(e.target.value)}
+          className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-secondary/10 resize-y"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleSaveBidPlan()}
+            disabled={bidPlanSaving}
+            className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+          >
+            {bidPlanSaving ? "처리 중..." : savedBidPlan ? "다시 저장" : "이 계획 저장하기"}
+          </button>
+          {savedBidPlan && (
+            <button
+              type="button"
+              onClick={() => void handleDeleteBidPlan()}
+              disabled={bidPlanSaving}
+              className="px-3 py-1.5 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-50"
+            >
+              삭제
+            </button>
+          )}
+          {bidPlanMessage && <span className="text-xs text-muted-foreground">{bidPlanMessage}</span>}
+        </div>
       </div>
 
       <div

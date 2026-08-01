@@ -176,6 +176,86 @@ export async function removeFavorite(auctionId: string): Promise<void> {
   }
 }
 
+export interface BidPlan {
+  id: string;
+  username: string;
+  auctionId: string;
+  bidPrice: number;
+  salePrice: number;
+  finalProfit: number | null;
+  requiredEquity: number | null;
+  memo: string;
+  inputsJson: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BidPlanWithAuction extends BidPlan {
+  auction: {
+    id: string;
+    address: string;
+    auctionNo: string;
+    court: string;
+    status: string;
+    bidDate: string;
+  } | null;
+}
+
+export async function fetchBidPlan(auctionId: string): Promise<BidPlan | null> {
+  const res = await fetch(`${API_BASE}/bid-plans/${auctionId}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "저장된 입찰 계획을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchMyBidPlans(): Promise<BidPlanWithAuction[]> {
+  const res = await fetch(`${API_BASE}/bid-plans`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "입찰 계획 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function saveBidPlan(
+  auctionId: string,
+  input: {
+    bidPrice: number;
+    salePrice: number;
+    finalProfit: number | null;
+    requiredEquity: number | null;
+    memo: string;
+    inputs: Record<string, unknown>;
+  },
+): Promise<BidPlan> {
+  const res = await fetch(`${API_BASE}/bid-plans/${auctionId}`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "입찰 계획 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteBidPlan(auctionId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/bid-plans/${auctionId}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "입찰 계획 삭제에 실패했습니다.");
+  }
+}
+
 export type UserActionType =
   | "impression"
   | "click"
