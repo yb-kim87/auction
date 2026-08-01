@@ -142,11 +142,6 @@ export function TenantStatusPanel({
                 <td className={bodyCellClass}>{row.occupancyNo || "-"}</td>
                 <td className={`${bodyCellClass} break-words font-medium`}>
                   <span className="break-words">{row.tenantName || "-"}</span>
-                  {hasWaiver && (
-                    <span className="mt-1 block w-fit px-1.5 py-0.5 rounded text-[0.6rem] font-semibold bg-amber-100 text-amber-700 whitespace-nowrap">
-                      임차권 포기
-                    </span>
-                  )}
                 </td>
                 <td className={`${bodyCellClass} whitespace-pre-line break-words`}>{row.occupancy || "-"}</td>
                 <td className={`${bodyCellClass} whitespace-nowrap`}>
@@ -172,6 +167,11 @@ export function TenantStatusPanel({
                   }
                 >
                   {displayedOpposability}
+                  {hasWaiver && (
+                    <span className="mt-1 block w-fit px-1.5 py-0.5 rounded text-[0.6rem] font-semibold bg-amber-100 text-amber-700 whitespace-nowrap">
+                      임차권 포기
+                    </span>
+                  )}
                 </td>
                 <td className={`${bodyCellClass} whitespace-pre-line break-words`}>
                   {row.analysis.length > 0
