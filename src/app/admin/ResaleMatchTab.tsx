@@ -93,7 +93,7 @@ function ResizableTh({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!dragState.current) return;
       const delta = moveEvent.clientX - dragState.current.startX;
-      const next = Math.max(50, dragState.current.startWidth + delta);
+      const next = Math.max(16, dragState.current.startWidth + delta);
       onResize(colKey, next);
     };
     const handleMouseUp = () => {
@@ -258,30 +258,30 @@ export function ResaleMatchTab() {
             <tbody>
               {items.map((item) => (
                 <tr key={item.matchId} className="border-t border-border align-top">
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <div className="font-semibold">{item.auctionNo}</div>
-                    <div className="text-muted-foreground">{item.court}</div>
+                  <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">
+                    <div className="font-semibold truncate">{item.auctionNo}</div>
+                    <div className="text-muted-foreground truncate">{item.court}</div>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">{item.propType ?? "-"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">{item.propType ?? "-"}</td>
                   <td className="px-3 py-2 truncate whitespace-nowrap overflow-hidden" title={item.address}>
                     {item.address}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">{formatDate(item.paymentCompletedAt)}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">{formatWon(item.salePrice)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">{formatDate(item.paymentCompletedAt)}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap truncate overflow-hidden">{formatWon(item.salePrice)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">
                     {item.aptNm} {item.buildingDong ? `${item.buildingDong}동 ` : ""}
                     {item.floor}층 / {item.exclusiveArea}㎡
                   </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">{formatWon(item.dealAmount)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 text-right whitespace-nowrap truncate overflow-hidden">{formatWon(item.dealAmount)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">
                     {formatDate(item.contractDate)}
                     {item.registeredAt && (
-                      <div className="text-emerald-700 text-[10px]">
+                      <div className="text-emerald-700 text-[10px] truncate">
                         등기 {formatDate(item.registeredAt)}
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                  <td className="px-3 py-2 text-right whitespace-nowrap truncate overflow-hidden">
                     {(() => {
                       const deal = item.dealAmount == null ? null : Number(item.dealAmount);
                       const sale = item.salePrice == null ? null : Number(item.salePrice);
@@ -297,13 +297,13 @@ export function ResaleMatchTab() {
                       );
                     })()}
                   </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
+                  <td className="px-3 py-2 text-right whitespace-nowrap font-semibold overflow-hidden">
                     {item.scoreTotal}
                     {item.runnerUpScore != null && (
                       <span className="text-muted-foreground font-normal"> / {item.runnerUpScore}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden">
                     <span
                       className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-sm border ${TIER_STYLES[item.confidenceTier]}`}
                     >
@@ -320,20 +320,20 @@ export function ResaleMatchTab() {
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden">
                     {item.isDisplayed ? (
                       <span className="text-emerald-700 font-semibold">노출됨</span>
                     ) : (
                       <span className="text-muted-foreground">비노출</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden">
                     {STATUS_LABELS[item.status]}
                     {item.reviewedBy && (
-                      <div className="text-muted-foreground">{item.reviewedBy}</div>
+                      <div className="text-muted-foreground truncate">{item.reviewedBy}</div>
                     )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-right space-x-2">
+                  <td className="px-3 py-2 whitespace-nowrap text-right space-x-2 overflow-hidden">
                     <button
                       type="button"
                       disabled={reviewingId === item.matchId}
