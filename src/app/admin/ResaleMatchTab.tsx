@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchResaleMatches,
   reviewResaleMatch,
@@ -38,12 +38,97 @@ const STATUS_LABELS: Record<ResaleMatchQaItem["status"], string> = {
   SUPERSEDED: "대체됨",
 };
 
+const COLUMN_KEYS = [
+  "auctionNo",
+  "propType",
+  "address",
+  "paymentCompletedAt",
+  "salePrice",
+  "trade",
+  "dealAmount",
+  "contractDate",
+  "profit",
+  "score",
+  "tier",
+  "displayed",
+  "status",
+  "actions",
+] as const;
+
+const DEFAULT_COLUMN_WIDTHS: Record<(typeof COLUMN_KEYS)[number], number> = {
+  auctionNo: 140,
+  propType: 90,
+  address: 260,
+  paymentCompletedAt: 100,
+  salePrice: 90,
+  trade: 220,
+  dealAmount: 90,
+  contractDate: 100,
+  profit: 100,
+  score: 70,
+  tier: 130,
+  displayed: 70,
+  status: 90,
+  actions: 100,
+};
+
+function ResizableTh({
+  colKey,
+  width,
+  onResize,
+  className,
+  children,
+}: {
+  colKey: string;
+  width: number;
+  onResize: (colKey: string, width: number) => void;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragState.current = { startX: e.clientX, startWidth: width };
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragState.current) return;
+      const delta = moveEvent.clientX - dragState.current.startX;
+      const next = Math.max(50, dragState.current.startWidth + delta);
+      onResize(colKey, next);
+    };
+    const handleMouseUp = () => {
+      dragState.current = null;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  return (
+    <th
+      className={`relative px-3 py-2 font-semibold text-foreground whitespace-nowrap select-none ${className ?? ""}`}
+    >
+      {children}
+      <span
+        onMouseDown={handleMouseDown}
+        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
+      />
+    </th>
+  );
+}
+
 export function ResaleMatchTab() {
   const [items, setItems] = useState<ResaleMatchQaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS);
+
+  const handleResize = useCallback((colKey: string, width: number) => {
+    setColWidths((prev) => ({ ...prev, [colKey]: width }));
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -120,22 +205,54 @@ export function ResaleMatchTab() {
             MEDIUM(55점) 이상 후보가 아직 없습니다.
           </p>
         ) : (
-          <table className="w-full text-xs border-collapse">
+          <table className="text-xs border-collapse" style={{ tableLayout: "fixed", width: "max-content" }}>
+            <colgroup>
+              {COLUMN_KEYS.map((key) => (
+                <col key={key} style={{ width: colWidths[key] }} />
+              ))}
+            </colgroup>
             <thead className="sticky top-0 bg-secondary/50">
               <tr className="text-left">
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">사건번호/법원</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">주소</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">완납일</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">낙찰가</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">실거래(층/면적)</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">거래금액</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">계약일</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">매도차익</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">점수</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">등급</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">노출</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">검토상태</th>
-                <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap"></th>
+                <ResizableTh colKey="auctionNo" width={colWidths.auctionNo} onResize={handleResize}>
+                  사건번호/법원
+                </ResizableTh>
+                <ResizableTh colKey="propType" width={colWidths.propType} onResize={handleResize}>
+                  용도
+                </ResizableTh>
+                <ResizableTh colKey="address" width={colWidths.address} onResize={handleResize}>
+                  주소
+                </ResizableTh>
+                <ResizableTh colKey="paymentCompletedAt" width={colWidths.paymentCompletedAt} onResize={handleResize}>
+                  완납일
+                </ResizableTh>
+                <ResizableTh colKey="salePrice" width={colWidths.salePrice} onResize={handleResize} className="text-right">
+                  낙찰가
+                </ResizableTh>
+                <ResizableTh colKey="trade" width={colWidths.trade} onResize={handleResize}>
+                  실거래(층/면적)
+                </ResizableTh>
+                <ResizableTh colKey="dealAmount" width={colWidths.dealAmount} onResize={handleResize} className="text-right">
+                  거래금액
+                </ResizableTh>
+                <ResizableTh colKey="contractDate" width={colWidths.contractDate} onResize={handleResize}>
+                  계약일
+                </ResizableTh>
+                <ResizableTh colKey="profit" width={colWidths.profit} onResize={handleResize} className="text-right">
+                  매도차익
+                </ResizableTh>
+                <ResizableTh colKey="score" width={colWidths.score} onResize={handleResize} className="text-right">
+                  점수
+                </ResizableTh>
+                <ResizableTh colKey="tier" width={colWidths.tier} onResize={handleResize}>
+                  등급
+                </ResizableTh>
+                <ResizableTh colKey="displayed" width={colWidths.displayed} onResize={handleResize}>
+                  노출
+                </ResizableTh>
+                <ResizableTh colKey="status" width={colWidths.status} onResize={handleResize}>
+                  검토상태
+                </ResizableTh>
+                <ResizableTh colKey="actions" width={colWidths.actions} onResize={handleResize}></ResizableTh>
               </tr>
             </thead>
             <tbody>
@@ -145,7 +262,8 @@ export function ResaleMatchTab() {
                     <div className="font-semibold">{item.auctionNo}</div>
                     <div className="text-muted-foreground">{item.court}</div>
                   </td>
-                  <td className="px-3 py-2 max-w-[28rem] truncate whitespace-nowrap" title={item.address}>
+                  <td className="px-3 py-2 whitespace-nowrap">{item.propType ?? "-"}</td>
+                  <td className="px-3 py-2 truncate whitespace-nowrap overflow-hidden" title={item.address}>
                     {item.address}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatDate(item.paymentCompletedAt)}</td>

@@ -3529,6 +3529,7 @@ export type ResaleMatchQaItem = {
   ambiguous: boolean;
   auctionNo: string;
   court: string;
+  propType: string | null;
   address: string;
   paymentCompletedAt: string | null;
   salePrice: number | null;
