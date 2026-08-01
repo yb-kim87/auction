@@ -22,7 +22,7 @@ import {
   progressLabelToStatus,
 } from "@/lib/progress-status-filter";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
-import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, fetchRegulatedRegions, fetchIncomeLoanMultiplier, logUserAction, logUserActionsBatch, type LoanPolicy } from "@/lib/api";
+import { fetchAuctions, fetchFavoriteIds, addFavorite, removeFavorite, fetchMyProfile, logoutUser, fetchLoanPolicies, fetchRegulatedRegions, fetchIncomeLoanMultiplier, logUserAction, logUserActionsBatch, fetchResaleSoldStats, type LoanPolicy, type ResaleSoldStats } from "@/lib/api";
 import {
   matchesInvestmentRecommend,
   requiredEquityForItem,
@@ -884,6 +884,9 @@ export default function Home() {
   const [loadError, setLoadError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isConsultant, setIsConsultant] = useState(false);
+  const [resaleStats, setResaleStats] = useState<ResaleSoldStats | null>(null);
+  const [resaleStatsLoading, setResaleStatsLoading] = useState(false);
+  const [resaleStatsError, setResaleStatsError] = useState("");
   const [cities, setCities] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
   const [ward, setWard] = useState("");
@@ -1171,6 +1174,20 @@ export default function Home() {
   ]);
 
   const displayItems = recommendEnabled ? recommendMatches : filtered;
+
+  async function handleRunResaleStats() {
+    setResaleStatsLoading(true);
+    setResaleStatsError("");
+    setResaleStats(null);
+    try {
+      const result = await fetchResaleSoldStats(filtered.map((item) => item.id));
+      setResaleStats(result);
+    } catch (err) {
+      setResaleStatsError(err instanceof Error ? err.message : "매도분석 조회에 실패했습니다.");
+    } finally {
+      setResaleStatsLoading(false);
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(displayItems.length / pageSize));
 
@@ -1485,12 +1502,102 @@ export default function Home() {
         />
 
         {/* Result Summary */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`${SECTION_TEXT} font-semibold text-foreground`}>검색 결과</span>
           <span className={`font-mono ${LIST_TEXT} text-primary font-bold`}>{displayItems.length}</span>
           <span className={`${LIST_TEXT} text-muted-foreground`}>건</span>
           <span className={`${LABEL_TEXT} text-muted-foreground ml-1`}>/ 전체 {items.length}건</span>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => void handleRunResaleStats()}
+              disabled={resaleStatsLoading || filtered.length === 0}
+              className={`ml-auto px-3 py-1.5 ${LIST_TEXT} font-semibold rounded-sm border border-primary/30 text-primary hover:bg-primary/10 disabled:opacity-50`}
+            >
+              {resaleStatsLoading ? "매도분석 조회 중..." : `이 필터로 매도분석 (${filtered.length}건)`}
+            </button>
+          )}
         </div>
+
+        {isAdmin && (resaleStats || resaleStatsError) && (
+          <div className="rounded-sm border border-border bg-card p-4 space-y-3">
+            {resaleStatsError ? (
+              <p className={`${LIST_TEXT} text-destructive`}>{resaleStatsError}</p>
+            ) : resaleStats ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className={`${LIST_TEXT} font-semibold text-foreground`}>
+                    이 필터 낙찰물건의 매도분석 결과
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setResaleStats(null)}
+                    className={`${LABEL_TEXT} text-muted-foreground hover:text-foreground`}
+                  >
+                    닫기
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 border border-border rounded-sm">
+                    <p className={`${LABEL_TEXT} text-muted-foreground`}>필터 중 낙찰 물건</p>
+                    <p className="text-xl font-bold text-foreground mt-0.5">{resaleStats.total}건</p>
+                  </div>
+                  <div className="p-3 border border-border rounded-sm">
+                    <p className={`${LABEL_TEXT} text-muted-foreground`}>QA 후보 있음(55점+)</p>
+                    <p className="text-xl font-bold text-foreground mt-0.5">
+                      {resaleStats.withCandidate}건
+                      <span className={`${LABEL_TEXT} font-normal text-muted-foreground ml-1`}>
+                        ({resaleStats.total > 0 ? Math.round((resaleStats.withCandidate / resaleStats.total) * 100) : 0}%)
+                      </span>
+                    </p>
+                  </div>
+                  <div className="p-3 border border-border rounded-sm">
+                    <p className={`${LABEL_TEXT} text-muted-foreground`}>매도 확정 표시(70점+)</p>
+                    <p className="text-xl font-bold text-emerald-700 mt-0.5">
+                      {resaleStats.displayed}건
+                      <span className={`${LABEL_TEXT} font-normal text-muted-foreground ml-1`}>
+                        ({resaleStats.total > 0 ? Math.round((resaleStats.displayed / resaleStats.total) * 100) : 0}%)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                {resaleStats.items.length > 0 && (
+                  <div className="max-h-72 overflow-y-auto border border-border rounded-sm">
+                    <table className="w-full text-xs border-collapse">
+                      <thead className="sticky top-0 bg-secondary/50">
+                        <tr className="text-left">
+                          <th className="px-3 py-2 font-semibold whitespace-nowrap">사건번호</th>
+                          <th className="px-3 py-2 font-semibold">주소</th>
+                          <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">낙찰가</th>
+                          <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">점수</th>
+                          <th className="px-3 py-2 font-semibold whitespace-nowrap">등급</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resaleStats.items.map((row) => (
+                          <tr key={row.id} className="border-t border-border">
+                            <td className="px-3 py-2 whitespace-nowrap">{row.auctionNo}</td>
+                            <td className="px-3 py-2">{row.address}</td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">
+                              {row.salePrice != null ? row.salePrice.toLocaleString("ko-KR") : "-"}
+                            </td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">{row.candidateScore ?? "-"}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              {row.candidateTier ?? <span className="text-muted-foreground">후보 없음</span>}
+                              {row.displayed && (
+                                <span className="ml-1 text-emerald-700 font-semibold">(노출됨)</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
+        )}
 
         {loadError && (
           <div className={`rounded-sm border border-destructive/30 bg-destructive/5 px-4 py-3 ${LIST_TEXT} text-destructive`}>
