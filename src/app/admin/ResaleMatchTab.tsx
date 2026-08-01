@@ -81,7 +81,7 @@ export function ResaleMatchTab() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
+    <div className="p-6 space-y-6 max-w-[100rem]">
       <div>
         <h2 className="text-lg font-bold text-foreground">낙찰물건 매도분석</h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -144,7 +144,7 @@ export function ResaleMatchTab() {
                     <div className="font-semibold">{item.auctionNo}</div>
                     <div className="text-muted-foreground">{item.court}</div>
                   </td>
-                  <td className="px-3 py-2 max-w-[16rem] truncate whitespace-nowrap" title={item.address}>
+                  <td className="px-3 py-2 max-w-[28rem] truncate whitespace-nowrap" title={item.address}>
                     {item.address}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatDate(item.paymentCompletedAt)}</td>
