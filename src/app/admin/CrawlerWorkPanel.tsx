@@ -70,6 +70,7 @@ export function CrawlerWorkPanel() {
   const [status, setStatus] = useState<CrawlerStatus | null>(null);
   const [logs, setLogs] = useState<CrawlerLogEntry[]>([]);
   const [repeatAfterCollect, setRepeatAfterCollect] = useState(false);
+  const [runResaleAnalysisForExisting, setRunResaleAnalysisForExisting] = useState(false);
   const [scheduledTime, setScheduledTime] = useState("00:00");
   const [manualUrl, setManualUrl] = useState("");
   const [tankUserId, setTankUserId] = useState("");
@@ -522,6 +523,7 @@ export function CrawlerWorkPanel() {
                 crawlerStart({
                   repeatAfterCollect: true,
                   crawlerVersion: status?.remoteWorker ? undefined : "v3",
+                  runResaleAnalysisForExisting,
                 }).catch((err) => {
                   setError(
                     err instanceof Error
@@ -551,6 +553,16 @@ export function CrawlerWorkPanel() {
                   />
                   주소 추가 후 자동으로 조회 시작
                 </label>
+                <label className="flex items-center gap-2 px-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={runResaleAnalysisForExisting}
+                    onChange={(e) => setRunResaleAnalysisForExisting(e.target.checked)}
+                    disabled={Boolean(isRunning)}
+                    className="accent-primary"
+                  />
+                  기존 DB 물건도 매도분석
+                </label>
                 <input
                   type="time"
                   value={scheduledTime}
@@ -561,7 +573,10 @@ export function CrawlerWorkPanel() {
               </div>
               <p className="text-xs text-muted-foreground px-2">
                 진행상태를 "매각"으로 걸고 주소 추가 → 조회 시작하면, 조회가 끝난 뒤 그중
-                낙찰된 물건만 자동으로 매도분석 결과를 보여줍니다.
+                낙찰된 물건만 자동으로 매도분석 결과를 보여줍니다. "기존 DB 물건도
+                매도분석"을 켜면 이번에 새로 크롤링한 물건뿐 아니라, 중복이라 재크롤링을
+                건너뛴 기존 DB 물건들도 함께 매도분석합니다(체크 안 하면 건너뜀 — 매번
+                수천 건씩 재매칭되는 걸 막기 위해 기본값은 꺼짐).
               </p>
 
               {(resaleStatsLoading || resaleStats || resaleStatsError) && (
@@ -836,6 +851,7 @@ export function CrawlerWorkPanel() {
                           await crawlerStart({
                             repeatAfterCollect,
                             crawlerVersion: status?.remoteWorker ? undefined : "v3",
+                            runResaleAnalysisForExisting,
                           });
                         }
                       },

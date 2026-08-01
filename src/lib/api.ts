@@ -1823,6 +1823,7 @@ export async function crawlerManageUrls(body: {
 export async function crawlerStart(options?: {
   repeatAfterCollect?: boolean;
   crawlerVersion?: CrawlerVersion;
+  runResaleAnalysisForExisting?: boolean;
 }) {
   const res = await fetch(`${API_BASE}/crawler/start`, {
     method: "POST",
