@@ -3572,3 +3572,45 @@ export async function runResaleMatchNow(): Promise<{ ok: boolean; message: strin
   }
   return readJsonResponse(res);
 }
+
+export type ResaleSoldStatItem = {
+  id: string;
+  auctionNo: string;
+  court: string;
+  address: string;
+  city: string;
+  district: string;
+  usage: string;
+  salePrice: number | null;
+  candidateScore: number | null;
+  candidateTier: string | null;
+  displayed: boolean;
+};
+
+export type ResaleSoldStats = {
+  total: number;
+  withCandidate: number;
+  displayed: number;
+  items: ResaleSoldStatItem[];
+};
+
+/** "물건작업 필터"(지역/물건종류)를 낙찰 완료 물건에 적용해, 그 필터에
+ * 걸리는 주소들이 실제로 매도분석상 매도로 연결됐는지 통계를 낸다. */
+export async function fetchResaleSoldStats(filters: {
+  city?: string[];
+  district?: string[];
+  propType?: string[];
+}): Promise<ResaleSoldStats> {
+  const query = new URLSearchParams();
+  if (filters.city?.length) query.set("city", filters.city.join(","));
+  if (filters.district?.length) query.set("district", filters.district.join(","));
+  if (filters.propType?.length) query.set("propType", filters.propType.join(","));
+  const res = await fetch(`${API_BASE}/resale-match/sold-stats?${query.toString()}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "매도분석 통계를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
