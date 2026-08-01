@@ -3542,7 +3542,7 @@ export async function fetchResaleMatches(): Promise<ResaleMatchQaItem[]> {
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
-    throw new Error((await parseErrorMessage(res)) ?? "재판매 매칭 목록을 불러오지 못했습니다.");
+    throw new Error((await parseErrorMessage(res)) ?? "매도분석 목록을 불러오지 못했습니다.");
   }
   return readJsonResponse(res);
 }
@@ -3568,7 +3568,7 @@ export async function runResaleMatchNow(): Promise<{ ok: boolean; message: strin
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
-    throw new Error((await parseErrorMessage(res)) ?? "재판매 매칭 실행에 실패했습니다.");
+    throw new Error((await parseErrorMessage(res)) ?? "매도분석 실행에 실패했습니다.");
   }
   return readJsonResponse(res);
 }

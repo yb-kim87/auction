@@ -83,7 +83,7 @@ export function ResaleMatchTab() {
   return (
     <div className="p-6 space-y-6 max-w-6xl">
       <div>
-        <h2 className="text-lg font-bold text-foreground">낙찰물건 매도 추정(재판매 매칭) QA</h2>
+        <h2 className="text-lg font-bold text-foreground">낙찰물건 매도분석 QA</h2>
         <p className="text-sm text-muted-foreground mt-1">
           매각대금완납일 이후 국토부 실거래가와 대조해, 낙찰받은 그 물건이 실제로 되팔렸을
           가능성이 있는 사례를 모아 보여줍니다. 55점(MEDIUM) 이상만 표시하며, 70점 이상이면서
