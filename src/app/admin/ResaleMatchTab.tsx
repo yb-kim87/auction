@@ -144,14 +144,24 @@ export function ResaleMatchTab() {
                     <div className="font-semibold">{item.auctionNo}</div>
                     <div className="text-muted-foreground">{item.court}</div>
                   </td>
-                  <td className="px-3 py-2 max-w-[16rem]">{item.address}</td>
+                  <td className="px-3 py-2 max-w-[16rem] truncate whitespace-nowrap" title={item.address}>
+                    {item.address}
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatDate(item.paymentCompletedAt)}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">{formatWon(item.salePrice)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {item.aptNm} {item.floor}층 / {item.exclusiveArea}㎡
+                    {item.aptNm} {item.buildingDong ? `${item.buildingDong}동 ` : ""}
+                    {item.floor}층 / {item.exclusiveArea}㎡
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">{formatWon(item.dealAmount)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{formatDate(item.contractDate)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {formatDate(item.contractDate)}
+                    {item.registeredAt && (
+                      <div className="text-emerald-700 text-[10px]">
+                        등기 {formatDate(item.registeredAt)}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
                     {item.scoreTotal}
                     {item.runnerUpScore != null && (

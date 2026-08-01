@@ -3533,10 +3533,14 @@ export type ResaleMatchQaItem = {
   paymentCompletedAt: string | null;
   salePrice: number | null;
   aptNm: string;
+  /** 2024년 이후 계약만 부분적으로 채워짐(국토부 API 제약, 실측 50~75%). */
+  buildingDong: string | null;
   floor: number;
   exclusiveArea: string;
   dealAmount: string;
   contractDate: string;
+  /** 등기접수일 — 있으면 소유권 이전 등기까지 완료됐다는 뜻(신뢰도 높은 신호). */
+  registeredAt: string | null;
 };
 
 export async function fetchResaleMatches(): Promise<ResaleMatchQaItem[]> {
