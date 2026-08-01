@@ -130,6 +130,7 @@ export function ResaleMatchTab() {
                 <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">실거래(층/면적)</th>
                 <th className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">거래금액</th>
                 <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">계약일</th>
+                <th className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">매도차익</th>
                 <th className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">점수</th>
                 <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">등급</th>
                 <th className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">노출</th>
@@ -161,6 +162,22 @@ export function ResaleMatchTab() {
                         등기 {formatDate(item.registeredAt)}
                       </div>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {(() => {
+                      const deal = item.dealAmount == null ? null : Number(item.dealAmount);
+                      const sale = item.salePrice == null ? null : Number(item.salePrice);
+                      if (deal == null || sale == null || !Number.isFinite(deal) || !Number.isFinite(sale)) {
+                        return "-";
+                      }
+                      const profit = deal - sale;
+                      return (
+                        <span className={profit >= 0 ? "text-emerald-700 font-semibold" : "text-destructive font-semibold"}>
+                          {profit >= 0 ? "+" : "-"}
+                          {formatWon(Math.abs(profit))}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
                     {item.scoreTotal}
