@@ -83,13 +83,17 @@ export function CrawlerWorkPanel() {
   // 갱신되도록 한다 — 이게 없으면 버튼을 눌러도 응답 전까지 화면이 멈춘
   // 것처럼 보인다.
   const [collectingLocal, setCollectingLocal] = useState(false);
-  // "주소 추가"로 가져온 사건번호들 중 낙찰된 것만 매도분석까지 같이
-  // 돌린다(사용자 요청, 2026-08-01) — 진행상태를 "매각"으로 걸고 주소
-  // 추가하면 낙찰물건 목록도 받고 매도분석도 같이 되는 방식.
-  const [resaleAnalysisEnabled, setResaleAnalysisEnabled] = useState(false);
+  // "조회 시작"으로 작업목록을 실제로 크롤링해 DB에 저장한 뒤, 그중
+  // 낙찰된 물건만 매도분석까지 같이 돌린다(사용자 요청, 2026-08-01).
+  // "주소 추가" 직후엔 아직 상세 크롤링 전이라 DB에 없는 물건이
+  // 대부분이라 그 시점엔 분석해봐야 대부분 빠짐 — 실측 확인(188건
+  // 추가했는데 기존 DB에 있던 3건만 잡힘). 그래서 "조회 시작"이 끝난
+  // 시점으로 트리거를 옮겼다.
   const [resaleStats, setResaleStats] = useState<ResaleSoldStats | null>(null);
   const [resaleStatsLoading, setResaleStatsLoading] = useState(false);
   const [resaleStatsError, setResaleStatsError] = useState("");
+  const pendingResaleAuctionNosRef = useRef<string[] | null>(null);
+  const prevCrawlingPhaseRef = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -190,6 +194,30 @@ export function CrawlerWorkPanel() {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [logs]);
+
+  // "조회 시작"(크롤링)이 끝나는 순간을 감지해 매도분석을 돌린다 —
+  // "주소 추가" 직후엔 아직 상세 크롤링 전이라 대부분 DB에 없어서
+  // 분석해봐야 거의 다 빠진다(실측: 188건 중 3건만 잡힘). 조회가 끝나
+  // DB에 저장된 뒤에 돌려야 의미가 있다.
+  useEffect(() => {
+    const nowCrawling = status?.phase === "crawling";
+    const justFinished = prevCrawlingPhaseRef.current && !nowCrawling;
+    prevCrawlingPhaseRef.current = nowCrawling;
+
+    if (justFinished && pendingResaleAuctionNosRef.current) {
+      const auctionNos = pendingResaleAuctionNosRef.current;
+      pendingResaleAuctionNosRef.current = null;
+      setResaleStatsLoading(true);
+      setResaleStatsError("");
+      setResaleStats(null);
+      fetchResaleSoldStatsByCaseNo(auctionNos)
+        .then(setResaleStats)
+        .catch((err) =>
+          setResaleStatsError(err instanceof Error ? err.message : "매도분석 조회에 실패했습니다."),
+        )
+        .finally(() => setResaleStatsLoading(false));
+    }
+  }, [status?.phase]);
 
   const urls: CrawlerUrlEntry[] = status?.urls ?? [];
   const isRunning =
@@ -499,23 +527,6 @@ export function CrawlerWorkPanel() {
                   );
                 });
               }
-              if (resaleAnalysisEnabled && result.urls.length > 0) {
-                // label 형식: "{사건번호}_{탱크옥션URL}" — 사건번호만 추출.
-                const auctionNos = (result.urls as CrawlerUrlEntry[])
-                  .map((u) => u.label.split("_")[0]?.trim())
-                  .filter((no): no is string => Boolean(no));
-                setResaleStatsLoading(true);
-                setResaleStatsError("");
-                setResaleStats(null);
-                fetchResaleSoldStatsByCaseNo(auctionNos)
-                  .then(setResaleStats)
-                  .catch((err) =>
-                    setResaleStatsError(
-                      err instanceof Error ? err.message : "매도분석 조회에 실패했습니다.",
-                    ),
-                  )
-                  .finally(() => setResaleStatsLoading(false));
-              }
               void refresh();
             }}
             onCollectFinished={() => {
@@ -544,16 +555,11 @@ export function CrawlerWorkPanel() {
                   title="알고리즘 탭에서 예약 시간 설정"
                   className="px-3 py-2 text-sm border border-border rounded-sm bg-secondary/30"
                 />
-                <label className="flex items-center gap-2 px-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={resaleAnalysisEnabled}
-                    onChange={(e) => setResaleAnalysisEnabled(e.target.checked)}
-                    className="accent-primary"
-                  />
-                  매도분석(진행상태를 "매각"으로 걸고 주소 추가 시, 낙찰물건만 분석)
-                </label>
               </div>
+              <p className="text-xs text-muted-foreground px-2">
+                진행상태를 "매각"으로 걸고 주소 추가 → 조회 시작하면, 조회가 끝난 뒤 그중
+                낙찰된 물건만 자동으로 매도분석 결과를 보여줍니다.
+              </p>
 
               {(resaleStatsLoading || resaleStats || resaleStatsError) && (
                 <div className="rounded-sm border border-border bg-card p-4 space-y-3">
@@ -722,7 +728,15 @@ export function CrawlerWorkPanel() {
                           onChange={() => toggleSelect(index)}
                           className="mt-0.5 accent-primary"
                         />
-                        <span className="break-all">{entry.label || entry.url}</span>
+                        <span className="break-all">
+                          {entry.label || entry.url}
+                          {entry.salePrice ? (
+                            <span className="ml-1.5 text-emerald-700 font-semibold whitespace-nowrap">
+                              낙찰 {entry.salePrice.toLocaleString("ko-KR")}원
+                              {entry.saleDate ? ` (${entry.saleDate})` : ""}
+                            </span>
+                          ) : null}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -810,6 +824,12 @@ export function CrawlerWorkPanel() {
                         if (status?.phase === "crawling") {
                           await crawlerStop();
                         } else {
+                          // label 형식: "{사건번호}_{탱크옥션URL}" — 조회 시작 시점의
+                          // 작업목록을 사건번호만 뽑아 기억해뒀다가, 조회가 끝나면
+                          // 그중 낙찰된 물건만 매도분석한다(사용자 요청, 2026-08-01).
+                          pendingResaleAuctionNosRef.current = urls
+                            .map((u) => u.label.split("_")[0]?.trim())
+                            .filter((no): no is string => Boolean(no));
                           await crawlerStart({
                             repeatAfterCollect,
                             crawlerVersion: status?.remoteWorker ? undefined : "v3",

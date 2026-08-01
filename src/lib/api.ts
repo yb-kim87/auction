@@ -1437,6 +1437,9 @@ export type CrawlerPhase =
 export type CrawlerUrlEntry = {
   label: string;
   url: string;
+  /** 진행상태를 "매각"으로 검색했을 때만 채워짐(낙찰가/낙찰일). */
+  salePrice?: number;
+  saleDate?: string;
 };
 
 export type CrawlerStatus = {
