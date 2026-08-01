@@ -140,10 +140,10 @@ export function TenantStatusPanel({
               return (
               <tr key={i} className="border-t border-border/60">
                 <td className={bodyCellClass}>{row.occupancyNo || "-"}</td>
-                <td className={`${bodyCellClass} whitespace-nowrap font-medium`}>
-                  {row.tenantName || "-"}
+                <td className={`${bodyCellClass} break-words font-medium`}>
+                  <span className="break-words">{row.tenantName || "-"}</span>
                   {hasWaiver && (
-                    <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.6rem] font-semibold bg-amber-100 text-amber-700 align-middle">
+                    <span className="mt-1 block w-fit px-1.5 py-0.5 rounded text-[0.6rem] font-semibold bg-amber-100 text-amber-700 whitespace-nowrap">
                       임차권 포기
                     </span>
                   )}
