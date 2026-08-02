@@ -16,6 +16,7 @@ import {
   fetchAdminAuctions,
   fetchAuctionCount,
   fetchPendingAuctions,
+  deleteUser,
   fetchUsers,
   getTemplateDownloadUrl,
   rejectAuction,
@@ -197,6 +198,8 @@ export default function AdminPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [aiLimitUpdating, setAiLimitUpdating] = useState<string | null>(null);
+  const [confirmingDeleteUserId, setConfirmingDeleteUserId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>("data");
   const [aiOpsSubTab, setAiOpsSubTab] = useState<AiOpsSubTab>("rightsRules");
   const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
@@ -523,6 +526,29 @@ export default function AdminPage() {
       });
     } finally {
       setAiLimitUpdating(null);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (confirmingDeleteUserId !== userId) {
+      // 실수로 바로 지워지지 않도록 1차 클릭에서는 "정말 삭제" 확인 버튼만 노출
+      setConfirmingDeleteUserId(userId);
+      return;
+    }
+    setDeletingUserId(userId);
+    setMessage(null);
+    try {
+      await deleteUser(userId);
+      setMessage({ type: "success", text: "회원이 삭제되었습니다." });
+      await loadUsers();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "회원 삭제에 실패했습니다.",
+      });
+    } finally {
+      setDeletingUserId(null);
+      setConfirmingDeleteUserId(null);
     }
   };
 
@@ -1107,6 +1133,7 @@ export default function AdminPage() {
                         <th className="px-3 py-2.5 text-left font-semibold">현재 권한</th>
                         <th className="px-3 py-2.5 text-left font-semibold">권한 변경</th>
                         <th className="px-3 py-2.5 text-left font-semibold">AI 분석 사용/제한</th>
+                        <th className="px-3 py-2.5 text-left font-semibold">삭제</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1157,6 +1184,38 @@ export default function AdminPage() {
                                   className="w-16 px-2 py-1 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
                                 />
                               </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {user.role === "admin" ? (
+                              <span className="text-muted-foreground">-</span>
+                            ) : confirmingDeleteUserId === user.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={deletingUserId === user.id}
+                                  onClick={() => void handleDeleteUser(user.id)}
+                                  className="px-2 py-1 text-xs rounded-sm bg-red-600 text-white disabled:opacity-50"
+                                >
+                                  {deletingUserId === user.id ? "삭제 중..." : "정말 삭제?"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deletingUserId === user.id}
+                                  onClick={() => setConfirmingDeleteUserId(null)}
+                                  className="px-2 py-1 text-xs rounded-sm border border-border disabled:opacity-50"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingDeleteUserId(user.id)}
+                                className="px-2 py-1 text-xs rounded-sm border border-red-300 text-red-600 hover:bg-red-50"
+                              >
+                                삭제
+                              </button>
                             )}
                           </td>
                         </tr>

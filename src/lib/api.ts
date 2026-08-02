@@ -662,6 +662,18 @@ export async function updateUserAiAnalysisLimit(id: string, limit: number) {
   return readJsonResponse<UserProfile>(res);
 }
 
+export async function deleteUser(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/users/${id}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "회원 삭제에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchMyProfile(): Promise<UserProfile> {
   const res = await fetch(`${API_BASE}/users/me`, {
     cache: "no-store",

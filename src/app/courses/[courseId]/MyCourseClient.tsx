@@ -308,7 +308,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           className="flex items-center gap-2 sm:gap-3.5 px-3 sm:px-5"
           style={{ maxWidth: 1400, margin: "0 auto", height: 56 }}
         >
-          <Link href="/" className="flex items-center shrink-0" style={{ textDecoration: "none" }}>
+          <div className="flex items-center shrink-0">
             <div
               style={{
                 height: 30,
@@ -327,7 +327,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
             >
               코치픽
             </div>
-          </Link>
+          </div>
 
           <div className="flex-1" />
 
