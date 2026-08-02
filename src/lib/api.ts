@@ -3641,6 +3641,8 @@ export type LectureCourse = {
   title: string;
   description: string | null;
   isPublished: boolean;
+  /** true면 UserRole "ot_student" 등급 회원이 수강권 없이도 자동 시청 가능. */
+  isOtCourse: boolean;
   createdAt: string;
 };
 
@@ -3753,7 +3755,7 @@ export function createLectureCourse(body: {
 
 export function updateLectureCourse(
   id: string,
-  body: { title?: string; description?: string; isPublished?: boolean },
+  body: { title?: string; description?: string; isPublished?: boolean; isOtCourse?: boolean },
 ): Promise<LectureCourse> {
   return lectureReplayFetch(
     `/lecture-replay/courses/${id}`,

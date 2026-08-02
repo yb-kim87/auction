@@ -3,7 +3,8 @@ export type UserRole =
   | "consultant"
   | "consulting_student"
   | "student"
-  | "member";
+  | "member"
+  | "ot_student";
 export type AuctionStatus = "pending" | "approved" | "rejected";
 
 export interface StrategyTagItem {
@@ -301,4 +302,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   consulting_student: "컨설팅 수강생",
   student: "수강생",
   member: "승인대기",
+  ot_student: "OT수강생",
 };

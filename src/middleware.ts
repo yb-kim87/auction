@@ -131,7 +131,10 @@ export async function middleware(request: NextRequest) {
       return finish(NextResponse.redirect(new URL("/login", request.url)));
     }
     if (role && !canAccessSearch(role)) {
-      return finish(NextResponse.redirect(new URL("/pending", request.url)));
+      // OT수강생은 물건 검색 권한이 없지만 로그인 목적이 강의 시청이므로
+      // 승인대기(/pending) 대신 내 강의로 보낸다(2026-08-02).
+      const fallback = role === "ot_student" ? "/courses" : "/pending";
+      return finish(NextResponse.redirect(new URL(fallback, request.url)));
     }
     return finish(NextResponse.next());
   }

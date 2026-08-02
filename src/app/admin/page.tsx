@@ -1128,6 +1128,7 @@ export default function AdminPage() {
                                 <option value="student">수강생</option>
                                 <option value="consulting_student">컨설팅 수강생</option>
                                 <option value="consultant">컨설턴트</option>
+                                <option value="ot_student">OT수강생</option>
                               </select>
                             )}
                           </td>

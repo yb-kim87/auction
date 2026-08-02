@@ -5,7 +5,8 @@ export type UserRole =
   | "consultant"
   | "consulting_student"
   | "student"
-  | "member";
+  | "member"
+  | "ot_student";
 
 const VALID_ROLES = new Set<UserRole>([
   "admin",
@@ -13,6 +14,7 @@ const VALID_ROLES = new Set<UserRole>([
   "consulting_student",
   "student",
   "member",
+  "ot_student",
 ]);
 
 export function isValidRole(role: string | null | undefined): role is UserRole {
