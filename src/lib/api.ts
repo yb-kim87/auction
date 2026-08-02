@@ -3633,3 +3633,252 @@ export async function fetchResaleSoldStatsByCaseNo(auctionNos: string[]): Promis
   }
   return readJsonResponse(res);
 }
+
+// ---------- 강의 다시보기 (lecture-replay) ----------
+
+export type LectureCourse = {
+  id: string;
+  title: string;
+  description: string | null;
+  isPublished: boolean;
+  createdAt: string;
+};
+
+export type LectureSection = {
+  id: string;
+  courseId: string;
+  title: string;
+  sortOrder: number;
+};
+
+export type LectureVideo = {
+  id: string;
+  sectionId: string;
+  title: string;
+  description: string | null;
+  bunnyVideoId: string;
+  durationSeconds: number | null;
+  sortOrder: number;
+  isPublished: boolean;
+  createdAt: string;
+};
+
+export type LectureAccessLink = {
+  id: string;
+  token: string;
+  courseId: string;
+  title: string;
+  expiresAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type LecturePublicVideo = {
+  id: string;
+  title: string;
+  description: string | null;
+  durationSeconds: number | null;
+  isPublished: boolean;
+};
+
+export type LecturePublicSection = {
+  id: string;
+  title: string;
+  videos: LecturePublicVideo[];
+};
+
+export type LectureAccessInfo = {
+  linkTitle: string;
+  course: { id: string; title: string; description: string | null };
+  sections: LecturePublicSection[];
+};
+
+async function lectureReplayFetch<T>(
+  path: string,
+  init?: RequestInit,
+  fallbackError = "요청을 처리하지 못했습니다.",
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(init?.headers),
+    ...init,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? fallbackError);
+  }
+  return readJsonResponse<T>(res);
+}
+
+// 공개(비로그인) — /lecture/[token] 페이지에서 사용
+export function fetchLectureAccessInfo(token: string): Promise<LectureAccessInfo> {
+  return lectureReplayFetch(
+    `/public/lecture-replay/access/${encodeURIComponent(token)}`,
+    undefined,
+    "접근할 수 없는 강의입니다. 링크가 만료되었거나 유효하지 않습니다.",
+  );
+}
+
+export function fetchLecturePlayUrl(
+  token: string,
+  videoId: string,
+): Promise<{ embedUrl: string }> {
+  return lectureReplayFetch(
+    `/public/lecture-replay/access/${encodeURIComponent(token)}/videos/${encodeURIComponent(videoId)}/play`,
+    undefined,
+    "영상을 재생할 수 없습니다.",
+  );
+}
+
+// 관리자
+export function fetchLectureCourses(): Promise<LectureCourse[]> {
+  return lectureReplayFetch("/lecture-replay/courses", undefined, "강의 목록을 불러오지 못했습니다.");
+}
+
+export function createLectureCourse(body: {
+  title: string;
+  description?: string;
+}): Promise<LectureCourse> {
+  return lectureReplayFetch(
+    "/lecture-replay/courses",
+    { method: "POST", body: JSON.stringify(body) },
+    "강의 생성에 실패했습니다.",
+  );
+}
+
+export function updateLectureCourse(
+  id: string,
+  body: { title?: string; description?: string; isPublished?: boolean },
+): Promise<LectureCourse> {
+  return lectureReplayFetch(
+    `/lecture-replay/courses/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    "강의 수정에 실패했습니다.",
+  );
+}
+
+export function deleteLectureCourse(id: string): Promise<{ ok: boolean }> {
+  return lectureReplayFetch(
+    `/lecture-replay/courses/${id}`,
+    { method: "DELETE" },
+    "강의 삭제에 실패했습니다.",
+  );
+}
+
+export function fetchLectureSections(courseId: string): Promise<LectureSection[]> {
+  return lectureReplayFetch(
+    `/lecture-replay/sections?courseId=${encodeURIComponent(courseId)}`,
+    undefined,
+    "섹션 목록을 불러오지 못했습니다.",
+  );
+}
+
+export function createLectureSection(courseId: string, title: string): Promise<LectureSection> {
+  return lectureReplayFetch(
+    "/lecture-replay/sections",
+    { method: "POST", body: JSON.stringify({ courseId, title }) },
+    "섹션 생성에 실패했습니다.",
+  );
+}
+
+export function updateLectureSection(
+  id: string,
+  body: { title?: string; sortOrder?: number },
+): Promise<LectureSection> {
+  return lectureReplayFetch(
+    `/lecture-replay/sections/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    "섹션 수정에 실패했습니다.",
+  );
+}
+
+export function deleteLectureSection(id: string): Promise<{ ok: boolean }> {
+  return lectureReplayFetch(
+    `/lecture-replay/sections/${id}`,
+    { method: "DELETE" },
+    "섹션 삭제에 실패했습니다.",
+  );
+}
+
+export function fetchLectureVideos(sectionId: string): Promise<LectureVideo[]> {
+  return lectureReplayFetch(
+    `/lecture-replay/videos?sectionId=${encodeURIComponent(sectionId)}`,
+    undefined,
+    "영상 목록을 불러오지 못했습니다.",
+  );
+}
+
+export function createLectureVideo(body: {
+  sectionId: string;
+  title: string;
+  description?: string;
+  bunnyVideoId: string;
+  durationSeconds?: number;
+}): Promise<LectureVideo> {
+  return lectureReplayFetch(
+    "/lecture-replay/videos",
+    { method: "POST", body: JSON.stringify(body) },
+    "영상 생성에 실패했습니다.",
+  );
+}
+
+export function updateLectureVideo(
+  id: string,
+  body: {
+    title?: string;
+    description?: string;
+    bunnyVideoId?: string;
+    durationSeconds?: number | null;
+    sortOrder?: number;
+    isPublished?: boolean;
+  },
+): Promise<LectureVideo> {
+  return lectureReplayFetch(
+    `/lecture-replay/videos/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    "영상 수정에 실패했습니다.",
+  );
+}
+
+export function deleteLectureVideo(id: string): Promise<{ ok: boolean }> {
+  return lectureReplayFetch(
+    `/lecture-replay/videos/${id}`,
+    { method: "DELETE" },
+    "영상 삭제에 실패했습니다.",
+  );
+}
+
+export function fetchLectureLinks(courseId?: string): Promise<LectureAccessLink[]> {
+  const qs = courseId ? `?courseId=${encodeURIComponent(courseId)}` : "";
+  return lectureReplayFetch(`/lecture-replay/links${qs}`, undefined, "링크 목록을 불러오지 못했습니다.");
+}
+
+export function createLectureLink(body: {
+  courseId: string;
+  title: string;
+  expiresAt?: string | null;
+}): Promise<LectureAccessLink> {
+  return lectureReplayFetch(
+    "/lecture-replay/links",
+    { method: "POST", body: JSON.stringify(body) },
+    "링크 생성에 실패했습니다.",
+  );
+}
+
+export function updateLectureLink(
+  id: string,
+  body: { isActive?: boolean; expiresAt?: string | null },
+): Promise<LectureAccessLink> {
+  return lectureReplayFetch(
+    `/lecture-replay/links/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    "링크 수정에 실패했습니다.",
+  );
+}
+
+export function deleteLectureLink(id: string): Promise<{ ok: boolean }> {
+  return lectureReplayFetch(
+    `/lecture-replay/links/${id}`,
+    { method: "DELETE" },
+    "링크 삭제에 실패했습니다.",
+  );
+}

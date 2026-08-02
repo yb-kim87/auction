@@ -42,6 +42,7 @@ import { CoupangSourcingTab } from "./CoupangSourcingTab";
 import { SecurityLogTab } from "./SecurityLogTab";
 import { SwimApplyTab } from "./SwimApplyTab";
 import { ResaleMatchTab } from "./ResaleMatchTab";
+import { LectureReplayTab } from "./LectureReplayTab";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -90,6 +91,7 @@ type AdminTab =
   | "securityLog"
   | "swimApply"
   | "resaleMatch"
+  | "lectureReplay"
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
   | "coupangSourcing";
 type AiOpsSubTab = "rightsRules" | "knowledge" | "loanPolicy" | "strategyTags" | "aiPlatform";
@@ -104,6 +106,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "users", label: "회원권한 관리" },
   { id: "securityLog", label: "보안 로그" },
   { id: "resaleMatch", label: "매도분석" },
+  { id: "lectureReplay", label: "영상업로드" },
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
 ];
 
@@ -1004,6 +1007,8 @@ export default function AdminPage() {
           {activeTab === "securityLog" && <SecurityLogTab />}
 
           {activeTab === "resaleMatch" && <ResaleMatchTab />}
+
+          {activeTab === "lectureReplay" && <LectureReplayTab />}
 
           {activeTab === "swimApply" && <SwimApplyTab />}
 
