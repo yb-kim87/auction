@@ -394,7 +394,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div
           className="flex flex-col md:flex-row items-stretch md:items-start"
-          style={{ maxWidth: 1400, margin: "0 auto" }}
+          style={{ maxWidth: 1400, margin: "0 auto", paddingTop: 20 }}
         >
           {/* ── main ── */}
           <div
@@ -410,7 +410,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               background: "#000",
               overflow: "hidden",
               borderRadius: 16,
-              margin: "20px 0",
+              marginBottom: 20,
             }}
           >
             {!selectedVideo ? (
@@ -612,7 +612,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
 
           {/* ── sidebar ── */}
           <aside
-            className="w-full md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l md:mt-5 md:sticky md:top-[76px] md:max-h-[calc(100vh-76px)] md:overflow-y-auto"
+            className="w-full md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l md:sticky md:top-[76px] md:max-h-[calc(100vh-76px)] md:overflow-y-auto"
             style={{
               background: C.white,
               borderColor: C.border,
