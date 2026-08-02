@@ -84,15 +84,6 @@ export function LectureReplayTab() {
     }
   }
 
-  async function handleToggleOtCourse(course: LectureCourse) {
-    try {
-      const updated = await updateLectureCourse(course.id, { isOtCourse: !course.isOtCourse });
-      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "강의 수정 실패");
-    }
-  }
-
   async function handleSaveCourseTitle(course: LectureCourse) {
     const title = courseTitleDraft.trim();
     if (!title || title === course.title) {
@@ -129,9 +120,9 @@ export function LectureReplayTab() {
           강의 → 섹션 → 영상 순으로 만들고, 영상마다 Bunny Stream의 video ID를 입력하면
           등록과 동시에 바로 공개됩니다(따로 "공개로" 누를 필요 없음, 숨기고 싶으면
           목록에서 직접 "비공개로" 전환). 아래 "회원 수강권"에서 회원을 검색해 수강권을
-          부여하면 그 회원이 로그인 후 /courses 에서 시청할 수 있습니다. 강의를 "OT강의로
-          지정"하면, 회원권한 관리에서 "OT수강생" 등급으로 바꾼 회원은 별도 수강권 없이
-          그 강의를 자동으로 볼 수 있습니다.
+          부여하면 그 회원이 로그인 후 /courses 에서 시청할 수 있습니다. 영상을
+          "OT영상"으로 지정하면, 회원권한 관리에서 "OT수강생" 등급으로 바꾼 회원은 별도
+          수강권 없이 그 영상만 자동으로 볼 수 있습니다.
         </p>
       </div>
 
@@ -237,25 +228,6 @@ export function LectureReplayTab() {
                     className="text-xs text-primary hover:underline"
                   >
                     {course.isPublished ? "비공개로" : "공개로"}
-                  </button>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-sm border ${
-                      course.isOtCourse
-                        ? "border-sky-200 bg-sky-100 text-sky-800"
-                        : "border-border bg-secondary/50 text-muted-foreground"
-                    }`}
-                  >
-                    {course.isOtCourse ? "OT강의" : "일반강의"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleToggleOtCourse(course);
-                    }}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    {course.isOtCourse ? "OT강의 해제" : "OT강의로 지정"}
                   </button>
                   <button
                     type="button"

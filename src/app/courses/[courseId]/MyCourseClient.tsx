@@ -308,11 +308,11 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           className="flex items-center gap-2 sm:gap-3.5 px-3 sm:px-5"
           style={{ maxWidth: 1400, margin: "0 auto", height: 56 }}
         >
-          <Link href="/" className="flex items-center gap-1.5 sm:gap-1.5 shrink-0" style={{ textDecoration: "none" }}>
+          <Link href="/" className="flex items-center shrink-0" style={{ textDecoration: "none" }}>
             <div
               style={{
-                width: 30,
                 height: 30,
+                padding: "0 12px",
                 borderRadius: 8,
                 background: `linear-gradient(135deg, ${C.accent}, #8b7cf8)`,
                 display: "flex",
@@ -322,13 +322,11 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 fontWeight: 800,
                 color: "#fff",
                 flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
-              강
-            </div>
-            <span className="hidden sm:inline" style={{ fontWeight: 800, fontSize: 15, color: C.textPrimary }}>
               코치픽
-            </span>
+            </div>
           </Link>
 
           <div className="flex-1" />
