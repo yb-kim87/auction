@@ -530,75 +530,9 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
             </div>
 
             {info.course.description && (
-              <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 20 }}>
+              <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}>
                 {info.course.description}
               </p>
-            )}
-
-            {info.sections.map((section) => (
-              <div
-                key={section.id}
-                style={{ marginBottom: 12, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}
-              >
-                <div style={{ padding: "11px 16px", background: "#f9fafb", fontSize: 13, fontWeight: 700, color: C.textPrimary }}>
-                  {section.title}
-                </div>
-                {section.videos.map((v) => {
-                  const locked = !v.isPublished;
-                  const active = v.id === selectedVideoId;
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      disabled={locked}
-                      onClick={() => setSelectedVideoId(v.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "9px 16px",
-                        width: "100%",
-                        border: "none",
-                        borderTop: `1px solid ${C.border}`,
-                        background: active ? C.accentLight : C.white,
-                        cursor: locked ? "not-allowed" : "pointer",
-                        textAlign: "left",
-                        opacity: locked ? 0.55 : 1,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: "50%",
-                          flexShrink: 0,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          background: active ? C.accent : "#e5e7eb",
-                          color: locked ? C.textDim : "#fff",
-                        }}
-                      >
-                        {locked ? <LockIcon /> : <PlayIcon size={9} color={active ? "#fff" : C.textMuted} />}
-                      </div>
-                      <span style={{ flex: 1, fontSize: 13, color: active ? C.accent : C.textSecondary, fontWeight: active ? 600 : 400 }}>
-                        {v.title}
-                      </span>
-                      <span style={{ fontSize: 11, color: C.textDim }}>
-                        {locked ? "준비중" : formatDuration(v.durationSeconds)}
-                      </span>
-                    </button>
-                  );
-                })}
-                {section.videos.length === 0 && (
-                  <div style={{ padding: "9px 16px", fontSize: 13, color: C.textDim, borderTop: `1px solid ${C.border}` }}>
-                    영상이 없습니다.
-                  </div>
-                )}
-              </div>
-            ))}
-            {info.sections.length === 0 && (
-              <p style={{ fontSize: 13, color: C.textDim }}>등록된 강의 목록이 없습니다.</p>
             )}
           </div>
           </div>
