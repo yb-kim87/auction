@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Loader2, RotateCcw, Sparkles, Save } from "lucide-react";
 import type { UserProfile } from "@/types/auction";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { CheckboxField, SelectField, InvestmentGoalField } from "@/components/InvestmentFormFields";
+import { CheckboxField, SelectField, MoneyInputField, InvestmentGoalField } from "@/components/InvestmentFormFields";
 import {
   EXISTING_LOAN_OPTIONS,
   HOUSING_COUNT_OPTIONS,
@@ -187,7 +187,7 @@ export function InvestmentRecommendPanel({
             </p>
           ) : (
             <InvestmentInfoSection className="rounded-sm">
-              <SelectField
+              <MoneyInputField
                 label="투자가능자금"
                 placeholder="투자가능자금 선택"
                 value={draft.investableFunds}
@@ -195,7 +195,7 @@ export function InvestmentRecommendPanel({
                 options={INVESTABLE_FUNDS_OPTIONS}
               />
 
-              <SelectField
+              <MoneyInputField
                 label="연순소득"
                 placeholder="연순소득 선택"
                 value={annualNetIncome}
@@ -204,7 +204,7 @@ export function InvestmentRecommendPanel({
                 hint="* 매출이 아닌 순소득정보입니다."
               />
 
-              <SelectField
+              <MoneyInputField
                 label="기존대출금액"
                 placeholder="기존대출금액 선택"
                 value={draft.existingLoanAmount}

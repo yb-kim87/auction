@@ -24,7 +24,7 @@ import { AccountNavLink } from "@/components/AccountNavLink";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { SelectField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
+import { SelectField, MoneyInputField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
 import {
   EXISTING_LOAN_OPTIONS,
   HOUSING_COUNT_OPTIONS,
@@ -501,7 +501,7 @@ function InvestmentInfoModal({
         )}
 
         <InvestmentInfoSection className="rounded-sm">
-          <SelectField
+          <MoneyInputField
             label="투자가능자금"
             placeholder="투자가능자금 선택"
             value={investableFunds}
@@ -516,7 +516,7 @@ function InvestmentInfoModal({
             options={INVESTABLE_FUNDS_OPTIONS}
             invalid={invalidFields.has("investableFunds")}
           />
-          <SelectField
+          <MoneyInputField
             label="연순소득"
             placeholder="연순소득 선택"
             value={annualNetIncome}
@@ -532,7 +532,7 @@ function InvestmentInfoModal({
             hint="* 매출이 아닌 순소득정보입니다."
             invalid={invalidFields.has("annualNetIncome")}
           />
-          <SelectField
+          <MoneyInputField
             label="기존대출금액"
             placeholder="기존대출금액 선택"
             value={existingLoanAmount}

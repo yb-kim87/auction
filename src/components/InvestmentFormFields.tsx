@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { InvestmentSelectOption } from "@/data/investment-options";
 import { INVESTMENT_GOAL_ETC, INVESTMENT_GOAL_OPTIONS } from "@/data/investment-options";
+import { formatMoneyOptionLabel, parseMoneyToWon } from "@/lib/investment-money";
 
 export function SelectField({
   label,
@@ -144,6 +145,84 @@ export function TextAreaField({
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[0.9rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 transition-all resize-none"
       />
+    </div>
+  );
+}
+
+const MONEY_CUSTOM_INPUT = "직접입력";
+
+/**
+ * 금액류(투자가능자금/연순소득/기존대출금액) 프리셋 드롭다운 + "직접 입력".
+ * 프리셋 목록에 없는 금액(만원 단위)을 정확히 입력하고 싶을 때 사용한다.
+ * 저장 형식은 기존 프리셋과 동일한 "N,NNN만원"/"N억" 문자열이라
+ * parseMoneyToWon 등 기존 파싱 로직을 그대로 재사용할 수 있다.
+ */
+export function MoneyInputField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  hint,
+  invalid,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: InvestmentSelectOption[];
+  placeholder: string;
+  hint?: string;
+  invalid?: boolean;
+}) {
+  const isPreset = options.some((o) => o.value === value);
+  const [customMode, setCustomMode] = useState(value !== "" && !isPreset);
+  const selectValue = customMode ? MONEY_CUSTOM_INPUT : isPreset ? value : "";
+  const showCustomInput = selectValue === MONEY_CUSTOM_INPUT;
+
+  const initialManwon = !isPreset && value ? Math.round((parseMoneyToWon(value) ?? 0) / 10_000) : 0;
+  const [manwonText, setManwonText] = useState(initialManwon > 0 ? String(initialManwon) : "");
+
+  const selectOptions = [...options, { value: MONEY_CUSTOM_INPUT, label: "직접 입력" }];
+
+  return (
+    <div className="space-y-2">
+      <SelectField
+        label={label}
+        placeholder={placeholder}
+        value={selectValue}
+        onChange={(next) => {
+          if (next === MONEY_CUSTOM_INPUT) {
+            setCustomMode(true);
+            if (isPreset) onChange("");
+          } else {
+            setCustomMode(false);
+            onChange(next);
+          }
+        }}
+        options={selectOptions}
+        hint={hint}
+        invalid={invalid}
+      />
+      {showCustomInput && (
+        <div className="relative">
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="숫자만 입력 (예: 1234 → 1,234만원)"
+            value={manwonText}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/[^\d]/g, "");
+              setManwonText(digits);
+              const manwon = digits ? Number.parseInt(digits, 10) : 0;
+              onChange(manwon > 0 ? formatMoneyOptionLabel(manwon * 10_000) : "");
+            }}
+            className="w-full h-11 px-4 pr-14 rounded-xl bg-input-background border border-border text-[0.9rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 transition-all"
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[0.85rem] text-muted-foreground">
+            만원
+          </span>
+        </div>
+      )}
     </div>
   );
 }

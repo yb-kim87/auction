@@ -17,7 +17,7 @@ import {
 import { getLoginRedirect } from "@/lib/auth";
 import { loginUser, fetchMyProfile, signupUser } from "@/lib/api";
 import { InvestmentInfoSection } from "@/components/InvestmentInfoSection";
-import { SelectField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
+import { SelectField, MoneyInputField, InvestmentGoalField, CheckboxField } from "@/components/InvestmentFormFields";
 import { validateInvestmentSignup } from "@/lib/investment-validation";
 import {
   EXISTING_LOAN_OPTIONS,
@@ -371,14 +371,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       </div>
 
       <InvestmentInfoSection>
-        <SelectField
+        <MoneyInputField
           label="투자가능자금"
           placeholder="투자가능자금 선택"
           value={investableFunds}
           onChange={setInvestableFunds}
           options={INVESTABLE_FUNDS_OPTIONS}
         />
-        <SelectField
+        <MoneyInputField
           label="연순소득"
           placeholder="연순소득 선택"
           value={annualNetIncome}
@@ -386,7 +386,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           options={ANNUAL_NET_INCOME_OPTIONS}
           hint="* 매출이 아닌 순소득정보입니다."
         />
-        <SelectField
+        <MoneyInputField
           label="기존대출금액"
           placeholder="기존대출금액 선택"
           value={existingLoanAmount}
