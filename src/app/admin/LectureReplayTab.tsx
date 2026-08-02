@@ -45,6 +45,8 @@ export function LectureReplayTab() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
 
   const [newCourseTitle, setNewCourseTitle] = useState("");
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [courseTitleDraft, setCourseTitleDraft] = useState("");
 
   const loadCourses = useCallback(() => {
     setLoading(true);
@@ -86,6 +88,21 @@ export function LectureReplayTab() {
     try {
       const updated = await updateLectureCourse(course.id, { isOtCourse: !course.isOtCourse });
       setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "강의 수정 실패");
+    }
+  }
+
+  async function handleSaveCourseTitle(course: LectureCourse) {
+    const title = courseTitleDraft.trim();
+    if (!title || title === course.title) {
+      setEditingCourseId(null);
+      return;
+    }
+    try {
+      const updated = await updateLectureCourse(course.id, { title });
+      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      setEditingCourseId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "강의 수정 실패");
     }
@@ -156,13 +173,52 @@ export function LectureReplayTab() {
                 }`}
                 onClick={() => setSelectedCourseId(course.id)}
               >
-                <div>
-                  <div className="text-sm font-semibold text-foreground">{course.title}</div>
-                  {course.description && (
-                    <div className="text-xs text-muted-foreground">{course.description}</div>
-                  )}
-                </div>
+                {editingCourseId === course.id ? (
+                  <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      value={courseTitleDraft}
+                      onChange={(e) => setCourseTitleDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && void handleSaveCourseTitle(course)}
+                      autoFocus
+                      className="flex-1 px-2 py-1 text-sm border border-border rounded-sm bg-background"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveCourseTitle(course)}
+                      className="text-xs text-primary hover:underline shrink-0"
+                    >
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingCourseId(null)}
+                      className="text-xs text-muted-foreground hover:underline shrink-0"
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">{course.title}</div>
+                    {course.description && (
+                      <div className="text-xs text-muted-foreground">{course.description}</div>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 shrink-0">
+                  {editingCourseId !== course.id && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCourseTitleDraft(course.title);
+                        setEditingCourseId(course.id);
+                      }}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      이름 수정
+                    </button>
+                  )}
                   <span
                     className={`text-xs px-2 py-0.5 rounded-sm border ${
                       course.isPublished
