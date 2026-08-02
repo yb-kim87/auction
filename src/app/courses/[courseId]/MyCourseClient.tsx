@@ -458,9 +458,11 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           <div
             className="flex items-center justify-between gap-2"
             style={{
-              padding: "11px 0",
+              padding: "12px 16px",
+              marginBottom: 20,
               background: C.white,
-              borderBottom: `1px solid ${C.border}`,
+              border: `1px solid ${C.border}`,
+              borderRadius: 12,
             }}
           >
             <button
@@ -517,7 +519,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           </div>
 
           {/* 커리큘럼 */}
-          <div style={{ paddingTop: 24, paddingBottom: 24 }}>
+          <div style={{ paddingBottom: 24 }}>
             <div className="grid grid-cols-2" style={{ gap: 12, marginBottom: 28 }}>
               <div style={{ padding: "14px 16px", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                 <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>총 강의 수</div>
@@ -607,7 +609,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
 
           {/* ── sidebar ── */}
           <aside
-            className="w-full md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l md:sticky md:top-14 md:max-h-[calc(100vh-56px)] md:overflow-y-auto"
+            className="w-full md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l md:mt-5 md:sticky md:top-[76px] md:max-h-[calc(100vh-76px)] md:overflow-y-auto"
             style={{
               background: C.white,
               borderColor: C.border,
