@@ -138,6 +138,22 @@ export async function fetchAuctions(): Promise<AuctionItem[]> {
   return readJsonResponse(res);
 }
 
+/** 전체 물건 목록을 다 받지 않고 지정한 id들만 조회한다(관심물건 페이지
+ * 등 소수 건만 필요할 때 사용). */
+export async function fetchAuctionsByIds(ids: string[]): Promise<AuctionItem[]> {
+  if (ids.length === 0) return [];
+  const res = await fetch(`${API_BASE}/auctions/by-ids?ids=${encodeURIComponent(ids.join(","))}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "물건 데이터를 불러오지 못했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
 export type FavoriteItem = { auctionId: string; category: string | null };
 
 export async function fetchFavoriteIds(): Promise<string[]> {

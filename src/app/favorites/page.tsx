@@ -7,7 +7,7 @@ import { Heart, LogOut, MapPin } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie } from "@/lib/auth";
 import {
-  fetchAuctions,
+  fetchAuctionsByIds,
   fetchFavorites,
   addFavorite,
   removeFavorite,
@@ -46,11 +46,17 @@ export default function FavoritesPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([fetchAuctions(), fetchFavorites()])
-      .then(([auctions, favs]) => {
-        if (cancelled) return;
-        setItems(auctions);
+    // 관심물건은 몇 건 안 되는 경우가 대부분이라, 물건 전체 목록을 다
+    // 받아올 필요 없이 즐겨찾기 id만 먼저 확인한 뒤 그 물건들만 조회한다
+    // (사용자 피드백: "불러오는 속도가 너무 느린데??", 2026-08-02).
+    fetchFavorites()
+      .then((favs) => {
+        if (cancelled) return Promise.resolve([] as AuctionItem[]);
         setFavorites(favs);
+        return fetchAuctionsByIds(favs.map((f) => f.auctionId));
+      })
+      .then((auctions) => {
+        if (!cancelled) setItems(auctions);
       })
       .catch(() => {
         if (!cancelled) {
