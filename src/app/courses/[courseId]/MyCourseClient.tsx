@@ -294,59 +294,66 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           position: "sticky",
           top: 0,
           zIndex: 50,
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          padding: "0 20px",
-          height: 56,
           background: C.white,
           borderBottom: `1px solid ${C.border}`,
           boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
         }}
       >
-        <Link href="/courses" style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0, textDecoration: "none" }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: `linear-gradient(135deg, ${C.accent}, #8b7cf8)`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 14,
-              fontWeight: 800,
-              color: "#fff",
-            }}
-          >
-            강
-          </div>
-          <span style={{ fontWeight: 800, fontSize: 15, color: C.textPrimary }}>내 강의실</span>
-        </Link>
-
-        <div style={{ width: 1, height: 18, background: C.border, flexShrink: 0 }} />
-
-        <span
+        <div
           style={{
-            fontSize: 13,
-            color: C.textSecondary,
-            flex: 1,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            maxWidth: 1160,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            padding: "0 20px",
+            height: 56,
           }}
         >
-          {info.course.title}
-        </span>
+          <Link href="/courses" style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0, textDecoration: "none" }}>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background: `linear-gradient(135deg, ${C.accent}, #8b7cf8)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+                fontWeight: 800,
+                color: "#fff",
+              }}
+            >
+              강
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 15, color: C.textPrimary }}>내 강의실</span>
+          </Link>
 
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", borderRadius: 6 }}
-          aria-label="강의 목록 토글"
-        >
-          <MenuIcon />
-        </button>
+          <div style={{ width: 1, height: 18, background: C.border, flexShrink: 0 }} />
+
+          <span
+            style={{
+              fontSize: 13,
+              color: C.textSecondary,
+              flex: 1,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {info.course.title}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", borderRadius: 6 }}
+            aria-label="강의 목록 토글"
+          >
+            <MenuIcon />
+          </button>
+        </div>
       </header>
 
       {/* ── body ── */}
