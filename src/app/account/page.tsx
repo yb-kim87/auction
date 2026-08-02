@@ -156,17 +156,15 @@ export default function AccountPage() {
       {/* ── nav ── */}
       <nav style={{ background: C.white, borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
         <div
+          className="flex items-center justify-between gap-2"
           style={{
             maxWidth: 960,
             margin: "0 auto",
-            padding: "0 24px",
+            padding: "0 16px",
             height: 64,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
           }}
         >
-          <Link href={homeHref} style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <Link href={homeHref} className="shrink-0" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
             <div
               style={{
                 height: 36,
@@ -186,16 +184,18 @@ export default function AccountPage() {
             </div>
           </Link>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             <Link
               href="/courses"
-              style={{ padding: "8px 16px", color: C.textSecondary, fontSize: 13, fontWeight: 500, borderRadius: 999, textDecoration: "none" }}
+              className="whitespace-nowrap"
+              style={{ padding: "8px 10px", color: C.textSecondary, fontSize: 13, fontWeight: 500, borderRadius: 999, textDecoration: "none" }}
             >
               내 강의실
             </Link>
             <span
+              className="whitespace-nowrap"
               style={{
-                padding: "8px 16px",
+                padding: "8px 10px",
                 background: C.accentLight,
                 color: C.accent,
                 fontSize: 13,
@@ -208,7 +208,8 @@ export default function AccountPage() {
             <button
               type="button"
               onClick={() => void handleLogout()}
-              style={{ padding: "8px 16px", color: C.textSecondary, fontSize: 13, fontWeight: 500, borderRadius: 999, border: "none", background: "none", cursor: "pointer" }}
+              className="whitespace-nowrap"
+              style={{ padding: "8px 10px", color: C.textSecondary, fontSize: 13, fontWeight: 500, borderRadius: 999, border: "none", background: "none", cursor: "pointer" }}
             >
               로그아웃
             </button>
@@ -216,13 +217,13 @@ export default function AccountPage() {
         </div>
       </nav>
 
-      <main style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
+      <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px" }}>
         {loading ? (
           <p style={{ fontSize: 13, color: C.textDim }}>불러오는 중...</p>
         ) : !profile ? (
           <p style={{ fontSize: 13, color: C.textDim }}>회원 정보를 불러오지 못했습니다.</p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 20, alignItems: "start" }}>
+          <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-5 items-start">
             {/* ── 프로필 사이드바 ── */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div
