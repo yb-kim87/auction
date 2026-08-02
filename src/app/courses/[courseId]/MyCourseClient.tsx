@@ -605,14 +605,13 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
 
           {/* ── sidebar ── */}
           <aside
-            className="w-full md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l md:sticky md:top-[76px] md:max-h-[calc(100vh-76px)] md:overflow-y-auto"
+            className="w-full md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l"
             style={{
               background: C.white,
               borderColor: C.border,
             }}
           >
             <div
-              className="md:sticky md:top-0 md:z-[1]"
               style={{
                 padding: "14px 16px 10px",
                 borderBottom: `1px solid ${C.border}`,
