@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { clearAuthCookie } from "@/lib/auth";
 import {
   fetchMyCourseAccessInfo,
   fetchMyCoursePlayUrl,
+  logoutUser,
   type LectureMyCourseAccessInfo,
   type LecturePublicSection,
   type LecturePublicVideo,
@@ -78,14 +81,6 @@ const ChevronRightIcon = () => (
 const ChevronLeftIcon = () => (
   <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
     <polyline points="15,18 9,12 15,6" />
-  </svg>
-);
-
-const MenuIcon = () => (
-  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth={2}>
-    <line x1="3" y1="6" x2="21" y2="6" />
-    <line x1="3" y1="12" x2="21" y2="12" />
-    <line x1="3" y1="18" x2="21" y2="18" />
   </svg>
 );
 
@@ -190,10 +185,20 @@ function SectionBlock({
 }
 
 export function MyCourseClient({ courseId }: { courseId: string }) {
+  const router = useRouter();
   const [info, setInfo] = useState<LectureMyCourseAccessInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
+    clearAuthCookie();
+    router.replace("/login");
+  };
 
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
@@ -345,14 +350,56 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
             {info.course.title}
           </span>
 
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", borderRadius: 6 }}
-            aria-label="강의 목록 토글"
-          >
-            <MenuIcon />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <Link
+              href="/courses"
+              style={{
+                padding: "8px 16px",
+                background: C.accent,
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 999,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              내 강의실
+            </Link>
+            <Link
+              href="/account"
+              style={{
+                padding: "8px 16px",
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                color: C.textSecondary,
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 999,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              내 정보
+            </Link>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              style={{
+                padding: "8px 16px",
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                color: C.textSecondary,
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 999,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 
@@ -571,43 +618,41 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           </div>
 
           {/* ── sidebar ── */}
-          {sidebarOpen && (
-            <aside
+          <aside
+            style={{
+              width: 300,
+              flexShrink: 0,
+              borderLeft: `1px solid ${C.border}`,
+              background: C.white,
+              position: "sticky",
+              top: 56,
+              maxHeight: "calc(100vh - 56px)",
+              overflowY: "auto",
+            }}
+          >
+            <div
               style={{
-                width: 300,
-                flexShrink: 0,
-                borderLeft: `1px solid ${C.border}`,
-                background: C.white,
+                padding: "14px 16px 10px",
+                borderBottom: `1px solid ${C.border}`,
                 position: "sticky",
-                top: 56,
-                maxHeight: "calc(100vh - 56px)",
-                overflowY: "auto",
+                top: 0,
+                background: C.white,
+                zIndex: 1,
               }}
             >
-              <div
-                style={{
-                  padding: "14px 16px 10px",
-                  borderBottom: `1px solid ${C.border}`,
-                  position: "sticky",
-                  top: 0,
-                  background: C.white,
-                  zIndex: 1,
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>강의 목록</div>
-                <div style={{ fontSize: 11, color: C.textDim }}>{allVideos.length}개 영상</div>
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>강의 목록</div>
+              <div style={{ fontSize: 11, color: C.textDim }}>{allVideos.length}개 영상</div>
+            </div>
 
-              {info.sections.map((section) => (
-                <SectionBlock
-                  key={section.id}
-                  section={section}
-                  activeId={selectedVideoId}
-                  onSelect={(v) => setSelectedVideoId(v.id)}
-                />
-              ))}
-            </aside>
-          )}
+            {info.sections.map((section) => (
+              <SectionBlock
+                key={section.id}
+                section={section}
+                activeId={selectedVideoId}
+                onSelect={(v) => setSelectedVideoId(v.id)}
+              />
+            ))}
+          </aside>
         </div>
       </div>
     </div>
