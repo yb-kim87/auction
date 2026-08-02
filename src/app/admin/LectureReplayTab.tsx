@@ -298,6 +298,9 @@ function CourseDetail({
                 key={section.id}
                 section={section}
                 onDelete={() => void handleDeleteSection(section)}
+                onUpdated={(updated) =>
+                  setSections((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+                }
                 onError={onError}
               />
             ))}
@@ -564,10 +567,12 @@ function EnrollmentsBlock({
 function SectionBlock({
   section,
   onDelete,
+  onUpdated,
   onError,
 }: {
   section: LectureSection;
   onDelete: () => void;
+  onUpdated: (section: LectureSection) => void;
   onError: (message: string) => void;
 }) {
   const [videos, setVideos] = useState<LectureVideo[]>([]);
@@ -575,6 +580,23 @@ function SectionBlock({
   const [form, setForm] = useState({ title: "", bunnyVideoId: "", description: "", durationSeconds: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: "", bunnyVideoId: "" });
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(section.title);
+
+  async function handleSaveTitle() {
+    const title = titleDraft.trim();
+    if (!title || title === section.title) {
+      setEditingTitle(false);
+      return;
+    }
+    try {
+      const updated = await updateLectureSection(section.id, { title });
+      onUpdated(updated);
+      setEditingTitle(false);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "섹션 수정 실패");
+    }
+  }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -670,11 +692,50 @@ function SectionBlock({
 
   return (
     <div className="rounded-sm border border-border p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-foreground">{section.title}</h4>
-        <button type="button" onClick={onDelete} className="text-xs text-destructive hover:underline">
-          섹션 삭제
-        </button>
+      <div className="flex items-center justify-between gap-2">
+        {editingTitle ? (
+          <div className="flex items-center gap-2 flex-1">
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void handleSaveTitle()}
+              autoFocus
+              className="flex-1 px-2 py-1 text-sm border border-border rounded-sm bg-background"
+            />
+            <button type="button" onClick={() => void handleSaveTitle()} className="text-xs text-primary hover:underline">
+              저장
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTitleDraft(section.title);
+                setEditingTitle(false);
+              }}
+              className="text-xs text-muted-foreground hover:underline"
+            >
+              취소
+            </button>
+          </div>
+        ) : (
+          <h4 className="text-sm font-semibold text-foreground">{section.title}</h4>
+        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {!editingTitle && (
+            <button
+              type="button"
+              onClick={() => {
+                setTitleDraft(section.title);
+                setEditingTitle(true);
+              }}
+              className="text-xs text-primary hover:underline"
+            >
+              수정
+            </button>
+          )}
+          <button type="button" onClick={onDelete} className="text-xs text-destructive hover:underline">
+            섹션 삭제
+          </button>
+        </div>
       </div>
 
       {loading ? (
