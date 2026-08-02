@@ -306,7 +306,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       >
         <div
           className="flex items-center gap-2 sm:gap-3.5 px-3 sm:px-5"
-          style={{ maxWidth: 1160, margin: "0 auto", height: 56 }}
+          style={{ maxWidth: 1400, margin: "0 auto", height: 56 }}
         >
           <Link href="/courses" className="flex items-center gap-1.5 sm:gap-1.5 shrink-0" style={{ textDecoration: "none" }}>
             <div
@@ -394,10 +394,10 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div
           className="flex flex-col md:flex-row items-stretch md:items-start"
-          style={{ maxWidth: 1160, margin: "0 auto" }}
+          style={{ maxWidth: 1400, margin: "0 auto" }}
         >
           {/* ── main ── */}
-          <div className="w-full md:w-auto" style={{ maxWidth: 840, padding: "0 20px", boxSizing: "border-box" }}>
+          <div className="w-full md:w-auto" style={{ maxWidth: 1060, padding: "0 20px", boxSizing: "border-box" }}>
           {/* video */}
           <div
             style={{
