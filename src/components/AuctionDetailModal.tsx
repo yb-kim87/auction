@@ -10,7 +10,7 @@ import {
   toPayload,
 } from "@/lib/auction-form";
 import { AuctionFieldInput } from "@/components/AuctionFieldInput";
-import { deleteAuction, updateAuction } from "@/lib/api";
+import { deleteAuction, updateAuction, fetchFavoriteCategories } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
 import { NaverComplexLink } from "@/components/NaverComplexLink";
@@ -1653,6 +1653,10 @@ export function AuctionDetailModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [favoriteSaving, setFavoriteSaving] = useState(false);
+  const [favoritePickerOpen, setFavoritePickerOpen] = useState(false);
+  const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
+  const [favoriteCategoriesLoading, setFavoriteCategoriesLoading] = useState(false);
+  const [newFavoriteCategory, setNewFavoriteCategory] = useState("");
   const [error, setError] = useState("");
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
@@ -1870,19 +1874,40 @@ export function AuctionDetailModal({
 
   const handleToggleFavorite = async () => {
     if (!onToggleFavorite) return;
-    const next = !isFavorite;
-    let category: string | null = null;
-    if (next) {
-      // 관심등록 시점에 바로 분류를 직접 입력받는다(자유 텍스트, 선택 —
-      // 비워두면 미분류로 등록). 사용자 요청, 2026-08-02.
-      const input = window.prompt("이 물건을 어떤 카테고리로 등록할까요? (선택, 비워두면 미분류)", "");
-      if (input === null) return; // 취소 시 등록하지 않음
-      category = input.trim() || null;
+    if (!isFavorite) {
+      // 관심등록 시점에 분류(카테고리)를 고르게 한다 — 매번 새로 타이핑하지
+      // 않고 이전에 만든 분류 중에서 고르거나 새로 만들 수 있게 별도
+      // 선택 다이얼로그를 띄운다(사용자 요청, 2026-08-02).
+      setFavoritePickerOpen(true);
+      setNewFavoriteCategory("");
+      setFavoriteCategoriesLoading(true);
+      try {
+        setFavoriteCategories(await fetchFavoriteCategories());
+      } catch {
+        setFavoriteCategories([]);
+      } finally {
+        setFavoriteCategoriesLoading(false);
+      }
+      return;
     }
     setFavoriteSaving(true);
     setError("");
     try {
-      await onToggleFavorite(next, category);
+      await onToggleFavorite(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "관심물건 처리에 실패했습니다.");
+    } finally {
+      setFavoriteSaving(false);
+    }
+  };
+
+  const confirmAddFavorite = async (category: string | null) => {
+    if (!onToggleFavorite) return;
+    setFavoriteSaving(true);
+    setError("");
+    try {
+      await onToggleFavorite(true, category);
+      setFavoritePickerOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "관심물건 처리에 실패했습니다.");
     } finally {
@@ -3177,6 +3202,79 @@ export function AuctionDetailModal({
           </div>
         )}
       </div>
+
+      {favoritePickerOpen && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          onClick={() => setFavoritePickerOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative w-full max-w-sm bg-card border border-border rounded-xl shadow-xl p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm font-semibold text-foreground mb-3">관심물건 카테고리 선택</p>
+
+            {favoriteCategoriesLoading ? (
+              <p className="text-xs text-muted-foreground mb-3">불러오는 중...</p>
+            ) : favoriteCategories.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mb-3 max-h-32 overflow-y-auto">
+                {favoriteCategories.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    disabled={favoriteSaving}
+                    onClick={() => void confirmAddFavorite(c)}
+                    className="px-3 py-1.5 rounded-full border border-border text-xs hover:bg-secondary/60 transition-colors disabled:opacity-50"
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground mb-3">
+                등록된 카테고리가 없습니다. 아래에서 새로 만들어 보세요.
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="text"
+                value={newFavoriteCategory}
+                onChange={(e) => setNewFavoriteCategory(e.target.value)}
+                placeholder="새 카테고리 이름"
+                className="flex-1 h-9 px-3 rounded-lg border border-border bg-input-background text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary"
+              />
+              <button
+                type="button"
+                disabled={favoriteSaving || !newFavoriteCategory.trim()}
+                onClick={() => void confirmAddFavorite(newFavoriteCategory.trim())}
+                className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 shrink-0"
+              >
+                추가
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                disabled={favoriteSaving}
+                onClick={() => void confirmAddFavorite(null)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                미분류로 등록
+              </button>
+              <button
+                type="button"
+                onClick={() => setFavoritePickerOpen(false)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

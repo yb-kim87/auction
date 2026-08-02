@@ -154,6 +154,20 @@ export async function fetchFavoriteIds(): Promise<string[]> {
   return data.auctionIds ?? [];
 }
 
+export async function fetchFavoriteCategories(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/favorites/categories`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "카테고리 목록을 불러오지 못했습니다.",
+    );
+  }
+  const data = await readJsonResponse<{ categories?: string[] }>(res);
+  return data.categories ?? [];
+}
+
 export async function fetchFavorites(): Promise<FavoriteItem[]> {
   const res = await fetch(`${API_BASE}/favorites`, {
     cache: "no-store",
