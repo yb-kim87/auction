@@ -143,10 +143,29 @@ export async function middleware(request: NextRequest) {
     return finish(NextResponse.next());
   }
 
+  // 강의 다시보기(회원 수강권 기반, 2026-08-02) — 특정 role 제한 없이
+  // 로그인만 요구한다. 실제 강의별 접근 가능 여부는 enrollment로 API에서
+  // 검증한다.
+  if (pathname.startsWith("/courses")) {
+    if (!loggedIn) {
+      return finish(NextResponse.redirect(new URL("/login", request.url)));
+    }
+    return finish(NextResponse.next());
+  }
+
   return finish(NextResponse.next());
 }
 
 export const config = {
-  matcher: ["/", "/search", "/login", "/pending", "/account", "/admin/:path*", "/consultant/:path*"],
+  matcher: [
+    "/",
+    "/search",
+    "/login",
+    "/pending",
+    "/account",
+    "/admin/:path*",
+    "/consultant/:path*",
+    "/courses/:path*",
+  ],
 };
 

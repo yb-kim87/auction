@@ -11,16 +11,23 @@ import {
   deleteLectureSection,
   deleteLectureVideo,
   fetchLectureCourses,
+  fetchLectureEnrollments,
   fetchLectureLinks,
   fetchLectureSections,
   fetchLectureVideos,
+  grantLectureEnrollment,
+  grantLectureEnrollmentQuick90,
+  revokeLectureEnrollment,
+  searchLectureUsers,
   updateLectureCourse,
   updateLectureLink,
   updateLectureSection,
   updateLectureVideo,
   type LectureAccessLink,
   type LectureCourse,
+  type LectureEnrollmentAdminItem,
   type LectureSection,
+  type LectureUserSearchResult,
   type LectureVideo,
 } from "@/lib/api";
 
@@ -266,7 +273,258 @@ function CourseDetail({
         )}
       </div>
 
-      <LinksBlock course={course} onError={onError} />
+      <EnrollmentsBlock course={course} onError={onError} />
+
+      <details className="rounded-sm border border-border">
+        <summary className="cursor-pointer px-4 py-2.5 text-xs text-muted-foreground select-none">
+          예전 링크 방식(사용 중단) — 필요할 때만 펼쳐서 사용
+        </summary>
+        <div className="p-4 pt-0">
+          <LinksBlock course={course} onError={onError} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function EnrollmentsBlock({
+  course,
+  onError,
+}: {
+  course: LectureCourse;
+  onError: (message: string) => void;
+}) {
+  const [enrollments, setEnrollments] = useState<LectureEnrollmentAdminItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<LectureUserSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<LectureUserSearchResult | null>(null);
+  const [startsAt, setStartsAt] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchLectureEnrollments(course.id)
+      .then(setEnrollments)
+      .catch((err) => onError(err instanceof Error ? err.message : "수강권 조회 실패"))
+      .finally(() => setLoading(false));
+  }, [course.id, onError]);
+
+  useEffect(load, [load]);
+
+  async function handleSearch() {
+    const q = query.trim();
+    if (!q) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await searchLectureUsers(q);
+      setSearchResults(results);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "회원 검색 실패");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handleGrant() {
+    if (!selectedUser) return;
+    try {
+      await grantLectureEnrollment({
+        username: selectedUser.username,
+        courseId: course.id,
+        startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+      });
+      setSelectedUser(null);
+      setQuery("");
+      setSearchResults([]);
+      setStartsAt("");
+      setExpiresAt("");
+      load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "수강권 부여 실패");
+    }
+  }
+
+  async function handleQuick90() {
+    if (!selectedUser) return;
+    try {
+      await grantLectureEnrollmentQuick90({ username: selectedUser.username, courseId: course.id });
+      setSelectedUser(null);
+      setQuery("");
+      setSearchResults([]);
+      load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "수강권 부여 실패");
+    }
+  }
+
+  async function handleRevoke(enrollment: LectureEnrollmentAdminItem) {
+    if (!confirm(`${enrollment.userName ?? enrollment.username}님의 수강권을 회수할까요?`)) return;
+    try {
+      await revokeLectureEnrollment(enrollment.id);
+      load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "수강권 회수 실패");
+    }
+  }
+
+  return (
+    <div className="rounded-sm border border-border bg-card p-4 space-y-3">
+      <h3 className="text-sm font-bold text-foreground">회원 수강권 — {course.title}</h3>
+      <p className="text-xs text-muted-foreground">
+        회원가입은 기존 사이트에서 진행되고, 여기서는 이미 가입한 회원을 검색해 이 강의에 대한
+        수강권(시작일~만료일)을 부여합니다. 기본 만료일은 시작일로부터 90일입니다.
+      </p>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void handleSearch()}
+            placeholder="이름 / 아이디 / 전화번호로 회원 검색"
+            className="flex-1 px-3 py-2 text-sm border border-border rounded-sm bg-background"
+          />
+          <button
+            type="button"
+            onClick={() => void handleSearch()}
+            disabled={searching || !query.trim()}
+            className="px-4 py-2 text-sm font-semibold rounded-sm bg-secondary text-foreground disabled:opacity-50"
+          >
+            검색
+          </button>
+        </div>
+
+        {searchResults.length > 0 && !selectedUser && (
+          <ul className="rounded-sm border border-border divide-y divide-border max-h-48 overflow-y-auto">
+            {searchResults.map((u) => (
+              <li key={u.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedUser(u);
+                    setSearchResults([]);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/50"
+                >
+                  <span className="font-medium text-foreground">{u.name}</span>
+                  <span className="ml-2 text-muted-foreground">
+                    {u.username}
+                    {u.phone ? ` · ${u.phone}` : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {selectedUser && (
+          <div className="rounded-sm border border-primary/40 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span>
+                선택된 회원: <span className="font-semibold text-foreground">{selectedUser.name}</span>{" "}
+                <span className="text-muted-foreground">({selectedUser.username})</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedUser(null)}
+                className="text-xs text-muted-foreground hover:underline"
+              >
+                선택 취소
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs text-muted-foreground">
+                시작일
+                <input
+                  type="date"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  className="ml-1 px-2 py-1.5 text-sm border border-border rounded-sm bg-background"
+                />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                만료일
+                <input
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="ml-1 px-2 py-1.5 text-sm border border-border rounded-sm bg-background"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleGrant()}
+                className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
+              >
+                수강권 부여
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleQuick90()}
+                className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-emerald-600 text-white"
+              >
+                90일 권한 부여
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">불러오는 중...</p>
+      ) : enrollments.length === 0 ? (
+        <p className="text-sm text-muted-foreground">부여된 수강권이 없습니다.</p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {enrollments.map((e) => (
+            <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              <div>
+                <div className="font-medium text-foreground">
+                  {e.userName ?? e.username} <span className="text-muted-foreground">({e.username})</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatDate(e.startsAt)} ~ {formatDate(e.expiresAt)}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-sm border ${
+                    e.effectiveStatus === "ACTIVE"
+                      ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                      : e.effectiveStatus === "NOT_STARTED"
+                        ? "border-amber-200 bg-amber-100 text-amber-800"
+                        : "border-border bg-secondary/50 text-muted-foreground"
+                  }`}
+                >
+                  {e.effectiveStatus === "ACTIVE"
+                    ? "수강 중"
+                    : e.effectiveStatus === "NOT_STARTED"
+                      ? "시작 전"
+                      : e.effectiveStatus === "EXPIRED"
+                        ? "만료됨"
+                        : "회수됨"}
+                </span>
+                {e.effectiveStatus !== "REVOKED" && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRevoke(e)}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    회수
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

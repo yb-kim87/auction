@@ -3693,6 +3693,12 @@ export type LectureAccessInfo = {
   sections: LecturePublicSection[];
 };
 
+/** 회원 수강권 기반 접근(`/courses/:id`)은 링크 개념이 없어 linkTitle이 없다. */
+export type LectureMyCourseAccessInfo = {
+  course: { id: string; title: string; description: string | null };
+  sections: LecturePublicSection[];
+};
+
 async function lectureReplayFetch<T>(
   path: string,
   init?: RequestInit,
@@ -3880,5 +3886,126 @@ export function deleteLectureLink(id: string): Promise<{ ok: boolean }> {
     `/lecture-replay/links/${id}`,
     { method: "DELETE" },
     "링크 삭제에 실패했습니다.",
+  );
+}
+
+// ---------- 강의 다시보기: 회원 수강권(enrollment) ----------
+
+export type LectureEnrollmentEffectiveStatus = "ACTIVE" | "NOT_STARTED" | "EXPIRED" | "REVOKED";
+
+export type LectureEnrollmentAdminItem = {
+  id: string;
+  username: string;
+  userName: string | null;
+  userPhone: string | null;
+  courseId: string;
+  startsAt: string;
+  expiresAt: string;
+  status: "ACTIVE" | "EXPIRED" | "REVOKED";
+  effectiveStatus: LectureEnrollmentEffectiveStatus;
+  createdAt: string;
+};
+
+export type LectureMyCourse = {
+  enrollmentId: string;
+  courseId: string;
+  courseTitle: string;
+  courseDescription: string | null;
+  startsAt: string;
+  expiresAt: string;
+  remainingDays: number;
+  effectiveStatus: LectureEnrollmentEffectiveStatus;
+};
+
+export type LectureUserSearchResult = {
+  id: string;
+  username: string;
+  name: string;
+  phone: string | null;
+  role: string;
+};
+
+// 회원용 — 로그인 쿠키 기반, 자신의 수강권만 조회됨
+export function fetchMyCourses(): Promise<LectureMyCourse[]> {
+  return lectureReplayFetch("/courses", undefined, "내 강의 목록을 불러오지 못했습니다.");
+}
+
+export function fetchMyCourseAccessInfo(courseId: string): Promise<LectureMyCourseAccessInfo> {
+  return lectureReplayFetch(
+    `/courses/${encodeURIComponent(courseId)}`,
+    undefined,
+    "수강 권한이 없는 강의입니다.",
+  );
+}
+
+export function fetchMyCoursePlayUrl(
+  courseId: string,
+  videoId: string,
+): Promise<{ embedUrl: string }> {
+  return lectureReplayFetch(
+    `/courses/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(videoId)}/play`,
+    undefined,
+    "영상을 재생할 수 없습니다.",
+  );
+}
+
+// 관리자용
+export function searchLectureUsers(q: string): Promise<LectureUserSearchResult[]> {
+  return lectureReplayFetch(
+    `/users/search?q=${encodeURIComponent(q)}`,
+    undefined,
+    "회원 검색에 실패했습니다.",
+  );
+}
+
+export function fetchLectureEnrollments(courseId?: string): Promise<LectureEnrollmentAdminItem[]> {
+  const qs = courseId ? `?courseId=${encodeURIComponent(courseId)}` : "";
+  return lectureReplayFetch(
+    `/lecture-replay/enrollments${qs}`,
+    undefined,
+    "수강권 목록을 불러오지 못했습니다.",
+  );
+}
+
+export function grantLectureEnrollment(body: {
+  username: string;
+  courseId: string;
+  startsAt?: string;
+  expiresAt?: string;
+}): Promise<LectureEnrollmentAdminItem> {
+  return lectureReplayFetch(
+    "/lecture-replay/enrollments",
+    { method: "POST", body: JSON.stringify(body) },
+    "수강권 부여에 실패했습니다.",
+  );
+}
+
+export function grantLectureEnrollmentQuick90(body: {
+  username: string;
+  courseId: string;
+}): Promise<LectureEnrollmentAdminItem> {
+  return lectureReplayFetch(
+    "/lecture-replay/enrollments/quick-90",
+    { method: "POST", body: JSON.stringify(body) },
+    "수강권 부여에 실패했습니다.",
+  );
+}
+
+export function updateLectureEnrollment(
+  id: string,
+  body: { startsAt?: string; expiresAt?: string; status?: "ACTIVE" | "EXPIRED" | "REVOKED" },
+): Promise<LectureEnrollmentAdminItem> {
+  return lectureReplayFetch(
+    `/lecture-replay/enrollments/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    "수강권 수정에 실패했습니다.",
+  );
+}
+
+export function revokeLectureEnrollment(id: string): Promise<LectureEnrollmentAdminItem> {
+  return lectureReplayFetch(
+    `/lecture-replay/enrollments/${id}/revoke`,
+    { method: "POST" },
+    "수강권 회수에 실패했습니다.",
   );
 }
