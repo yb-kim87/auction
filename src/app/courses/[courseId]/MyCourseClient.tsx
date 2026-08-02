@@ -397,9 +397,19 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           style={{ maxWidth: 1160, margin: "0 auto" }}
         >
           {/* ── main ── */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="w-full md:w-auto" style={{ maxWidth: 840, padding: "0 20px", boxSizing: "border-box" }}>
           {/* video */}
-          <div style={{ position: "relative", width: "100%", maxWidth: 800, aspectRatio: "16/9", background: "#000", overflow: "hidden" }}>
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              aspectRatio: "16/9",
+              background: "#000",
+              overflow: "hidden",
+              borderRadius: 16,
+              margin: "20px 0",
+            }}
+          >
             {!selectedVideo ? (
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
                 재생할 영상이 없습니다.
@@ -448,8 +458,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           <div
             className="flex items-center justify-between gap-2"
             style={{
-              maxWidth: 800,
-              padding: "11px 20px",
+              padding: "11px 0",
               background: C.white,
               borderBottom: `1px solid ${C.border}`,
             }}
@@ -508,7 +517,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           </div>
 
           {/* 커리큘럼 */}
-          <div className="px-3 sm:px-5" style={{ paddingTop: 24, paddingBottom: 24, maxWidth: 800 }}>
+          <div style={{ paddingTop: 24, paddingBottom: 24 }}>
             <div className="grid grid-cols-2" style={{ gap: 12, marginBottom: 28 }}>
               <div style={{ padding: "14px 16px", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                 <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>총 강의 수</div>
