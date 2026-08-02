@@ -545,17 +545,6 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               borderColor: C.border,
             }}
           >
-            <div
-              style={{
-                padding: "14px 16px 10px",
-                borderBottom: `1px solid ${C.border}`,
-                background: C.white,
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>강의 목록</div>
-              <div style={{ fontSize: 11, color: C.textDim }}>{allVideos.length}개 영상</div>
-            </div>
-
             {info.sections.map((section) => (
               <SectionBlock
                 key={section.id}
