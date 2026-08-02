@@ -1048,11 +1048,11 @@ export default function Home() {
     return () => { cancelled = true; };
   }, []);
 
-  async function handleToggleFavorite(auctionId: string, next: boolean) {
+  async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null) {
     setFavoriteBusy(true);
     try {
       if (next) {
-        await addFavorite(auctionId);
+        await addFavorite(auctionId, category);
         setFavoriteIds((prev) => new Set([...Array.from(prev), auctionId]));
         logUserAction({
           itemId: auctionId,
@@ -1693,7 +1693,7 @@ export default function Home() {
         favoriteBusy={favoriteBusy}
         onToggleFavorite={
           selectedItem
-            ? (next) => handleToggleFavorite(selectedItem.id, next)
+            ? (next, category) => handleToggleFavorite(selectedItem.id, next, category)
             : undefined
         }
         onAiAnalysisClick={(row) =>

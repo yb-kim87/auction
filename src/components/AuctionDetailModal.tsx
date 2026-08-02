@@ -1629,7 +1629,7 @@ export function AuctionDetailModal({
   onDeleted?: (id: string) => void;
   isFavorite?: boolean;
   favoriteBusy?: boolean;
-  onToggleFavorite?: (next: boolean) => Promise<void>;
+  onToggleFavorite?: (next: boolean, category?: string | null) => Promise<void>;
   onAiAnalysisClick?: (item: AuctionItem) => void;
   onDislike?: (item: AuctionItem) => void;
   onReviewed?: (item: AuctionItem) => void;
@@ -1870,10 +1870,19 @@ export function AuctionDetailModal({
 
   const handleToggleFavorite = async () => {
     if (!onToggleFavorite) return;
+    const next = !isFavorite;
+    let category: string | null = null;
+    if (next) {
+      // 관심등록 시점에 바로 분류를 직접 입력받는다(자유 텍스트, 선택 —
+      // 비워두면 미분류로 등록). 사용자 요청, 2026-08-02.
+      const input = window.prompt("이 물건을 어떤 카테고리로 등록할까요? (선택, 비워두면 미분류)", "");
+      if (input === null) return; // 취소 시 등록하지 않음
+      category = input.trim() || null;
+    }
     setFavoriteSaving(true);
     setError("");
     try {
-      await onToggleFavorite(!isFavorite);
+      await onToggleFavorite(next, category);
     } catch (err) {
       setError(err instanceof Error ? err.message : "관심물건 처리에 실패했습니다.");
     } finally {

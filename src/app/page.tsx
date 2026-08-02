@@ -1199,11 +1199,11 @@ export default function HomePage() {
     router.replace("/login");
   };
 
-  async function handleToggleFavorite(auctionId: string, next: boolean) {
+  async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null) {
     setFavoriteBusyId(auctionId);
     try {
       if (next) {
-        await addFavorite(auctionId);
+        await addFavorite(auctionId, category);
         setFavoriteIds((prev) => new Set([...Array.from(prev), auctionId]));
       } else {
         await removeFavorite(auctionId);
@@ -1496,7 +1496,9 @@ export default function HomePage() {
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={selectedItem ? favoriteBusyId === selectedItem.id : false}
         onToggleFavorite={
-          selectedItem ? (next) => handleToggleFavorite(selectedItem.id, next) : undefined
+          selectedItem
+            ? (next, category) => handleToggleFavorite(selectedItem.id, next, category)
+            : undefined
         }
         onAiAnalysisClick={(row) =>
           logUserAction({ itemId: row.id, actionType: "ai_analysis_click", metadata: { recommended: true } })

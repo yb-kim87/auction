@@ -138,6 +138,8 @@ export async function fetchAuctions(): Promise<AuctionItem[]> {
   return readJsonResponse(res);
 }
 
+export type FavoriteItem = { auctionId: string; category: string | null };
+
 export async function fetchFavoriteIds(): Promise<string[]> {
   const res = await fetch(`${API_BASE}/favorites`, {
     cache: "no-store",
@@ -152,10 +154,26 @@ export async function fetchFavoriteIds(): Promise<string[]> {
   return data.auctionIds ?? [];
 }
 
-export async function addFavorite(auctionId: string): Promise<void> {
+export async function fetchFavorites(): Promise<FavoriteItem[]> {
+  const res = await fetch(`${API_BASE}/favorites`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "관심물건 목록을 불러오지 못했습니다.",
+    );
+  }
+  const data = await readJsonResponse<{ items?: FavoriteItem[] }>(res);
+  return data.items ?? [];
+}
+
+export async function addFavorite(auctionId: string, category?: string | null): Promise<void> {
   const res = await fetch(`${API_BASE}/favorites/${auctionId}`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ category: category?.trim() || null }),
   });
   if (!res.ok) {
     throw new Error(
