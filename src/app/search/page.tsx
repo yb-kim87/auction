@@ -1676,6 +1676,7 @@ export default function Home() {
         editable={isAdmin}
         isAdmin={isAdmin}
         housingCount={profile?.housingCount}
+        annualNetIncome={profile?.annualNetIncome ?? null}
         regulatedArea={
           selectedItem
             ? isRegulatedArea(selectedItem.city, selectedItem.district, regulatedRegionNames)

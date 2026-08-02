@@ -210,6 +210,7 @@ export function ProfitCalculatorPanel({
   existingLoanWon,
   housingCount,
   regulatedArea,
+  annualNetIncomeWon,
 }: {
   item: AuctionItem;
   rightsAnalysis?: AuctionAnalysisResult | null;
@@ -219,6 +220,9 @@ export function ProfitCalculatorPanel({
   existingLoanWon?: number | null;
   housingCount?: number | null;
   regulatedArea?: boolean | null;
+  /** 회원 투자정보의 연순소득(원). 저장된 입찰계획이 없을 때 "기존소득(연간)"
+   * 초기값으로 자동 반영한다(사용자 요청, 2026-08-02). */
+  annualNetIncomeWon?: number | null;
 }) {
   // 이미 낙찰된 물건은 예상 최저가가 아니라 실제 낙찰가(item.salePrice,
   // DB 엑셀 컬럼명 "낙찰가")로 초기값을 채운다(사용자 요청: "낙찰된
@@ -258,7 +262,7 @@ export function ProfitCalculatorPanel({
   const [vatAmount, setVatAmount] = useState(over85 ? Math.round(item.appraisedValue * 0.1 * 0.5) : 0);
   const [vatEdited, setVatEdited] = useState(false);
   const [applyProgressiveDeduction, setApplyProgressiveDeduction] = useState(true);
-  const [existingIncome, setExistingIncome] = useState(0);
+  const [existingIncome, setExistingIncome] = useState(annualNetIncomeWon ?? 0);
 
   // 85㎡ 초과 물건의 부가세는 매도가×10%×50% 추정치 대신, 관리자
   // 부가세계산 탭(CrawlerVatTab)과 동일한 국세청 고시 공식으로 정확히

@@ -19,7 +19,7 @@ import { AuctionAnalysisPanel } from "@/components/AuctionAnalysisPanel";
 import { TenantStatusPanel } from "@/components/TenantStatusPanel";
 import { displayTenantDetail } from "@/lib/tenant-status";
 import { getFailureRateRatio } from "@/lib/failure-rate";
-import { formatWonShort } from "@/lib/investment-money";
+import { formatWonShort, parseIncomeToWon } from "@/lib/investment-money";
 import { housingLoanLabel } from "@/lib/loan-policy-label";
 import { ProfitCalculatorPanel } from "@/components/ProfitCalculatorPanel";
 import { rightsPresentation } from "@/lib/rights-presentation";
@@ -2401,6 +2401,7 @@ export function AuctionDetailModal({
                 existingLoanWon={existingLoanWon}
                 housingCount={housingCount}
                 regulatedArea={regulatedArea}
+                annualNetIncomeWon={parseIncomeToWon(annualNetIncome ?? undefined) ?? undefined}
               />
             )}
           </div>
