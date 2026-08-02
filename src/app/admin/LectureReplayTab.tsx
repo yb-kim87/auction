@@ -100,8 +100,9 @@ export function LectureReplayTab() {
       <div>
         <h2 className="text-lg font-bold text-foreground">강의 다시보기 (Bunny Stream)</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          강의 → 섹션 → 영상 순으로 만들고, 영상마다 Bunny Stream의 video ID를 입력하면
-          접근 링크를 받은 사람이 /lecture/[token] 페이지에서 시청할 수 있습니다.
+          강의 → 섹션 → 영상 순으로 만들고, 영상마다 Bunny Stream의 video ID를 입력하세요.
+          강의와 영상을 각각 "공개"로 전환한 뒤, 아래 "회원 수강권"에서 회원을 검색해
+          수강권을 부여하면 그 회원이 로그인 후 /courses 에서 시청할 수 있습니다.
         </p>
       </div>
 
