@@ -308,7 +308,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           className="flex items-center gap-2 sm:gap-3.5 px-3 sm:px-5"
           style={{ maxWidth: 1400, margin: "0 auto", height: 56 }}
         >
-          <Link href="/courses" className="flex items-center gap-1.5 sm:gap-1.5 shrink-0" style={{ textDecoration: "none" }}>
+          <Link href="/" className="flex items-center gap-1.5 sm:gap-1.5 shrink-0" style={{ textDecoration: "none" }}>
             <div
               style={{
                 width: 30,
@@ -327,18 +327,11 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               강
             </div>
             <span className="hidden sm:inline" style={{ fontWeight: 800, fontSize: 15, color: C.textPrimary }}>
-              내 강의실
+              코치픽
             </span>
           </Link>
 
-          <div className="hidden sm:block shrink-0" style={{ width: 1, height: 18, background: C.border }} />
-
-          <span
-            className="hidden sm:block flex-1 truncate"
-            style={{ fontSize: 13, color: C.textSecondary }}
-          >
-            {info.course.title}
-          </span>
+          <div className="flex-1" />
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto sm:ml-0">
             <Link
@@ -393,12 +386,12 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       {/* ── body ── */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div
-          className="flex flex-col md:flex-row items-stretch md:items-start"
+          className="flex flex-col md:grid md:grid-cols-[1fr_300px] md:items-start"
           style={{ maxWidth: 1400, margin: "0 auto", paddingTop: 20 }}
         >
           {/* ── main ── */}
           <div
-            className="w-full md:flex-1"
+            className="w-full"
             style={{ maxWidth: 1060, minWidth: 0, padding: "0 20px", boxSizing: "border-box" }}
           >
           {/* video */}
