@@ -550,6 +550,9 @@ export default function AdminPage() {
                 <ChevronDown size={13} className="rotate-90" />
                 검색 페이지
               </Link>
+              <Link href="/courses" className={HEADER_BTN}>
+                강의실
+              </Link>
               <AccountNavLink />
               <button type="button" onClick={handleLogout} className={HEADER_BTN}>
                 <LogOut size={13} />
