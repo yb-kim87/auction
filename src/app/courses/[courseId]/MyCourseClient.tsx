@@ -350,9 +350,18 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       </header>
 
       {/* ── body ── */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* ── main ── */}
-        <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        <div
+          style={{
+            maxWidth: 1160,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 0,
+          }}
+        >
+          {/* ── main ── */}
+          <div style={{ flex: 1, minWidth: 0 }}>
           {/* video */}
           <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", overflow: "hidden" }}>
             {!selectedVideo ? (
@@ -552,43 +561,47 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               <p style={{ fontSize: 13, color: C.textDim }}>등록된 강의 목록이 없습니다.</p>
             )}
           </div>
-        </div>
+          </div>
 
-        {/* ── sidebar ── */}
-        {sidebarOpen && (
-          <aside
-            style={{
-              width: 300,
-              flexShrink: 0,
-              borderLeft: `1px solid ${C.border}`,
-              background: C.white,
-              overflowY: "auto",
-            }}
-          >
-            <div
+          {/* ── sidebar ── */}
+          {sidebarOpen && (
+            <aside
               style={{
-                padding: "14px 16px 10px",
-                borderBottom: `1px solid ${C.border}`,
-                position: "sticky",
-                top: 0,
+                width: 300,
+                flexShrink: 0,
+                borderLeft: `1px solid ${C.border}`,
                 background: C.white,
-                zIndex: 1,
+                position: "sticky",
+                top: 56,
+                maxHeight: "calc(100vh - 56px)",
+                overflowY: "auto",
               }}
             >
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>강의 목록</div>
-              <div style={{ fontSize: 11, color: C.textDim }}>{allVideos.length}개 영상</div>
-            </div>
+              <div
+                style={{
+                  padding: "14px 16px 10px",
+                  borderBottom: `1px solid ${C.border}`,
+                  position: "sticky",
+                  top: 0,
+                  background: C.white,
+                  zIndex: 1,
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>강의 목록</div>
+                <div style={{ fontSize: 11, color: C.textDim }}>{allVideos.length}개 영상</div>
+              </div>
 
-            {info.sections.map((section) => (
-              <SectionBlock
-                key={section.id}
-                section={section}
-                activeId={selectedVideoId}
-                onSelect={(v) => setSelectedVideoId(v.id)}
-              />
-            ))}
-          </aside>
-        )}
+              {info.sections.map((section) => (
+                <SectionBlock
+                  key={section.id}
+                  section={section}
+                  activeId={selectedVideoId}
+                  onSelect={(v) => setSelectedVideoId(v.id)}
+                />
+              ))}
+            </aside>
+          )}
+        </div>
       </div>
     </div>
   );
