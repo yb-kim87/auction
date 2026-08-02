@@ -3921,6 +3921,9 @@ export type LectureMyCourse = {
   expiresAt: string;
   remainingDays: number;
   effectiveStatus: LectureEnrollmentEffectiveStatus;
+  /** true면 개별 수강권이 아니라 관리자/OT수강생 자동접근으로 표시된
+   * 항목 — 기간이 의미 없는 값(무제한)이라 화면에 표시하지 않는다. */
+  isAuto: boolean;
 };
 
 export type LectureUserSearchResult = {

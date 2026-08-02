@@ -66,12 +66,14 @@ export default function MyCoursesPage() {
                 {c.courseDescription && (
                   <p className="text-sm text-muted-foreground">{c.courseDescription}</p>
                 )}
-                <div className="text-xs text-muted-foreground space-y-0.5">
-                  <div>
-                    수강 기간: {formatDate(c.startsAt)} ~ {formatDate(c.expiresAt)}
+                {!c.isAuto && (
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <div>
+                      수강 기간: {formatDate(c.startsAt)} ~ {formatDate(c.expiresAt)}
+                    </div>
+                    {c.effectiveStatus === "ACTIVE" && <div>남은 일수: {c.remainingDays}일</div>}
                   </div>
-                  {c.effectiveStatus === "ACTIVE" && <div>남은 일수: {c.remainingDays}일</div>}
-                </div>
+                )}
                 {c.effectiveStatus === "ACTIVE" ? (
                   <Link
                     href={`/courses/${c.courseId}`}
