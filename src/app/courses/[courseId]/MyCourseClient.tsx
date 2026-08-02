@@ -305,17 +305,10 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
         }}
       >
         <div
-          style={{
-            maxWidth: 1160,
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            padding: "0 20px",
-            height: 56,
-          }}
+          className="flex items-center gap-2 sm:gap-3.5 px-3 sm:px-5"
+          style={{ maxWidth: 1160, margin: "0 auto", height: 56 }}
         >
-          <Link href="/courses" style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0, textDecoration: "none" }}>
+          <Link href="/courses" className="flex items-center gap-1.5 sm:gap-1.5 shrink-0" style={{ textDecoration: "none" }}>
             <div
               style={{
                 width: 30,
@@ -328,56 +321,51 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 fontSize: 14,
                 fontWeight: 800,
                 color: "#fff",
+                flexShrink: 0,
               }}
             >
               강
             </div>
-            <span style={{ fontWeight: 800, fontSize: 15, color: C.textPrimary }}>내 강의실</span>
+            <span className="hidden sm:inline" style={{ fontWeight: 800, fontSize: 15, color: C.textPrimary }}>
+              내 강의실
+            </span>
           </Link>
 
-          <div style={{ width: 1, height: 18, background: C.border, flexShrink: 0 }} />
+          <div className="hidden sm:block shrink-0" style={{ width: 1, height: 18, background: C.border }} />
 
           <span
-            style={{
-              fontSize: 13,
-              color: C.textSecondary,
-              flex: 1,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
+            className="hidden sm:block flex-1 truncate"
+            style={{ fontSize: 13, color: C.textSecondary }}
           >
             {info.course.title}
           </span>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto sm:ml-0">
             <Link
               href="/courses"
+              className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
               style={{
-                padding: "8px 16px",
                 background: C.accent,
                 color: "#fff",
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 700,
                 borderRadius: 999,
                 textDecoration: "none",
-                whiteSpace: "nowrap",
               }}
             >
               내 강의실
             </Link>
             <Link
               href="/account"
+              className="hidden sm:inline-block px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
               style={{
-                padding: "8px 16px",
                 background: C.white,
                 border: `1px solid ${C.border}`,
                 color: C.textSecondary,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 600,
                 borderRadius: 999,
                 textDecoration: "none",
-                whiteSpace: "nowrap",
               }}
             >
               내 정보
@@ -385,16 +373,15 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
             <button
               type="button"
               onClick={() => void handleLogout()}
+              className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
               style={{
-                padding: "8px 16px",
                 background: C.white,
                 border: `1px solid ${C.border}`,
                 color: C.textSecondary,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 600,
                 borderRadius: 999,
                 cursor: "pointer",
-                whiteSpace: "nowrap",
               }}
             >
               로그아웃
@@ -406,18 +393,13 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       {/* ── body ── */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div
-          style={{
-            maxWidth: 1160,
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 0,
-          }}
+          className="flex flex-col md:flex-row items-stretch md:items-start"
+          style={{ maxWidth: 1160, margin: "0 auto" }}
         >
           {/* ── main ── */}
           <div style={{ flex: 1, minWidth: 0 }}>
           {/* video */}
-          <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", overflow: "hidden" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: 800, aspectRatio: "16/9", background: "#000", overflow: "hidden" }}>
             {!selectedVideo ? (
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
                 재생할 영상이 없습니다.
@@ -464,10 +446,9 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
 
           {/* nav bar */}
           <div
+            className="flex items-center justify-between gap-2"
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              maxWidth: 800,
               padding: "11px 20px",
               background: C.white,
               borderBottom: `1px solid ${C.border}`,
@@ -481,22 +462,21 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 display: "flex",
                 alignItems: "center",
                 gap: 5,
-                padding: "7px 14px",
                 background: C.white,
                 border: `1px solid ${C.border}`,
                 borderRadius: 8,
                 color: hasPrev ? C.textSecondary : C.textDim,
-                fontSize: 13,
                 cursor: hasPrev ? "pointer" : "not-allowed",
               }}
+              className="px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm shrink-0 whitespace-nowrap"
             >
               <ChevronLeftIcon />
-              이전 강의
+              <span className="hidden sm:inline">이전 강의</span>
             </button>
 
             {selectedVideo && (
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{selectedVideo.title}</div>
+              <div className="text-center min-w-0 flex-1 px-1">
+                <div className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{selectedVideo.title}</div>
                 {selectedVideo.durationSeconds != null && (
                   <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
                     {formatDuration(selectedVideo.durationSeconds)}
@@ -513,24 +493,23 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 display: "flex",
                 alignItems: "center",
                 gap: 5,
-                padding: "7px 16px",
                 background: hasNext ? C.accent : C.border,
                 border: "none",
                 borderRadius: 8,
                 color: "#fff",
-                fontSize: 13,
                 fontWeight: 600,
                 cursor: hasNext ? "pointer" : "not-allowed",
               }}
+              className="px-2.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm shrink-0 whitespace-nowrap"
             >
-              다음 강의
+              <span className="hidden sm:inline">다음 강의</span>
               <ChevronRightIcon />
             </button>
           </div>
 
           {/* 커리큘럼 */}
-          <div style={{ padding: "24px 20px", maxWidth: 800 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12, marginBottom: 28 }}>
+          <div className="px-3 sm:px-5" style={{ paddingTop: 24, paddingBottom: 24, maxWidth: 800 }}>
+            <div className="grid grid-cols-2" style={{ gap: 12, marginBottom: 28 }}>
               <div style={{ padding: "14px 16px", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                 <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>총 강의 수</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: C.accent }}>{allVideos.length}강</div>
@@ -619,25 +598,18 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
 
           {/* ── sidebar ── */}
           <aside
+            className="w-full md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l md:sticky md:top-14 md:max-h-[calc(100vh-56px)] md:overflow-y-auto"
             style={{
-              width: 300,
-              flexShrink: 0,
-              borderLeft: `1px solid ${C.border}`,
               background: C.white,
-              position: "sticky",
-              top: 56,
-              maxHeight: "calc(100vh - 56px)",
-              overflowY: "auto",
+              borderColor: C.border,
             }}
           >
             <div
+              className="md:sticky md:top-0 md:z-[1]"
               style={{
                 padding: "14px 16px 10px",
                 borderBottom: `1px solid ${C.border}`,
-                position: "sticky",
-                top: 0,
                 background: C.white,
-                zIndex: 1,
               }}
             >
               <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>강의 목록</div>
