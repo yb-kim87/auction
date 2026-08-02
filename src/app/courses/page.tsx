@@ -94,11 +94,11 @@ export default function MyCoursesPage() {
             justifyContent: "space-between",
           }}
         >
-          <Link href={homeHref} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+          <Link href={homeHref} style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
             <div
               style={{
-                width: 36,
                 height: 36,
+                padding: "0 14px",
                 borderRadius: 12,
                 background: `linear-gradient(135deg, ${C.accent}, #8b7cf8)`,
                 display: "flex",
@@ -107,13 +107,11 @@ export default function MyCoursesPage() {
                 fontSize: 16,
                 fontWeight: 800,
                 color: "#fff",
+                whiteSpace: "nowrap",
               }}
             >
-              강
+              코치픽
             </div>
-            <span style={{ fontWeight: 800, color: C.textPrimary, fontSize: 17, letterSpacing: "-0.02em" }}>
-              내 강의실
-            </span>
           </Link>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
