@@ -397,7 +397,10 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           style={{ maxWidth: 1400, margin: "0 auto" }}
         >
           {/* ── main ── */}
-          <div className="w-full md:w-auto" style={{ maxWidth: 1060, padding: "0 20px", boxSizing: "border-box" }}>
+          <div
+            className="w-full md:flex-1"
+            style={{ maxWidth: 1060, minWidth: 0, padding: "0 20px", boxSizing: "border-box" }}
+          >
           {/* video */}
           <div
             style={{
