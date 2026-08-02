@@ -542,6 +542,8 @@ function SectionBlock({
   const [videos, setVideos] = useState<LectureVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ title: "", bunnyVideoId: "", description: "", durationSeconds: "" });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", bunnyVideoId: "" });
 
   const load = useCallback(() => {
     setLoading(true);
@@ -608,6 +610,24 @@ function SectionBlock({
     }
   }
 
+  function startEdit(video: LectureVideo) {
+    setEditingId(video.id);
+    setEditForm({ title: video.title, bunnyVideoId: video.bunnyVideoId });
+  }
+
+  async function handleSaveEdit(video: LectureVideo) {
+    const title = editForm.title.trim();
+    const bunnyVideoId = editForm.bunnyVideoId.trim();
+    if (!title || !bunnyVideoId) return;
+    try {
+      const updated = await updateLectureVideo(video.id, { title, bunnyVideoId });
+      setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      setEditingId(null);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "영상 수정 실패");
+    }
+  }
+
   return (
     <div className="rounded-sm border border-border p-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -625,43 +645,84 @@ function SectionBlock({
             .slice()
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((video, idx, arr) => (
-              <li key={video.id} className="flex items-center justify-between gap-2 py-1.5 text-xs">
-                <div className="min-w-0">
-                  <span className="font-medium text-foreground">{video.title}</span>
-                  <span className="ml-2 text-muted-foreground">bunny: {video.bunnyVideoId}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    disabled={idx === 0}
-                    onClick={() => void handleMove(video, -1)}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    disabled={idx === arr.length - 1}
-                    onClick={() => void handleMove(video, 1)}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  >
-                    ▼
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleTogglePublish(video)}
-                    className={video.isPublished ? "text-emerald-700" : "text-muted-foreground"}
-                  >
-                    {video.isPublished ? "공개됨" : "비공개"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteVideo(video)}
-                    className="text-destructive hover:underline"
-                  >
-                    삭제
-                  </button>
-                </div>
+              <li key={video.id} className="py-1.5 text-xs">
+                {editingId === video.id ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={editForm.title}
+                      onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                      placeholder="영상 제목"
+                      className="flex-1 min-w-[120px] px-2 py-1 border border-border rounded-sm bg-background"
+                    />
+                    <input
+                      value={editForm.bunnyVideoId}
+                      onChange={(e) => setEditForm((f) => ({ ...f, bunnyVideoId: e.target.value }))}
+                      placeholder="Bunny video ID"
+                      className="flex-1 min-w-[160px] px-2 py-1 border border-border rounded-sm bg-background"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveEdit(video)}
+                      disabled={!editForm.title.trim() || !editForm.bunnyVideoId.trim()}
+                      className="text-primary hover:underline disabled:opacity-40"
+                    >
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="text-muted-foreground hover:underline"
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-medium text-foreground">{video.title}</span>
+                      <span className="ml-2 text-muted-foreground">bunny: {video.bunnyVideoId}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => void handleMove(video, -1)}
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === arr.length - 1}
+                        onClick={() => void handleMove(video, 1)}
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      >
+                        ▼
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleTogglePublish(video)}
+                        className={video.isPublished ? "text-emerald-700" : "text-muted-foreground"}
+                      >
+                        {video.isPublished ? "공개됨" : "비공개"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(video)}
+                        className="text-primary hover:underline"
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteVideo(video)}
+                        className="text-destructive hover:underline"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           {videos.length === 0 && <li className="py-1.5 text-xs text-muted-foreground">영상 없음</li>}
