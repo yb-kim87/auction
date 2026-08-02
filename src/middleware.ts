@@ -126,7 +126,7 @@ export async function middleware(request: NextRequest) {
     return finish(NextResponse.next());
   }
 
-  if (pathname === "/" || pathname === "/search") {
+  if (pathname === "/" || pathname === "/search" || pathname === "/favorites") {
     if (!loggedIn) {
       return finish(NextResponse.redirect(new URL("/login", request.url)));
     }
@@ -163,6 +163,7 @@ export const config = {
   matcher: [
     "/",
     "/search",
+    "/favorites",
     "/login",
     "/pending",
     "/account",

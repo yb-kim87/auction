@@ -1249,6 +1249,9 @@ export default function HomePage() {
               <Link href="/courses" className={HEADER_BTN}>
                 강의실
               </Link>
+              <Link href="/favorites" className={HEADER_BTN}>
+                관심물건
+              </Link>
               <div className={HEADER_NAV_TRAILING}>
                 {isAdmin && (
                   <Link href="/admin" className={HEADER_BTN}>

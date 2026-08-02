@@ -3242,6 +3242,12 @@ export function AuctionDetailModal({
                 type="text"
                 value={newFavoriteCategory}
                 onChange={(e) => setNewFavoriteCategory(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newFavoriteCategory.trim() && !favoriteSaving) {
+                    e.preventDefault();
+                    void confirmAddFavorite(newFavoriteCategory.trim());
+                  }
+                }}
                 placeholder="새 카테고리 이름"
                 className="flex-1 h-9 px-3 rounded-lg border border-border bg-input-background text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary"
               />
