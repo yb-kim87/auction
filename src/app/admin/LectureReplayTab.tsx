@@ -614,6 +614,15 @@ function SectionBlock({
     }
   }
 
+  async function handleToggleOtVideo(video: LectureVideo) {
+    try {
+      const updated = await updateLectureVideo(video.id, { isOtVideo: !video.isOtVideo });
+      setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "영상 수정 실패");
+    }
+  }
+
   async function handleMove(video: LectureVideo, direction: -1 | 1) {
     const sorted = [...videos].sort((a, b) => a.sortOrder - b.sortOrder);
     const idx = sorted.findIndex((v) => v.id === video.id);
@@ -736,6 +745,14 @@ function SectionBlock({
                         className={video.isPublished ? "text-emerald-700" : "text-muted-foreground"}
                       >
                         {video.isPublished ? "공개됨" : "비공개"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleOtVideo(video)}
+                        className={video.isOtVideo ? "text-sky-700" : "text-muted-foreground"}
+                        title="켜면 이 영상만 OT수강생에게 자동 공개됩니다"
+                      >
+                        {video.isOtVideo ? "OT영상" : "일반영상"}
                       </button>
                       <button
                         type="button"

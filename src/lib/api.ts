@@ -3662,6 +3662,9 @@ export type LectureVideo = {
   durationSeconds: number | null;
   sortOrder: number;
   isPublished: boolean;
+  /** true면 강의 전체가 OT강의로 지정돼 있지 않아도 OT수강생에게 이
+   * 영상만 자동 공개된다. */
+  isOtVideo: boolean;
   createdAt: string;
 };
 
@@ -3838,6 +3841,7 @@ export function updateLectureVideo(
     durationSeconds?: number | null;
     sortOrder?: number;
     isPublished?: boolean;
+    isOtVideo?: boolean;
   },
 ): Promise<LectureVideo> {
   return lectureReplayFetch(
