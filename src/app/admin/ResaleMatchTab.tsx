@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import {
   fetchResaleMatches,
   reviewResaleMatch,
@@ -8,6 +9,69 @@ import {
   type ResaleMatchQaItem,
 } from "@/lib/api";
 import { CITIES, getDistricts } from "@/data/korea-regions";
+
+const PAGE_SIZE_OPTIONS = [50, 100, 200, 500];
+
+function csvCell(value: string | number | null | undefined): string {
+  const text = value == null ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function exportResaleMatchesToCsv(items: ResaleMatchQaItem[]) {
+  const headers = [
+    "사건번호",
+    "법원",
+    "용도",
+    "주소",
+    "완납일",
+    "낙찰가",
+    "실거래 주소",
+    "실거래 건물명",
+    "층",
+    "전용면적",
+    "거래금액",
+    "계약일",
+    "매도차익",
+    "점수",
+    "등급",
+    "노출",
+    "검토상태",
+  ];
+  const rows = items.map((item) => {
+    const deal = item.dealAmount == null ? null : Number(item.dealAmount);
+    const sale = item.salePrice == null ? null : Number(item.salePrice);
+    const profit = deal != null && sale != null && Number.isFinite(deal) && Number.isFinite(sale) ? deal - sale : null;
+    return [
+      item.auctionNo,
+      item.court,
+      item.propType ?? "",
+      item.address,
+      item.paymentCompletedAt ?? "",
+      item.salePrice ?? "",
+      `${item.city} ${item.district} ${item.umdNm} ${item.jibun}`,
+      item.aptNm,
+      item.floor,
+      item.exclusiveArea,
+      item.dealAmount ?? "",
+      item.contractDate,
+      profit ?? "",
+      item.scoreTotal,
+      item.confidenceTier,
+      item.isDisplayed ? "노출됨" : "-",
+      STATUS_LABELS[item.status],
+    ];
+  });
+  const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+  // Excel에서 한글이 깨지지 않도록 UTF-8 BOM을 붙인다.
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const today = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `매도분석_${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function formatWon(value: number | string | null): string {
   if (value == null) return "-";
@@ -126,11 +190,25 @@ export function ResaleMatchTab() {
   const [filterCity, setFilterCity] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
   const filterDistrictOptions = filterCity ? getDistricts(filterCity) : [];
-  const filteredItems = items.filter(
-    (item) =>
-      (!filterCity || item.city === filterCity) &&
-      (!filterDistrict || item.district === filterDistrict),
+  const filteredItems = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          (!filterCity || item.city === filterCity) &&
+          (!filterDistrict || item.district === filterDistrict),
+      ),
+    [items, filterCity, filterDistrict],
   );
+  const [pageSize, setPageSize] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const pagedItems = useMemo(
+    () => filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredItems, currentPage, pageSize],
+  );
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCity, filterDistrict, pageSize]);
   const [running, setRunning] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS);
@@ -248,6 +326,14 @@ export function ResaleMatchTab() {
             필터 초기화
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => exportResaleMatchesToCsv(filteredItems)}
+          disabled={filteredItems.length === 0}
+          className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-primary text-primary hover:bg-primary/5 disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          엑셀로 저장 ({filteredItems.length}건)
+        </button>
         <span className="text-xs text-muted-foreground ml-auto">
           {filteredItems.length}건 / 전체 {items.length}건
         </span>
@@ -318,7 +404,7 @@ export function ResaleMatchTab() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((item) => (
+              {pagedItems.map((item) => (
                 <tr key={item.matchId} className="border-t border-border align-top">
                   <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">
                     <div className="font-semibold truncate">{item.auctionNo}</div>
@@ -427,6 +513,72 @@ export function ResaleMatchTab() {
           </table>
         )}
       </div>
+
+      {filteredItems.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>페이지당</span>
+            <div className="relative">
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="appearance-none bg-card border border-border rounded-sm pl-3 pr-7 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary hover:border-primary/50 cursor-pointer"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}개
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
+            </div>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1.5 rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+              >
+                처음
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-2 py-1.5 rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+              >
+                이전
+              </button>
+              <span className="px-2 font-mono text-muted-foreground">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1.5 rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+              >
+                다음
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1.5 rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+              >
+                마지막
+              </button>
+            </div>
+          )}
+
+          <span className="text-xs text-muted-foreground">
+            {totalPages}페이지 중 {currentPage}페이지
+          </span>
+        </div>
+      )}
     </div>
   );
 }
