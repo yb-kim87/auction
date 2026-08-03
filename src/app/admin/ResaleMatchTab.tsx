@@ -339,7 +339,7 @@ export function ResaleMatchTab() {
         </span>
       </div>
 
-      <div className="border border-border rounded-sm overflow-x-auto">
+      <div className="border border-border rounded-sm overflow-x-auto overflow-y-auto" style={{ maxHeight: "calc(100vh - 320px)" }}>
         {loading ? (
           <p className="text-sm text-muted-foreground p-4">불러오는 중...</p>
         ) : items.length === 0 ? (
