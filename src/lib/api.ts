@@ -3592,11 +3592,20 @@ export type ResaleMatchQaItem = {
   court: string;
   propType: string | null;
   address: string;
+  /** 매칭된 실거래가 속한 시/군/구 — 경매 물건(auction)과 항상 같은 지역이라
+   * (같은 lawdCd로만 매칭되므로) 실거래 쪽엔 별도로 저장돼 있지 않고
+   * auction.city/district를 그대로 재사용한다. */
+  city: string;
+  district: string;
   paymentCompletedAt: string | null;
   salePrice: number | null;
   aptNm: string;
   /** 2024년 이후 계약만 부분적으로 채워짐(국토부 API 제약, 실측 50~75%). */
   buildingDong: string | null;
+  /** 실거래의 동(읍/면)+지번 — 건물명만으로는 위치를 가늠하기 어렵다는
+   * 피드백으로 전체 주소 조합에 사용(2026-08-03). */
+  umdNm: string;
+  jibun: string;
   floor: number;
   exclusiveArea: string;
   dealAmount: string;

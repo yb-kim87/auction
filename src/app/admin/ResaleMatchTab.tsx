@@ -274,9 +274,17 @@ export function ResaleMatchTab() {
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">{formatDate(item.paymentCompletedAt)}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap truncate overflow-hidden">{formatWon(item.salePrice)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">
-                    {item.aptNm} {item.buildingDong ? `${item.buildingDong}동 ` : ""}
-                    {item.floor}층 / {item.exclusiveArea}㎡
+                  <td
+                    className="px-3 py-2 whitespace-nowrap truncate overflow-hidden"
+                    title={`${item.city} ${item.district} ${item.umdNm} ${item.jibun} ${item.aptNm}`}
+                  >
+                    <div className="truncate">
+                      {item.city} {item.district} {item.umdNm} {item.jibun}
+                    </div>
+                    <div className="text-muted-foreground truncate">
+                      {item.aptNm} {item.buildingDong ? `${item.buildingDong}동 ` : ""}
+                      {item.floor}층 / {item.exclusiveArea}㎡
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap truncate overflow-hidden">{formatWon(item.dealAmount)}</td>
                   <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">
