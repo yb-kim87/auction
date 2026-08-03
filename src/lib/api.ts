@@ -1654,6 +1654,36 @@ export async function fetchCrawlerStatus(): Promise<CrawlerStatus> {
   return readJsonResponse(res);
 }
 
+export type CrawlerResaleRunSummary = {
+  totalRequested: number;
+  attempted: number;
+  candidateFound: number;
+  displayed: number;
+  items: Array<{
+    auctionNo: string;
+    address: string;
+    score: number | null;
+    tier: string | null;
+    displayed: boolean;
+  }>;
+};
+
+/** "매도분석" 체크박스를 켜고 "조회 시작"한 실행의 매도분석 결과 합계
+ * (요청한 전체 건수 기준, 크롤링 필요/불필요 물건 모두 포함). 실행
+ * 중이 아니면 null. */
+export async function fetchCrawlerResaleRunSummary(): Promise<CrawlerResaleRunSummary | null> {
+  const res = await fetch(`${API_BASE}/crawler/resale-run-summary`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "매도분석 결과를 불러오지 못했습니다.",
+    );
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchCrawlerLogs(limit = 200): Promise<CrawlerLogEntry[]> {
   const res = await fetch(`${API_BASE}/crawler/logs?limit=${limit}`, {
     cache: "no-store",

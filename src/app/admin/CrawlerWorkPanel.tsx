@@ -14,11 +14,11 @@ import {
   fetchCrawlerConfig,
   fetchCrawlerLogs,
   fetchCrawlerStatus,
-  fetchResaleSoldStatsByCaseNo,
+  fetchCrawlerResaleRunSummary,
   type CrawlerLogEntry,
   type CrawlerStatus,
   type CrawlerUrlEntry,
-  type ResaleSoldStats,
+  type CrawlerResaleRunSummary,
 } from "@/lib/api";
 import { CrawlerAlgorithmTab } from "./CrawlerAlgorithmTab";
 import { CrawlerDailyJobTab } from "./CrawlerDailyJobTab";
@@ -92,10 +92,10 @@ export function CrawlerWorkPanel() {
   // 대부분이라 그 시점엔 분석해봐야 대부분 빠짐 — 실측 확인(188건
   // 추가했는데 기존 DB에 있던 3건만 잡힘). 그래서 "조회 시작"이 끝난
   // 시점으로 트리거를 옮겼다.
-  const [resaleStats, setResaleStats] = useState<ResaleSoldStats | null>(null);
+  const [resaleStats, setResaleStats] = useState<CrawlerResaleRunSummary | null>(null);
   const [resaleStatsLoading, setResaleStatsLoading] = useState(false);
   const [resaleStatsError, setResaleStatsError] = useState("");
-  const pendingResaleAuctionNosRef = useRef<string[] | null>(null);
+  const pendingResaleSummaryFetchRef = useRef(false);
   const prevCrawlingPhaseRef = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
@@ -207,13 +207,12 @@ export function CrawlerWorkPanel() {
     const justFinished = prevCrawlingPhaseRef.current && !nowCrawling;
     prevCrawlingPhaseRef.current = nowCrawling;
 
-    if (justFinished && pendingResaleAuctionNosRef.current) {
-      const auctionNos = pendingResaleAuctionNosRef.current;
-      pendingResaleAuctionNosRef.current = null;
+    if (justFinished && pendingResaleSummaryFetchRef.current) {
+      pendingResaleSummaryFetchRef.current = false;
       setResaleStatsLoading(true);
       setResaleStatsError("");
       setResaleStats(null);
-      fetchResaleSoldStatsByCaseNo(auctionNos)
+      fetchCrawlerResaleRunSummary()
         .then(setResaleStats)
         .catch((err) =>
           setResaleStatsError(err instanceof Error ? err.message : "매도분석 조회에 실패했습니다."),
@@ -561,7 +560,7 @@ export function CrawlerWorkPanel() {
                     disabled={Boolean(isRunning)}
                     className="accent-primary"
                   />
-                  기존 DB 물건도 매도분석
+                  매도분석
                 </label>
                 <input
                   type="time"
@@ -572,11 +571,11 @@ export function CrawlerWorkPanel() {
                 />
               </div>
               <p className="text-xs text-muted-foreground px-2">
-                진행상태를 "매각"으로 걸고 주소 추가 → 조회 시작하면, 조회가 끝난 뒤 그중
-                낙찰된 물건만 자동으로 매도분석 결과를 보여줍니다. "기존 DB 물건도
-                매도분석"을 켜면 이번에 새로 크롤링한 물건뿐 아니라, 중복이라 재크롤링을
-                건너뛴 기존 DB 물건들도 함께 매도분석합니다(체크 안 하면 건너뜀 — 매번
-                수천 건씩 재매칭되는 걸 막기 위해 기본값은 꺼짐).
+                진행상태를 "매각"으로 걸고 주소 추가 → 조회 시작하면, "매도분석"을 켠
+                경우 요청한 물건 전체(재크롤링이 필요한 신규/갱신 물건 + 이미 DB에
+                있어 재크롤링을 건너뛴 물건 모두)를 같은 기준으로 매도분석해 하나의
+                결과로 보여줍니다(체크 안 하면 건너뜀 — 매번 수천 건씩 재매칭되는 걸
+                막기 위해 기본값은 꺼짐).
               </p>
 
               {(resaleStatsLoading || resaleStats || resaleStatsError) && (
@@ -589,7 +588,7 @@ export function CrawlerWorkPanel() {
                     <>
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground">
-                          방금 가져온 물건의 매도분석 결과
+                          매도분석 결과 (요청 {resaleStats.totalRequested}건 기준)
                         </p>
                         <button
                           type="button"
@@ -599,19 +598,32 @@ export function CrawlerWorkPanel() {
                           닫기
                         </button>
                       </div>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-4 gap-3">
                         <div className="p-3 border border-border rounded-sm">
-                          <p className="text-xs text-muted-foreground">낙찰 물건</p>
-                          <p className="text-xl font-bold text-foreground mt-0.5">{resaleStats.total}건</p>
+                          <p className="text-xs text-muted-foreground">요청 건수</p>
+                          <p className="text-xl font-bold text-foreground mt-0.5">{resaleStats.totalRequested}건</p>
+                        </div>
+                        <div className="p-3 border border-border rounded-sm">
+                          <p className="text-xs text-muted-foreground">분석 시도(낙찰·완납 확인)</p>
+                          <p className="text-xl font-bold text-foreground mt-0.5">
+                            {resaleStats.attempted}건
+                            <span className="text-xs font-normal text-muted-foreground ml-1">
+                              (
+                              {resaleStats.totalRequested > 0
+                                ? Math.round((resaleStats.attempted / resaleStats.totalRequested) * 100)
+                                : 0}
+                              %)
+                            </span>
+                          </p>
                         </div>
                         <div className="p-3 border border-border rounded-sm">
                           <p className="text-xs text-muted-foreground">QA 후보 있음(55점+)</p>
                           <p className="text-xl font-bold text-foreground mt-0.5">
-                            {resaleStats.withCandidate}건
+                            {resaleStats.candidateFound}건
                             <span className="text-xs font-normal text-muted-foreground ml-1">
                               (
-                              {resaleStats.total > 0
-                                ? Math.round((resaleStats.withCandidate / resaleStats.total) * 100)
+                              {resaleStats.totalRequested > 0
+                                ? Math.round((resaleStats.candidateFound / resaleStats.totalRequested) * 100)
                                 : 0}
                               %)
                             </span>
@@ -623,8 +635,8 @@ export function CrawlerWorkPanel() {
                             {resaleStats.displayed}건
                             <span className="text-xs font-normal text-muted-foreground ml-1">
                               (
-                              {resaleStats.total > 0
-                                ? Math.round((resaleStats.displayed / resaleStats.total) * 100)
+                              {resaleStats.totalRequested > 0
+                                ? Math.round((resaleStats.displayed / resaleStats.totalRequested) * 100)
                                 : 0}
                               %)
                             </span>
@@ -643,15 +655,15 @@ export function CrawlerWorkPanel() {
                               </tr>
                             </thead>
                             <tbody>
-                              {resaleStats.items.map((row) => (
-                                <tr key={row.id} className="border-t border-border">
+                              {resaleStats.items.map((row, i) => (
+                                <tr key={`${row.auctionNo}-${i}`} className="border-t border-border">
                                   <td className="px-3 py-2 whitespace-nowrap">{row.auctionNo}</td>
                                   <td className="px-3 py-2">{row.address}</td>
                                   <td className="px-3 py-2 text-right whitespace-nowrap">
-                                    {row.candidateScore ?? "-"}
+                                    {row.score ?? "-"}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap">
-                                    {row.candidateTier ?? (
+                                    {row.tier ?? (
                                       <span className="text-muted-foreground">후보 없음</span>
                                     )}
                                     {row.displayed && (
@@ -842,12 +854,10 @@ export function CrawlerWorkPanel() {
                         if (status?.phase === "crawling") {
                           await crawlerStop();
                         } else {
-                          // label 형식: "{사건번호}_{탱크옥션URL}" — 조회 시작 시점의
-                          // 작업목록을 사건번호만 뽑아 기억해뒀다가, 조회가 끝나면
-                          // 그중 낙찰된 물건만 매도분석한다(사용자 요청, 2026-08-01).
-                          pendingResaleAuctionNosRef.current = urls
-                            .map((u) => u.label.split("_")[0]?.trim())
-                            .filter((no): no is string => Boolean(no));
+                          // "매도분석" 체크박스를 켠 경우에만, 조회가 끝나는 시점에
+                          // 결과 요약(요청한 전체 건수 기준)을 가져온다(사용자 요청,
+                          // 2026-08-01/2026-08-03).
+                          pendingResaleSummaryFetchRef.current = runResaleAnalysisForExisting;
                           await crawlerStart({
                             repeatAfterCollect,
                             crawlerVersion: status?.remoteWorker ? undefined : "v3",
