@@ -5,10 +5,9 @@ import { ChevronDown } from "lucide-react";
 import {
   fetchResaleMatches,
   reviewResaleMatch,
-  runResaleMatchNow,
   type ResaleMatchQaItem,
 } from "@/lib/api";
-import { CITIES, getDistricts } from "@/data/korea-regions";
+import { CITIES, getDistricts, getWards } from "@/data/korea-regions";
 
 const PAGE_SIZE_OPTIONS = [50, 100, 200, 500];
 
@@ -189,15 +188,51 @@ export function ResaleMatchTab() {
   const [message, setMessage] = useState<string | null>(null);
   const [filterCity, setFilterCity] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
+  const [filterWard, setFilterWard] = useState("");
+  const [filterPropType, setFilterPropType] = useState("");
   const filterDistrictOptions = filterCity ? getDistricts(filterCity) : [];
+  const [filterWardOptions, setFilterWardOptions] = useState<string[]>([]);
+  const [wardsLoading, setWardsLoading] = useState(false);
+  const propTypeOptions = useMemo(
+    () =>
+      Array.from(new Set(items.map((item) => item.propType).filter((v): v is string => Boolean(v)))).sort(
+        (a, b) => a.localeCompare(b, "ko"),
+      ),
+    [items],
+  );
+
+  useEffect(() => {
+    setFilterWard("");
+    if (!filterCity || !filterDistrict) {
+      setFilterWardOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setWardsLoading(true);
+    getWards(filterCity, filterDistrict)
+      .then((wards) => {
+        if (!cancelled) setFilterWardOptions(wards);
+      })
+      .finally(() => {
+        if (!cancelled) setWardsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterCity, filterDistrict]);
+
   const filteredItems = useMemo(
     () =>
-      items.filter(
-        (item) =>
-          (!filterCity || item.city === filterCity) &&
-          (!filterDistrict || item.district === filterDistrict),
-      ),
-    [items, filterCity, filterDistrict],
+      items
+        .filter(
+          (item) =>
+            (!filterCity || item.city === filterCity) &&
+            (!filterDistrict || item.district === filterDistrict) &&
+            (!filterWard || item.umdNm === filterWard) &&
+            (!filterPropType || item.propType === filterPropType),
+        )
+        .sort((a, b) => a.address.localeCompare(b.address, "ko")),
+    [items, filterCity, filterDistrict, filterWard, filterPropType],
   );
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
@@ -208,8 +243,7 @@ export function ResaleMatchTab() {
   );
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterCity, filterDistrict, pageSize]);
-  const [running, setRunning] = useState(false);
+  }, [filterCity, filterDistrict, filterWard, filterPropType, pageSize]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS);
 
@@ -226,19 +260,6 @@ export function ResaleMatchTab() {
   }, []);
 
   useEffect(load, [load]);
-
-  async function handleRunNow() {
-    setRunning(true);
-    setMessage(null);
-    try {
-      const result = await runResaleMatchNow();
-      setMessage(result.message);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "실행 실패");
-    } finally {
-      setRunning(false);
-    }
-  }
 
   async function handleReview(matchId: string, status: "CONFIRMED" | "REJECTED") {
     setReviewingId(matchId);
@@ -271,14 +292,6 @@ export function ResaleMatchTab() {
       )}
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void handleRunNow()}
-          disabled={running}
-          className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-        >
-          {running ? "실행 중..." : "지금 바로 매칭 배치 실행"}
-        </button>
         <button type="button" onClick={load} className="text-xs text-primary hover:underline">
           새로고침
         </button>
@@ -314,12 +327,41 @@ export function ResaleMatchTab() {
             </option>
           ))}
         </select>
-        {(filterCity || filterDistrict) && (
+        <select
+          value={filterWard}
+          onChange={(e) => setFilterWard(e.target.value)}
+          disabled={!filterCity || !filterDistrict || wardsLoading}
+          className="px-3 py-2 text-sm border border-border rounded-sm bg-card disabled:opacity-50"
+        >
+          <option value="">
+            {wardsLoading ? "불러오는 중..." : "읍/면/동 전체"}
+          </option>
+          {filterWardOptions.map((ward) => (
+            <option key={ward} value={ward}>
+              {ward}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterPropType}
+          onChange={(e) => setFilterPropType(e.target.value)}
+          className="px-3 py-2 text-sm border border-border rounded-sm bg-card"
+        >
+          <option value="">용도 전체</option>
+          {propTypeOptions.map((propType) => (
+            <option key={propType} value={propType}>
+              {propType}
+            </option>
+          ))}
+        </select>
+        {(filterCity || filterDistrict || filterWard || filterPropType) && (
           <button
             type="button"
             onClick={() => {
               setFilterCity("");
               setFilterDistrict("");
+              setFilterWard("");
+              setFilterPropType("");
             }}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
@@ -339,7 +381,7 @@ export function ResaleMatchTab() {
         </span>
       </div>
 
-      <div className="border border-border rounded-sm overflow-x-auto overflow-y-auto" style={{ maxHeight: "calc(100vh - 320px)" }}>
+      <div className="border border-border rounded-sm overflow-x-auto overflow-y-auto" style={{ height: "min(560px, calc(100vh - 320px))" }}>
         {loading ? (
           <p className="text-sm text-muted-foreground p-4">불러오는 중...</p>
         ) : items.length === 0 ? (
