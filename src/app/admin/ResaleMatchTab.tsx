@@ -7,6 +7,7 @@ import {
   runResaleMatchNow,
   type ResaleMatchQaItem,
 } from "@/lib/api";
+import { CITIES, getDistricts } from "@/data/korea-regions";
 
 function formatWon(value: number | string | null): string {
   if (value == null) return "-";
@@ -122,6 +123,14 @@ export function ResaleMatchTab() {
   const [items, setItems] = useState<ResaleMatchQaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [filterCity, setFilterCity] = useState("");
+  const [filterDistrict, setFilterDistrict] = useState("");
+  const filterDistrictOptions = filterCity ? getDistricts(filterCity) : [];
+  const filteredItems = items.filter(
+    (item) =>
+      (!filterCity || item.city === filterCity) &&
+      (!filterDistrict || item.district === filterDistrict),
+  );
   const [running, setRunning] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS);
@@ -197,6 +206,53 @@ export function ResaleMatchTab() {
         </button>
       </div>
 
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">지역 필터</span>
+        <select
+          value={filterCity}
+          onChange={(e) => {
+            setFilterCity(e.target.value);
+            setFilterDistrict("");
+          }}
+          className="px-3 py-2 text-sm border border-border rounded-sm bg-card"
+        >
+          <option value="">시/도 전체</option>
+          {CITIES.map((city) => (
+            <option key={city} value={city}>
+              {city}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterDistrict}
+          onChange={(e) => setFilterDistrict(e.target.value)}
+          disabled={!filterCity}
+          className="px-3 py-2 text-sm border border-border rounded-sm bg-card disabled:opacity-50"
+        >
+          <option value="">시/군/구 전체</option>
+          {filterDistrictOptions.map((district) => (
+            <option key={district} value={district}>
+              {district}
+            </option>
+          ))}
+        </select>
+        {(filterCity || filterDistrict) && (
+          <button
+            type="button"
+            onClick={() => {
+              setFilterCity("");
+              setFilterDistrict("");
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            필터 초기화
+          </button>
+        )}
+        <span className="text-xs text-muted-foreground ml-auto">
+          {filteredItems.length}건 / 전체 {items.length}건
+        </span>
+      </div>
+
       <div className="border border-border rounded-sm overflow-x-auto">
         {loading ? (
           <p className="text-sm text-muted-foreground p-4">불러오는 중...</p>
@@ -262,7 +318,7 @@ export function ResaleMatchTab() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <tr key={item.matchId} className="border-t border-border align-top">
                   <td className="px-3 py-2 whitespace-nowrap truncate overflow-hidden">
                     <div className="font-semibold truncate">{item.auctionNo}</div>
