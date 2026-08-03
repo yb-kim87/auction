@@ -97,6 +97,8 @@ export function CrawlerWorkPanel() {
   const [resaleStatsError, setResaleStatsError] = useState("");
   const pendingResaleSummaryFetchRef = useRef(false);
   const prevCrawlingPhaseRef = useRef(false);
+  const resalePollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [resaleStillRunning, setResaleStillRunning] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -212,13 +214,61 @@ export function CrawlerWorkPanel() {
       setResaleStatsLoading(true);
       setResaleStatsError("");
       setResaleStats(null);
-      fetchCrawlerResaleRunSummary()
-        .then(setResaleStats)
-        .catch((err) =>
-          setResaleStatsError(err instanceof Error ? err.message : "매도분석 조회에 실패했습니다."),
-        )
-        .finally(() => setResaleStatsLoading(false));
+      setResaleStillRunning(true);
+
+      // 물건별 매도분석(국토부 API 호출 포함)은 크롤링과 별개로 백그라운드에서
+      // 비동기로 돌기 때문에, "크롤링이 끝났다"는 순간에 딱 한 번만 조회하면
+      // 아직 안 끝난 물건들이 통째로 누락된다(실측: 234건 중 1건만 잡힘, 나머지는
+      // 최대 20분 뒤에야 완료). 결과가 더 이상 늘지 않을 때까지(또는 최대
+      // 5분까지) 3초 간격으로 계속 다시 읽어와 실시간으로 갱신한다(사용자 요청,
+      // 2026-08-03).
+      const POLL_INTERVAL_MS = 3000;
+      const POLL_TIMEOUT_MS = 5 * 60_000;
+      const startedAt = Date.now();
+      let stableCount = 0;
+      let lastSignature = "";
+
+      const poll = () => {
+        fetchCrawlerResaleRunSummary()
+          .then((summary) => {
+            setResaleStats(summary);
+            setResaleStatsLoading(false);
+
+            const signature = summary
+              ? `${summary.attempted}/${summary.candidateFound}/${summary.displayed}`
+              : "";
+            if (signature === lastSignature) {
+              stableCount += 1;
+            } else {
+              stableCount = 0;
+              lastSignature = signature;
+            }
+
+            const timedOut = Date.now() - startedAt > POLL_TIMEOUT_MS;
+            // 완납일이 없어 애초에 분석 대상이 아닌 물건도 많아 attempted가
+            // totalRequested까지 못 채우고 멈추는 게 정상이라, "값이 두 번
+            // 연속 안 바뀜"을 완료 신호로 삼는다(6초간 변화 없으면 종료).
+            if (!summary || stableCount >= 2 || timedOut) {
+              setResaleStillRunning(false);
+              return;
+            }
+            resalePollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+          })
+          .catch((err) => {
+            setResaleStatsError(err instanceof Error ? err.message : "매도분석 조회에 실패했습니다.");
+            setResaleStatsLoading(false);
+            setResaleStillRunning(false);
+          });
+      };
+      poll();
     }
+
+    return () => {
+      if (resalePollTimerRef.current) {
+        clearTimeout(resalePollTimerRef.current);
+        resalePollTimerRef.current = null;
+      }
+    };
   }, [status?.phase]);
 
   const urls: CrawlerUrlEntry[] = status?.urls ?? [];
@@ -587,12 +637,24 @@ export function CrawlerWorkPanel() {
                   ) : resaleStats ? (
                     <>
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-foreground">
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-2">
                           매도분석 결과 (요청 {resaleStats.totalRequested}건 기준)
+                          {resaleStillRunning && (
+                            <span className="text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                              분석 진행 중... (자동 갱신)
+                            </span>
+                          )}
                         </p>
                         <button
                           type="button"
-                          onClick={() => setResaleStats(null)}
+                          onClick={() => {
+                            setResaleStats(null);
+                            if (resalePollTimerRef.current) {
+                              clearTimeout(resalePollTimerRef.current);
+                              resalePollTimerRef.current = null;
+                            }
+                            setResaleStillRunning(false);
+                          }}
                           className="text-xs text-muted-foreground hover:text-foreground"
                         >
                           닫기
