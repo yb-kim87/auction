@@ -219,14 +219,14 @@ export function CrawlerWorkPanel() {
       // 물건별 매도분석(국토부 API 호출 포함)은 크롤링과 별개로 백그라운드에서
       // 비동기로 돌기 때문에, "크롤링이 끝났다"는 순간에 딱 한 번만 조회하면
       // 아직 안 끝난 물건들이 통째로 누락된다(실측: 234건 중 1건만 잡힘, 나머지는
-      // 최대 20분 뒤에야 완료). 결과가 더 이상 늘지 않을 때까지(또는 최대
-      // 5분까지) 3초 간격으로 계속 다시 읽어와 실시간으로 갱신한다(사용자 요청,
-      // 2026-08-03).
+      // 최대 20분 뒤에야 완료). 서버가 "요청한 건 중 몇 건을 실제로 다
+      // 검토했는지"(processed)를 정확히 세어 주므로, processed가
+      // totalRequested에 도달할 때까지 3초 간격으로 재조회한다 — 값이
+      // 더 안 바뀌는지 추측하는 대신 정확한 완료 신호를 쓴다(사용자 요청,
+      // 2026-08-03: "매도분석이 끝나는 시점을 우리가 알 수는 없어?").
       const POLL_INTERVAL_MS = 3000;
-      const POLL_TIMEOUT_MS = 5 * 60_000;
+      const POLL_TIMEOUT_MS = 15 * 60_000; // 혹시 모를 무한 대기 방지용 안전장치
       const startedAt = Date.now();
-      let stableCount = 0;
-      let lastSignature = "";
 
       const poll = () => {
         fetchCrawlerResaleRunSummary()
@@ -234,21 +234,9 @@ export function CrawlerWorkPanel() {
             setResaleStats(summary);
             setResaleStatsLoading(false);
 
-            const signature = summary
-              ? `${summary.attempted}/${summary.candidateFound}/${summary.displayed}`
-              : "";
-            if (signature === lastSignature) {
-              stableCount += 1;
-            } else {
-              stableCount = 0;
-              lastSignature = signature;
-            }
-
+            const done = !summary || summary.processed >= summary.totalRequested;
             const timedOut = Date.now() - startedAt > POLL_TIMEOUT_MS;
-            // 완납일이 없어 애초에 분석 대상이 아닌 물건도 많아 attempted가
-            // totalRequested까지 못 채우고 멈추는 게 정상이라, "값이 두 번
-            // 연속 안 바뀜"을 완료 신호로 삼는다(6초간 변화 없으면 종료).
-            if (!summary || stableCount >= 2 || timedOut) {
+            if (done || timedOut) {
               setResaleStillRunning(false);
               return;
             }
@@ -641,7 +629,7 @@ export function CrawlerWorkPanel() {
                           매도분석 결과 (요청 {resaleStats.totalRequested}건 기준)
                           {resaleStillRunning && (
                             <span className="text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                              분석 진행 중... (자동 갱신)
+                              분석 진행 중... {resaleStats.processed}/{resaleStats.totalRequested}건 (자동 갱신)
                             </span>
                           )}
                         </p>

@@ -1656,6 +1656,9 @@ export async function fetchCrawlerStatus(): Promise<CrawlerStatus> {
 
 export type CrawlerResaleRunSummary = {
   totalRequested: number;
+  /** 완료 판정용 — 이 값이 totalRequested에 도달하면 매도분석이 100%
+   * 끝난 것(완납일이 없어 분석을 시도조차 안 한 건도 포함해서 센다). */
+  processed: number;
   attempted: number;
   candidateFound: number;
   displayed: number;
