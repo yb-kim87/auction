@@ -99,6 +99,7 @@ export function CrawlerWorkPanel() {
   const prevCrawlingPhaseRef = useRef(false);
   const resalePollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [resaleStillRunning, setResaleStillRunning] = useState(false);
+  const [resaleProgress, setResaleProgress] = useState<{ processed: number; totalRequested: number } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
@@ -214,6 +215,7 @@ export function CrawlerWorkPanel() {
       setResaleStatsLoading(true);
       setResaleStatsError("");
       setResaleStats(null);
+      setResaleProgress(null);
       setResaleStillRunning(true);
 
       // 물건별 매도분석(국토부 API 호출 포함)은 크롤링과 별개로 백그라운드에서
@@ -231,12 +233,23 @@ export function CrawlerWorkPanel() {
       const poll = () => {
         fetchCrawlerResaleRunSummary()
           .then((summary) => {
-            setResaleStats(summary);
             setResaleStatsLoading(false);
 
             const done = !summary || summary.processed >= summary.totalRequested;
             const timedOut = Date.now() - startedAt > POLL_TIMEOUT_MS;
+
+            // 결과 박스(요청/분석 시도/QA 후보/매도 확정) 숫자는 db 저장 진행 상황이
+            // 아니라 "매도분석이 실제로 끝난 시점"의 최종 값으로만 채운다 — 중간에
+            // 계속 갱신하면 아직 분석 안 된 항목까지 0건으로 보여 헷갈린다는 지적
+            // (2026-08-03: "결과값도 db쌓는거에 맞춘 시점으로 나오는게 아니라
+            // 매도 분석이 종료되었을때 수치로 나와야 맞는거 같아"). 진행 중에는
+            // 배지(진행률)만 갱신하고, 박스는 완료 시 한 번만 채운다.
+            if (summary) {
+              setResaleProgress({ processed: summary.processed, totalRequested: summary.totalRequested });
+            }
+
             if (done || timedOut) {
+              setResaleStats(summary);
               setResaleStillRunning(false);
               return;
             }
@@ -616,27 +629,48 @@ export function CrawlerWorkPanel() {
                 막기 위해 기본값은 꺼짐).
               </p>
 
-              {(resaleStatsLoading || resaleStats || resaleStatsError) && (
+              {(resaleStatsLoading || resaleStats || resaleStatsError || resaleStillRunning) && (
                 <div className="rounded-sm border border-border bg-card p-4 space-y-3">
                   {resaleStatsLoading ? (
                     <p className="text-sm text-muted-foreground">매도분석 조회 중...</p>
                   ) : resaleStatsError ? (
                     <p className="text-sm text-destructive">{resaleStatsError}</p>
+                  ) : resaleStillRunning && !resaleStats ? (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        매도분석 진행 중...
+                        {resaleProgress && (
+                          <span className="text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                            {resaleProgress.processed}/{resaleProgress.totalRequested}건 (완료 시 결과 표시)
+                          </span>
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (resalePollTimerRef.current) {
+                            clearTimeout(resalePollTimerRef.current);
+                            resalePollTimerRef.current = null;
+                          }
+                          setResaleStillRunning(false);
+                          setResaleProgress(null);
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        닫기
+                      </button>
+                    </div>
                   ) : resaleStats ? (
                     <>
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground flex items-center gap-2">
-                          매도분석 결과 (요청 {resaleStats.totalRequested}건 기준)
-                          {resaleStillRunning && (
-                            <span className="text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                              분석 진행 중... {resaleStats.processed}/{resaleStats.totalRequested}건 (자동 갱신)
-                            </span>
-                          )}
+                          매도분석 결과 (요청 {resaleStats.totalRequested}건 기준, 분석 완료)
                         </p>
                         <button
                           type="button"
                           onClick={() => {
                             setResaleStats(null);
+                            setResaleProgress(null);
                             if (resalePollTimerRef.current) {
                               clearTimeout(resalePollTimerRef.current);
                               resalePollTimerRef.current = null;
