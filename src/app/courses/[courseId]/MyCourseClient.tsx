@@ -6,10 +6,17 @@ import { useRouter } from "next/navigation";
 import { clearAuthCookie } from "@/lib/auth";
 import {
   fetchMyCourseAccessInfo,
+  fetchMyCourseNotes,
+  fetchMyCourseQuestions,
   fetchMyCoursePlayUrl,
+  createMyCourseNote,
+  createMyCourseQuestion,
+  deleteMyCourseNote,
   logoutUser,
   saveMyCourseProgress,
   type LectureCourseProgress,
+  type LectureCourseNote,
+  type LectureCourseQuestion,
   type LectureMyCourseAccessInfo,
   type LecturePublicSection,
   type LecturePublicVideo,
@@ -263,29 +270,62 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const lastSavedSecond = useRef(0);
   const [activeTab, setActiveTab] = useState<CourseTab>("강의정보");
   const [noteText, setNoteText] = useState("");
-  const [notes, setNotes] = useState<Array<{ id: number; lesson: string; time: number; text: string }>>([]);
+  const [notes, setNotes] = useState<LectureCourseNote[]>([]);
+  const [questionText, setQuestionText] = useState("");
+  const [questions, setQuestions] = useState<LectureCourseQuestion[]>([]);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [activitySaving, setActivitySaving] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(`course-notes:${courseId}`);
-      setNotes(saved ? JSON.parse(saved) : []);
-    } catch {
-      setNotes([]);
-    }
+    Promise.all([fetchMyCourseNotes(courseId), fetchMyCourseQuestions(courseId)])
+      .then(([savedNotes, savedQuestions]) => {
+        setNotes(savedNotes);
+        setQuestions(savedQuestions);
+      })
+      .catch((err) => setActivityError(err instanceof Error ? err.message : "학습 기록을 불러오지 못했습니다."));
   }, [courseId]);
 
-  const saveNote = () => {
+  const saveNote = async () => {
     const text = noteText.trim();
     if (!text || !selectedVideo) return;
-    const next = [{
-      id: Date.now(),
-      lesson: selectedRow?.title ?? selectedVideo.title,
-      time: lastSavedSecond.current,
-      text,
-    }, ...notes];
-    setNotes(next);
-    setNoteText("");
-    window.localStorage.setItem(`course-notes:${courseId}`, JSON.stringify(next));
+    setActivitySaving(true); setActivityError(null);
+    try {
+      const saved = await createMyCourseNote(courseId, {
+        videoId: selectedVideo.id,
+        chapterStartSeconds: selectedStartSeconds ?? 0,
+        positionSeconds: lastSavedSecond.current,
+        content: text,
+      });
+      setNotes((items) => [saved, ...items]); setNoteText("");
+    } catch (err) {
+      setActivityError(err instanceof Error ? err.message : "노트를 저장하지 못했습니다.");
+    } finally { setActivitySaving(false); }
+  };
+
+  const submitQuestion = async () => {
+    const text = questionText.trim();
+    if (!text || !selectedVideo) return;
+    setActivitySaving(true); setActivityError(null);
+    try {
+      const saved = await createMyCourseQuestion(courseId, {
+        videoId: selectedVideo.id,
+        chapterStartSeconds: selectedStartSeconds ?? 0,
+        positionSeconds: lastSavedSecond.current,
+        question: text,
+      });
+      setQuestions((items) => [saved, ...items]); setQuestionText("");
+    } catch (err) {
+      setActivityError(err instanceof Error ? err.message : "질문을 등록하지 못했습니다.");
+    } finally { setActivitySaving(false); }
+  };
+
+  const removeNote = async (noteId: string) => {
+    try {
+      await deleteMyCourseNote(courseId, noteId);
+      setNotes((items) => items.filter((item) => item.id !== noteId));
+    } catch (err) {
+      setActivityError(err instanceof Error ? err.message : "노트를 삭제하지 못했습니다.");
+    }
   };
 
   useEffect(() => {
@@ -686,6 +726,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               ))}
             </div>
             <div style={{ background: C.white, padding: 20, minHeight: 150, borderRadius: "0 0 12px 12px", border: `1px solid ${C.border}`, borderTop: "none" }}>
+              {activityError && <p style={{ margin: "0 0 12px", padding: "9px 11px", borderRadius: 8, background: "#fef2f2", color: "#dc2626", fontSize: 12 }}>{activityError}</p>}
               {activeTab === "강의정보" && (
                 <>
                   <div className="grid grid-cols-3" style={{ gap: 10, marginBottom: 20 }}>
@@ -700,22 +741,46 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 </>
               )}
               {activeTab === "Q&A" && (
-                <div style={{ textAlign: "center", padding: "26px 12px" }}>
-                  <p style={{ margin: 0, fontWeight: 700, color: C.textPrimary }}>강의 질문 기능을 준비하고 있습니다</p>
-                  <p style={{ margin: "6px 0 0", fontSize: 12, color: C.textDim }}>현재 영상과 재생 시점을 함께 남길 수 있도록 연결할 예정입니다.</p>
+                <div>
+                  <textarea value={questionText} onChange={(event) => setQuestionText(event.target.value)} placeholder="현재 강의에서 궁금한 점을 남겨주세요. 영상과 재생 시점이 함께 저장됩니다." style={{ width: "100%", minHeight: 88, resize: "vertical", border: `1px solid ${C.border}`, background: C.bg, borderRadius: 9, padding: 12, fontSize: 13, color: C.textPrimary, outline: "none" }} />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                    <span style={{ fontSize: 11, color: C.textDim }}>{selectedRow?.title ?? selectedVideo?.title ?? "현재 강의"} · {formatDuration(lastSavedSecond.current)}</span>
+                    <button type="button" disabled={activitySaving || !questionText.trim()} onClick={() => void submitQuestion()} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: questionText.trim() ? C.accent : C.border, color: "#fff", fontSize: 12, fontWeight: 700, cursor: questionText.trim() ? "pointer" : "not-allowed" }}>질문 등록</button>
+                  </div>
+                  <div style={{ display: "grid", gap: 9, marginTop: 18 }}>
+                    {questions.map((question) => {
+                      const video = allVideos.find((item) => item.id === question.videoId);
+                      const chapter = video?.chapters?.find((item) => item.startSeconds === question.chapterStartSeconds);
+                      return <div key={question.id} style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+                        <div style={{ padding: 14 }}>
+                          <div style={{ display: "flex", gap: 7, alignItems: "center", marginBottom: 7 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: C.accent }}>{chapter?.title ?? video?.title ?? "강의 질문"}</span>
+                            <span style={{ fontSize: 11, color: C.textDim }}>{formatDuration(question.positionSeconds)}</span>
+                            <span style={{ marginLeft: "auto", padding: "2px 7px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: question.answer ? "#dcfce7" : C.accentLight, color: question.answer ? "#15803d" : C.accent }}>{question.answer ? "답변완료" : "답변대기"}</span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: C.textSecondary }}>{question.question}</p>
+                        </div>
+                        {question.answer && <div style={{ padding: "12px 14px", background: C.accentLight, borderTop: `1px solid ${C.border}` }}><strong style={{ display: "block", fontSize: 11, color: C.accent, marginBottom: 5 }}>강사 답변</strong><p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: C.textSecondary }}>{question.answer}</p></div>}
+                      </div>;
+                    })}
+                    {questions.length === 0 && <p style={{ margin: 0, textAlign: "center", fontSize: 12, color: C.textDim }}>등록된 질문이 없습니다.</p>}
+                  </div>
                 </div>
               )}
               {activeTab === "노트" && (
                 <div>
                   <textarea value={noteText} onChange={(event) => setNoteText(event.target.value)} placeholder="현재 강의의 핵심 내용이나 권리분석 포인트를 기록해보세요." style={{ width: "100%", minHeight: 88, resize: "vertical", border: `1px solid ${C.border}`, background: C.bg, borderRadius: 9, padding: 12, fontSize: 13, color: C.textPrimary, outline: "none" }} />
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                    <button type="button" onClick={saveNote} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>노트 저장</button>
+                    <button type="button" disabled={activitySaving || !noteText.trim()} onClick={() => void saveNote()} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: noteText.trim() ? C.accent : C.border, color: "#fff", fontSize: 12, fontWeight: 700, cursor: noteText.trim() ? "pointer" : "not-allowed" }}>노트 저장</button>
                   </div>
                   <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
                     {notes.map((note) => (
                       <div key={note.id} style={{ padding: 13, border: `1px solid ${C.border}`, borderRadius: 9 }}>
-                        <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 5 }}>{note.lesson} · {formatDuration(note.time)}</div>
-                        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: C.textSecondary }}>{note.text}</p>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                          <span style={{ fontSize: 11, color: C.accent, fontWeight: 700 }}>{allVideos.find((item) => item.id === note.videoId)?.title ?? "강의 노트"} · {formatDuration(note.positionSeconds)}</span>
+                          <button type="button" onClick={() => void removeNote(note.id)} style={{ marginLeft: "auto", border: "none", background: "none", color: C.textDim, fontSize: 11, cursor: "pointer" }}>삭제</button>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: C.textSecondary }}>{note.content}</p>
                       </div>
                     ))}
                     {notes.length === 0 && <p style={{ margin: 0, textAlign: "center", fontSize: 12, color: C.textDim }}>아직 작성한 노트가 없습니다.</p>}

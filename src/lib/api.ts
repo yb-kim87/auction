@@ -4001,6 +4001,32 @@ export type LectureCourseProgress = {
   updatedAt: string;
 };
 
+export type LectureCourseQuestion = {
+  id: string;
+  username: string;
+  courseId: string;
+  videoId: string;
+  chapterStartSeconds: number;
+  positionSeconds: number;
+  question: string;
+  answer: string | null;
+  answeredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LectureCourseNote = {
+  id: string;
+  username: string;
+  courseId: string;
+  videoId: string;
+  chapterStartSeconds: number;
+  positionSeconds: number;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 async function lectureReplayFetch<T>(
   path: string,
   init?: RequestInit,
@@ -4286,6 +4312,28 @@ export function saveMyCourseProgress(
     { method: "POST", body: JSON.stringify(body) },
     "학습 진도를 저장하지 못했습니다.",
   );
+}
+
+export function fetchMyCourseQuestions(courseId: string, videoId?: string): Promise<LectureCourseQuestion[]> {
+  const qs = videoId ? `?videoId=${encodeURIComponent(videoId)}` : "";
+  return lectureReplayFetch(`/courses/${encodeURIComponent(courseId)}/questions${qs}`, undefined, "질문을 불러오지 못했습니다.");
+}
+
+export function createMyCourseQuestion(courseId: string, body: { videoId: string; chapterStartSeconds?: number; positionSeconds?: number; question: string }): Promise<LectureCourseQuestion> {
+  return lectureReplayFetch(`/courses/${encodeURIComponent(courseId)}/questions`, { method: "POST", body: JSON.stringify(body) }, "질문을 등록하지 못했습니다.");
+}
+
+export function fetchMyCourseNotes(courseId: string, videoId?: string): Promise<LectureCourseNote[]> {
+  const qs = videoId ? `?videoId=${encodeURIComponent(videoId)}` : "";
+  return lectureReplayFetch(`/courses/${encodeURIComponent(courseId)}/notes${qs}`, undefined, "노트를 불러오지 못했습니다.");
+}
+
+export function createMyCourseNote(courseId: string, body: { videoId: string; chapterStartSeconds?: number; positionSeconds?: number; content: string }): Promise<LectureCourseNote> {
+  return lectureReplayFetch(`/courses/${encodeURIComponent(courseId)}/notes`, { method: "POST", body: JSON.stringify(body) }, "노트를 저장하지 못했습니다.");
+}
+
+export function deleteMyCourseNote(courseId: string, noteId: string): Promise<{ ok: boolean }> {
+  return lectureReplayFetch(`/courses/${encodeURIComponent(courseId)}/notes/${encodeURIComponent(noteId)}`, { method: "DELETE" }, "노트를 삭제하지 못했습니다.");
 }
 
 // 관리자용
