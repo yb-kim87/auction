@@ -12,7 +12,7 @@ import {
   type LecturePublicSection,
   type LecturePublicVideo,
 } from "@/lib/api";
-import { BunnyChapterPlayer } from "@/components/BunnyChapterPlayer";
+import { attachChapterAutoPause } from "@/lib/bunny-playerjs";
 
 const PLAYER_IFRAME_ID = "bunny-player-my-course";
 
@@ -321,6 +321,15 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
     };
   }, [courseId, selectedVideo?.id, selectedVideo?.isPublished, selectedStartSeconds]);
 
+  // 챕터에 종료 시각이 있으면(명시 지정 또는 다음 챕터 시작), 그 지점에서
+  // 자동으로 멈춘다 — iframe이 새로 마운트(embedUrl 변경)될 때마다
+  // 다시 연결해야 한다. 자체 진행바까지 만들었다가 "복잡하게 보인다"는
+  // 피드백으로 되돌리고(2026-08-04), Bunny 기본 재생바 + 자동 정지만 유지.
+  useEffect(() => {
+    if (!embedUrl) return;
+    attachChapterAutoPause(PLAYER_IFRAME_ID, selectedRow?.endSeconds);
+  }, [embedUrl, selectedRow?.endSeconds]);
+
   const curIdx = publishedRows.findIndex(
     (r) => r.video.id === selectedVideoId && r.startSeconds === selectedStartSeconds,
   );
@@ -481,29 +490,16 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               </div>
             ) : (
               <>
-                {selectedRow?.startSeconds != null ? (
-                  <div style={{ position: "absolute", inset: 0 }}>
-                    <BunnyChapterPlayer
-                      embedUrl={embedUrl}
-                      startSeconds={selectedRow.startSeconds}
-                      endSeconds={selectedRow.endSeconds}
-                      videoDurationSeconds={selectedVideo.durationSeconds}
-                      iframeId={PLAYER_IFRAME_ID}
-                      title={selectedRow.title}
-                    />
-                  </div>
-                ) : (
-                  <iframe
-                    key={embedUrl}
-                    id={PLAYER_IFRAME_ID}
-                    src={embedUrl}
-                    title={selectedRow?.title ?? selectedVideo.title}
-                    loading="lazy"
-                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                    allowFullScreen
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
-                  />
-                )}
+                <iframe
+                  key={embedUrl}
+                  id={PLAYER_IFRAME_ID}
+                  src={embedUrl}
+                  title={selectedRow?.title ?? selectedVideo.title}
+                  loading="lazy"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allowFullScreen
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+                />
                 <div
                   style={{
                     position: "absolute",

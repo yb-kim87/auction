@@ -7,7 +7,7 @@ import {
   type LectureAccessInfo,
   type LecturePublicVideo,
 } from "@/lib/api";
-import { BunnyChapterPlayer } from "@/components/BunnyChapterPlayer";
+import { attachChapterAutoPause } from "@/lib/bunny-playerjs";
 
 const PLAYER_IFRAME_ID = "bunny-player-lecture-replay";
 
@@ -129,6 +129,11 @@ export function LectureReplayClient({ token }: { token: string }) {
     };
   }, [token, selectedVideo?.id, selectedVideo?.isPublished, selectedStartSeconds]);
 
+  useEffect(() => {
+    if (!embedUrl) return;
+    attachChapterAutoPause(PLAYER_IFRAME_ID, selectedRow?.endSeconds);
+  }, [embedUrl, selectedRow?.endSeconds]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -174,15 +179,6 @@ export function LectureReplayClient({ token }: { token: string }) {
               <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
                 {playError ?? "영상을 불러오는 중..."}
               </div>
-            ) : selectedRow?.startSeconds != null ? (
-              <BunnyChapterPlayer
-                embedUrl={embedUrl}
-                startSeconds={selectedRow.startSeconds}
-                endSeconds={selectedRow.endSeconds}
-                videoDurationSeconds={selectedVideo.durationSeconds}
-                iframeId={PLAYER_IFRAME_ID}
-                title={selectedRow.title}
-              />
             ) : (
               <iframe
                 key={embedUrl}
