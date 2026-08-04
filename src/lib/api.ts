@@ -3721,6 +3721,111 @@ export async function saveResaleMatchCoords(
   return readJsonResponse(res);
 }
 
+// ── 재개발 구역도 ──────────────────────────────────────────────────────────
+
+export type RedevelopmentPoint = { lat: number; lng: number };
+
+export type RedevelopmentZone = {
+  id: string;
+  name: string;
+  region: string;
+  stage: string;
+  memo: string | null;
+  polygon: RedevelopmentPoint[];
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RedevelopmentMapAuction = {
+  id: string;
+  auctionNo: string;
+  address: string;
+  city: string;
+  district: string;
+  propType: string;
+  salePrice: number | null;
+  status: string;
+  latitude: number;
+  longitude: number;
+  zoneIds: string[];
+};
+
+export type RedevelopmentZoneAuction = RedevelopmentMapAuction & { court: string };
+
+async function redevelopmentFetch<T>(
+  path: string,
+  init?: RequestInit,
+  fallbackError = "요청을 처리하지 못했습니다.",
+): Promise<T> {
+  const res = await fetch(`${API_BASE}/redevelopment${path}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(init?.headers),
+    ...init,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? fallbackError);
+  }
+  return readJsonResponse<T>(res);
+}
+
+export function fetchRedevelopmentZones(): Promise<RedevelopmentZone[]> {
+  return redevelopmentFetch("/zones", undefined, "재개발 구역 목록을 불러오지 못했습니다.");
+}
+
+export function createRedevelopmentZone(body: {
+  name: string;
+  region?: string;
+  stage?: string;
+  memo?: string;
+  polygon: RedevelopmentPoint[];
+  color?: string;
+}): Promise<RedevelopmentZone> {
+  return redevelopmentFetch(
+    "/zones",
+    { method: "POST", body: JSON.stringify(body) },
+    "재개발 구역 저장에 실패했습니다.",
+  );
+}
+
+export function updateRedevelopmentZone(
+  id: string,
+  body: {
+    name?: string;
+    region?: string;
+    stage?: string;
+    memo?: string;
+    polygon?: RedevelopmentPoint[];
+    color?: string | null;
+  },
+): Promise<RedevelopmentZone> {
+  return redevelopmentFetch(
+    `/zones/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    "재개발 구역 수정에 실패했습니다.",
+  );
+}
+
+export function deleteRedevelopmentZone(id: string): Promise<{ ok: boolean }> {
+  return redevelopmentFetch(`/zones/${id}`, { method: "DELETE" }, "재개발 구역 삭제에 실패했습니다.");
+}
+
+export function fetchRedevelopmentMapData(): Promise<{
+  zones: RedevelopmentZone[];
+  auctions: RedevelopmentMapAuction[];
+}> {
+  return redevelopmentFetch("/map-data", undefined, "재개발 지도 데이터를 불러오지 못했습니다.");
+}
+
+export function fetchRedevelopmentZoneAuctions(zoneId: string): Promise<RedevelopmentZoneAuction[]> {
+  return redevelopmentFetch(
+    `/zones/${zoneId}/auctions`,
+    undefined,
+    "구역 내 경매물건 목록을 불러오지 못했습니다.",
+  );
+}
+
 export async function reviewResaleMatch(
   matchId: string,
   status: "CONFIRMED" | "REJECTED",

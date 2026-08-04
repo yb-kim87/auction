@@ -26,9 +26,10 @@ import { CrawlerProfitTab } from "./CrawlerProfitTab";
 import { CrawlerVatTab } from "./CrawlerVatTab";
 import { CrawlerSearchPanel } from "./CrawlerSearchPanel";
 import { ResaleMatchTab } from "./ResaleMatchTab";
+import { RedevelopmentTab } from "./RedevelopmentTab";
 import { renderLogMessage } from "@/lib/crawler-log-format";
 
-type CrawlerSubTab = "work" | "algorithm" | "daily" | "profit" | "vat" | "resale";
+type CrawlerSubTab = "work" | "algorithm" | "daily" | "profit" | "vat" | "resale" | "redevelopment";
 
 const SUB_TABS: { id: CrawlerSubTab; label: string }[] = [
   { id: "work", label: "작업창" },
@@ -37,6 +38,7 @@ const SUB_TABS: { id: CrawlerSubTab; label: string }[] = [
   { id: "profit", label: "수익계산" },
   { id: "vat", label: "부가세계산" },
   { id: "resale", label: "매도분석" },
+  { id: "redevelopment", label: "재개발물건" },
 ];
 
 const PHASE_LABELS: Record<CrawlerStatus["phase"], string> = {
@@ -338,6 +340,7 @@ export function CrawlerWorkPanel() {
       {subTab === "profit" && <CrawlerProfitTab />}
       {subTab === "vat" && <CrawlerVatTab />}
       {subTab === "resale" && <ResaleMatchTab />}
+      {subTab === "redevelopment" && <RedevelopmentTab />}
 
       {subTab === "work" && (
         <div className="p-6 space-y-5">

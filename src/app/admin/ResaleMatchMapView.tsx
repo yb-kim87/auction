@@ -2,57 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ResaleMatchMapItem } from "@/lib/api";
-
-declare global {
-  interface Window {
-    kakao?: {
-      maps: {
-        load: (cb: () => void) => void;
-        LatLng: new (lat: number, lng: number) => unknown;
-        LatLngBounds: new () => { extend: (latlng: unknown) => void };
-        Map: new (container: HTMLElement, options: { center: unknown; level: number }) => KakaoMap;
-        Marker: new (options: { position: unknown; image?: unknown }) => KakaoMarker;
-        MarkerImage: new (src: string, size: unknown, options?: unknown) => unknown;
-        Size: new (width: number, height: number) => unknown;
-        Point: new (x: number, y: number) => unknown;
-        InfoWindow: new (options: { content: string; removable?: boolean }) => KakaoInfoWindow;
-        event: { addListener: (target: unknown, type: string, handler: () => void) => void };
-      };
-    };
-  }
-}
-
-type KakaoMap = {
-  setBounds: (bounds: unknown) => void;
-  setCenter: (latlng: unknown) => void;
-};
-type KakaoMarker = {
-  setMap: (map: KakaoMap | null) => void;
-};
-type KakaoInfoWindow = {
-  open: (map: KakaoMap, marker: KakaoMarker) => void;
-  close: () => void;
-};
-
-const KAKAO_SDK_SRC = "https://dapi.kakao.com/v2/maps/sdk.js";
-let loadPromise: Promise<void> | null = null;
-
-function loadKakaoMaps(appKey: string): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (window.kakao?.maps?.Map) return Promise.resolve();
-  if (loadPromise) return loadPromise;
-  loadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `${KAKAO_SDK_SRC}?appkey=${appKey}&autoload=false&libraries=clusterer`;
-    script.async = true;
-    script.onload = () => {
-      window.kakao!.maps.load(() => resolve());
-    };
-    script.onerror = () => reject(new Error("카카오맵 SDK 로드에 실패했습니다."));
-    document.head.appendChild(script);
-  });
-  return loadPromise;
-}
+import { formatWon, loadKakaoMaps, type KakaoInfoWindow, type KakaoMap, type KakaoMarker } from "@/lib/kakao-maps";
 
 const TIER_COLOR: Record<ResaleMatchMapItem["confidenceTier"], string> = {
   VERY_HIGH: "#059669",
@@ -60,21 +10,6 @@ const TIER_COLOR: Record<ResaleMatchMapItem["confidenceTier"], string> = {
   MEDIUM: "#d97706",
   LOW: "#6b7280",
 };
-
-/** 카카오맵 마커 이미지를 매번 만들지 않고 색상별로 하나씩만 만들어
- * 재사용한다(성능 — 수백 개 마커를 그릴 수 있어서). */
-function buildMarkerImageCache(): Map<string, unknown> {
-  return new Map();
-}
-
-function formatWon(value: number | string | null): string {
-  if (value == null) return "-";
-  const num = typeof value === "string" ? Number(value) : value;
-  if (!Number.isFinite(num)) return "-";
-  if (num >= 100000000) return `${(num / 100000000).toFixed(2)}억`;
-  if (num >= 10000) return `${(num / 10000).toFixed(0)}만`;
-  return num.toLocaleString("ko-KR");
-}
 
 /** 매도분석 결과를 카카오맵 위에 마커로 표시한다. 좌표가 있는 항목만
  * 그려지고(백엔드가 지오코딩 실패 건은 latitude/longitude를 null로 둠),
@@ -131,7 +66,7 @@ export function ResaleMatchMapView({ items }: { items: ResaleMatchMapItem[] }) {
     );
     if (withCoords.length === 0) return;
 
-    const markerImageCache = buildMarkerImageCache();
+    const markerImageCache = new Map<string, unknown>();
     const bounds = new kakao.maps.LatLngBounds();
 
     withCoords.forEach((item) => {
