@@ -60,6 +60,7 @@ export default function FavoritesPage() {
   const [bidPlans, setBidPlans] = useState<BidPlanWithAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
+  const [selectedItemModalTab, setSelectedItemModalTab] = useState<"info" | "profit">("info");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<"favorites" | "plans">("favorites");
@@ -289,7 +290,10 @@ export default function FavoritesPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setSelectedItem(item)}
+                    onClick={() => {
+                      setSelectedItemModalTab("info");
+                      setSelectedItem(item);
+                    }}
                     className="text-left rounded-xl border border-border bg-card p-4 hover:shadow-md hover:border-primary/40 transition-all"
                   >
                     <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
@@ -304,6 +308,7 @@ export default function FavoritesPage() {
                         </span>
                       )}
                     </div>
+                    <p className="mb-0.5 text-[0.68rem] font-semibold text-primary">{item.auctionNo}</p>
                     <div className="flex items-start gap-1.5 mb-2">
                       <MapPin size={13} className="text-muted-foreground shrink-0 mt-0.5" />
                       <p className="text-[0.82rem] font-medium text-foreground line-clamp-2">
@@ -375,7 +380,11 @@ export default function FavoritesPage() {
                   <button
                     key={plan.id}
                     type="button"
-                    onClick={() => item && setSelectedItem(item)}
+                    onClick={() => {
+                      if (!item) return;
+                      setSelectedItemModalTab("profit");
+                      setSelectedItem(item);
+                    }}
                     disabled={!item}
                     className="grid w-full gap-3 border-b border-border/70 px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-secondary/25 disabled:cursor-default lg:grid-cols-[minmax(15rem,1.5fr)_7rem_7rem_7rem_7rem_6rem] lg:items-center"
                   >
@@ -410,9 +419,11 @@ export default function FavoritesPage() {
         onClose={() => setSelectedItem(null)}
         editable={false}
         isAdmin={isAdmin}
+        initialTab={selectedItemModalTab}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
         favoriteMemo={selectedItem ? favorites.find((f) => f.auctionId === selectedItem.id)?.memo ?? null : null}
+        favoriteCategory={selectedItem ? favorites.find((f) => f.auctionId === selectedItem.id)?.category ?? null : null}
         onToggleFavorite={
           selectedItem
             ? (next, category, memo) => handleToggleFavorite(selectedItem.id, next, category, memo)

@@ -1693,6 +1693,7 @@ export default function HomePage() {
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={selectedItem ? favoriteBusyId === selectedItem.id : false}
         favoriteMemo={selectedItem ? favoriteById.get(selectedItem.id)?.memo ?? null : null}
+        favoriteCategory={selectedItem ? favoriteById.get(selectedItem.id)?.category ?? null : null}
         onToggleFavorite={
           selectedItem
             ? (next, category, memo) => handleToggleFavorite(selectedItem.id, next, category, memo)

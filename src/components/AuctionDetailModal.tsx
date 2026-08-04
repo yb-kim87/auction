@@ -1688,6 +1688,8 @@ export function AuctionDetailModal({
   isFavorite = false,
   favoriteBusy = false,
   favoriteMemo = null,
+  favoriteCategory = null,
+  initialTab = "info",
   onToggleFavorite,
   onAiAnalysisClick,
   onDislike,
@@ -1718,6 +1720,11 @@ export function AuctionDetailModal({
   favoriteBusy?: boolean;
   /** 이 물건의 관심등록 메모(있으면 상세 상단에 표시). */
   favoriteMemo?: string | null;
+  /** 이 물건의 현재 관심등록 카테고리(카테고리 변경 팝업 초기 선택값). */
+  favoriteCategory?: string | null;
+  /** 모달을 열 때 기본으로 보여줄 탭(예: "내 물건"에서 입찰계획을
+   * 클릭하면 바로 입찰계획 탭으로). */
+  initialTab?: "info" | "ai" | "profit";
   onToggleFavorite?: (next: boolean, category?: string | null, memo?: string | null) => Promise<void>;
   onAiAnalysisClick?: (item: AuctionItem) => void;
   onDislike?: (item: AuctionItem) => void;
@@ -1747,6 +1754,7 @@ export function AuctionDetailModal({
   const [favoriteCategoriesLoading, setFavoriteCategoriesLoading] = useState(false);
   const [newFavoriteCategory, setNewFavoriteCategory] = useState("");
   const [favoriteMemoDraft, setFavoriteMemoDraft] = useState("");
+  const [favoriteCategoryDraft, setFavoriteCategoryDraft] = useState<string | null>(null);
   // 모달 바깥에서 드래그를 시작/종료했는지 판별하기 위한 ref들 —
   // 컴포넌트 하단의 `if (!item...) return null` 조기 반환보다 먼저
   // 선언해야 한다(hooks는 조건부로 호출될 수 없음). 이전에 return 문
@@ -1795,8 +1803,9 @@ export function AuctionDetailModal({
     setEditingHeader(null);
     setEditingPrice(null);
     setShowMemo(false);
-    setActiveTab("info");
+    setActiveTab(initialTab);
     setCachedAnalysis(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   // Push a history entry when the modal opens so mobile "back" closes the
@@ -1982,6 +1991,7 @@ export function AuctionDetailModal({
     setFavoritePickerOpen(true);
     setNewFavoriteCategory("");
     setFavoriteMemoDraft(favoriteMemo ?? "");
+    setFavoriteCategoryDraft(favoriteCategory ?? null);
     setFavoriteCategoriesLoading(true);
     try {
       setFavoriteCategories(await fetchFavoriteCategories());
@@ -2006,12 +2016,12 @@ export function AuctionDetailModal({
     }
   };
 
-  const confirmAddFavorite = async (category: string | null) => {
+  const confirmAddFavorite = async () => {
     if (!onToggleFavorite) return;
     setFavoriteSaving(true);
     setError("");
     try {
-      await onToggleFavorite(true, category, favoriteMemoDraft.trim() || null);
+      await onToggleFavorite(true, favoriteCategoryDraft, favoriteMemoDraft.trim() || null);
       setFavoritePickerOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "관심물건 처리에 실패했습니다.");
@@ -2029,6 +2039,7 @@ export function AuctionDetailModal({
       const created = await createFavoriteCategory(name);
       setFavoriteCategories((prev) => Array.from(new Set([...prev, created])).sort((a, b) => a.localeCompare(b, "ko")));
       setNewFavoriteCategory("");
+      setFavoriteCategoryDraft(created);
     } catch (err) {
       setError(err instanceof Error ? err.message : "카테고리를 추가하지 못했습니다.");
     } finally {
@@ -3351,29 +3362,41 @@ export function AuctionDetailModal({
           >
             <p className="text-sm font-semibold text-foreground">{isFavorite ? "관심물건 카테고리 변경" : "관심물건 카테고리 선택"}</p>
             <p className="mb-3 mt-1 text-xs text-muted-foreground">
-              {isFavorite ? "관심등록을 유지한 채 분류만 변경합니다." : "저장할 분류를 선택하거나 새로 만들어 보세요."}
+              분류와 메모를 고른 뒤 아래 저장 버튼을 눌러야 반영됩니다.
             </p>
 
             {favoriteCategoriesLoading ? (
               <p className="text-xs text-muted-foreground mb-3">불러오는 중...</p>
-            ) : favoriteCategories.length > 0 ? (
+            ) : (
               <div className="flex flex-wrap gap-1.5 mb-3 max-h-32 overflow-y-auto">
+                <button
+                  type="button"
+                  disabled={favoriteSaving}
+                  onClick={() => setFavoriteCategoryDraft(null)}
+                  className={`px-3 py-1.5 rounded-full border text-xs transition-colors disabled:opacity-50 ${
+                    favoriteCategoryDraft === null
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:bg-secondary/60"
+                  }`}
+                >
+                  미분류
+                </button>
                 {favoriteCategories.map((c) => (
                   <button
                     key={c}
                     type="button"
                     disabled={favoriteSaving}
-                    onClick={() => void confirmAddFavorite(c)}
-                    className="px-3 py-1.5 rounded-full border border-border text-xs hover:bg-secondary/60 transition-colors disabled:opacity-50"
+                    onClick={() => setFavoriteCategoryDraft(c)}
+                    className={`px-3 py-1.5 rounded-full border text-xs transition-colors disabled:opacity-50 ${
+                      favoriteCategoryDraft === c
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border text-foreground hover:bg-secondary/60"
+                    }`}
                   >
                     {c}
                   </button>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground mb-3">
-                등록된 카테고리가 없습니다. 아래에서 새로 만들어 보세요.
-              </p>
             )}
 
             <div className="flex items-center gap-2 mb-3">
@@ -3413,14 +3436,6 @@ export function AuctionDetailModal({
 
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  disabled={favoriteSaving}
-                  onClick={() => void confirmAddFavorite(null)}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                >
-                  {isFavorite ? "미분류로 변경" : "미분류로 등록"}
-                </button>
                 {isFavorite && (
                   <button
                     type="button"
@@ -3431,13 +3446,21 @@ export function AuctionDetailModal({
                     관심 해제
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setFavoritePickerOpen(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  취소
+                </button>
               </div>
               <button
                 type="button"
-                onClick={() => setFavoritePickerOpen(false)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                disabled={favoriteSaving}
+                onClick={() => void confirmAddFavorite()}
+                className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50"
               >
-                취소
+                {favoriteSaving ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>
