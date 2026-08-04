@@ -59,6 +59,7 @@ export function RedevelopmentEunpyeongCollector({ onZonesSaved }: { onZonesSaved
         source: string;
         sourceDatasetId: string;
         sourceKey: string;
+        referenceImageUrl: string | null;
       }> = [];
       let geocodeFailCount = 0;
 
@@ -88,6 +89,7 @@ export function RedevelopmentEunpyeongCollector({ onZonesSaved }: { onZonesSaved
               source: SOURCE,
               sourceDatasetId: SOURCE_DATASET_ID,
               sourceKey: item.key,
+              referenceImageUrl: detail.imageUrl,
             });
           }),
         );

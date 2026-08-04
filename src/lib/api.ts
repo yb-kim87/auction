@@ -3740,6 +3740,7 @@ export type RedevelopmentZone = {
   asOfDate: string | null;
   boundaryType: "EXACT" | "CONVEX_HULL_APPROX" | "POINT_ONLY" | "MANUAL";
   lastAutoSyncedAt: string | null;
+  referenceImageUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -3788,6 +3789,8 @@ export function createRedevelopmentZone(body: {
   memo?: string;
   polygon: RedevelopmentPoint[];
   color?: string;
+  boundaryType?: string;
+  referenceImageUrl?: string | null;
 }): Promise<RedevelopmentZone> {
   return redevelopmentFetch(
     "/zones",
@@ -3805,6 +3808,8 @@ export function updateRedevelopmentZone(
     memo?: string;
     polygon?: RedevelopmentPoint[];
     color?: string | null;
+    boundaryType?: string;
+    referenceImageUrl?: string | null;
   },
 ): Promise<RedevelopmentZone> {
   return redevelopmentFetch(
@@ -3874,6 +3879,7 @@ export function bulkUpsertRedevelopmentZones(
     sourceDatasetId: string;
     sourceKey: string;
     asOfDate?: string | null;
+    referenceImageUrl?: string | null;
   }>,
 ): Promise<{ created: number; updated: number; skippedManualOverride: number; failed: number }> {
   return redevelopmentFetch(

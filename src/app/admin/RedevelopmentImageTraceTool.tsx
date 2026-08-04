@@ -20,11 +20,17 @@ type CalibrationPair = { img: PixelPoint; geo: GeoPoint };
 export function RedevelopmentImageTraceTool({
   onComplete,
   onCancel,
+  initialImageUrl,
 }: {
   onComplete: (points: RedevelopmentPoint[]) => void;
   onCancel: () => void;
+  /** 이미 확보한 위치도 이미지 URL(예: 은평구청 스크레이핑 결과) — 있으면
+   * 업로드 단계 없이 바로 이 이미지로 보정을 시작한다(사용자 요청,
+   * 2026-08-04: "은평구청 데이터를 기반으로 정밀 경계를 통한 구역도
+   * 적용해보는거 어때"). */
+  initialImageUrl?: string | null;
 }) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(initialImageUrl ?? null);
   const [calibrationPairs, setCalibrationPairs] = useState<CalibrationPair[]>([]);
   const [pendingImgPoint, setPendingImgPoint] = useState<PixelPoint | null>(null);
   const [tracePoints, setTracePoints] = useState<PixelPoint[]>([]);
@@ -194,9 +200,17 @@ export function RedevelopmentImageTraceTool({
     <div className="rounded-sm border border-primary/40 bg-primary/5 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-foreground">이미지로 구역 그리기(좌표 보정 트레이싱)</p>
-        <button type="button" onClick={onCancel} className="text-xs text-muted-foreground hover:underline">
-          닫기
-        </button>
+        <div className="flex items-center gap-3">
+          {imageUrl && (
+            <label className="text-xs text-muted-foreground hover:underline cursor-pointer">
+              다른 이미지 업로드
+              <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            </label>
+          )}
+          <button type="button" onClick={onCancel} className="text-xs text-muted-foreground hover:underline">
+            닫기
+          </button>
+        </div>
       </div>
 
       {!imageUrl ? (

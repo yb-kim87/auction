@@ -45,6 +45,7 @@ export function RedevelopmentTab() {
 
   const [drawing, setDrawing] = useState(false);
   const [imageTracing, setImageTracing] = useState(false);
+  const [imageTraceSourceUrl, setImageTraceSourceUrl] = useState<string | null>(null);
   const [editingZone, setEditingZone] = useState<RedevelopmentZone | null>(null);
   const [draftPointCount, setDraftPointCount] = useState(0);
   const [pendingPoints, setPendingPoints] = useState<RedevelopmentPoint[] | null>(null);
@@ -97,6 +98,19 @@ export function RedevelopmentTab() {
     setPendingPoints(null);
     setForm(EMPTY_FORM);
     setSelectedZoneId(null);
+    setImageTraceSourceUrl(null);
+    setImageTracing(true);
+  }
+
+  /** 이미 위치도 이미지 URL을 확보한 구역(예: 은평구청 자동수집)을 업로드
+   * 없이 바로 그 이미지로 정밀 보정한다(사용자 요청, 2026-08-04: "은평구청
+   * 데이터를 기반으로 정밀 경계를 통한 구역도 적용해보는거 어때"). */
+  function startImageRefine(zone: RedevelopmentZone) {
+    setEditingZone(zone);
+    setPendingPoints(null);
+    setForm({ name: zone.name, region: zone.region, stage: zone.stage, memo: zone.memo ?? "" });
+    setSelectedZoneId(zone.id);
+    setImageTraceSourceUrl(zone.referenceImageUrl);
     setImageTracing(true);
   }
 
@@ -122,6 +136,7 @@ export function RedevelopmentTab() {
   function handleFinishImageTrace(points: RedevelopmentPoint[]) {
     setPendingPoints(points);
     setImageTracing(false);
+    setImageTraceSourceUrl(null);
   }
 
   async function handleSaveDraft() {
@@ -140,6 +155,7 @@ export function RedevelopmentTab() {
           stage: form.stage.trim(),
           memo: form.memo.trim(),
           polygon: pendingPoints,
+          boundaryType: "MANUAL",
         });
       } else {
         await createRedevelopmentZone({
@@ -148,6 +164,7 @@ export function RedevelopmentTab() {
           stage: form.stage.trim(),
           memo: form.memo.trim(),
           polygon: pendingPoints,
+          boundaryType: "MANUAL",
         });
       }
       setPendingPoints(null);
@@ -246,7 +263,14 @@ export function RedevelopmentTab() {
       </div>
 
       {imageTracing && (
-        <RedevelopmentImageTraceTool onComplete={handleFinishImageTrace} onCancel={() => setImageTracing(false)} />
+        <RedevelopmentImageTraceTool
+          onComplete={handleFinishImageTrace}
+          onCancel={() => {
+            setImageTracing(false);
+            setImageTraceSourceUrl(null);
+          }}
+          initialImageUrl={imageTraceSourceUrl}
+        />
       )}
 
       <RedevelopmentSeoulCollector onZonesSaved={load} />
@@ -394,6 +418,15 @@ export function RedevelopmentTab() {
                         <button type="button" onClick={() => startRedrawZone(zone)} className="text-primary hover:underline">
                           경계 다시 그리기
                         </button>
+                        {zone.referenceImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => startImageRefine(zone)}
+                            className="text-primary hover:underline"
+                          >
+                            정밀 보정(위치도)
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => void handleDeleteZone(zone)}
