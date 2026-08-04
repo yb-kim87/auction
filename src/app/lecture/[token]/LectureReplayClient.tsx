@@ -7,6 +7,9 @@ import {
   type LectureAccessInfo,
   type LecturePublicVideo,
 } from "@/lib/api";
+import { attachChapterAutoPause } from "@/lib/bunny-playerjs";
+
+const PLAYER_IFRAME_ID = "bunny-player-lecture-replay";
 
 function formatDuration(seconds: number | null): string {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "";
@@ -21,25 +24,33 @@ function formatDuration(seconds: number | null): string {
 
 /** 영상 하나를 챕터(구간) 단위 행으로 펼친다. 챕터가 없으면 영상
  * 자체를 행 1개로 반환한다(startSeconds는 undefined). */
-function expandVideoRows(
-  v: LecturePublicVideo,
-): Array<{ key: string; video: LecturePublicVideo; title: string; startSeconds?: number; durationSeconds: number | null }> {
+function expandVideoRows(v: LecturePublicVideo): Array<{
+  key: string;
+  video: LecturePublicVideo;
+  title: string;
+  startSeconds?: number;
+  endSeconds?: number;
+  durationSeconds: number | null;
+}> {
   if (!v.chapters || v.chapters.length === 0) {
     return [{ key: v.id, video: v, title: v.title, startSeconds: undefined, durationSeconds: v.durationSeconds }];
   }
   const chapters = v.chapters;
   return chapters.map((c, i) => {
     const next = chapters[i + 1];
-    const durationSeconds = next
-      ? next.startSeconds - c.startSeconds
-      : v.durationSeconds != null
-        ? v.durationSeconds - c.startSeconds
-        : null;
+    const endSeconds = c.endSeconds ?? next?.startSeconds;
+    const durationSeconds =
+      endSeconds != null
+        ? endSeconds - c.startSeconds
+        : v.durationSeconds != null
+          ? v.durationSeconds - c.startSeconds
+          : null;
     return {
       key: `${v.id}:${c.startSeconds}`,
       video: v,
       title: c.title,
       startSeconds: c.startSeconds,
+      endSeconds,
       durationSeconds,
     };
   });
@@ -118,6 +129,11 @@ export function LectureReplayClient({ token }: { token: string }) {
     };
   }, [token, selectedVideo?.id, selectedVideo?.isPublished, selectedStartSeconds]);
 
+  useEffect(() => {
+    if (!embedUrl) return;
+    attachChapterAutoPause(PLAYER_IFRAME_ID, selectedRow?.endSeconds);
+  }, [embedUrl, selectedRow?.endSeconds]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -166,6 +182,7 @@ export function LectureReplayClient({ token }: { token: string }) {
             ) : (
               <iframe
                 key={embedUrl}
+                id={PLAYER_IFRAME_ID}
                 src={embedUrl}
                 title={selectedRow?.title ?? selectedVideo.title}
                 loading="lazy"

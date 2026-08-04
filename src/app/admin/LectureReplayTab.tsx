@@ -593,8 +593,19 @@ function EnrollmentsBlock({
   );
 }
 
+function parseClockToSeconds(token: string): number | null {
+  const parts = token.split(":").map((p) => Number(p));
+  if (parts.length === 0 || parts.some((p) => !Number.isFinite(p))) return null;
+  let seconds = 0;
+  for (const p of parts) seconds = seconds * 60 + p;
+  return Number.isFinite(seconds) && seconds >= 0 ? Math.round(seconds) : null;
+}
+
 /** "1:23:45 제목" / "12:34 제목" / "90 제목" 같은 줄들을 챕터 배열로
- * 파싱한다. 각 줄의 맨 앞 토큰이 시간, 나머지가 제목. 시간 형식이
+ * 파싱한다. 각 줄의 맨 앞 토큰이 시간, 나머지가 제목. 시작~종료를 함께
+ * 지정하려면 "13:43-19:10 제목"처럼 하이픈으로 시작-종료를 붙여
+ * 쓴다(종료를 안 쓰면 다음 챕터 시작 시각에서 자동으로 끊긴다 —
+ * 사용자 요청, 2026-08-04: "종료시간을 입력해도 되고"). 시간 형식이
  * 아니거나 제목이 비어있는 줄은 무시한다. */
 function parseChaptersText(text: string): LectureVideoChapter[] {
   return text
@@ -605,12 +616,13 @@ function parseChaptersText(text: string): LectureVideoChapter[] {
       const [timeToken, ...rest] = trimmed.split(/\s+/);
       const title = rest.join(" ").trim();
       if (!title) return null;
-      const parts = timeToken.split(":").map((p) => Number(p));
-      if (parts.some((p) => !Number.isFinite(p))) return null;
-      let seconds = 0;
-      for (const p of parts) seconds = seconds * 60 + p;
-      if (!Number.isFinite(seconds) || seconds < 0) return null;
-      return { title, startSeconds: Math.round(seconds) };
+      const [startToken, endToken] = timeToken.split("-");
+      const startSeconds = parseClockToSeconds(startToken);
+      if (startSeconds === null) return null;
+      const endSeconds = endToken ? parseClockToSeconds(endToken) ?? undefined : undefined;
+      return endSeconds !== undefined && endSeconds > startSeconds
+        ? { title, startSeconds, endSeconds }
+        : { title, startSeconds };
     })
     .filter((c): c is LectureVideoChapter => c !== null);
 }
@@ -626,7 +638,15 @@ function formatSecondsToClock(seconds: number): string {
 
 function chaptersToText(chapters: LectureVideoChapter[] | null): string {
   if (!chapters || chapters.length === 0) return "";
-  return chapters.map((c) => `${formatSecondsToClock(c.startSeconds)} ${c.title}`).join("\n");
+  return chapters
+    .map((c) => {
+      const time =
+        c.endSeconds != null
+          ? `${formatSecondsToClock(c.startSeconds)}-${formatSecondsToClock(c.endSeconds)}`
+          : formatSecondsToClock(c.startSeconds);
+      return `${time} ${c.title}`;
+    })
+    .join("\n");
 }
 
 function SectionBlock({
@@ -939,13 +959,16 @@ function SectionBlock({
                   <div className="mt-2 space-y-1.5 rounded-sm border border-border bg-secondary/20 p-2">
                     <p className="text-[11px] text-muted-foreground">
                       한 줄에 하나씩, "시작시간 제목" 형식으로 입력하세요(예: 15:20 2강 실전 사례).
-                      영상 하나를 이 시간 구간대로 나눠서 강의 화면에 여러 섹션처럼 보여줍니다.
+                      종료시간은 생략하면 다음 챕터 시작 시각에서 자동으로 재생이 멈추고,
+                      직접 지정하려면 "시작시간-종료시간 제목"처럼 하이픈으로 붙여 쓰세요
+                      (예: 15:20-38:00 2강 실전 사례). 영상 하나를 이 시간 구간대로 나눠서
+                      강의 화면에 여러 섹션처럼 보여줍니다.
                     </p>
                     <textarea
                       value={chapterDraft}
                       onChange={(e) => setChapterDraft(e.target.value)}
                       rows={4}
-                      placeholder={"0:00 1강 개요\n15:20 2강 실전 사례\n40:00 3강 정리"}
+                      placeholder={"0:00 1강 개요\n15:20-38:00 2강 실전 사례\n40:00 3강 정리"}
                       className="w-full px-2 py-1.5 text-xs border border-border rounded-sm bg-background font-mono"
                     />
                     <div className="flex items-center gap-2">
@@ -1002,7 +1025,7 @@ function SectionBlock({
           value={form.chaptersText}
           onChange={(e) => setForm((f) => ({ ...f, chaptersText: e.target.value }))}
           rows={3}
-          placeholder={"챕터(선택) — 한 줄에 하나씩 \"시작시간 제목\"\n예) 0:00 1강 개요\n15:20 2강 실전 사례"}
+          placeholder={"챕터(선택) — 한 줄에 하나씩 \"시작시간 제목\"(종료시간 생략 시 다음 챕터에서 자동 정지)\n예) 0:00 1강 개요\n15:20-38:00 2강 실전 사례"}
           className="col-span-2 px-2 py-1.5 text-xs border border-border rounded-sm bg-background font-mono"
         />
         <button

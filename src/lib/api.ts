@@ -3758,7 +3758,7 @@ export type LectureSection = {
 /** 영상 1개를 구간(챕터)으로 나눠 보여주기 위한 타임스탬프. startSeconds는
  * 해당 챕터의 시작 지점(초)이고, 다음 챕터의 startSeconds(또는 영상
  * 끝)가 사실상 종료 지점이 된다 — 별도 종료 필드는 없다. */
-export type LectureVideoChapter = { title: string; startSeconds: number };
+export type LectureVideoChapter = { title: string; startSeconds: number; endSeconds?: number };
 
 export type LectureVideo = {
   id: string;

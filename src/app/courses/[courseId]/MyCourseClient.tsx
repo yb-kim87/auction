@@ -12,6 +12,9 @@ import {
   type LecturePublicSection,
   type LecturePublicVideo,
 } from "@/lib/api";
+import { attachChapterAutoPause } from "@/lib/bunny-playerjs";
+
+const PLAYER_IFRAME_ID = "bunny-player-my-course";
 
 // ── palette (피그마 디자인 그대로, 이 페이지 전용) ──────────────────────────────
 const C = {
@@ -91,25 +94,37 @@ const ChevronLeftIcon = () => (
  * 타임스탬프를 입력한 영상만 강의 화면에서 여러 섹션처럼 나뉘어 보인다
  * (사용자 요청, 2026-08-04: "영상 1개를 올리면 시간을 알려주면 알려준
  * 시간으로 섹션을 구분해서 나눠서 영상이 보이도록"). */
-function expandVideoRows(
-  v: LecturePublicVideo,
-): Array<{ key: string; video: LecturePublicVideo; title: string; startSeconds?: number; durationSeconds: number | null }> {
+function expandVideoRows(v: LecturePublicVideo): Array<{
+  key: string;
+  video: LecturePublicVideo;
+  title: string;
+  startSeconds?: number;
+  /** 자동 정지 지점 — 명시적으로 지정했거나 다음 챕터가 있을 때만
+   * 값이 있다. 마지막 챕터(다음 챕터도 명시 종료도 없음)는 undefined로
+   * 두어 영상 끝까지 자연스럽게 재생되게 한다(억지 추정값으로 끊지
+   * 않음). */
+  endSeconds?: number;
+  durationSeconds: number | null;
+}> {
   if (!v.chapters || v.chapters.length === 0) {
     return [{ key: v.id, video: v, title: v.title, startSeconds: undefined, durationSeconds: v.durationSeconds }];
   }
   const chapters = v.chapters;
   return chapters.map((c, i) => {
     const next = chapters[i + 1];
-    const durationSeconds = next
-      ? next.startSeconds - c.startSeconds
-      : v.durationSeconds != null
-        ? v.durationSeconds - c.startSeconds
-        : null;
+    const endSeconds = c.endSeconds ?? next?.startSeconds;
+    const durationSeconds =
+      endSeconds != null
+        ? endSeconds - c.startSeconds
+        : v.durationSeconds != null
+          ? v.durationSeconds - c.startSeconds
+          : null;
     return {
       key: `${v.id}:${c.startSeconds}`,
       video: v,
       title: c.title,
       startSeconds: c.startSeconds,
+      endSeconds,
       durationSeconds,
     };
   });
@@ -306,6 +321,15 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
     };
   }, [courseId, selectedVideo?.id, selectedVideo?.isPublished, selectedStartSeconds]);
 
+  // 챕터에 종료 시각이 있으면(명시 지정 또는 다음 챕터 시작), 그 지점에서
+  // 자동으로 멈춘다 — iframe이 새로 마운트(embedUrl 변경)될 때마다
+  // 다시 연결해야 한다(사용자 요청, 2026-08-04: "다음 시작시간전에
+  // 끝나는걸로 하게는 못하나?").
+  useEffect(() => {
+    if (!embedUrl) return;
+    attachChapterAutoPause(PLAYER_IFRAME_ID, selectedRow?.endSeconds);
+  }, [embedUrl, selectedRow?.endSeconds]);
+
   const curIdx = publishedRows.findIndex(
     (r) => r.video.id === selectedVideoId && r.startSeconds === selectedStartSeconds,
   );
@@ -468,6 +492,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               <>
                 <iframe
                   key={embedUrl}
+                  id={PLAYER_IFRAME_ID}
                   src={embedUrl}
                   title={selectedRow?.title ?? selectedVideo.title}
                   loading="lazy"
