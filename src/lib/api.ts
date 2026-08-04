@@ -3979,6 +3979,16 @@ export type LectureAccessInfo = {
 export type LectureMyCourseAccessInfo = {
   course: { id: string; title: string; description: string | null };
   sections: LecturePublicSection[];
+  progress: LectureCourseProgress[];
+};
+
+export type LectureCourseProgress = {
+  videoId: string;
+  chapterStartSeconds: number;
+  lastPositionSeconds: number;
+  isCompleted: boolean;
+  completedAt: string | null;
+  updatedAt: string;
 };
 
 async function lectureReplayFetch<T>(
@@ -4205,6 +4215,13 @@ export type LectureMyCourse = {
   /** true면 개별 수강권이 아니라 관리자/OT수강생 자동접근으로 표시된
    * 항목 — 기간이 의미 없는 값(무제한)이라 화면에 표시하지 않는다. */
   isAuto: boolean;
+  totalLessons: number;
+  completedLessons: number;
+  progressPercent: number;
+  lastWatchedAt: string | null;
+  lastVideoId: string | null;
+  lastChapterStartSeconds: number | null;
+  lastLessonTitle: string | null;
 };
 
 export type LectureUserSearchResult = {
@@ -4238,6 +4255,18 @@ export function fetchMyCoursePlayUrl(
     `/courses/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(videoId)}/play${qs}`,
     undefined,
     "영상을 재생할 수 없습니다.",
+  );
+}
+
+export function saveMyCourseProgress(
+  courseId: string,
+  videoId: string,
+  body: { chapterStartSeconds?: number; lastPositionSeconds?: number; isCompleted?: boolean },
+): Promise<LectureCourseProgress> {
+  return lectureReplayFetch(
+    `/courses/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(videoId)}/progress`,
+    { method: "POST", body: JSON.stringify(body) },
+    "학습 진도를 저장하지 못했습니다.",
   );
 }
 

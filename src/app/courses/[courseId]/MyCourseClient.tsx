@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { clearAuthCookie } from "@/lib/auth";
@@ -8,13 +8,17 @@ import {
   fetchMyCourseAccessInfo,
   fetchMyCoursePlayUrl,
   logoutUser,
+  saveMyCourseProgress,
+  type LectureCourseProgress,
   type LectureMyCourseAccessInfo,
   type LecturePublicSection,
   type LecturePublicVideo,
 } from "@/lib/api";
-import { attachChapterAutoPause } from "@/lib/bunny-playerjs";
+import { attachLearningProgress } from "@/lib/bunny-playerjs";
 
 const PLAYER_IFRAME_ID = "bunny-player-my-course";
+const COURSE_TABS = ["강의정보", "Q&A", "노트", "수강후기"] as const;
+type CourseTab = (typeof COURSE_TABS)[number];
 
 // ── palette (피그마 디자인 그대로, 이 페이지 전용) ──────────────────────────────
 const C = {
@@ -135,11 +139,13 @@ function SectionBlock({
   activeId,
   activeStartSeconds,
   onSelect,
+  progressByRow,
 }: {
   section: LecturePublicSection;
   activeId: string | null;
   activeStartSeconds: number | undefined;
   onSelect: (v: LecturePublicVideo, startSeconds?: number) => void;
+  progressByRow: Map<string, LectureCourseProgress>;
 }) {
   const hasActive = section.videos.some((v) => v.isPublished);
   const [open, setOpen] = useState(hasActive);
@@ -171,6 +177,7 @@ function SectionBlock({
         rows.map((row) => {
           const active = row.video.id === activeId && row.startSeconds === activeStartSeconds;
           const locked = !row.video.isPublished;
+          const completed = progressByRow.get(row.key)?.isCompleted ?? false;
           return (
             <button
               key={row.key}
@@ -200,11 +207,11 @@ function SectionBlock({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: active ? C.accent : locked ? "#e5e7eb" : "#e5e7eb",
+                  background: completed ? "#16a34a" : active ? C.accent : "#e5e7eb",
                   color: locked ? C.textDim : "#fff",
                 }}
               >
-                {locked ? <LockIcon /> : <PlayIcon size={9} color={active ? "#fff" : C.textMuted} />}
+                {locked ? <LockIcon /> : completed ? <span style={{ color: "#fff", fontSize: 12 }}>✓</span> : <PlayIcon size={9} color={active ? "#fff" : C.textMuted} />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
@@ -252,6 +259,34 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [playLoading, setPlayLoading] = useState(false);
   const [playError, setPlayError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<LectureCourseProgress[]>([]);
+  const lastSavedSecond = useRef(0);
+  const [activeTab, setActiveTab] = useState<CourseTab>("강의정보");
+  const [noteText, setNoteText] = useState("");
+  const [notes, setNotes] = useState<Array<{ id: number; lesson: string; time: number; text: string }>>([]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(`course-notes:${courseId}`);
+      setNotes(saved ? JSON.parse(saved) : []);
+    } catch {
+      setNotes([]);
+    }
+  }, [courseId]);
+
+  const saveNote = () => {
+    const text = noteText.trim();
+    if (!text || !selectedVideo) return;
+    const next = [{
+      id: Date.now(),
+      lesson: selectedRow?.title ?? selectedVideo.title,
+      time: lastSavedSecond.current,
+      text,
+    }, ...notes];
+    setNotes(next);
+    setNoteText("");
+    window.localStorage.setItem(`course-notes:${courseId}`, JSON.stringify(next));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -261,8 +296,15 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       .then((data) => {
         if (cancelled) return;
         setInfo(data);
+        setProgress(data.progress ?? []);
+        const latest = [...(data.progress ?? [])].sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        )[0];
         const firstPublished = data.sections.flatMap((s) => s.videos).find((v) => v.isPublished);
-        if (firstPublished) {
+        if (latest) {
+          setSelectedVideoId(latest.videoId);
+          setSelectedStartSeconds(latest.chapterStartSeconds || undefined);
+        } else if (firstPublished) {
           setSelectedVideoId(firstPublished.id);
           setSelectedStartSeconds(firstPublished.chapters?.[0]?.startSeconds);
         }
@@ -295,6 +337,17 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const selectedRow = selectedVideo
     ? expandVideoRows(selectedVideo).find((r) => r.startSeconds === selectedStartSeconds) ?? null
     : null;
+  const progressByRow = useMemo(
+    () => new Map(progress.map((item) => [item.chapterStartSeconds > 0 ? `${item.videoId}:${item.chapterStartSeconds}` : item.videoId, item])),
+    [progress],
+  );
+  const selectedProgress = selectedVideo
+    ? progress.find(
+        (item) =>
+          item.videoId === selectedVideo.id &&
+          item.chapterStartSeconds === (selectedStartSeconds ?? 0),
+      )
+    : undefined;
 
   useEffect(() => {
     if (!selectedVideo || !selectedVideo.isPublished) {
@@ -304,7 +357,10 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
     let cancelled = false;
     setPlayLoading(true);
     setPlayError(null);
-    fetchMyCoursePlayUrl(courseId, selectedVideo.id, selectedStartSeconds)
+    const resumeAt = selectedProgress && !selectedProgress.isCompleted
+      ? Math.max(selectedStartSeconds ?? 0, selectedProgress.lastPositionSeconds)
+      : selectedStartSeconds;
+    fetchMyCoursePlayUrl(courseId, selectedVideo.id, resumeAt)
       .then((res) => {
         if (!cancelled) setEmbedUrl(res.embedUrl);
       })
@@ -326,15 +382,41 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   // 다시 연결해야 한다. 자체 진행바까지 만들었다가 "복잡하게 보인다"는
   // 피드백으로 되돌리고(2026-08-04), Bunny 기본 재생바 + 자동 정지만 유지.
   useEffect(() => {
-    if (!embedUrl) return;
-    attachChapterAutoPause(PLAYER_IFRAME_ID, selectedRow?.endSeconds);
-  }, [embedUrl, selectedRow?.endSeconds]);
+    if (!embedUrl || !selectedVideo) return;
+    lastSavedSecond.current = selectedProgress?.lastPositionSeconds ?? selectedStartSeconds ?? 0;
+    const save = (seconds: number, isCompleted = false) => {
+      void saveMyCourseProgress(courseId, selectedVideo.id, {
+        chapterStartSeconds: selectedStartSeconds ?? 0,
+        lastPositionSeconds: seconds,
+        isCompleted,
+      }).then((saved) => {
+        setProgress((items) => [...items.filter(
+          (item) => !(item.videoId === saved.videoId && item.chapterStartSeconds === saved.chapterStartSeconds),
+        ), saved]);
+      }).catch(() => {});
+    };
+    attachLearningProgress(PLAYER_IFRAME_ID, {
+      endSeconds: selectedRow?.endSeconds,
+      onTimeUpdate: (seconds, duration) => {
+        if (seconds - lastSavedSecond.current >= 15) {
+          lastSavedSecond.current = seconds;
+          const rowStart = selectedStartSeconds ?? 0;
+          const rowEnd = selectedRow?.endSeconds ?? duration;
+          const watchedRatio = rowEnd > rowStart ? (seconds - rowStart) / (rowEnd - rowStart) : 0;
+          save(seconds, watchedRatio >= 0.9);
+        }
+      },
+      onEnded: () => save(selectedRow?.endSeconds ?? lastSavedSecond.current, true),
+    });
+  }, [embedUrl, courseId, selectedVideo?.id, selectedStartSeconds, selectedRow?.endSeconds]);
 
   const curIdx = publishedRows.findIndex(
     (r) => r.video.id === selectedVideoId && r.startSeconds === selectedStartSeconds,
   );
   const hasPrev = curIdx > 0;
   const hasNext = curIdx >= 0 && curIdx < publishedRows.length - 1;
+  const completedCount = publishedRows.filter((row) => progressByRow.get(row.key)?.isCompleted).length;
+  const progressPercent = publishedRows.length > 0 ? Math.round((completedCount / publishedRows.length) * 100) : 0;
   const goToRow = (row: { video: LecturePublicVideo; startSeconds?: number }) => {
     setSelectedVideoId(row.video.id);
     setSelectedStartSeconds(row.startSeconds);
@@ -402,6 +484,13 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           </div>
 
           <div className="flex-1" />
+
+          <div className="hidden md:flex items-center gap-2 mr-2" style={{ minWidth: 150 }}>
+            <div style={{ flex: 1, height: 6, borderRadius: 999, background: C.border, overflow: "hidden" }}>
+              <div style={{ width: `${progressPercent}%`, height: "100%", background: C.accent, borderRadius: 999 }} />
+            </div>
+            <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{progressPercent}%</span>
+          </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto sm:ml-0">
             <Link
@@ -587,26 +676,59 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
             </button>
           </div>
 
-          {/* 커리큘럼 */}
-          <div style={{ paddingBottom: 24 }}>
-            <div className="grid grid-cols-2" style={{ gap: 12, marginBottom: 28 }}>
-              <div style={{ padding: "14px 16px", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>총 강의 수</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: C.accent }}>{allVideos.length}강</div>
-              </div>
-              <div style={{ padding: "14px 16px", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>총 재생 시간</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: C.accent }}>
-                  {formatTotalDuration(totalDurationSeconds)}
-                </div>
-              </div>
+          {/* 학습 탭 */}
+          <div style={{ paddingBottom: 28 }}>
+            <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.border}`, background: C.white, padding: "0 8px", borderRadius: "12px 12px 0 0" }}>
+              {COURSE_TABS.map((tab) => (
+                <button key={tab} type="button" onClick={() => setActiveTab(tab)} style={{ padding: "13px 12px", background: "none", border: "none", borderBottom: activeTab === tab ? `2px solid ${C.accent}` : "2px solid transparent", color: activeTab === tab ? C.accent : C.textMuted, fontSize: 13, fontWeight: activeTab === tab ? 700 : 500, cursor: "pointer" }}>
+                  {tab}
+                </button>
+              ))}
             </div>
-
-            {info.course.description && (
-              <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}>
-                {info.course.description}
-              </p>
-            )}
+            <div style={{ background: C.white, padding: 20, minHeight: 150, borderRadius: "0 0 12px 12px", border: `1px solid ${C.border}`, borderTop: "none" }}>
+              {activeTab === "강의정보" && (
+                <>
+                  <div className="grid grid-cols-3" style={{ gap: 10, marginBottom: 20 }}>
+                    {[{ label: "전체 강의", value: `${publishedRows.length}강` }, { label: "학습 완료", value: `${completedCount}강` }, { label: "총 재생시간", value: formatTotalDuration(totalDurationSeconds) }].map((item) => (
+                      <div key={item.label} style={{ padding: "13px 14px", background: C.bg, borderRadius: 9 }}>
+                        <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>{item.label}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: C.accent }}>{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{info.course.description ?? "강의 소개가 준비 중입니다."}</p>
+                </>
+              )}
+              {activeTab === "Q&A" && (
+                <div style={{ textAlign: "center", padding: "26px 12px" }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: C.textPrimary }}>강의 질문 기능을 준비하고 있습니다</p>
+                  <p style={{ margin: "6px 0 0", fontSize: 12, color: C.textDim }}>현재 영상과 재생 시점을 함께 남길 수 있도록 연결할 예정입니다.</p>
+                </div>
+              )}
+              {activeTab === "노트" && (
+                <div>
+                  <textarea value={noteText} onChange={(event) => setNoteText(event.target.value)} placeholder="현재 강의의 핵심 내용이나 권리분석 포인트를 기록해보세요." style={{ width: "100%", minHeight: 88, resize: "vertical", border: `1px solid ${C.border}`, background: C.bg, borderRadius: 9, padding: 12, fontSize: 13, color: C.textPrimary, outline: "none" }} />
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                    <button type="button" onClick={saveNote} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>노트 저장</button>
+                  </div>
+                  <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
+                    {notes.map((note) => (
+                      <div key={note.id} style={{ padding: 13, border: `1px solid ${C.border}`, borderRadius: 9 }}>
+                        <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 5 }}>{note.lesson} · {formatDuration(note.time)}</div>
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: C.textSecondary }}>{note.text}</p>
+                      </div>
+                    ))}
+                    {notes.length === 0 && <p style={{ margin: 0, textAlign: "center", fontSize: 12, color: C.textDim }}>아직 작성한 노트가 없습니다.</p>}
+                  </div>
+                </div>
+              )}
+              {activeTab === "수강후기" && (
+                <div style={{ textAlign: "center", padding: "26px 12px" }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: C.textPrimary }}>과정을 학습한 뒤 후기를 남겨주세요</p>
+                  <p style={{ margin: "6px 0 0", fontSize: 12, color: C.textDim }}>수강 완료 상태와 연결되는 후기 기능을 준비하고 있습니다.</p>
+                </div>
+              )}
+            </div>
           </div>
           </div>
 
@@ -624,6 +746,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 section={section}
                 activeId={selectedVideoId}
                 activeStartSeconds={selectedStartSeconds}
+                progressByRow={progressByRow}
                 onSelect={(v, startSeconds) => {
                   setSelectedVideoId(v.id);
                   setSelectedStartSeconds(startSeconds);

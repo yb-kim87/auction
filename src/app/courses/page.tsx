@@ -78,6 +78,9 @@ export default function MyCoursesPage() {
   };
 
   const homeHref = profile ? getLoginRedirect(profile.role) : "/";
+  const resumeCourse = courses?.find(
+    (course) => course.effectiveStatus === "ACTIVE" && course.lastLessonTitle,
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg }}>
@@ -150,11 +153,22 @@ export default function MyCoursesPage() {
 
       <main style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", gap: 32 }}>
         {/* ── welcome banner ── */}
-        <div style={{ background: C.white, borderRadius: 16, padding: "24px 32px", border: `1px solid ${C.border}` }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary, margin: 0 }}>
-            반가워요{profile ? `, ${profile.name}님` : ""}! 👋
-          </h1>
-          <p style={{ fontSize: 13, color: C.textDim, marginTop: 4 }}>오늘도 목표 달성을 위해 달려볼까요?</p>
+        <div style={{ background: C.white, borderRadius: 18, padding: "24px 28px", border: `1px solid ${C.border}`, boxShadow: "0 8px 28px rgba(17,24,39,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary, margin: 0 }}>
+                반가워요{profile ? `, ${profile.name}님` : ""}! 👋
+              </h1>
+              <p style={{ fontSize: 13, color: C.textDim, margin: "5px 0 0" }}>
+                {resumeCourse ? `${resumeCourse.lastLessonTitle}부터 이어서 학습해보세요.` : "오늘도 목표 달성을 위해 한 강씩 시작해볼까요?"}
+              </p>
+            </div>
+            {resumeCourse && (
+              <Link href={`/courses/${resumeCourse.courseId}`} style={{ padding: "11px 18px", borderRadius: 10, background: C.accent, color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+                이어서 학습하기 →
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* ── 수강 중인 강의 ── */}
@@ -225,6 +239,20 @@ export default function MyCoursesPage() {
                   {c.courseDescription && (
                     <p style={{ fontSize: 13, color: C.textMuted, margin: 0, lineHeight: 1.5 }}>{c.courseDescription}</p>
                   )}
+                  {c.totalLessons > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: C.textMuted }}>
+                          {c.lastLessonTitle ? `최근 학습 · ${c.lastLessonTitle}` : "아직 학습을 시작하지 않았어요"}
+                        </span>
+                        <strong style={{ fontSize: 12, color: C.accent }}>{c.progressPercent}%</strong>
+                      </div>
+                      <div style={{ height: 7, borderRadius: 999, background: "#eef0f4", overflow: "hidden" }}>
+                        <div style={{ width: `${c.progressPercent}%`, height: "100%", borderRadius: 999, background: `linear-gradient(90deg, ${C.accent}, #8b7cf8)` }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: C.textDim, marginTop: 5 }}>{c.totalLessons}강 중 {c.completedLessons}강 완료</div>
+                    </div>
+                  )}
                   {!c.isAuto && (
                     <div style={{ fontSize: 12, color: C.textDim }}>
                       {formatDate(c.startsAt)} ~ {formatDate(c.expiresAt)}
@@ -249,7 +277,7 @@ export default function MyCoursesPage() {
                         textDecoration: "none",
                       }}
                     >
-                      강의 보기
+                      {c.lastLessonTitle ? "이어서 학습하기" : "학습 시작하기"}
                     </Link>
                   ) : (
                     <span

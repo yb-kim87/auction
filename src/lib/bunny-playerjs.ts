@@ -68,3 +68,39 @@ export function attachChapterAutoPause(iframeId: string, endSeconds: number | un
       // 자동 정지만 조용히 포기한다.
     });
 }
+
+/** Bunny 기본 UI는 유지하면서 재생 위치와 종료 이벤트만 전달한다. */
+export function attachLearningProgress(
+  iframeId: string,
+  options: {
+    endSeconds?: number;
+    onTimeUpdate: (seconds: number, duration: number) => void;
+    onEnded: () => void;
+  },
+): void {
+  if (typeof window === "undefined") return;
+  loadBunnyPlayerJs()
+    .then(() => {
+      const el = document.getElementById(iframeId);
+      if (!el || !window.playerjs) return;
+      const player = new window.playerjs.Player(el);
+      let finished = false;
+      player.on("ready", () => {
+        player.on("timeupdate", (data) => {
+          if (!data) return;
+          options.onTimeUpdate(data.seconds, data.duration);
+          if (!finished && options.endSeconds != null && data.seconds >= options.endSeconds) {
+            finished = true;
+            player.pause();
+            options.onEnded();
+          }
+        });
+        player.on("ended", () => {
+          if (finished) return;
+          finished = true;
+          options.onEnded();
+        });
+      });
+    })
+    .catch(() => {});
+}
