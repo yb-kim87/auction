@@ -3658,6 +3658,46 @@ export async function fetchResaleMatches(): Promise<ResaleMatchQaItem[]> {
   return readJsonResponse(res);
 }
 
+export type ResaleMatchMapItem = {
+  matchId: string;
+  auctionId: string;
+  scoreTotal: number;
+  confidenceTier: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW";
+  isDisplayed: boolean;
+  status: "CANDIDATE" | "CONFIRMED" | "REJECTED" | "SUPERSEDED";
+  auctionNo: string;
+  propType: string | null;
+  address: string;
+  city: string;
+  district: string;
+  umdNm: string;
+  jibun: string;
+  salePrice: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  dealAmount: string;
+  contractDate: string;
+};
+
+export type ResaleMatchMapResponse = {
+  items: ResaleMatchMapItem[];
+  /** 이번 요청에서 새로 지오코딩한 건수. */
+  geocodedNow: number;
+  /** 아직 좌표가 없는 건수(다음 새로고침에서 이어서 채워짐). */
+  pendingCount: number;
+};
+
+export async function fetchResaleMatchesForMap(): Promise<ResaleMatchMapResponse> {
+  const res = await fetch(`${API_BASE}/resale-match/matches/map`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "매도분석 지도 데이터를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function reviewResaleMatch(
   matchId: string,
   status: "CONFIRMED" | "REJECTED",

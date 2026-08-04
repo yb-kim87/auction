@@ -4,10 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   fetchResaleMatches,
+  fetchResaleMatchesForMap,
   reviewResaleMatch,
+  type ResaleMatchMapItem,
   type ResaleMatchQaItem,
 } from "@/lib/api";
 import { CITIES, getDistricts, getWards } from "@/data/korea-regions";
+import { ResaleMatchMapView } from "./ResaleMatchMapView";
 
 const PAGE_SIZE_OPTIONS = [50, 100, 200, 500];
 
@@ -186,6 +189,10 @@ export function ResaleMatchTab() {
   const [items, setItems] = useState<ResaleMatchQaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "map">("table");
+  const [mapItems, setMapItems] = useState<ResaleMatchMapItem[]>([]);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [filterCity, setFilterCity] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
   const [filterWard, setFilterWard] = useState("");
@@ -234,6 +241,41 @@ export function ResaleMatchTab() {
         .sort((a, b) => a.address.localeCompare(b.address, "ko")),
     [items, filterCity, filterDistrict, filterWard, filterPropType],
   );
+
+  const filteredMapItems = useMemo(
+    () =>
+      mapItems.filter(
+        (item) =>
+          (!filterCity || item.city === filterCity) &&
+          (!filterDistrict || item.district === filterDistrict) &&
+          (!filterWard || item.umdNm === filterWard) &&
+          (!filterPropType || item.propType === filterPropType),
+      ),
+    [mapItems, filterCity, filterDistrict, filterWard, filterPropType],
+  );
+
+  const loadMap = useCallback(() => {
+    setMapLoading(true);
+    setMapMessage(null);
+    fetchResaleMatchesForMap()
+      .then((res) => {
+        setMapItems(res.items);
+        if (res.pendingCount > 0) {
+          setMapMessage(
+            `이번 조회에서 ${res.geocodedNow}건 좌표를 새로 확보했습니다. 아직 ${res.pendingCount}건이 남아있어 "지도 새로고침"을 몇 번 더 누르면 이어서 채워집니다.`,
+          );
+        }
+      })
+      .catch((err) => setMapMessage(err instanceof Error ? err.message : "지도 데이터를 불러오지 못했습니다."))
+      .finally(() => setMapLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === "map" && mapItems.length === 0 && !mapLoading) {
+      loadMap();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
@@ -292,10 +334,42 @@ export function ResaleMatchTab() {
       )}
 
       <div className="flex items-center gap-3">
-        <button type="button" onClick={load} className="text-xs text-primary hover:underline">
-          새로고침
-        </button>
+        <div className="inline-flex rounded-sm border border-border overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`px-3 py-1.5 text-xs font-semibold ${
+              viewMode === "table" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground"
+            }`}
+          >
+            테이블
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("map")}
+            className={`px-3 py-1.5 text-xs font-semibold border-l border-border ${
+              viewMode === "map" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground"
+            }`}
+          >
+            지도
+          </button>
+        </div>
+        {viewMode === "table" ? (
+          <button type="button" onClick={load} className="text-xs text-primary hover:underline">
+            새로고침
+          </button>
+        ) : (
+          <button type="button" onClick={loadMap} disabled={mapLoading} className="text-xs text-primary hover:underline disabled:opacity-50">
+            {mapLoading ? "불러오는 중..." : "지도 새로고침"}
+          </button>
+        )}
       </div>
+
+      {viewMode === "map" && mapMessage && (
+        <div className="text-sm px-3 py-2 rounded-sm border border-border bg-secondary/30">
+          {mapMessage}
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">지역 필터</span>
@@ -381,6 +455,10 @@ export function ResaleMatchTab() {
         </span>
       </div>
 
+      {viewMode === "map" ? (
+        <ResaleMatchMapView items={filteredMapItems} />
+      ) : (
+        <>
       <div className="border border-border rounded-sm overflow-x-auto overflow-y-auto" style={{ height: "min(560px, calc(100vh - 320px))" }}>
         {loading ? (
           <p className="text-sm text-muted-foreground p-4">불러오는 중...</p>
@@ -620,6 +698,8 @@ export function ResaleMatchTab() {
             {totalPages}페이지 중 {currentPage}페이지
           </span>
         </div>
+      )}
+        </>
       )}
     </div>
   );
