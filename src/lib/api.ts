@@ -3679,21 +3679,44 @@ export type ResaleMatchMapItem = {
   contractDate: string;
 };
 
-export type ResaleMatchMapResponse = {
-  items: ResaleMatchMapItem[];
-  /** 이번 요청에서 새로 지오코딩한 건수. */
-  geocodedNow: number;
-  /** 아직 좌표가 없는 건수(다음 새로고침에서 이어서 채워짐). */
-  pendingCount: number;
-};
-
-export async function fetchResaleMatchesForMap(): Promise<ResaleMatchMapResponse> {
+export async function fetchResaleMatchesForMap(): Promise<{ items: ResaleMatchMapItem[] }> {
   const res = await fetch(`${API_BASE}/resale-match/matches/map`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "매도분석 지도 데이터를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+/** Railway(백엔드)가 VWorld API에 직접 연결하지 못해(SocketError,
+ * 2026-08-04) 프론트(Vercel, 서울 리전)에서 대신 지오코딩한다. 우리 쪽
+ * `/api/resale-match/geocode` 라우트를 호출 — VAT 계산기의 icn1 리전
+ * 우회와 동일 패턴. */
+export async function geocodeAddress(
+  address: string,
+): Promise<{ latitude: number | null; longitude: number | null }> {
+  const res = await fetch(`${API_BASE}/resale-match/geocode?address=${encodeURIComponent(address)}`, {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    return { latitude: null, longitude: null };
+  }
+  return readJsonResponse(res);
+}
+
+export async function saveResaleMatchCoords(
+  items: Array<{ auctionId: string; latitude: number; longitude: number }>,
+): Promise<{ ok: boolean; saved: number }> {
+  const res = await fetch(`${API_BASE}/resale-match/matches/coords`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "좌표 저장에 실패했습니다.");
   }
   return readJsonResponse(res);
 }

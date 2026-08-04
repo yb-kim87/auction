@@ -5,7 +5,9 @@ import { ChevronDown } from "lucide-react";
 import {
   fetchResaleMatches,
   fetchResaleMatchesForMap,
+  geocodeAddress,
   reviewResaleMatch,
+  saveResaleMatchCoords,
   type ResaleMatchMapItem,
   type ResaleMatchQaItem,
 } from "@/lib/api";
@@ -254,20 +256,68 @@ export function ResaleMatchTab() {
     [mapItems, filterCity, filterDistrict, filterWard, filterPropType],
   );
 
-  const loadMap = useCallback(() => {
+  const loadMap = useCallback(async () => {
     setMapLoading(true);
     setMapMessage(null);
-    fetchResaleMatchesForMap()
-      .then((res) => {
-        setMapItems(res.items);
-        if (res.pendingCount > 0) {
-          setMapMessage(
-            `이번 조회에서 ${res.geocodedNow}건 좌표를 새로 확보했습니다. 아직 ${res.pendingCount}건이 남아있어 "지도 새로고침"을 몇 번 더 누르면 이어서 채워집니다.`,
+    try {
+      const res = await fetchResaleMatchesForMap();
+      setMapItems(res.items);
+
+      // 백엔드(Railway)가 VWorld API에 직접 연결하지 못해(SocketError,
+      // 2026-08-04) 좌표가 없는 항목은 여기(브라우저→Vercel /api 라우트)에서
+      // 지오코딩한다. 한 번에 너무 많이 돌리지 않도록 상한을 두고, 확보한
+      // 좌표는 바로 화면에 반영하면서 백엔드에도 저장(다음부터 재조회 불필요).
+      const GEOCODE_BATCH_LIMIT = 80;
+      const GEOCODE_CONCURRENCY = 5;
+      const missing = res.items
+        .filter((item) => item.latitude == null || item.longitude == null)
+        .slice(0, GEOCODE_BATCH_LIMIT);
+
+      if (missing.length > 0) {
+        const geocoded: Array<{ auctionId: string; latitude: number; longitude: number }> = [];
+        for (let i = 0; i < missing.length; i += GEOCODE_CONCURRENCY) {
+          const batch = missing.slice(i, i + GEOCODE_CONCURRENCY);
+          await Promise.all(
+            batch.map(async (item) => {
+              const address = [item.city, item.district, item.umdNm, item.jibun]
+                .filter((v) => v && v.trim())
+                .join(" ");
+              if (!address) return;
+              const coord = await geocodeAddress(address);
+              if (coord.latitude == null || coord.longitude == null) return;
+              geocoded.push({ auctionId: item.auctionId, latitude: coord.latitude, longitude: coord.longitude });
+            }),
           );
         }
-      })
-      .catch((err) => setMapMessage(err instanceof Error ? err.message : "지도 데이터를 불러오지 못했습니다."))
-      .finally(() => setMapLoading(false));
+
+        if (geocoded.length > 0) {
+          const byAuctionId = new Map(geocoded.map((g) => [g.auctionId, g]));
+          setMapItems((prev) =>
+            prev.map((item) => {
+              const found = byAuctionId.get(item.auctionId);
+              return found ? { ...item, latitude: found.latitude, longitude: found.longitude } : item;
+            }),
+          );
+          void saveResaleMatchCoords(geocoded).catch(() => {});
+        }
+
+        const remainingTotal = res.items.filter(
+          (item) =>
+            (item.latitude == null || item.longitude == null) &&
+            !geocoded.some((g) => g.auctionId === item.auctionId),
+        ).length;
+        setMapMessage(
+          `이번에 ${geocoded.length}건 좌표를 새로 확보했습니다.` +
+            (remainingTotal > 0
+              ? ` 아직 ${remainingTotal}건이 남아있어 "지도 새로고침"을 몇 번 더 누르면 이어서 채워집니다.`
+              : ""),
+        );
+      }
+    } catch (err) {
+      setMapMessage(err instanceof Error ? err.message : "지도 데이터를 불러오지 못했습니다.");
+    } finally {
+      setMapLoading(false);
+    }
   }, []);
 
   useEffect(() => {
