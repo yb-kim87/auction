@@ -16,7 +16,20 @@ function computeProfit(item: ResaleMatchMapItem): number | null {
  * 진한 초록, 손해가 클수록 진한 빨강(사용자 요청, 2026-08-04: "매도차익
  * 금액으로 색상 기준점을 바꿔줘", 처음엔 confidenceTier 등급별 색이었으나
  * 변경). */
-export function ResaleMatchMapView({ items }: { items: ResaleMatchMapItem[] }) {
+export function ResaleMatchMapView({
+  items,
+  onReject,
+  onDelete,
+}: {
+  items: ResaleMatchMapItem[];
+  /** 지도 팝업에서 바로 반려(목록/지도에서 숨김)할 수 있게 한다 —
+   * 사용자 요청, 2026-08-04: "매도 분석에 리스트 원하지않는거 지도에
+   * 노출안되게 할 수 잇나?? 선택하는게 없네". */
+  onReject: (matchId: string) => void;
+  /** 반려 대신 데이터 자체를 지우고 싶을 때("아니면 데이터를 지울 수
+   * 있거나"). */
+  onDelete: (matchId: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMap | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
@@ -95,6 +108,8 @@ export function ResaleMatchMapView({ items }: { items: ResaleMatchMapItem[] }) {
 
       const address = `${item.city} ${item.district} ${item.umdNm} ${item.jibun}`;
       const profitColor = profitToColor(profit);
+      const rejectBtnId = `resale-map-reject-${item.matchId}`;
+      const deleteBtnId = `resale-map-delete-${item.matchId}`;
       const content = `
         <div style="padding:10px 12px;min-width:220px;font-size:12px;line-height:1.6;">
           <div style="font-weight:700;margin-bottom:4px;">${item.auctionNo}</div>
@@ -103,6 +118,10 @@ export function ResaleMatchMapView({ items }: { items: ResaleMatchMapItem[] }) {
           <div>실거래가: ${formatWon(item.dealAmount)}</div>
           ${profit != null ? `<div style="color:${profitColor};font-weight:700;">매도차익: ${formatWon(profit)}</div>` : ""}
           <div>점수/등급: ${item.scoreTotal}점 · ${item.confidenceTier}</div>
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee;display:flex;gap:10px;">
+            <button id="${rejectBtnId}" style="font-size:11px;color:#d97706;background:none;border:none;cursor:pointer;padding:0;">지도에서 제외(반려)</button>
+            <button id="${deleteBtnId}" style="font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;padding:0;">삭제</button>
+          </div>
         </div>
       `;
 
@@ -111,6 +130,12 @@ export function ResaleMatchMapView({ items }: { items: ResaleMatchMapItem[] }) {
         infoWindowRef.current.close();
         infoWindowRef.current = new kakao.maps.InfoWindow({ content, removable: true });
         infoWindowRef.current.open(map, marker);
+        // InfoWindow 콘텐츠는 open() 시점에야 실제 DOM에 삽입되므로,
+        // 버튼 클릭 핸들러는 다음 tick에 바인딩해야 한다.
+        setTimeout(() => {
+          document.getElementById(rejectBtnId)?.addEventListener("click", () => onReject(item.matchId));
+          document.getElementById(deleteBtnId)?.addEventListener("click", () => onDelete(item.matchId));
+        }, 0);
       });
     });
 

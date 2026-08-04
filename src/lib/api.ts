@@ -3841,6 +3841,16 @@ export async function reviewResaleMatch(
   }
 }
 
+export async function deleteResaleMatch(matchId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/resale-match/matches/${matchId}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "삭제에 실패했습니다.");
+  }
+}
+
 export async function runResaleMatchNow(): Promise<{ ok: boolean; message: string }> {
   const res = await fetch(`${API_BASE}/resale-match/run-now`, {
     method: "POST",

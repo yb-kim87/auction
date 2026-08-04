@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
+  deleteResaleMatch,
   fetchResaleMatches,
   fetchResaleMatchesForMap,
   geocodeAddress,
@@ -358,8 +359,28 @@ export function ResaleMatchTab() {
     try {
       await reviewResaleMatch(matchId, status);
       load();
+      // 반려하면 지도(매도분석 지도 API가 REJECTED를 이미 제외하고 내려줌)에서도
+      // 새로고침 없이 바로 사라지게 로컬 상태에서도 제거한다(사용자 요청,
+      // 2026-08-04: "리스트 원하지않는거 지도에 노출안되게 할 수 잇나??").
+      if (status === "REJECTED") {
+        setMapItems((prev) => prev.filter((i) => i.matchId !== matchId));
+      }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "검토 상태 저장 실패");
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
+  async function handleDelete(matchId: string) {
+    if (!confirm("이 매칭 결과를 완전히 삭제할까요? 되돌릴 수 없습니다.")) return;
+    setReviewingId(matchId);
+    try {
+      await deleteResaleMatch(matchId);
+      setItems((prev) => prev.filter((i) => i.matchId !== matchId));
+      setMapItems((prev) => prev.filter((i) => i.matchId !== matchId));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "삭제 실패");
     } finally {
       setReviewingId(null);
     }
@@ -506,7 +527,11 @@ export function ResaleMatchTab() {
       </div>
 
       {viewMode === "map" ? (
-        <ResaleMatchMapView items={filteredMapItems} />
+        <ResaleMatchMapView
+          items={filteredMapItems}
+          onReject={(matchId) => void handleReview(matchId, "REJECTED")}
+          onDelete={(matchId) => void handleDelete(matchId)}
+        />
       ) : (
         <>
       <div className="border border-border rounded-sm overflow-x-auto overflow-y-auto" style={{ height: "min(560px, calc(100vh - 320px))" }}>
@@ -675,6 +700,14 @@ export function ResaleMatchTab() {
                       className="text-xs text-destructive hover:underline disabled:opacity-50"
                     >
                       반려
+                    </button>
+                    <button
+                      type="button"
+                      disabled={reviewingId === item.matchId}
+                      onClick={() => void handleDelete(item.matchId)}
+                      className="text-xs text-destructive hover:underline disabled:opacity-50"
+                    >
+                      삭제
                     </button>
                   </td>
                 </tr>
