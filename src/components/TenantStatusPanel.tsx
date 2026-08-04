@@ -95,10 +95,56 @@ export function TenantStatusPanel({
     const n = match ? Number(match[1].replace(/,/g, "")) : 0;
     return Number.isFinite(n) ? sum + n : sum;
   }, 0);
+  const rowMeta = (row: (typeof rows)[number]) => {
+    const moveInDate = row.dates.match(/전입:(\d{4}-\d{2}-\d{2})/)?.[1] ?? "";
+    const ownOpposability = computeOpposability(
+      moveInDate,
+      baselineDate || rightsAnalysis?.structuredRights?.baselineRight.date,
+    );
+    const displayedOpposability = ownOpposability ?? (row.opposability && row.opposability !== "-" ? row.opposability : "-");
+    const hasWaiver = GUARANTEE_CORP_RE.test(row.tenantName) && CREDITOR_WAIVER_RE.test(miscNotes || "");
+    const dangerous = opposabilityTone(displayedOpposability) === "danger" || row.analysis.some((line) => analysisTone(line) === "danger");
+    return { moveInDate, ownOpposability, displayedOpposability, hasWaiver, dangerous };
+  };
+  const riskCount = rows.filter((row) => rowMeta(row).dangerous).length;
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="overflow-x-auto max-h-72 overflow-y-auto">
+      <div className="grid grid-cols-3 divide-x divide-border border-b border-border bg-secondary/20">
+        <div className="px-3 py-2.5"><p className="text-[0.62rem] text-muted-foreground">임차인</p><p className="mt-0.5 text-sm font-bold text-foreground">{rows.length}명</p></div>
+        <div className="px-3 py-2.5"><p className="text-[0.62rem] text-muted-foreground">보증금 합계</p><p className="mt-0.5 text-sm font-bold text-foreground">{totalDeposit.toLocaleString("ko-KR")}원</p></div>
+        <div className="px-3 py-2.5"><p className="text-[0.62rem] text-muted-foreground">확인 필요</p><p className={`mt-0.5 text-sm font-bold ${riskCount > 0 ? "text-red-600" : "text-emerald-700"}`}>{riskCount > 0 ? `${riskCount}건` : "없음"}</p></div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-2 2xl:hidden">
+        {rows.map((row, i) => {
+          const meta = rowMeta(row);
+          return (
+            <article key={i} className={`rounded-xl border p-3.5 ${meta.dangerous ? "border-red-200 bg-red-50/35" : "border-border bg-card"}`}>
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-sm font-bold text-foreground">{row.tenantName || "임차인 미상"}</span>
+                    {row.occupancyNo && <span className="rounded-full bg-secondary px-2 py-0.5 text-[0.62rem] text-muted-foreground">점유 {row.occupancyNo}</span>}
+                  </div>
+                  <p className="mt-1 text-[0.72rem] leading-relaxed text-muted-foreground whitespace-pre-line">{row.occupancy || "점유 부분 미확인"}</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-1 text-[0.65rem] font-bold ${meta.displayedOpposability === "없음" ? "bg-emerald-100 text-emerald-700" : meta.dangerous ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                  대항력 {meta.displayedOpposability}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[0.72rem]">
+                <div className="rounded-lg bg-secondary/45 px-2.5 py-2"><p className="text-[0.62rem] text-muted-foreground">전입·확정·배당</p><div className="mt-1 whitespace-pre-line leading-relaxed text-foreground">{row.dates ? row.dates.split(" / ").join("\n") : "-"}</div></div>
+                <div className="rounded-lg bg-secondary/45 px-2.5 py-2"><p className="text-[0.62rem] text-muted-foreground">보증금·차임</p><p className="mt-1 whitespace-pre-line font-bold leading-relaxed text-foreground">{row.depositRent || "-"}</p></div>
+              </div>
+              {row.analysis.length > 0 && <div className="mt-2.5 space-y-1 border-t border-border/60 pt-2.5">{row.analysis.map((line, idx) => <p key={idx} className={`text-[0.72rem] leading-relaxed ${toneClass[analysisTone(line)]}`}>{line}</p>)}</div>}
+              {(row.other || meta.hasWaiver) && <div className="mt-2 flex flex-wrap gap-1.5">{meta.hasWaiver && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[0.62rem] font-semibold text-amber-700">임차권 포기</span>}{row.other && <span className="text-[0.68rem] text-muted-foreground">{row.other}</span>}</div>}
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto max-h-72 overflow-y-auto 2xl:block">
         <table className="w-full min-w-[1020px] table-fixed border-collapse">
           <colgroup>
             <col className="w-[72px]" />
@@ -124,19 +170,7 @@ export function TenantStatusPanel({
           </thead>
           <tbody>
             {rows.map((row, i) => {
-              const moveInDate =
-                row.dates.match(/전입:(\d{4}-\d{2}-\d{2})/)?.[1] ?? "";
-              // 등기부에서 파싱한 말소기준일(props)을 우선 쓰고, 없으면
-              // 이미 AI 권리분석을 돌린 적이 있을 때만 그 결과를 보조로 쓴다.
-              const ownOpposability = computeOpposability(
-                moveInDate,
-                baselineDate || rightsAnalysis?.structuredRights?.baselineRight.date,
-              );
-              const displayedOpposability =
-                ownOpposability ??
-                (row.opposability && row.opposability !== "-" ? row.opposability : "-");
-              const isGuaranteeCorp = GUARANTEE_CORP_RE.test(row.tenantName);
-              const hasWaiver = isGuaranteeCorp && CREDITOR_WAIVER_RE.test(miscNotes || "");
+              const { moveInDate, ownOpposability, displayedOpposability, hasWaiver } = rowMeta(row);
               return (
               <tr key={i} className="border-t border-border/60">
                 <td className={bodyCellClass}>{row.occupancyNo || "-"}</td>
@@ -191,13 +225,6 @@ export function TenantStatusPanel({
           </tbody>
         </table>
       </div>
-      {rows.length > 0 && (
-        <div className="flex items-center justify-end px-3 py-2 border-t border-border/60 bg-secondary/20 text-[0.72rem] text-muted-foreground">
-          <span className="font-semibold text-foreground">
-            임차인 {rows.length}건, 임차보증금합계: {totalDeposit.toLocaleString("ko-KR")}원
-          </span>
-        </div>
-      )}
       {miscNotes && (
         <div className="px-3 py-2.5 border-t border-border/60 text-[0.75rem] text-muted-foreground whitespace-pre-wrap leading-relaxed">
           {miscNotes}

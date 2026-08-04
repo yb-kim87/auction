@@ -33,7 +33,7 @@ import {
   CREDIT_SCORE_OPTIONS,
   ANNUAL_NET_INCOME_OPTIONS,
 } from "@/data/investment-options";
-import { formatWonShort } from "@/lib/investment-money";
+import { formatWonShort, parseMoneyToWon } from "@/lib/investment-money";
 import { housingLoanLabel } from "@/lib/loan-policy-label";
 import { estimateDefaultProfit } from "@/lib/profit-calculator";
 
@@ -82,6 +82,25 @@ function formatAreaLabel(area: string | null | undefined): string {
   if (!Number.isFinite(num) || num <= 0) return "-";
   const pyeong = Math.round(num / 3.3);
   return `건물 전용${pyeong}평(${num}㎡)`;
+}
+
+function bidDatePresentation(bidDate: string | null | undefined, caseState: string | null | undefined) {
+  const state = String(caseState ?? "").replace(/\s+/g, "");
+  if (/기일변경|변경/.test(state)) {
+    return { label: "기일 변경", className: "bg-slate-100 text-slate-600 border-slate-200" };
+  }
+  const parsed = parseBidDate(bidDate ?? "");
+  if (!parsed) return { label: "일정 확인", className: "bg-slate-100 text-slate-500 border-slate-200" };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  parsed.setHours(0, 0, 0, 0);
+  const days = Math.round((parsed.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0 || isBidDateEnded(bidDate ?? "", caseState ?? undefined)) {
+    return { label: "입찰 종료", className: "bg-red-50 text-red-600 border-red-100" };
+  }
+  if (days === 0) return { label: "오늘 입찰", className: "bg-orange-100 text-orange-700 border-orange-200" };
+  if (days <= 7) return { label: `D-${days}`, className: "bg-orange-50 text-orange-700 border-orange-200" };
+  return { label: `D-${days}`, className: "bg-blue-50 text-blue-700 border-blue-100" };
 }
 
 
@@ -639,6 +658,7 @@ function RecommendCard({
   loanInfo,
   firstTimeBuyer,
   housingCount,
+  availableCapital,
   isFavorite,
   favoriteBusy,
   onToggleFavorite,
@@ -648,6 +668,7 @@ function RecommendCard({
   loanInfo: LoanInfo | undefined;
   firstTimeBuyer: boolean;
   housingCount?: number | null;
+  availableCapital: number | null;
   isFavorite: boolean;
   favoriteBusy: boolean;
   onToggleFavorite: () => void;
@@ -681,6 +702,25 @@ function RecommendCard({
     : null;
 
   const isApartment = item.usage === "아파트";
+  const bidTiming = bidDatePresentation(item.bidDate, item.caseState);
+  const capitalUsageRatio = requiredEquity != null && availableCapital && availableCapital > 0
+    ? (requiredEquity / availableCapital) * 100
+    : null;
+  const capitalBuffer = requiredEquity != null && availableCapital != null
+    ? Math.max(0, availableCapital - requiredEquity)
+    : null;
+  const fitTone = capitalUsageRatio == null
+    ? "조건 확인"
+    : capitalUsageRatio <= 70
+      ? "조건 여유"
+      : capitalUsageRatio <= 90
+        ? "조건 충족"
+        : "조건 경계";
+  const cautionLabels = [
+    displaySpecialNote(item.specialNote),
+    (item.unpaidFeeAmount ?? 0) > 0 ? "미납 관리비" : "",
+    /대항력|매수인\s*인수|인수조건/.test(`${item.tenantInfo ?? ""} ${item.tenantDetail ?? ""}`) ? "임차인 권리" : "",
+  ].filter(Boolean);
 
   return (
     <div
@@ -733,9 +773,10 @@ function RecommendCard({
           <p className="font-semibold text-foreground text-[0.88rem] truncate">{item.address}</p>
           <p className="mt-1 text-[0.7rem] text-muted-foreground flex items-center gap-3 flex-wrap">
             <span>{formatAreaLabel(item.area)}</span>
-            <span className={`inline-flex items-center gap-1 ${isBidDateEnded(item.bidDate ?? "", item.caseState) ? "text-red-600 font-medium" : ""}`}>
+            <span className="inline-flex items-center gap-1.5">
               <Calendar size={11} />
-              {item.bidDate || "-"}
+              <span className={`rounded-md border px-1.5 py-0.5 text-[0.62rem] font-bold ${bidTiming.className}`}>{bidTiming.label}</span>
+              <span className={bidTiming.label === "입찰 종료" ? "text-red-600 font-medium" : ""}>{item.bidDate || "-"}</span>
             </span>
           </p>
         </div>
@@ -757,6 +798,34 @@ function RecommendCard({
             </span>
           ))}
         </div>
+
+        {requiredEquity != null && availableCapital != null && (
+          <div className="mx-4 mt-2.5 rounded-xl border border-border bg-secondary/20 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[0.64rem] font-bold ${capitalUsageRatio != null && capitalUsageRatio > 90 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                  {fitTone}
+                </span>
+                <span className="text-[0.68rem] font-semibold text-foreground">내 투자정보 기준</span>
+              </div>
+              {capitalUsageRatio != null && <span className="text-[0.65rem] font-semibold text-muted-foreground">자금 사용 {Math.round(capitalUsageRatio)}%</span>}
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border/70">
+              <div className={`h-full rounded-full ${capitalUsageRatio != null && capitalUsageRatio > 90 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, capitalUsageRatio ?? 0)}%` }} />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.66rem] text-muted-foreground">
+              <span>예상 필요자금 <strong className="text-foreground">{formatWonShort(requiredEquity)}</strong></span>
+              {capitalBuffer != null && <span>가용자금 대비 <strong className="text-emerald-700">{formatWonShort(capitalBuffer)} 여유</strong></span>}
+              {loanInfo && <span>{loanInfo.loanUnavailable ? "현금 매수 조건 충족" : loanInfo.regulatedArea ? "규제지역 기준 반영" : "비규제지역 기준 반영"}</span>}
+            </div>
+            {cautionLabels.length > 0 && (
+              <div className="mt-2 flex items-center gap-1.5 border-t border-border/60 pt-2">
+                <span className="text-[0.64rem] font-bold text-red-600">입찰 전 확인</span>
+                {cautionLabels.slice(0, 2).map((label) => <span key={label} className="rounded bg-red-50 px-1.5 py-0.5 text-[0.62rem] font-medium text-red-600">{label}</span>)}
+              </div>
+            )}
+          </div>
+        )}
 
         {requiredEquity != null && (
           <div
@@ -857,6 +926,7 @@ function RecommendListRow({
   item,
   loanInfo,
   firstTimeBuyer,
+  availableCapital,
   isFavorite,
   favoriteBusy,
   onToggleFavorite,
@@ -865,12 +935,14 @@ function RecommendListRow({
   item: AuctionItem;
   loanInfo: LoanInfo | undefined;
   firstTimeBuyer: boolean;
+  availableCapital: number | null;
   isFavorite: boolean;
   favoriteBusy: boolean;
   onToggleFavorite: () => void;
   onOpen: () => void;
 }) {
   const requiredEquity = loanInfo?.requiredEquity ?? null;
+  const bidTiming = bidDatePresentation(item.bidDate, item.caseState);
   const loanAmount = finalLoanAmount(item, loanInfo);
   const loanPolicyLabel = loanInfo
     ? housingLoanLabel(loanInfo.loanPolicyLabel, firstTimeBuyer)
@@ -878,16 +950,40 @@ function RecommendListRow({
   const failureRate = getFailureRateRatio(item.minPrice, item.appraisedValue);
   const failureCount = getFailureRoundCount(item.minPrice, item.appraisedValue, item.city);
   const isNew = failureRate === 100;
+  const capitalUsageRatio = requiredEquity != null && availableCapital != null && availableCapital > 0
+    ? (requiredEquity / availableCapital) * 100
+    : null;
+  const capitalBuffer = requiredEquity != null && availableCapital != null
+    ? availableCapital - requiredEquity
+    : null;
+  const fitLabel = capitalUsageRatio == null
+    ? "조건 확인"
+    : capitalUsageRatio <= 70
+      ? "조건 여유"
+      : capitalUsageRatio <= 90
+        ? "조건 충족"
+        : "조건 경계";
+  const recommendationReasons = [
+    capitalBuffer != null
+      ? capitalBuffer >= 0
+        ? `투자가능자금 내 · ${formatWonShort(capitalBuffer)} 여유`
+        : `필요자금 ${formatWonShort(Math.abs(capitalBuffer))} 초과`
+      : null,
+    loanInfo
+      ? loanInfo.loanUnavailable
+        ? "대출 조건 확인 필요"
+        : `${loanInfo.regulatedArea ? "규제지역" : "비규제지역"} 대출 기준 반영`
+      : null,
+  ].filter((reason): reason is string => Boolean(reason));
 
   const isApartment = item.usage === "아파트";
 
   return (
-    <div className="bg-card border border-border rounded-xl px-5 py-3.5 flex items-center gap-4 hover:shadow-md hover:shadow-[rgba(30,58,95,0.06)] hover:-translate-y-px transition-all duration-150 cursor-pointer group">
+    <div className="bg-card border border-border rounded-2xl p-4 md:px-5 md:py-4 hover:border-primary/25 hover:shadow-md hover:shadow-[rgba(30,58,95,0.08)] hover:-translate-y-px transition-all duration-150 group">
+      <div className="flex items-start gap-3 md:gap-4">
       <button type="button" onClick={onOpen} className="flex-1 min-w-0 text-left">
-        <p className="text-[0.7rem] text-muted-foreground mb-1.5">{item.auctionNo}</p>
-
-        <div className="flex items-center gap-4">
-        <div className="w-20 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-secondary">
+        <div className="flex items-start gap-3 md:gap-4">
+        <div className="w-24 h-20 md:w-28 md:h-24 rounded-xl overflow-hidden flex-shrink-0 bg-secondary">
           <img
             src={
               isApartment ? "/thumb-apartment.jpg" : "/thumb-villa.jpg"
@@ -898,6 +994,7 @@ function RecommendListRow({
         </div>
 
         <div className="flex-1 min-w-0">
+          <p className="text-[0.7rem] font-medium text-muted-foreground mb-1.5">{item.auctionNo}</p>
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-semibold border bg-[#EEF4FF] text-[#2A5298] border-transparent">
               {item.usage || "물건"}
@@ -918,13 +1015,13 @@ function RecommendListRow({
               </span>
             )}
           </div>
-          <p className="font-semibold text-sm text-foreground truncate">{item.address}</p>
-          <p className="text-[0.72rem] text-muted-foreground truncate">
-            {formatAreaLabel(item.area)} ·{" "}
-            <span className={isBidDateEnded(item.bidDate ?? "", item.caseState) ? "text-red-600 font-medium" : ""}>
-              {item.bidDate || "-"}
-            </span>
-          </p>
+          <p className="font-semibold text-sm md:text-[0.95rem] text-foreground truncate">{item.address}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[0.72rem] text-muted-foreground">
+            <span className="truncate">{formatAreaLabel(item.area)}</span>
+            <span>·</span>
+            <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[0.6rem] font-bold ${bidTiming.className}`}>{bidTiming.label}</span>
+            <span className={`shrink-0 ${bidTiming.label === "입찰 종료" ? "text-red-600 font-medium" : ""}`}>{item.bidDate || "-"}</span>
+          </div>
           {item.strategyTagsList && item.strategyTagsList.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
               {dedupeStrategyTagsByLabel(item.strategyTagsList).map((tag) => (
@@ -944,12 +1041,30 @@ function RecommendListRow({
               ))}
             </div>
           )}
+          {recommendationReasons.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.68rem]">
+              <span className={`rounded-full px-2 py-0.5 font-bold ${capitalUsageRatio != null && capitalUsageRatio > 90 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                {fitLabel}
+              </span>
+              <span className="font-semibold text-primary">추천 이유</span>
+              <span className="text-muted-foreground">{recommendationReasons.join(" · ")}</span>
+            </div>
+          )}
+        </div>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3 md:hidden">
+          <ListPriceMetric label="최소 투자금" value={requiredEquity != null ? formatWonShort(requiredEquity) : "-"} primary />
+          <ListPriceMetric label="예상대출" value={loanAmount != null && loanAmount > 0 ? formatWonShort(loanAmount) : "-"} />
+          <ListPriceMetric label="최저입찰가" value={fmtEok(item.minPrice)} />
+          <ListPriceMetric label="감정가" value={fmtEok(item.appraisedValue)} muted />
+        </div>
+      </button>
+
+        <div className="hidden md:grid flex-shrink-0 grid-cols-[9rem_8rem_7rem_7rem] items-center gap-3 self-stretch">
           {requiredEquity != null && (
             <div
-              className="flex-shrink-0 w-36 hidden sm:block px-3 py-2 text-right"
+              className="px-3 py-2.5 text-right"
               style={{
                 background: "linear-gradient(135deg,#EEF4FF,#F0F5FF)",
                 border: "1px solid rgba(42,82,152,0.12)",
@@ -993,24 +1108,22 @@ function RecommendListRow({
             )
           )}
 
-          <div className="text-right flex-shrink-0 hidden md:block">
+          <div className="text-right">
             <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">최저입찰가</p>
             <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
               {fmtEok(item.minPrice)}
             </p>
           </div>
 
-          <div className="text-right flex-shrink-0 hidden xl:block">
+          <div className="text-right">
             <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">감정가</p>
             <p className="text-sm text-foreground/50" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
               {fmtEok(item.appraisedValue)}
             </p>
           </div>
         </div>
-        </div>
-      </button>
 
-      <div className="flex items-center gap-1.5 flex-shrink-0">
+      <div className="flex flex-col items-center gap-1 flex-shrink-0">
         <button
           type="button"
           onClick={(e) => {
@@ -1023,7 +1136,22 @@ function RecommendListRow({
         >
           <Heart size={16} className={isFavorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"} />
         </button>
+        <button type="button" onClick={onOpen} className="hidden lg:block whitespace-nowrap text-[0.68rem] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+          상세보기 →
+        </button>
       </div>
+      </div>
+    </div>
+  );
+}
+
+function ListPriceMetric({ label, value, primary = false, muted = false }: { label: string; value: string; primary?: boolean; muted?: boolean }) {
+  return (
+    <div className="rounded-lg bg-secondary/35 px-3 py-2">
+      <p className="text-[0.62rem] text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 text-sm font-bold ${primary ? "text-primary" : muted ? "text-foreground/55" : "text-foreground/80"}`} style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -1219,6 +1347,7 @@ export default function HomePage() {
   }
 
   const filteredItems = sortRecommendItems(items, sortBy, loanInfoByItemId);
+  const availableCapital = parseMoneyToWon(currentBudget ?? profile?.investableFunds ?? "");
 
   const activeFilterCount =
     (filters.city.length > 0 ? 1 : 0) +
@@ -1450,6 +1579,7 @@ export default function HomePage() {
                 loanInfo={loanInfoByItemId[item.id]}
                 firstTimeBuyer={profile?.firstTimeBuyer ?? false}
                 housingCount={profile?.housingCount}
+                availableCapital={availableCapital}
                 isFavorite={favoriteIds.has(item.id)}
                 favoriteBusy={favoriteBusyId === item.id}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
@@ -1468,6 +1598,7 @@ export default function HomePage() {
                 item={item}
                 loanInfo={loanInfoByItemId[item.id]}
                 firstTimeBuyer={profile?.firstTimeBuyer ?? false}
+                availableCapital={availableCapital}
                 isFavorite={favoriteIds.has(item.id)}
                 favoriteBusy={favoriteBusyId === item.id}
                 onToggleFavorite={() => handleToggleFavorite(item.id, !favoriteIds.has(item.id))}

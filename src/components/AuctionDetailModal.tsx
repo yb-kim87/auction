@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, Calculator, WalletCards, TrendingDown, ShieldCheck, CircleAlert } from "lucide-react";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, Calculator, WalletCards, TrendingDown, ShieldCheck, CircleAlert } from "lucide-react";
 import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload } from "@/types/auction";
 import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import {
@@ -581,6 +581,35 @@ function ExpandableDetailField({
   );
 }
 
+function BidHistoryTimeline({ value, nextBidDate }: { value: string; nextBidDate?: string | null }) {
+  const rows = String(value ?? "").split(/\r?\n/).map((row) => row.trim()).filter(Boolean);
+  if (rows.length === 0) {
+    return <p className="text-[0.82rem] text-muted-foreground">입찰 진행 내역이 없습니다.</p>;
+  }
+  return (
+    <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <div className="relative space-y-0">
+        {rows.map((row, index) => {
+          const isLast = index === rows.length - 1;
+          const isUpcoming = Boolean(nextBidDate && row.includes(nextBidDate));
+          return (
+            <div key={`${row}-${index}`} className="relative flex gap-3 pb-3 last:pb-0">
+              {!isLast && <span className="absolute left-[7px] top-4 bottom-0 w-px bg-border" />}
+              <span className={`relative mt-1 h-[15px] w-[15px] shrink-0 rounded-full border-[3px] ${isUpcoming ? "border-primary bg-white" : "border-slate-300 bg-white"}`} />
+              <div className={`min-w-0 flex-1 rounded-lg px-3 py-2 ${isUpcoming ? "bg-primary/[0.06] text-primary" : "bg-secondary/35 text-foreground"}`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[0.78rem] font-semibold leading-relaxed">{row}</span>
+                  {isUpcoming && <span className="ml-auto shrink-0 rounded-full bg-primary px-2 py-0.5 text-[0.62rem] font-bold text-primary-foreground">예정</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function detailTableShellClass() {
   return "rounded-xl border border-border bg-card overflow-hidden";
 }
@@ -1123,14 +1152,30 @@ function RegistryTable({ value }: { value: string }) {
     const n = Number(row.amount.replace(/,/g, ""));
     return Number.isFinite(n) ? sum + n : sum;
   }, 0);
+  const baseline = rows.find((row) => row.isBaseline);
+  const activeRiskRows = rows.filter(
+    (row) => !row.cancelled && /근저당|가압류|압류|전세권|임차권|경매/.test(row.rightType),
+  );
 
   return (
     <div className={detailTableShellClass()}>
-      {totalAmount > 0 && (
-        <div className="px-3 py-1.5 text-[0.68rem] text-muted-foreground bg-secondary/20 border-b border-border/60">
-          채권합계금액: {totalAmount.toLocaleString("ko-KR")}원
+      <div className="grid grid-cols-1 gap-2 border-b border-border/60 bg-secondary/20 p-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <p className="text-[0.62rem] font-semibold text-amber-700">말소기준권리</p>
+          <p className="mt-0.5 text-[0.76rem] font-bold text-amber-900">{baseline ? `${baseline.date} · ${baseline.rightType}` : "확인 필요"}</p>
+          {baseline?.holder && <p className="mt-0.5 truncate text-[0.65rem] text-amber-800/70">{baseline.holder}</p>}
         </div>
-      )}
+        <div className="rounded-lg border border-border bg-card px-3 py-2">
+          <p className="text-[0.62rem] text-muted-foreground">채권 합계</p>
+          <p className="mt-0.5 text-[0.76rem] font-bold text-foreground">{totalAmount > 0 ? `${totalAmount.toLocaleString("ko-KR")}원` : "금액 미확인"}</p>
+          <p className="mt-0.5 text-[0.65rem] text-muted-foreground">청구금액 제외</p>
+        </div>
+        <div className={`rounded-lg border px-3 py-2 ${activeRiskRows.length > 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
+          <p className={`text-[0.62rem] font-semibold ${activeRiskRows.length > 0 ? "text-red-700" : "text-emerald-700"}`}>미소멸 확인 대상</p>
+          <p className={`mt-0.5 text-[0.76rem] font-bold ${activeRiskRows.length > 0 ? "text-red-800" : "text-emerald-800"}`}>{activeRiskRows.length > 0 ? `${activeRiskRows.length}건 확인 필요` : "확인된 위험 없음"}</p>
+          <p className="mt-0.5 truncate text-[0.65rem] text-muted-foreground">{activeRiskRows.slice(0, 2).map((row) => row.rightType).join(" · ") || "표시된 소멸 상태 기준"}</p>
+        </div>
+      </div>
       <div className="overflow-x-auto max-h-56 overflow-y-auto">
         <table className="w-full border-collapse">
           <thead className="sticky top-0 bg-card border-b border-border shadow-[0_1px_0_0_var(--border)]">
@@ -1925,7 +1970,7 @@ export function AuctionDetailModal({
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
-        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-7xl"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl`}
+        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-[1320px]"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-xl shadow-2xl overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
@@ -2391,6 +2436,9 @@ export function AuctionDetailModal({
             >
               <Brain size={14} />
               AI 권리분석
+              <span className={`rounded-full px-1.5 py-0.5 text-[0.6rem] font-bold ${cachedAnalysis ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                {cachedAnalysis ? "완료" : "미분석"}
+              </span>
             </button>
             {!editable && (
               <button
@@ -2404,6 +2452,7 @@ export function AuctionDetailModal({
               >
                 <Calculator size={14} />
                 수익계산기
+                {requiredEquity == null && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[0.6rem] font-bold text-slate-500">입력 필요</span>}
               </button>
             )}
           </div>
@@ -2895,11 +2944,13 @@ export function AuctionDetailModal({
               if (fields.length === 0) return null;
 
               return (
-                <div key={group.title} className="rounded-2xl bg-card border border-border overflow-hidden">
-                  <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
+                <details key={group.title} open={group.title === "등기·임차인 정보" || group.title === "입찰 및 진행 상태"} className="group rounded-2xl bg-card border border-border overflow-hidden">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 border-b border-border/50 hover:bg-secondary/30 transition-colors [&::-webkit-details-marker]:hidden">
                     <FileText size={16} className="text-muted-foreground" />
                     <h3 className="text-sm font-bold text-foreground">{group.title}</h3>
-                  </div>
+                    <span className="ml-auto text-[0.68rem] text-muted-foreground">상세 보기</span>
+                    <ChevronDown size={15} className="text-muted-foreground transition-transform group-open:rotate-180" />
+                  </summary>
                   <div className="px-5 py-4">
                     <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                       {fields.map((field) => {
@@ -2944,6 +2995,8 @@ export function AuctionDetailModal({
                                 <EducationTable value={String(item.education ?? "")} />
                               ) : field.key === "buildingRegistry" ? (
                                 <RegistryTable value={String(item.buildingRegistry ?? "")} />
+                              ) : field.key === "bidInfo" ? (
+                                <BidHistoryTimeline value={String(item.bidInfo ?? "")} nextBidDate={preview.bidDate} />
                               ) : isExpandableDetailField(field.key) ? (
                                 <ExpandableDetailField
                                   label={field.label}
@@ -2958,7 +3011,7 @@ export function AuctionDetailModal({
                       })}
                     </div>
                   </div>
-                </div>
+                </details>
               );
             })
           )}
@@ -2967,7 +3020,7 @@ export function AuctionDetailModal({
         </div>
 
         {!editable && (
-          <div className="hidden sm:block w-[280px] shrink-0 bg-secondary/10 px-5 py-5 space-y-4">
+          <aside className="hidden 2xl:block w-[288px] shrink-0 border-l border-border bg-secondary/10 px-5 py-5 space-y-4 sticky top-0 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
             {requiredEquity != null && (
               <div
                 className="rounded-xl p-4"
@@ -3165,7 +3218,7 @@ export function AuctionDetailModal({
                 </div>
               ))}
             </div>
-          </div>
+          </aside>
         )}
         </div>
 
