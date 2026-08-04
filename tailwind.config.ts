@@ -9,10 +9,16 @@ import type { Config } from "tailwindcss";
  * 이 문제가 없다 — 투명도 없이 쓰는 기존 bg-primary 등은 그대로
  * var(--x)를 반환해 영향이 없다. */
 function withOpacity(variable: string) {
-  return ({ opacityValue }: { opacityValue?: string }) =>
-    opacityValue === undefined
-      ? `var(${variable})`
-      : `color-mix(in srgb, var(${variable}) ${Number(opacityValue) * 100}%, transparent)`;
+  return ({ opacityValue }: { opacityValue?: string }) => {
+    // 수정자 없는 기본 유틸(예: bg-primary)에서는 Tailwind가 opacityValue로
+    // "<alpha-value>"/CSS 변수 참조 같은 숫자 아닌 문자열을 넘긴다 —
+    // Number()로 바로 곱하면 NaN%가 돼 색이 통째로 깨진다(실측 사고,
+    // 2026-08-05: 이 함수를 처음 넣은 배포에서 .bg-primary 자체가
+    // "color-mix(in srgb,var(--primary) NaN%,transparent)"로 나옴).
+    // 유한한 숫자일 때만 color-mix를 쓰고, 그 외엔 항상 순수 var(--x).
+    const n = Number(opacityValue);
+    return Number.isFinite(n) ? `color-mix(in srgb, var(${variable}) ${n * 100}%, transparent)` : `var(${variable})`;
+  };
 }
 
 // Tailwind는 런타임에 색상 값으로 함수(opacityValue 콜백)를 받아들이지만
