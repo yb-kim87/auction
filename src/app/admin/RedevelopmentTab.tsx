@@ -16,6 +16,7 @@ import { formatWon } from "@/lib/kakao-maps";
 import { RedevelopmentMapView } from "./RedevelopmentMapView";
 import { RedevelopmentImageTraceTool } from "./RedevelopmentImageTraceTool";
 import { RedevelopmentSeoulCollector } from "./RedevelopmentSeoulCollector";
+import { RedevelopmentEunpyeongCollector } from "./RedevelopmentEunpyeongCollector";
 
 const STAGE_OPTIONS = [
   "정비구역지정",
@@ -249,6 +250,7 @@ export function RedevelopmentTab() {
       )}
 
       <RedevelopmentSeoulCollector onZonesSaved={load} />
+      <RedevelopmentEunpyeongCollector onZonesSaved={load} />
 
       {pendingPoints && (
         <div className="rounded-sm border border-primary/40 bg-primary/5 p-4 space-y-3">

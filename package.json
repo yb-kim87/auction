@@ -10,6 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "cronozen-region-codes": "^0.1.0",
     "jose": "^6.2.3",
     "lucide-react": "^1.21.0",

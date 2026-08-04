@@ -3883,6 +3883,41 @@ export function bulkUpsertRedevelopmentZones(
   );
 }
 
+export type EunpyeongListItem = { key: string; title: string; category: "재개발" | "재건축" };
+
+export type EunpyeongDetail = {
+  key: string;
+  title: string;
+  location: string | null;
+  areaSqMeters: number | null;
+  fields: Record<string, string>;
+  stages: Array<{ label: string; value: string }>;
+  imageUrl: string | null;
+};
+
+/** 은평구청 홈페이지 "재개발/재건축 구역현황" 스크레이핑(Vercel 프록시
+ * 경유, 2026-08-04 — 설계 문서 NOTICE_PDF 소스). */
+export async function fetchEunpyeongList(): Promise<EunpyeongListItem[]> {
+  const res = await fetch(`${API_BASE}/redevelopment/eunpyeong?mode=list`, {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "은평구청 구역 목록을 불러오지 못했습니다.");
+  }
+  const data = (await res.json()) as { items: EunpyeongListItem[] };
+  return data.items;
+}
+
+export async function fetchEunpyeongDetail(key: string): Promise<EunpyeongDetail> {
+  const res = await fetch(`${API_BASE}/redevelopment/eunpyeong?mode=detail&key=${encodeURIComponent(key)}`, {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "은평구청 구역 상세를 불러오지 못했습니다.");
+  }
+  return res.json();
+}
+
 export function fetchRedevelopmentZoneAuctions(zoneId: string): Promise<RedevelopmentZoneAuction[]> {
   return redevelopmentFetch(
     `/zones/${zoneId}/auctions`,
