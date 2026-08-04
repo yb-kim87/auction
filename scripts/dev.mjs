@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEV_PORT = 3000;
+const DEV_DIST_DIR = ".next-dev";
 
 function killPort(port) {
   try {
@@ -25,12 +26,12 @@ function killPort(port) {
 }
 
 const cacheDirs = [
-  path.join(root, ".next"),
+  path.join(root, DEV_DIST_DIR),
   path.join(root, "..", "..", "..", "..", "auction-next-cache"),
 ];
 
 function invalidateNextCacheIfRootChanged() {
-  const nextDir = path.join(root, ".next");
+  const nextDir = path.join(root, DEV_DIST_DIR);
   const marker = path.join(root, ".dev-project-root");
   if (fs.existsSync(nextDir)) {
     try {
@@ -87,7 +88,11 @@ const child = spawn("npx", ["next", "dev", "-p", String(DEV_PORT)], {
   cwd: root,
   stdio: "inherit",
   shell: true,
-  env: { ...process.env, PORT: String(DEV_PORT) },
+  env: {
+    ...process.env,
+    PORT: String(DEV_PORT),
+    NEXT_DIST_DIR: DEV_DIST_DIR,
+  },
 });
 
 child.on("exit", (code) => process.exit(code ?? 0));

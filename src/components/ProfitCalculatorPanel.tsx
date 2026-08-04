@@ -297,9 +297,12 @@ export function ProfitCalculatorPanel({
   const [savedBidPlan, setSavedBidPlan] = useState<BidPlan | null>(null);
   const [bidPlanSaving, setBidPlanSaving] = useState(false);
   const [bidPlanMessage, setBidPlanMessage] = useState("");
+  const [showBidPlanEditor, setShowBidPlanEditor] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setShowBidPlanEditor(false);
+    setBidPlanMessage("");
     fetchBidPlan(item.id)
       .then((plan) => {
         if (cancelled || !plan) return;
@@ -585,16 +588,39 @@ export function ProfitCalculatorPanel({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h3 className="text-sm font-bold text-foreground">입찰가 산정 및 수익률 분석</h3>
-        <p className="text-xs text-muted-foreground mt-1">
-          낙찰가(입찰가)와 매도가를 조정하면 예상 수익률이 자동으로 계산됩니다. 대출한도는
-          min(감정가×감정가비율, 낙찰가×낙찰가비율)로 계산되며, 아래 비율은 이 물건에 적용된
-          대출정책 값으로 기본 설정되어 있습니다.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-bold text-foreground">나의 입찰 계획</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            목표 입찰가와 매도가를 조정해 필요한 자금과 예상 수익을 확인하세요. 대출한도는
+            min(감정가×감정가비율, 낙찰가×낙찰가비율)로 계산되며, 아래 비율은 이 물건에 적용된
+            대출정책 값으로 기본 설정되어 있습니다.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {savedBidPlan && !showBidPlanEditor && (
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">
+              {new Date(savedBidPlan.updatedAt).toLocaleDateString("ko-KR")} 저장됨
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowBidPlanEditor((open) => !open)}
+            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+              showBidPlanEditor
+                ? "border-primary bg-primary text-primary-foreground"
+                : savedBidPlan
+                  ? "border-primary/25 bg-primary/[0.05] text-primary hover:bg-primary/[0.1]"
+                  : "border-border bg-card text-foreground hover:bg-secondary"
+            }`}
+          >
+            {showBidPlanEditor ? "계획 닫기" : savedBidPlan ? "저장된 입찰계획" : "입찰계획 저장"}
+          </button>
+        </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4 space-y-2.5">
+      {showBidPlanEditor && (
+      <div className="rounded-xl border border-primary/15 bg-primary/[0.025] p-4 space-y-2.5">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-foreground">
             입찰 계획 저장
@@ -633,12 +659,15 @@ export function ProfitCalculatorPanel({
           )}
           {bidPlanMessage && <span className="text-xs text-muted-foreground">{bidPlanMessage}</span>}
         </div>
+        <p className="text-[11px] text-muted-foreground">저장한 계획은 상단 메뉴의 내 물건 &gt; 입찰계획에서 모아볼 수 있습니다.</p>
       </div>
+      )}
 
       <div
         className="rounded-xl p-4"
         style={{ background: "linear-gradient(135deg,#EEF4FF,#F0F5FF)", border: "1px solid rgba(42,82,152,0.15)" }}
       >
+        <p className="mb-2 text-[12px] font-bold text-primary">계획 기준 예상 수익</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-1">
           <ResultRow label="대출금(LTV)" value={formatWonShort(result.loanAmount)} />
           <ResultRow

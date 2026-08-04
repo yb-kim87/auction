@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, Calculator, WalletCards, TrendingDown, ShieldCheck, CircleAlert } from "lucide-react";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, WalletCards, TrendingDown, ShieldCheck, CircleAlert, Copy, Check } from "lucide-react";
 import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload } from "@/types/auction";
 import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import {
@@ -10,7 +10,7 @@ import {
   toPayload,
 } from "@/lib/auction-form";
 import { AuctionFieldInput } from "@/components/AuctionFieldInput";
-import { deleteAuction, updateAuction, fetchFavoriteCategories } from "@/lib/api";
+import { createFavoriteCategory, deleteAuction, updateAuction, fetchFavoriteCategories } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
 import { NaverComplexLink } from "@/components/NaverComplexLink";
@@ -1152,9 +1152,26 @@ function RegistryTable({ value }: { value: string }) {
     const n = Number(row.amount.replace(/,/g, ""));
     return Number.isFinite(n) ? sum + n : sum;
   }, 0);
+  const totalClaimAmount = rows.reduce((sum, row) => {
+    if (!row.isClaimAmount) return sum;
+    const n = Number(row.amount.replace(/,/g, ""));
+    return Number.isFinite(n) ? sum + n : sum;
+  }, 0);
   const baseline = rows.find((row) => row.isBaseline);
+  const isPresumedExtinguished = (row: RegistryRow) => {
+    if (row.cancelled || row.isBaseline) return true;
+    if (!baseline) return false;
+    // 등기 접수일은 YYYY-MM-DD 형식이므로 문자열 비교로 날짜 순서를 판정할 수 있다.
+    // 말소기준권리와 그 이후의 담보·집행 권리는 매각으로 소멸하는 것이 원칙이다.
+    return row.date >= baseline.date && /근저당|저당|가압류|압류|경매/.test(row.rightType);
+  };
   const activeRiskRows = rows.filter(
-    (row) => !row.cancelled && /근저당|가압류|압류|전세권|임차권|경매/.test(row.rightType),
+    (row) =>
+      !isPresumedExtinguished(row) &&
+      /근저당|저당|가압류|압류|전세권|임차권|경매/.test(row.rightType),
+  );
+  const presumedExtinguishedRows = rows.filter(
+    (row) => !row.cancelled && isPresumedExtinguished(row),
   );
 
   return (
@@ -1166,15 +1183,25 @@ function RegistryTable({ value }: { value: string }) {
           {baseline?.holder && <p className="mt-0.5 truncate text-[0.65rem] text-amber-800/70">{baseline.holder}</p>}
         </div>
         <div className="rounded-lg border border-border bg-card px-3 py-2">
-          <p className="text-[0.62rem] text-muted-foreground">채권 합계</p>
+          <p className="text-[0.62rem] text-muted-foreground">등기 채권액 합계</p>
           <p className="mt-0.5 text-[0.76rem] font-bold text-foreground">{totalAmount > 0 ? `${totalAmount.toLocaleString("ko-KR")}원` : "금액 미확인"}</p>
-          <p className="mt-0.5 text-[0.65rem] text-muted-foreground">청구금액 제외</p>
+          <p className="mt-0.5 text-[0.65rem] text-muted-foreground">
+            {totalClaimAmount > 0
+              ? `경매 청구금액 ${totalClaimAmount.toLocaleString("ko-KR")}원 별도`
+              : "확인된 경매 청구금액 없음"}
+          </p>
         </div>
         <div className={`rounded-lg border px-3 py-2 ${activeRiskRows.length > 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
-          <p className={`text-[0.62rem] font-semibold ${activeRiskRows.length > 0 ? "text-red-700" : "text-emerald-700"}`}>미소멸 확인 대상</p>
+          <p className={`text-[0.62rem] font-semibold ${activeRiskRows.length > 0 ? "text-red-700" : "text-emerald-700"}`}>인수 가능성 확인</p>
           <p className={`mt-0.5 text-[0.76rem] font-bold ${activeRiskRows.length > 0 ? "text-red-800" : "text-emerald-800"}`}>{activeRiskRows.length > 0 ? `${activeRiskRows.length}건 확인 필요` : "확인된 위험 없음"}</p>
-          <p className="mt-0.5 truncate text-[0.65rem] text-muted-foreground">{activeRiskRows.slice(0, 2).map((row) => row.rightType).join(" · ") || "표시된 소멸 상태 기준"}</p>
+          <p className="mt-0.5 truncate text-[0.65rem] text-muted-foreground">
+            {activeRiskRows.slice(0, 2).map((row) => row.rightType).join(" · ") ||
+              (presumedExtinguishedRows.length > 0 ? `매각으로 소멸 예상 ${presumedExtinguishedRows.length}건` : "표시된 소멸 상태 기준")}
+          </p>
         </div>
+      </div>
+      <div className="border-b border-border/60 bg-amber-50/50 px-3 py-2 text-[0.64rem] leading-relaxed text-amber-800">
+        소멸 예상은 말소기준권리와 접수일을 기준으로 한 안내입니다. 경매 청구금액은 등기 채권과 중복될 수 있어 합계에 더하지 않습니다. 최종 인수 여부는 매각물건명세서와 등기사항증명서를 확인해 주세요.
       </div>
       <div className="overflow-x-auto max-h-56 overflow-y-auto">
         <table className="w-full border-collapse">
@@ -1233,7 +1260,13 @@ function RegistryTable({ value }: { value: string }) {
                   {row.note || ""}
                 </td>
                 <td className={detailTableBodyCellClass}>
-                  {row.cancelled && <span className="text-primary">소멸</span>}
+                  {row.cancelled ? (
+                    <span className="text-primary">소멸</span>
+                  ) : isPresumedExtinguished(row) ? (
+                    <span className="font-medium text-emerald-700">소멸 예상</span>
+                  ) : /근저당|저당|가압류|압류|전세권|임차권|경매/.test(row.rightType) ? (
+                    <span className="font-medium text-red-600">확인 필요</span>
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -1555,6 +1588,14 @@ function formatTradingCountDisplay(value: string): string {
   return parts.length > 0 ? parts.join(", ") : "-";
 }
 
+function parseTradingCountSeries(value: string): Array<{ year: number; count: number }> {
+  return Array.from(value.matchAll(/(20\d{2})\s*(\d+)\s*건/g))
+    .map((match) => ({ year: Number(match[1]), count: Number(match[2]) }))
+    .filter((item) => Number.isFinite(item.year) && Number.isFinite(item.count) && item.count > 0)
+    .sort((a, b) => a.year - b.year)
+    .slice(-3);
+}
+
 function TradingCountBadge({
   label,
   value,
@@ -1712,8 +1753,8 @@ export function AuctionDetailModal({
   // 수정 가능하게 별도 토글을 둔다.
   const [memoInlineEditing, setMemoInlineEditing] = useState(false);
   const [memoInlineSaving, setMemoInlineSaving] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"info" | "ai" | "profit">("info");
-  const [editingViews, setEditingViews] = useState(false);
   const [cachedAnalysis, setCachedAnalysis] = useState<AuctionAnalysisResult | null>(null);
   const auctionNoInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLTextAreaElement>(null);
@@ -1741,7 +1782,6 @@ export function AuctionDetailModal({
     setEditingPrice(null);
     setShowMemo(false);
     setActiveTab("info");
-    setEditingViews(false);
     setCachedAnalysis(null);
   }, [item]);
 
@@ -1821,6 +1861,9 @@ export function AuctionDetailModal({
     hasNaver && salePrice != null ? diff(naverPrice, salePrice) : null;
   const d2 = hasNaver ? diff(naverPrice, minPrice) : null;
   const d3 = hasNaver ? diff(naverPrice, appraisedValue) : null;
+  const tradingSeries = parseTradingCountSeries(String(preview.tradingCount ?? ""));
+  const tradingTotal = tradingSeries.reduce((sum, item) => sum + item.count, 0);
+  const maxTradingCount = Math.max(1, ...tradingSeries.map((item) => item.count));
   const missingDiff = {
     value: "-",
     positive: true,
@@ -1919,26 +1962,28 @@ export function AuctionDetailModal({
 
   const handleToggleFavorite = async () => {
     if (!onToggleFavorite) return;
-    if (!isFavorite) {
-      // 관심등록 시점에 분류(카테고리)를 고르게 한다 — 매번 새로 타이핑하지
-      // 않고 이전에 만든 분류 중에서 고르거나 새로 만들 수 있게 별도
-      // 선택 다이얼로그를 띄운다(사용자 요청, 2026-08-02).
-      setFavoritePickerOpen(true);
-      setNewFavoriteCategory("");
-      setFavoriteCategoriesLoading(true);
-      try {
-        setFavoriteCategories(await fetchFavoriteCategories());
-      } catch {
-        setFavoriteCategories([]);
-      } finally {
-        setFavoriteCategoriesLoading(false);
-      }
-      return;
+    // 신규 등록과 기존 관심물건의 카테고리 변경에 같은 선택창을 사용한다.
+    // 관심 상태에서 버튼을 눌렀다고 즉시 해제하지 않고 분류를 다시 고를 수
+    // 있게 하며, 해제는 선택창 안의 별도 동작으로 제공한다.
+    setFavoritePickerOpen(true);
+    setNewFavoriteCategory("");
+    setFavoriteCategoriesLoading(true);
+    try {
+      setFavoriteCategories(await fetchFavoriteCategories());
+    } catch {
+      setFavoriteCategories([]);
+    } finally {
+      setFavoriteCategoriesLoading(false);
     }
+  };
+
+  const removeFavoriteFromPicker = async () => {
+    if (!onToggleFavorite) return;
     setFavoriteSaving(true);
     setError("");
     try {
       await onToggleFavorite(false);
+      setFavoritePickerOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "관심물건 처리에 실패했습니다.");
     } finally {
@@ -1955,6 +2000,22 @@ export function AuctionDetailModal({
       setFavoritePickerOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "관심물건 처리에 실패했습니다.");
+    } finally {
+      setFavoriteSaving(false);
+    }
+  };
+
+  const addFavoriteCategory = async () => {
+    const name = newFavoriteCategory.trim();
+    if (!name) return;
+    setFavoriteSaving(true);
+    setError("");
+    try {
+      const created = await createFavoriteCategory(name);
+      setFavoriteCategories((prev) => Array.from(new Set([...prev, created])).sort((a, b) => a.localeCompare(b, "ko")));
+      setNewFavoriteCategory("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "카테고리를 추가하지 못했습니다.");
     } finally {
       setFavoriteSaving(false);
     }
@@ -2005,12 +2066,12 @@ export function AuctionDetailModal({
                 disabled={favoriteDisabled}
                 className={`h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs border transition-colors disabled:opacity-50 ${
                   isFavorite
-                    ? "bg-red-50 text-red-500 border-red-100"
+                    ? "bg-primary/[0.06] text-primary border-primary/20 hover:bg-primary/[0.1]"
                     : "text-muted-foreground hover:bg-secondary border-border"
                 }`}
               >
                 <Heart size={14} className={isFavorite ? "fill-current" : ""} />
-                <span>{isFavorite ? "관심물건 해제" : "관심등록"}</span>
+                <span>{isFavorite ? "카테고리 변경" : "관심등록"}</span>
               </button>
             )}
             {!editable && preview.link && (
@@ -2087,7 +2148,7 @@ export function AuctionDetailModal({
                   type="button"
                   onClick={handleToggleFavorite}
                   disabled={favoriteDisabled}
-                  aria-label={isFavorite ? "관심물건 해제" : "관심물건 추가"}
+                  aria-label={isFavorite ? "관심물건 카테고리 변경" : "관심물건 추가"}
                   className={`p-1.5 rounded-sm transition-colors disabled:opacity-50 ${
                     isFavorite ? "bg-rose-500/25 hover:bg-rose-500/35" : "hover:bg-white/15"
                   }`}
@@ -2253,7 +2314,7 @@ export function AuctionDetailModal({
                     }`}
                   >
                     <Heart size={14} className={isFavorite ? "fill-current text-rose-500" : ""} />
-                    {isFavorite ? "관심물건 해제" : "관심물건 추가"}
+                    {isFavorite ? "카테고리 변경" : "관심물건 추가"}
                   </button>
                 )}
                 {onDislike && (
@@ -2379,12 +2440,12 @@ export function AuctionDetailModal({
           </section>
 
           {!editable && preview.address && (
-            <div className="border-b border-border bg-card px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-3 sm:px-5">
               <a
                 href={`https://map.naver.com/p/search/${encodeURIComponent(preview.address)}`}
                 target="_blank"
                 rel="noreferrer"
-                className="group flex items-start gap-2.5 rounded-lg px-1 py-1 text-left transition-colors hover:text-primary"
+                className="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-1 py-1 text-left transition-colors hover:text-primary"
                 title="네이버 지도에서 주소 보기"
               >
                 <MapPin
@@ -2406,6 +2467,28 @@ export function AuctionDetailModal({
                   aria-hidden
                 />
               </a>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(preview.address);
+                    setAddressCopied(true);
+                    window.setTimeout(() => setAddressCopied(false), 1800);
+                  } catch {
+                    setAddressCopied(false);
+                  }
+                }}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                  addressCopied
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-primary/[0.04] hover:text-primary"
+                }`}
+                aria-label="물건 소재지 복사"
+                title="주소 복사"
+              >
+                {addressCopied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+                <span>{addressCopied ? "복사됨" : "주소 복사"}</span>
+              </button>
             </div>
           )}
 
@@ -2450,8 +2533,8 @@ export function AuctionDetailModal({
                     : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                 }`}
               >
-                <Calculator size={14} />
-                수익계산기
+                <FileText size={14} />
+                입찰계획
                 {requiredEquity == null && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[0.6rem] font-bold text-slate-500">입력 필요</span>}
               </button>
             )}
@@ -2638,37 +2721,6 @@ export function AuctionDetailModal({
                   <StickyNote size={14} />
                   {showMemo ? "메모닫기" : "메모보기"}
                 </button>
-                <span className={`${LABEL_TEXT} text-muted-foreground inline-flex items-center gap-1`}>
-                  조회수{" "}
-                  {editable && editingViews ? (
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoFocus
-                      value={String(form.views ?? "")}
-                      onChange={(e) => setField("views", e.target.value)}
-                      onBlur={() => setEditingViews(false)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === "Escape") {
-                          e.preventDefault();
-                          setEditingViews(false);
-                        }
-                      }}
-                      className="w-16 px-1.5 py-0.5 text-foreground bg-input-background border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                    />
-                  ) : editable ? (
-                    <button
-                      type="button"
-                      onClick={() => setEditingViews(true)}
-                      className="font-mono text-foreground hover:bg-secondary/60 rounded-sm px-1 -mx-1 transition-colors"
-                      title="클릭하여 조회수 수정"
-                    >
-                      {fmt(Number(form.views) || 0)}
-                    </button>
-                  ) : (
-                    <span className="font-mono text-foreground">{fmt(preview.views)}</span>
-                  )}
-                </span>
               </div>
             </div>
             <div className="px-5 py-4">
@@ -2752,116 +2804,100 @@ export function AuctionDetailModal({
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <PriceColumn
-                priceLabel="감정가"
-                priceValue={appraisedValue ? fmtEok(appraisedValue) : "-"}
-                valueSlot={
-                  editable
-                    ? renderPriceField(
-                        "appraisedValue",
-                        appraisedValue ? fmtEok(appraisedValue) : "-",
-                        { title: "클릭하여 감정가 수정" },
-                      )
-                    : undefined
-                }
-                diff={
-                  d3
-                    ? {
-                        label: "호가 - 감정가",
-                        value: d3.val,
-                        positive: d3.positive,
-                        suffix: newCaseAppraisedSuffix(d3.amount),
-                        suffixEligible: d3.amount >= BID_THRESHOLD,
-                      }
-                    : {
-                        label: "호가 - 감정가",
-                        ...missingDiff,
-                      }
-                }
-              />
-              <PriceColumn
-                priceLabel="현재 최저 입찰가"
-                priceValue={minPrice ? fmtEok(minPrice) : "-"}
-                accent="orange"
-                valueSlot={
-                  editable
-                    ? renderPriceField(
-                        "minPrice",
-                        minPrice ? fmtEok(minPrice) : "-",
-                        { accent: "orange", title: "클릭하여 최저가 수정" },
-                      )
-                    : undefined
-                }
-                diff={
-                  d2
-                    ? {
-                        label: "호가 - 최저가",
-                        value: d2.val,
-                        positive: d2.positive,
-                        suffix: minPriceBidSuffix(d2.amount),
-                        suffixEligible: d2.amount >= BID_THRESHOLD,
-                      }
-                    : {
-                        label: "호가 - 최저가",
-                        ...missingDiff,
-                      }
-                }
-              />
-              <PriceColumn
-                priceLabel="주변 매물 호가"
-                priceValue={naverPriceDisplay}
-                accent="primary"
-                labelAction={<NaverComplexLink naverId={naverId} inLabelRow />}
-                valueSlot={
-                  editable
-                    ? renderPriceField("naverPrice", naverPriceDisplay, {
-                        accent: "primary",
-                        title: "클릭하여 네이버 호가 수정",
-                      })
-                    : undefined
-                }
-                secondary={
-                  <TradingCountBadge
-                    label="실거래 건수"
-                    value={
-                      editable
-                        ? preview.tradingCount || "-"
-                        : formatTradingCountDisplay(preview.tradingCount || "-")
-                    }
-                    valueSlot={
-                      editable
-                        ? renderPriceField(
-                            "tradingCount",
-                            preview.tradingCount || "-",
-                            { variant: "trading", title: "클릭하여 실거래 건수 수정" },
-                          )
-                        : undefined
-                    }
-                  />
-                }
-              />
-              <PriceColumn
-                priceLabel="실제 낙찰가"
-                priceValue={salePrice ? fmtEok(salePrice) : "-"}
-                accent="green"
-                valueSlot={
-                  editable
-                    ? renderPriceField(
-                        "salePrice",
-                        salePrice ? fmtEok(salePrice) : "-",
-                        { accent: "green", title: "클릭하여 낙찰가 수정" },
-                      )
-                    : undefined
-                }
-                diff={
-                  d1
-                    ? { label: "호가 - 낙찰가", value: d1.val, positive: d1.positive }
-                    : hasNaver
-                      ? { label: "호가 - 낙찰가", value: "-", positive: true }
-                      : { label: "호가 - 낙찰가", ...missingDiff }
-                }
-              />
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
+              <div className="rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.045] to-card px-5 py-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[0.72rem] font-bold text-primary/70">주변 매물 호가</p>
+                      <NaverComplexLink naverId={naverId} inLabelRow />
+                    </div>
+                    <div className="mt-1 text-[1.65rem] font-extrabold tracking-tight text-primary">
+                      {editable
+                        ? renderPriceField("naverPrice", naverPriceDisplay, { accent: "primary", title: "클릭하여 네이버 호가 수정" })
+                        : naverPriceDisplay}
+                    </div>
+                  </div>
+                  {d2 && (
+                    <div className={`rounded-xl px-3.5 py-2.5 text-right ${d2.amount >= 0 ? "bg-blue-50 text-blue-700" : "bg-red-50 text-red-700"}`}>
+                      <p className="text-[0.64rem] font-semibold">현재 최저가의 가격 차이</p>
+                      <p className="mt-0.5 text-base font-extrabold">{fmtEok(Math.abs(d2.amount))} {d2.amount >= 0 ? "낮음" : "높음"}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-orange-200/80 bg-orange-50/70 px-3.5 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[0.68rem] font-semibold text-orange-700">현재 최저 입찰가</span>
+                      {failureRate != null && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-bold text-orange-700">감정가의 {failureRate}%</span>}
+                    </div>
+                    <div className="mt-1 text-lg font-extrabold text-orange-600">
+                      {editable ? renderPriceField("minPrice", minPrice ? fmtEok(minPrice) : "-", { accent: "orange", title: "클릭하여 최저가 수정" }) : minPrice ? fmtEok(minPrice) : "-"}
+                    </div>
+                    <p className="mt-1 text-[0.65rem] text-orange-700/70">{d2 ? `주변 호가보다 ${fmtEok(Math.abs(d2.amount))} ${d2.amount >= 0 ? "낮음" : "높음"}` : "주변 호가 비교 정보 없음"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card px-3.5 py-3">
+                    <span className="text-[0.68rem] font-semibold text-muted-foreground">감정가</span>
+                    <div className="mt-1 text-lg font-bold text-foreground">
+                      {editable ? renderPriceField("appraisedValue", appraisedValue ? fmtEok(appraisedValue) : "-", { title: "클릭하여 감정가 수정" }) : appraisedValue ? fmtEok(appraisedValue) : "-"}
+                    </div>
+                    <p className="mt-1 text-[0.65rem] text-muted-foreground">감정가와 {d3 ? (d3.amount === 0 ? "동일" : `${fmtEok(Math.abs(d3.amount))} ${d3.amount > 0 ? "높음" : "낮음"}`) : "비교 정보 없음"}</p>
+                  </div>
+                </div>
+
+                {(salePrice || editable) && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/60 px-3.5 py-2.5">
+                    <span className="text-[0.68rem] font-semibold text-emerald-700">실제 낙찰가</span>
+                    <div className="text-sm font-bold text-emerald-700">
+                      {editable ? renderPriceField("salePrice", salePrice ? fmtEok(salePrice) : "미입력", { accent: "green", title: "클릭하여 실제 낙찰가 수정" }) : fmtEok(salePrice as number)}
+                    </div>
+                  </div>
+                )}
+                <p className="mt-3 text-[0.64rem] text-muted-foreground/80">주변 호가는 매물 등록가격으로 실제 거래가격과 다를 수 있습니다.</p>
+              </div>
+              <div className="flex min-h-64 flex-col rounded-xl border border-border bg-secondary/20 px-4 py-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[0.68rem] font-bold text-muted-foreground">주변 실거래 표본</p>
+                    <p className="mt-1 text-lg font-extrabold text-foreground">
+                      {tradingSeries.length > 0 ? `최근 3개년 ${tradingTotal}건` : "데이터 없음"}
+                    </p>
+                  </div>
+                  {editable && (
+                    <div className="max-w-36 text-right">
+                      {renderPriceField("tradingCount", preview.tradingCount || "-", { variant: "trading", title: "클릭하여 실거래 건수 수정" })}
+                    </div>
+                  )}
+                </div>
+
+                {tradingSeries.length > 0 ? (
+                  <div className="mt-5 flex flex-1 items-end justify-around gap-3 border-b border-border px-2 pb-0">
+                    {tradingSeries.map((item) => {
+                      const isCurrentYear = item.year === new Date().getFullYear();
+                      return (
+                        <div key={item.year} className="flex h-36 flex-1 flex-col items-center justify-end">
+                          <span className="mb-1.5 text-[0.68rem] font-bold text-primary">{item.count}건</span>
+                          <div
+                            className={`w-full max-w-12 rounded-t-md transition-all ${isCurrentYear ? "bg-primary" : "bg-primary/35"}`}
+                            style={{ height: `${Math.max(12, (item.count / maxTradingCount) * 96)}px` }}
+                            title={`${item.year}년 ${item.count}건${isCurrentYear ? " (올해 누적)" : ""}`}
+                          />
+                          <div className="mt-2 flex h-9 flex-col items-center">
+                            <span className="text-[0.67rem] font-semibold text-foreground/75">{item.year}</span>
+                            {isCurrentYear && <span className="mt-0.5 rounded-full bg-primary/10 px-1.5 py-px text-[0.55rem] font-bold text-primary">올해 누적</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-4 flex flex-1 items-center justify-center rounded-lg border border-dashed border-border bg-card/60 px-3 text-center text-[0.68rem] text-muted-foreground">
+                    {formatTradingCountDisplay(preview.tradingCount || "-") === "-" ? "수집된 실거래 건수가 없습니다." : formatTradingCountDisplay(preview.tradingCount || "-")}
+                  </div>
+                )}
+                <p className="mt-3 text-[0.62rem] leading-relaxed text-muted-foreground/75">수집된 인근 실거래 신고 건수 기준이며, 동일 조건 매물 수와는 다를 수 있습니다.</p>
+              </div>
             </div>
             </div>
           </div>
@@ -3266,7 +3302,10 @@ export function AuctionDetailModal({
             className="relative w-full max-w-sm bg-card border border-border rounded-xl shadow-xl p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-sm font-semibold text-foreground mb-3">관심물건 카테고리 선택</p>
+            <p className="text-sm font-semibold text-foreground">{isFavorite ? "관심물건 카테고리 변경" : "관심물건 카테고리 선택"}</p>
+            <p className="mb-3 mt-1 text-xs text-muted-foreground">
+              {isFavorite ? "관심등록을 유지한 채 분류만 변경합니다." : "저장할 분류를 선택하거나 새로 만들어 보세요."}
+            </p>
 
             {favoriteCategoriesLoading ? (
               <p className="text-xs text-muted-foreground mb-3">불러오는 중...</p>
@@ -3298,7 +3337,7 @@ export function AuctionDetailModal({
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && newFavoriteCategory.trim() && !favoriteSaving) {
                     e.preventDefault();
-                    void confirmAddFavorite(newFavoriteCategory.trim());
+                    void addFavoriteCategory();
                   }
                 }}
                 placeholder="새 카테고리 이름"
@@ -3307,22 +3346,34 @@ export function AuctionDetailModal({
               <button
                 type="button"
                 disabled={favoriteSaving || !newFavoriteCategory.trim()}
-                onClick={() => void confirmAddFavorite(newFavoriteCategory.trim())}
+                onClick={() => void addFavoriteCategory()}
                 className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 shrink-0"
               >
                 추가
               </button>
             </div>
 
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                disabled={favoriteSaving}
-                onClick={() => void confirmAddFavorite(null)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              >
-                미분류로 등록
-              </button>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={favoriteSaving}
+                  onClick={() => void confirmAddFavorite(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  {isFavorite ? "미분류로 변경" : "미분류로 등록"}
+                </button>
+                {isFavorite && (
+                  <button
+                    type="button"
+                    disabled={favoriteSaving}
+                    onClick={() => void removeFavoriteFromPicker()}
+                    className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
+                  >
+                    관심 해제
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setFavoritePickerOpen(false)}

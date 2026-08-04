@@ -184,6 +184,22 @@ export async function fetchFavoriteCategories(): Promise<string[]> {
   return data.categories ?? [];
 }
 
+export async function createFavoriteCategory(name: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/favorites/categories`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ name: name.trim() }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      (await parseErrorMessage(res)) ?? "카테고리를 추가하지 못했습니다.",
+    );
+  }
+  const data = await readJsonResponse<{ name?: string }>(res);
+  return data.name ?? name.trim();
+}
+
 export async function fetchFavorites(): Promise<FavoriteItem[]> {
   const res = await fetch(`${API_BASE}/favorites`, {
     cache: "no-store",

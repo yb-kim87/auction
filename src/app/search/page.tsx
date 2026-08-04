@@ -1300,7 +1300,7 @@ export default function Home() {
               강의실
             </Link>
             <Link href="/favorites" className={HEADER_BTN}>
-              관심물건
+              내 물건
             </Link>
             <div className={HEADER_NAV_TRAILING}>
               {isAdmin && (

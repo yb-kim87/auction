@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Heart, LogOut, MapPin } from "lucide-react";
+import { Calendar, FileText, Heart, LogOut, MapPin, Target } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie } from "@/lib/auth";
 import {
@@ -13,7 +13,9 @@ import {
   removeFavorite,
   fetchMyProfile,
   logoutUser,
+  fetchMyBidPlans,
   type FavoriteItem,
+  type BidPlanWithAuction,
 } from "@/lib/api";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
@@ -24,15 +26,43 @@ import { AccountNavLink } from "@/components/AccountNavLink";
 
 const UNCATEGORIZED = "미분류";
 
+function PlanMetric({
+  label,
+  value,
+  primary = false,
+  positive,
+}: {
+  label: string;
+  value: string;
+  primary?: boolean;
+  positive?: boolean;
+}) {
+  const valueClass = primary
+    ? "text-primary"
+    : positive === true
+      ? "text-blue-600"
+      : positive === false
+        ? "text-red-500"
+        : "text-foreground";
+  return (
+    <div className="flex items-center justify-between gap-3 lg:block lg:text-right">
+      <span className="text-[0.66rem] text-muted-foreground lg:hidden">{label}</span>
+      <span className={`text-sm font-bold ${valueClass}`} style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>{value}</span>
+    </div>
+  );
+}
+
 export default function FavoritesPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [items, setItems] = useState<AuctionItem[]>([]);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [bidPlans, setBidPlans] = useState<BidPlanWithAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState<"favorites" | "plans">("favorites");
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -49,11 +79,16 @@ export default function FavoritesPage() {
     // 관심물건은 몇 건 안 되는 경우가 대부분이라, 물건 전체 목록을 다
     // 받아올 필요 없이 즐겨찾기 id만 먼저 확인한 뒤 그 물건들만 조회한다
     // (사용자 피드백: "불러오는 속도가 너무 느린데??", 2026-08-02).
-    fetchFavorites()
-      .then((favs) => {
+    Promise.all([fetchFavorites(), fetchMyBidPlans()])
+      .then(([favs, plans]) => {
         if (cancelled) return Promise.resolve([] as AuctionItem[]);
         setFavorites(favs);
-        return fetchAuctionsByIds(favs.map((f) => f.auctionId));
+        setBidPlans(plans);
+        const ids = Array.from(new Set([
+          ...favs.map((f) => f.auctionId),
+          ...plans.map((plan) => plan.auctionId),
+        ]));
+        return fetchAuctionsByIds(ids);
       })
       .then((auctions) => {
         if (!cancelled) setItems(auctions);
@@ -62,6 +97,7 @@ export default function FavoritesPage() {
         if (!cancelled) {
           setItems([]);
           setFavorites([]);
+          setBidPlans([]);
         }
       })
       .finally(() => {
@@ -155,7 +191,7 @@ export default function FavoritesPage() {
             <Link href="/courses" className={HEADER_BTN}>
               강의실
             </Link>
-            <span className={HEADER_TAB_ACTIVE}>관심물건</span>
+            <span className={HEADER_TAB_ACTIVE}>내 물건</span>
             <div className={HEADER_NAV_TRAILING}>
               {isAdmin && (
                 <Link href="/admin" className={HEADER_BTN}>
@@ -173,17 +209,38 @@ export default function FavoritesPage() {
       />
 
       <main className="max-w-[1400px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <Heart size={18} className="text-primary" />
-          <h1 className="text-lg font-bold text-foreground">관심물건</h1>
-          <span className="text-sm text-muted-foreground">({favorites.length}건)</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Target size={18} className="text-primary" />
+            <div>
+              <h1 className="text-lg font-bold text-foreground">내 물건</h1>
+              <p className="mt-0.5 text-xs text-muted-foreground">관심 후보와 저장한 입찰 계획을 한곳에서 관리합니다.</p>
+            </div>
+          </div>
+          <div className="inline-flex rounded-xl border border-border bg-card p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("favorites")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${activeTab === "favorites" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+            >
+              <Heart size={14} /> 관심물건 <span className="opacity-75">{favorites.length}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("plans")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${activeTab === "plans" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+            >
+              <FileText size={14} /> 입찰계획 <span className="opacity-75">{bidPlans.length}</span>
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <div className="rounded-sm border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
             불러오는 중...
           </div>
-        ) : favorites.length === 0 ? (
+        ) : activeTab === "favorites" ? (
+          favorites.length === 0 ? (
           <div className="rounded-sm border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
             아직 등록한 관심물건이 없습니다. 물건 상세에서 "관심등록"을 눌러 추가해 보세요.
           </div>
@@ -260,6 +317,78 @@ export default function FavoritesPage() {
               })}
             </div>
           </>
+          )
+        ) : bidPlans.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
+            <FileText size={28} className="mx-auto text-muted-foreground/50" />
+            <p className="mt-3 text-sm font-semibold text-foreground">저장한 입찰 계획이 없습니다.</p>
+            <p className="mt-1 text-xs text-muted-foreground">물건 상세의 수익계산기에서 입찰가와 매도가를 설정한 후 계획을 저장해 보세요.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border border-border bg-card px-4 py-3">
+                <p className="text-[0.68rem] text-muted-foreground">저장된 계획</p>
+                <p className="mt-1 text-lg font-bold text-foreground">{bidPlans.length}건</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card px-4 py-3">
+                <p className="text-[0.68rem] text-muted-foreground">총 계획 입찰가</p>
+                <p className="mt-1 text-lg font-bold text-foreground">{formatWonShort(bidPlans.reduce((sum, plan) => sum + plan.bidPrice, 0))}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card px-4 py-3">
+                <p className="text-[0.68rem] text-muted-foreground">총 필요 투자금</p>
+                <p className="mt-1 text-lg font-bold text-primary">{formatWonShort(bidPlans.reduce((sum, plan) => sum + (plan.requiredEquity ?? 0), 0))}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card px-4 py-3">
+                <p className="text-[0.68rem] text-muted-foreground">총 예상수익</p>
+                <p className={`mt-1 text-lg font-bold ${bidPlans.reduce((sum, plan) => sum + (plan.finalProfit ?? 0), 0) >= 0 ? "text-blue-600" : "text-red-500"}`}>
+                  {formatWonShort(bidPlans.reduce((sum, plan) => sum + (plan.finalProfit ?? 0), 0))}
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="hidden grid-cols-[minmax(15rem,1.5fr)_7rem_7rem_7rem_7rem_6rem] gap-3 border-b border-border bg-secondary/40 px-4 py-2.5 text-[0.68rem] font-semibold text-muted-foreground lg:grid">
+                <span>물건</span><span className="text-right">계획 입찰가</span><span className="text-right">예상 매도가</span><span className="text-right">투입자금</span><span className="text-right">예상수익</span><span className="text-right">수익률</span>
+              </div>
+              {bidPlans.map((plan) => {
+                const item = itemById.get(plan.auctionId);
+                const auction = item ?? plan.auction;
+                const profitRate = plan.requiredEquity && plan.requiredEquity > 0 && plan.finalProfit != null
+                  ? (plan.finalProfit / plan.requiredEquity) * 100
+                  : null;
+                const hasFavorite = favoriteIds.has(plan.auctionId);
+                return (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    onClick={() => item && setSelectedItem(item)}
+                    disabled={!item}
+                    className="grid w-full gap-3 border-b border-border/70 px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-secondary/25 disabled:cursor-default lg:grid-cols-[minmax(15rem,1.5fr)_7rem_7rem_7rem_7rem_6rem] lg:items-center"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[0.68rem] font-semibold text-primary">{auction?.auctionNo ?? "삭제된 물건"}</span>
+                        {hasFavorite && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[0.6rem] font-semibold text-rose-600">관심물건</span>}
+                        {item && <CaseStateBadge caseState={item.caseState} />}
+                      </div>
+                      <p className="mt-1 truncate text-[0.82rem] font-semibold text-foreground">{auction?.address ?? "물건 정보를 찾을 수 없습니다."}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><Calendar size={11} />{auction?.bidDate || "입찰일 미정"}</span>
+                        <span>{new Date(plan.updatedAt).toLocaleDateString("ko-KR")} 저장</span>
+                      </div>
+                      {plan.memo && <p className="mt-1.5 truncate text-[0.68rem] text-muted-foreground">메모 · {plan.memo}</p>}
+                    </div>
+                    <PlanMetric label="계획 입찰가" value={formatWonShort(plan.bidPrice)} />
+                    <PlanMetric label="예상 매도가" value={formatWonShort(plan.salePrice)} />
+                    <PlanMetric label="투입자금" value={plan.requiredEquity != null ? formatWonShort(plan.requiredEquity) : "-"} primary />
+                    <PlanMetric label="예상수익" value={plan.finalProfit != null ? formatWonShort(plan.finalProfit) : "-"} positive={plan.finalProfit != null ? plan.finalProfit >= 0 : undefined} />
+                    <PlanMetric label="수익률" value={profitRate != null ? `${profitRate.toFixed(1)}%` : "-"} positive={profitRate != null ? profitRate >= 0 : undefined} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </main>
 
