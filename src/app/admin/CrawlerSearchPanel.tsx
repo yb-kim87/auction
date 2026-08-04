@@ -14,7 +14,7 @@ import {
   type SavedSearchPreset,
   type TankFavoriteSearch,
 } from "@/lib/api";
-import { getTankGuOptions, getTankDongOptions, labelsFromAdrPlural } from "@/data/tank-regions";
+import { getTankGuOptions, getTankDongOptions, fullLabelFromAdrCode } from "@/data/tank-regions";
 
 // 탱크옥션 ca/caList.php 검색 폼 #ctgr select 옵션 전체를 실측(2026-07-17)한
 // 대분류→하위 물건종류 그룹. presets_httpx.py: PROPERTY_TYPE_CODES 의 키와
@@ -578,6 +578,37 @@ export function CrawlerSearchPanel({
     setPresetName("");
   }
 
+  // adrPlural(콤마 구분 10자리 코드 목록)에서 개별 코드 배열을 뽑는다.
+  const adrCodes = (search?.regionAdrPlural ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+
+  // 시/도(+구/군+동) 선택 값을 10자리 코드로 만들어 adrPlural 목록에
+  // 추가한다 — 기존에는 즐겨찾기를 불러올 때만 여러 지역을 동시에 쓸 수
+  // 있었는데, 관리자가 직접 한 지역씩 눌러 추가할 수 있게 한다(사용자
+  // 요청, 2026-08-05: "주소를 하나하나 추가할 수 있게 주소 우측에 추가
+  // 버튼을 만들어줘"). 선택한 select는 다음 지역을 바로 이어서 고를 수
+  // 있도록 초기화한다.
+  function addCurrentAdrCode() {
+    if (!search || !search.regionSiCd) return;
+    const code = `${search.regionSiCd}${(search.regionGuCd || "000").padEnd(3, "0")}${(search.regionDnCd || "000").padEnd(3, "0")}00`;
+    const next = Array.from(new Set([...adrCodes, code]));
+    setSearch({
+      ...search,
+      regionAdrPlural: next.join(","),
+      regionSiCd: "",
+      regionGuCd: "",
+      regionDnCd: "",
+    });
+  }
+
+  function removeAdrCode(index: number) {
+    if (!search) return;
+    const next = adrCodes.filter((_, i) => i !== index);
+    setSearch({ ...search, regionAdrPlural: next.join(",") });
+  }
+
   // "현재 조건 저장" 버튼 — 탱크옥션 즐겨찾기를 불러온 직후처럼 이름이
   // 이미 채워져 있는 상태에서도 그 값 그대로 관심조건으로 저장한다.
   // (이전에는 이 버튼이 handleNewPreset을 호출해 저장 없이 이름만
@@ -922,93 +953,100 @@ export function CrawlerSearchPanel({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-center">
-            <span className="text-muted-foreground">주소</span>
-            <div className="flex flex-wrap items-center gap-2">
-              {search.regionAdrPlural ? (
+          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1 text-sm sm:items-start">
+            <span className="text-muted-foreground pt-2">주소</span>
+            <div className="flex flex-col gap-1.5">
+              {adrCodes.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {labelsFromAdrPlural(search.regionAdrPlural).map((label, i) => (
+                  {adrCodes.map((code, i) => (
                     <span
-                      key={`${label}-${i}`}
-                      className="inline-flex items-center px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
+                      key={`${code}-${i}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded-sm bg-secondary/30"
                     >
-                      {label}
+                      {fullLabelFromAdrCode(code)}
+                      <button
+                        type="button"
+                        onClick={() => removeAdrCode(i)}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label="이 주소 제거"
+                      >
+                        ×
+                      </button>
                     </span>
                   ))}
                   <button
                     type="button"
-                    onClick={() =>
-                      setSearch({
-                        ...search,
-                        regionAdrPlural: "",
-                        regionSiCd: "",
-                        regionGuCd: "",
-                        regionDnCd: "",
-                      })
-                    }
+                    onClick={() => setSearch({ ...search, regionAdrPlural: "" })}
                     className="text-xs text-muted-foreground hover:text-foreground underline"
                   >
-                    지역 직접 선택으로 변경
+                    전체 지우기
                   </button>
                 </div>
-              ) : (
-                <>
-                  <select
-                    value={search.regionSiCd ?? ""}
-                    onChange={(e) => {
-                      const nextSiCd = e.target.value;
-                      setSearch({
-                        ...search,
-                        regionSiCd: nextSiCd,
-                        regionGuCd: "",
-                        regionDnCd: "",
-                      });
-                    }}
-                    className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
-                  >
-                    {REGION_SI_OPTIONS.map((item) => (
-                      <option key={item.value || "all"} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={search.regionGuCd ?? ""}
-                    onChange={(e) => {
-                      const nextGuCd = e.target.value;
-                      setSearch({ ...search, regionGuCd: nextGuCd, regionDnCd: "" });
-                    }}
-                    disabled={!search.regionSiCd}
-                    className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
-                  >
-                    <option value="">시/군/구</option>
-                    {getTankGuOptions(search.regionSiCd ?? "").map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={search.regionDnCd ?? ""}
-                    onChange={(e) => setSearch({ ...search, regionDnCd: e.target.value })}
-                    disabled={!search.regionGuCd}
-                    className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
-                  >
-                    <option value="">동/읍/면</option>
-                    {getTankDongOptions(search.regionSiCd ?? "", search.regionGuCd ?? "").map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </>
               )}
-              <input
-                value={search.addressKeyword ?? ""}
-                onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
-                placeholder="상세주소 (예: 래미안)"
-                className="flex-1 min-w-[10rem] px-3 py-2 border border-border rounded-sm bg-card"
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={search.regionSiCd ?? ""}
+                  onChange={(e) => {
+                    const nextSiCd = e.target.value;
+                    setSearch({
+                      ...search,
+                      regionSiCd: nextSiCd,
+                      regionGuCd: "",
+                      regionDnCd: "",
+                    });
+                  }}
+                  className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card"
+                >
+                  {REGION_SI_OPTIONS.map((item) => (
+                    <option key={item.value || "all"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={search.regionGuCd ?? ""}
+                  onChange={(e) => {
+                    const nextGuCd = e.target.value;
+                    setSearch({ ...search, regionGuCd: nextGuCd, regionDnCd: "" });
+                  }}
+                  disabled={!search.regionSiCd}
+                  className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+                >
+                  <option value="">시/군/구</option>
+                  {getTankGuOptions(search.regionSiCd ?? "").map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={search.regionDnCd ?? ""}
+                  onChange={(e) => setSearch({ ...search, regionDnCd: e.target.value })}
+                  disabled={!search.regionGuCd}
+                  className="w-24 shrink-0 px-3 py-2 border border-border rounded-sm bg-card disabled:opacity-50"
+                >
+                  <option value="">동/읍/면</option>
+                  {getTankDongOptions(search.regionSiCd ?? "", search.regionGuCd ?? "").map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!search.regionSiCd}
+                  onClick={addCurrentAdrCode}
+                  className="px-3 py-2 text-xs font-semibold border border-primary text-primary rounded-sm hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                  + 주소 추가
+                </button>
+                <input
+                  value={search.addressKeyword ?? ""}
+                  onChange={(e) => setSearch({ ...search, addressKeyword: e.target.value })}
+                  placeholder="상세주소 (예: 래미안)"
+                  className="flex-1 min-w-[10rem] px-3 py-2 border border-border rounded-sm bg-card"
+                />
+              </div>
             </div>
           </div>
 
