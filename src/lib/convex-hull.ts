@@ -66,8 +66,17 @@ export function circlePolygon(center: LatLng, radiusMeters = 120, segments = 16)
 
 /** 점 목록으로부터 가능한 최선의 다각형을 만든다 — 3개 이상이면 convex
  * hull, 그보다 적으면 중심점 기준 원으로 대체. 반환값은 항상 polygon +
- * 이게 어떻게 만들어졌는지(boundaryType 후보)를 같이 준다. */
-export function buildApproxPolygon(points: LatLng[]): { polygon: LatLng[]; boundaryType: "CONVEX_HULL_APPROX" | "POINT_ONLY" } {
+ * 이게 어떻게 만들어졌는지(boundaryType 후보)를 같이 준다.
+ *
+ * `areaSqMeters`를 주면(원본 데이터의 "정비구역 면적" 필드 등) 원 크기를
+ * 그 실제 면적과 같아지도록 반지름을 역산한다(r = sqrt(area/π)) —
+ * 위치만 대략이고 크기는 실제와 비슷하게 맞춰서, 임의 고정 반경보다
+ * 훨씬 현실적으로 보이게 한다(사용자 피드백, 2026-08-04: "이렇게
+ * 동그랗게 뿐이 못나오네"). */
+export function buildApproxPolygon(
+  points: LatLng[],
+  areaSqMeters?: number,
+): { polygon: LatLng[]; boundaryType: "CONVEX_HULL_APPROX" | "POINT_ONLY" } {
   const unique = dedupe(points);
   if (unique.length >= 3) {
     const hull = convexHull(unique);
@@ -77,5 +86,7 @@ export function buildApproxPolygon(points: LatLng[]): { polygon: LatLng[]; bound
     lat: unique.reduce((s, p) => s + p.lat, 0) / unique.length,
     lng: unique.reduce((s, p) => s + p.lng, 0) / unique.length,
   };
-  return { polygon: circlePolygon(center), boundaryType: "POINT_ONLY" };
+  const radius =
+    areaSqMeters != null && areaSqMeters > 0 ? Math.sqrt(areaSqMeters / Math.PI) : undefined;
+  return { polygon: circlePolygon(center, radius), boundaryType: "POINT_ONLY" };
 }

@@ -40,7 +40,16 @@ type ZoneGroup = {
   stage: string;
   projectType: string;
   address: string;
+  /** 구역 실제 면적(㎡) — 원 크기를 이걸로 맞춘다(위치는 근사여도 크기는
+   * 실제와 비슷하게, 2026-08-04). "변경 후 면적"을 우선하고 없으면
+   * "변경 전 면적"을 쓴다. */
+  areaSqMeters: number | undefined;
 };
+
+function parseArea(value: string): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
 
 /** upisRebuild 원본 행들을 프로젝트(PRJC_CD) 단위로 묶어, 각 프로젝트의
  * 가장 최신 이력(RPT_MNG_CD가 사전식으로 가장 큰 행 — 관리코드에 날짜가
@@ -60,6 +69,7 @@ function groupLatestByProject(rows: SeoulUpisRow[]): ZoneGroup[] {
     stage: deriveStage(row.RPT_TYPE),
     projectType: row.SCLSF,
     address: `서울특별시 ${row.LOGVM} ${cleanPstnNm(row.PSTN_NM)}`.trim(),
+    areaSqMeters: parseArea(row.AREA_CHG_AFTR) ?? parseArea(row.AREA_EXS),
   }));
 }
 
@@ -122,9 +132,10 @@ export function RedevelopmentSeoulCollector({ onZonesSaved }: { onZonesSaved: ()
           chunk.map(async (group) => {
             const coord = await geocodeAddress(group.address);
             if (coord.latitude != null && coord.longitude != null) {
-              const { polygon, boundaryType } = buildApproxPolygon([
-                { lat: coord.latitude, lng: coord.longitude },
-              ]);
+              const { polygon, boundaryType } = buildApproxPolygon(
+                [{ lat: coord.latitude, lng: coord.longitude }],
+                group.areaSqMeters,
+              );
               results.push({
                 name: group.name,
                 region: group.region,
