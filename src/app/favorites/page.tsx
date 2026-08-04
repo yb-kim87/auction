@@ -79,30 +79,38 @@ export default function FavoritesPage() {
     // 관심물건은 몇 건 안 되는 경우가 대부분이라, 물건 전체 목록을 다
     // 받아올 필요 없이 즐겨찾기 id만 먼저 확인한 뒤 그 물건들만 조회한다
     // (사용자 피드백: "불러오는 속도가 너무 느린데??", 2026-08-02).
-    Promise.all([fetchFavorites(), fetchMyBidPlans()])
-      .then(([favs, plans]) => {
-        if (cancelled) return Promise.resolve([] as AuctionItem[]);
-        setFavorites(favs);
-        setBidPlans(plans);
-        const ids = Array.from(new Set([
-          ...favs.map((f) => f.auctionId),
-          ...plans.map((plan) => plan.auctionId),
-        ]));
-        return fetchAuctionsByIds(ids);
-      })
-      .then((auctions) => {
-        if (!cancelled) setItems(auctions);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setItems([]);
-          setFavorites([]);
-          setBidPlans([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    //
+    // favorites/bidPlans를 각각 독립적으로 처리한다 — 예전에는 Promise.all
+    // 로 묶어 공용 .catch에서 실패 시 favorites까지 통째로 []로 리셋했는데,
+    // 그러면 관심물건 조회 자체는 성공했는데도 입찰계획 쪽 API가 실패하면
+    // "내 물건" 화면에 관심물건이 0개로 잘못 표시되는 버그가 있었다(사용자
+    // 리포트, 2026-08-04: "관심물건이 7개나 있는데 내물건에는 1개도 안나옴").
+    let favs: FavoriteItem[] = [];
+    let plans: BidPlanWithAuction[] = [];
+
+    Promise.allSettled([fetchFavorites(), fetchMyBidPlans()]).then((results) => {
+      if (cancelled) return;
+      const [favResult, planResult] = results;
+      favs = favResult.status === "fulfilled" ? favResult.value : [];
+      plans = planResult.status === "fulfilled" ? planResult.value : [];
+      setFavorites(favs);
+      setBidPlans(plans);
+
+      const ids = Array.from(new Set([
+        ...favs.map((f) => f.auctionId),
+        ...plans.map((plan) => plan.auctionId),
+      ]));
+      fetchAuctionsByIds(ids)
+        .then((auctions) => {
+          if (!cancelled) setItems(auctions);
+        })
+        .catch(() => {
+          if (!cancelled) setItems([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    });
     return () => {
       cancelled = true;
     };
@@ -118,14 +126,14 @@ export default function FavoritesPage() {
     router.replace("/login");
   };
 
-  async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null) {
+  async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null, memo?: string | null) {
     setFavoriteBusy(true);
     try {
       if (next) {
-        await addFavorite(auctionId, category);
+        await addFavorite(auctionId, category, memo);
         setFavorites((prev) => {
           const withoutExisting = prev.filter((f) => f.auctionId !== auctionId);
-          return [...withoutExisting, { auctionId, category: category?.trim() || null }];
+          return [...withoutExisting, { auctionId, category: category?.trim() || null, memo: memo?.trim() || null }];
         });
       } else {
         await removeFavorite(auctionId);
@@ -312,6 +320,11 @@ export default function FavoritesPage() {
                       <span className="text-muted-foreground">입찰기일</span>
                       <span className="text-foreground">{item.bidDate || "-"}</span>
                     </div>
+                    {fav?.memo && (
+                      <p className="mt-1.5 pt-1.5 border-t border-border/70 text-[0.72rem] text-muted-foreground line-clamp-2">
+                        메모 · {fav.memo}
+                      </p>
+                    )}
                   </button>
                 );
               })}
@@ -399,9 +412,10 @@ export default function FavoritesPage() {
         isAdmin={isAdmin}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
+        favoriteMemo={selectedItem ? favorites.find((f) => f.auctionId === selectedItem.id)?.memo ?? null : null}
         onToggleFavorite={
           selectedItem
-            ? (next, category) => handleToggleFavorite(selectedItem.id, next, category)
+            ? (next, category, memo) => handleToggleFavorite(selectedItem.id, next, category, memo)
             : undefined
         }
       />

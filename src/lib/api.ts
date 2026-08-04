@@ -154,7 +154,7 @@ export async function fetchAuctionsByIds(ids: string[]): Promise<AuctionItem[]> 
   return readJsonResponse(res);
 }
 
-export type FavoriteItem = { auctionId: string; category: string | null };
+export type FavoriteItem = { auctionId: string; category: string | null; memo: string | null };
 
 export async function fetchFavoriteIds(): Promise<string[]> {
   const res = await fetch(`${API_BASE}/favorites`, {
@@ -219,15 +219,15 @@ export async function fetchFavorites(): Promise<FavoriteItem[]> {
   // auctionIds만 반환한다. 운영 API 전환 시점과 무관하게 내 물건 목록이
   // 비어 보이지 않도록 기존 응답도 미분류 관심물건으로 변환한다.
   if (Array.isArray(data.items)) return data.items;
-  return (data.auctionIds ?? []).map((auctionId) => ({ auctionId, category: null }));
+  return (data.auctionIds ?? []).map((auctionId) => ({ auctionId, category: null, memo: null }));
 }
 
-export async function addFavorite(auctionId: string, category?: string | null): Promise<void> {
+export async function addFavorite(auctionId: string, category?: string | null, memo?: string | null): Promise<void> {
   const res = await fetch(`${API_BASE}/favorites/${auctionId}`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
-    body: JSON.stringify({ category: category?.trim() || null }),
+    body: JSON.stringify({ category: category?.trim() || null, memo: memo?.trim() || null }),
   });
   if (!res.ok) {
     throw new Error(

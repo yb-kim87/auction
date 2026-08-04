@@ -1687,6 +1687,7 @@ export function AuctionDetailModal({
   onDeleted,
   isFavorite = false,
   favoriteBusy = false,
+  favoriteMemo = null,
   onToggleFavorite,
   onAiAnalysisClick,
   onDislike,
@@ -1715,7 +1716,9 @@ export function AuctionDetailModal({
   onDeleted?: (id: string) => void;
   isFavorite?: boolean;
   favoriteBusy?: boolean;
-  onToggleFavorite?: (next: boolean, category?: string | null) => Promise<void>;
+  /** 이 물건의 관심등록 메모(있으면 상세 상단에 표시). */
+  favoriteMemo?: string | null;
+  onToggleFavorite?: (next: boolean, category?: string | null, memo?: string | null) => Promise<void>;
   onAiAnalysisClick?: (item: AuctionItem) => void;
   onDislike?: (item: AuctionItem) => void;
   onReviewed?: (item: AuctionItem) => void;
@@ -1743,6 +1746,7 @@ export function AuctionDetailModal({
   const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
   const [favoriteCategoriesLoading, setFavoriteCategoriesLoading] = useState(false);
   const [newFavoriteCategory, setNewFavoriteCategory] = useState("");
+  const [favoriteMemoDraft, setFavoriteMemoDraft] = useState("");
   const [error, setError] = useState("");
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
@@ -1967,6 +1971,7 @@ export function AuctionDetailModal({
     // 있게 하며, 해제는 선택창 안의 별도 동작으로 제공한다.
     setFavoritePickerOpen(true);
     setNewFavoriteCategory("");
+    setFavoriteMemoDraft(favoriteMemo ?? "");
     setFavoriteCategoriesLoading(true);
     try {
       setFavoriteCategories(await fetchFavoriteCategories());
@@ -1996,7 +2001,7 @@ export function AuctionDetailModal({
     setFavoriteSaving(true);
     setError("");
     try {
-      await onToggleFavorite(true, category);
+      await onToggleFavorite(true, category, favoriteMemoDraft.trim() || null);
       setFavoritePickerOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "관심물건 처리에 실패했습니다.");
@@ -2023,16 +2028,35 @@ export function AuctionDetailModal({
 
   const favoriteDisabled = favoriteBusy || favoriteSaving;
 
+  // 입찰계획 숫자 입력 중 드래그로 텍스트를 선택하다가 마우스가 모달
+  // 바깥으로 나간 채로 손을 떼면(mouseup) 그 지점이 배경(backdrop)이라
+  // click 이벤트가 배경에서 발생해 곧바로 닫혀버려 입력 중이던 값이
+  // 날아가는 문제가 있었다(사용자 피드백, 2026-08-04). mousedown이
+  // 배경 자체에서 시작한 경우에만 닫히도록, mousedown/mouseup 쌍을
+  // 직접 추적한다(모달 안에서 시작한 드래그는 무시).
+  const backdropMouseDownRef = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const pickerMouseDownRef = useRef(false);
+  const pickerContentRef = useRef<HTMLDivElement>(null);
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-start justify-center p-0 sm:p-6 overflow-y-auto"
-      onClick={onClose}
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = !contentRef.current?.contains(e.target as Node);
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && !contentRef.current?.contains(e.target as Node)) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
     >
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
+        ref={contentRef}
         className={`relative w-full ${editable ? "max-w-4xl" : "max-w-[1320px]"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-xl shadow-2xl overflow-hidden`}
-        onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
         <div className="hidden sm:flex sm:sticky sm:top-0 z-10 h-14 bg-white border-b border-border px-4 sm:px-5 items-center gap-4">
@@ -2095,6 +2119,15 @@ export function AuctionDetailModal({
             </button>
           </div>
         </div>
+
+        {!editable && isFavorite && favoriteMemo && (
+          <div className="flex items-start gap-2 px-4 sm:px-5 py-2.5 bg-primary/[0.06] border-b border-primary/15">
+            <Heart size={14} className="mt-0.5 shrink-0 fill-current text-primary" />
+            <p className="text-xs text-foreground whitespace-pre-wrap break-words">
+              <span className="font-semibold text-primary">메모</span> · {favoriteMemo}
+            </p>
+          </div>
+        )}
 
         <div
           className={`max-h-[100vh] sm:max-h-[calc(100vh-6rem)] overflow-y-auto ${editable ? "" : "sm:flex sm:items-start"}`}
@@ -3295,12 +3328,20 @@ export function AuctionDetailModal({
       {favoritePickerOpen && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-          onClick={() => setFavoritePickerOpen(false)}
+          onMouseDown={(e) => {
+            pickerMouseDownRef.current = !pickerContentRef.current?.contains(e.target as Node);
+          }}
+          onMouseUp={(e) => {
+            if (pickerMouseDownRef.current && !pickerContentRef.current?.contains(e.target as Node)) {
+              setFavoritePickerOpen(false);
+            }
+            pickerMouseDownRef.current = false;
+          }}
         >
           <div className="absolute inset-0 bg-black/40" />
           <div
+            ref={pickerContentRef}
             className="relative w-full max-w-sm bg-card border border-border rounded-xl shadow-xl p-4"
-            onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm font-semibold text-foreground">{isFavorite ? "관심물건 카테고리 변경" : "관심물건 카테고리 선택"}</p>
             <p className="mb-3 mt-1 text-xs text-muted-foreground">
@@ -3351,6 +3392,17 @@ export function AuctionDetailModal({
               >
                 추가
               </button>
+            </div>
+
+            <div className="mb-3">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">메모(선택)</label>
+              <textarea
+                value={favoriteMemoDraft}
+                onChange={(e) => setFavoriteMemoDraft(e.target.value)}
+                placeholder="이 물건에 대해 기억해둘 내용을 적어보세요"
+                rows={3}
+                className="w-full resize-none rounded-lg border border-border bg-input-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary"
+              />
             </div>
 
             <div className="flex items-center justify-between gap-3">

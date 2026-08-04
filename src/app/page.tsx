@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, Heart, Calendar, SlidersHorizontal, Search, Wallet, X, LayoutGrid, List, ChevronDown } from "lucide-react";
@@ -10,7 +10,7 @@ import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import {
   fetchRecommendations,
   fetchMyProfile,
-  fetchFavoriteIds,
+  fetchFavorites,
   fetchStrategyLabelOptions,
   addFavorite,
   removeFavorite,
@@ -18,6 +18,7 @@ import {
   logUserAction,
   logUserActionsBatch,
   updateMyProfile,
+  type FavoriteItem,
 } from "@/lib/api";
 import { AppHeader, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
@@ -1198,8 +1199,9 @@ export default function HomePage() {
   const [creditScoreWarning, setCreditScoreWarning] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [favoriteBusyId, setFavoriteBusyId] = useState<string | null>(null);
+  const [favoriteCategoryFilter, setFavoriteCategoryFilter] = useState<string | null>(null);
   const [loanInfoByItemId, setLoanInfoByItemId] = useState<Record<string, LoanInfo>>({});
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -1224,8 +1226,8 @@ export default function HomePage() {
         }
       })
       .catch(() => {});
-    fetchFavoriteIds()
-      .then((ids) => setFavoriteIds(new Set(ids)))
+    fetchFavorites()
+      .then(setFavorites)
       .catch(() => {});
     fetchStrategyLabelOptions()
       .then((items) => setStrategyLabelOptions(items.map((item) => item.label)))
@@ -1327,26 +1329,45 @@ export default function HomePage() {
     router.replace("/login");
   };
 
-  async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null) {
+  async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null, memo?: string | null) {
     setFavoriteBusyId(auctionId);
     try {
       if (next) {
-        await addFavorite(auctionId, category);
-        setFavoriteIds((prev) => new Set([...Array.from(prev), auctionId]));
+        await addFavorite(auctionId, category, memo);
+        setFavorites((prev) => [
+          ...prev.filter((f) => f.auctionId !== auctionId),
+          { auctionId, category: category?.trim() || null, memo: memo?.trim() || null },
+        ]);
       } else {
         await removeFavorite(auctionId);
-        setFavoriteIds((prev) => {
-          const nextSet = new Set(prev);
-          nextSet.delete(auctionId);
-          return nextSet;
-        });
+        setFavorites((prev) => prev.filter((f) => f.auctionId !== auctionId));
       }
     } finally {
       setFavoriteBusyId(null);
     }
   }
 
-  const filteredItems = sortRecommendItems(items, sortBy, loanInfoByItemId);
+  const favoriteIds = useMemo(() => new Set(favorites.map((f) => f.auctionId)), [favorites]);
+  const favoriteById = useMemo(() => {
+    const map = new Map<string, FavoriteItem>();
+    for (const f of favorites) map.set(f.auctionId, f);
+    return map;
+  }, [favorites]);
+  // 관심등록 시 카테고리를 지정하지 않은 물건은 favorites/page.tsx와 동일하게
+  // "미분류"로 묶어 필터 칩에 노출한다(사용자 요청, 2026-08-04: "관심물건을
+  // 누를때 카테고리별로도 물건을 볼 수 있게 해줘").
+  const FAVORITE_UNCATEGORIZED = "미분류";
+  const favoriteCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of favorites) if (f.category) set.add(f.category);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "ko"));
+  }, [favorites]);
+
+  const filteredItems = sortRecommendItems(items, sortBy, loanInfoByItemId).filter((item) => {
+    if (!filters.favoritesOnly || !favoriteCategoryFilter) return true;
+    const category = favoriteById.get(item.id)?.category?.trim() || FAVORITE_UNCATEGORIZED;
+    return category === favoriteCategoryFilter;
+  });
   const availableCapital = parseMoneyToWon(currentBudget ?? profile?.investableFunds ?? "");
 
   const activeFilterCount =
@@ -1437,12 +1458,13 @@ export default function HomePage() {
               </button>
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  setFavoriteCategoryFilter(null);
                   setFilters((current) => ({
                     ...current,
                     favoritesOnly: !current.favoritesOnly,
-                  }))
-                }
+                  }));
+                }}
                 aria-pressed={filters.favoritesOnly}
                 className={`h-9 px-3 sm:px-4 flex items-center gap-1.5 sm:gap-2 border text-sm font-medium transition-colors shrink-0 ${
                   filters.favoritesOnly
@@ -1457,6 +1479,47 @@ export default function HomePage() {
                 <span className="text-[11px]">({favoriteIds.size})</span>
               </button>
             </div>
+
+            {filters.favoritesOnly && favoriteCategories.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 w-full">
+                <button
+                  type="button"
+                  onClick={() => setFavoriteCategoryFilter(null)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    favoriteCategoryFilter === null
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-muted-foreground border-border hover:bg-secondary/60"
+                  }`}
+                >
+                  전체
+                </button>
+                {favoriteCategories.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setFavoriteCategoryFilter(c)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      favoriteCategoryFilter === c
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card text-muted-foreground border-border hover:bg-secondary/60"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setFavoriteCategoryFilter(FAVORITE_UNCATEGORIZED)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    favoriteCategoryFilter === FAVORITE_UNCATEGORIZED
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-muted-foreground border-border hover:bg-secondary/60"
+                  }`}
+                >
+                  미분류
+                </button>
+              </div>
+            )}
 
             <div className="hidden sm:block flex-1" />
 
@@ -1629,9 +1692,10 @@ export default function HomePage() {
         isAdmin={isAdmin}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={selectedItem ? favoriteBusyId === selectedItem.id : false}
+        favoriteMemo={selectedItem ? favoriteById.get(selectedItem.id)?.memo ?? null : null}
         onToggleFavorite={
           selectedItem
-            ? (next, category) => handleToggleFavorite(selectedItem.id, next, category)
+            ? (next, category, memo) => handleToggleFavorite(selectedItem.id, next, category, memo)
             : undefined
         }
         onAiAnalysisClick={(row) =>
