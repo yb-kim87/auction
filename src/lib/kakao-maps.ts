@@ -98,6 +98,39 @@ export function loadKakaoMaps(appKey: string): Promise<void> {
   return loadPromise;
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function lerpHexColor(from: string, to: string, t: number): string {
+  const [r1, g1, b1] = hexToRgb(from);
+  const [r2, g2, b2] = hexToRgb(to);
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** 매도차익(실거래가-낙찰가) 금액을 색상으로 바꾼다 — 클수록(이익) 진한
+ * 초록, 작을수록(손해) 진한 빨강, 0 근처는 회색(사용자 요청, 2026-08-04:
+ * "+금액이 클수록 좋은거고 -나온거는 안좋은거고 이런식으로 색상 기준점을
+ * 바꿔줘"). 이익은 +1억, 손해는 -5천만원에서 각각 색이 꽉 찬다(그 이상은
+ * 같은 색으로 clamp) — 매도분석 데이터에서 흔히 보이는 차익 범위 기준.
+ * null(실거래/낙찰가 중 하나라도 없음)은 중립 회색. */
+export function profitToColor(profit: number | null): string {
+  const NEUTRAL = "#9ca3af";
+  const PROFIT_MAX = "#065f46";
+  const LOSS_MAX = "#b91c1c";
+  if (profit == null || !Number.isFinite(profit)) return NEUTRAL;
+  if (profit >= 0) {
+    const t = Math.min(1, profit / 100_000_000);
+    return lerpHexColor(NEUTRAL, PROFIT_MAX, t);
+  }
+  const t = Math.min(1, -profit / 50_000_000);
+  return lerpHexColor(NEUTRAL, LOSS_MAX, t);
+}
+
 export function formatWon(value: number | string | null): string {
   if (value == null) return "-";
   const num = typeof value === "string" ? Number(value) : value;
