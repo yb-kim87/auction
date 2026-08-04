@@ -3733,6 +3733,13 @@ export type RedevelopmentZone = {
   memo: string | null;
   polygon: RedevelopmentPoint[];
   color: string | null;
+  projectType: string | null;
+  source: "PUBLIC_GIS" | "PUBLIC_API" | "NOTICE_PDF" | "IMAGE_EXTRACTION" | "MANUAL";
+  sourceDatasetId: string | null;
+  sourceKey: string | null;
+  asOfDate: string | null;
+  boundaryType: "EXACT" | "CONVEX_HULL_APPROX" | "POINT_ONLY" | "MANUAL";
+  lastAutoSyncedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -3816,6 +3823,64 @@ export function fetchRedevelopmentMapData(): Promise<{
   auctions: RedevelopmentMapAuction[];
 }> {
   return redevelopmentFetch("/map-data", undefined, "재개발 지도 데이터를 불러오지 못했습니다.");
+}
+
+export type SeoulUpisRow = {
+  RPT_MNG_CD: string;
+  PRJC_CD: string;
+  LOGVM: string;
+  RPT_TYPE: string;
+  LCLSF: string;
+  MCLSF: string;
+  SCLSF: string;
+  PSTN_NM: string;
+  RGN_NM: string;
+  AREA_EXS: string;
+  AREA_ICDC_CD: string;
+  AREA_CHG: string;
+  AREA_CHG_AFTR: string;
+  DCSN_ANCMNT_MNG_CD: string;
+};
+
+/** 서울 열린데이터광장 upisRebuild API를 페이지 단위로 가져온다(Vercel
+ * 프록시 라우트 경유 — Railway가 직접 못 부르는 문제 회피,
+ * 2026-08-04). */
+export async function fetchSeoulUpisPage(
+  start: number,
+  end: number,
+): Promise<{ totalCount: number; rows: SeoulUpisRow[] }> {
+  const res = await fetch(`${API_BASE}/redevelopment/seoul-upis?start=${start}&end=${end}`, {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "서울시 정비사업 데이터를 불러오지 못했습니다.");
+  }
+  const data = (await res.json()) as { upisRebuild?: { list_total_count?: number; row?: SeoulUpisRow[] } };
+  return {
+    totalCount: data.upisRebuild?.list_total_count ?? 0,
+    rows: data.upisRebuild?.row ?? [],
+  };
+}
+
+export function bulkUpsertRedevelopmentZones(
+  items: Array<{
+    name: string;
+    region?: string;
+    stage?: string;
+    projectType?: string;
+    polygon: RedevelopmentPoint[];
+    boundaryType: string;
+    source: string;
+    sourceDatasetId: string;
+    sourceKey: string;
+    asOfDate?: string | null;
+  }>,
+): Promise<{ created: number; updated: number; skippedManualOverride: number; failed: number }> {
+  return redevelopmentFetch(
+    "/zones/bulk-upsert",
+    { method: "POST", body: JSON.stringify({ items }) },
+    "구역 자동 저장에 실패했습니다.",
+  );
 }
 
 export function fetchRedevelopmentZoneAuctions(zoneId: string): Promise<RedevelopmentZoneAuction[]> {
