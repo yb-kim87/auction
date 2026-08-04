@@ -86,17 +86,49 @@ const ChevronLeftIcon = () => (
 
 // ── 섹션 아코디언 ────────────────────────────────────────────────────────────
 
+/** 영상 하나를 챕터(구간) 단위 행으로 펼친다. 챕터가 없으면 영상
+ * 자체를 그대로 행 1개로 반환한다(startSeconds는 undefined) — 관리자가
+ * 타임스탬프를 입력한 영상만 강의 화면에서 여러 섹션처럼 나뉘어 보인다
+ * (사용자 요청, 2026-08-04: "영상 1개를 올리면 시간을 알려주면 알려준
+ * 시간으로 섹션을 구분해서 나눠서 영상이 보이도록"). */
+function expandVideoRows(
+  v: LecturePublicVideo,
+): Array<{ key: string; video: LecturePublicVideo; title: string; startSeconds?: number; durationSeconds: number | null }> {
+  if (!v.chapters || v.chapters.length === 0) {
+    return [{ key: v.id, video: v, title: v.title, startSeconds: undefined, durationSeconds: v.durationSeconds }];
+  }
+  const chapters = v.chapters;
+  return chapters.map((c, i) => {
+    const next = chapters[i + 1];
+    const durationSeconds = next
+      ? next.startSeconds - c.startSeconds
+      : v.durationSeconds != null
+        ? v.durationSeconds - c.startSeconds
+        : null;
+    return {
+      key: `${v.id}:${c.startSeconds}`,
+      video: v,
+      title: c.title,
+      startSeconds: c.startSeconds,
+      durationSeconds,
+    };
+  });
+}
+
 function SectionBlock({
   section,
   activeId,
+  activeStartSeconds,
   onSelect,
 }: {
   section: LecturePublicSection;
   activeId: string | null;
-  onSelect: (v: LecturePublicVideo) => void;
+  activeStartSeconds: number | undefined;
+  onSelect: (v: LecturePublicVideo, startSeconds?: number) => void;
 }) {
   const hasActive = section.videos.some((v) => v.isPublished);
   const [open, setOpen] = useState(hasActive);
+  const rows = section.videos.flatMap(expandVideoRows);
 
   return (
     <div style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -117,19 +149,19 @@ function SectionBlock({
         <span style={{ flex: 1, textAlign: "left", fontSize: 13, fontWeight: 700, color: C.textPrimary }}>
           {section.title}
         </span>
-        <span style={{ fontSize: 11, color: C.textDim }}>{section.videos.length}강</span>
+        <span style={{ fontSize: 11, color: C.textDim }}>{rows.length}강</span>
         <ChevronDownIcon open={open} />
       </button>
       {open &&
-        section.videos.map((v) => {
-          const active = v.id === activeId;
-          const locked = !v.isPublished;
+        rows.map((row) => {
+          const active = row.video.id === activeId && row.startSeconds === activeStartSeconds;
+          const locked = !row.video.isPublished;
           return (
             <button
-              key={v.id}
+              key={row.key}
               type="button"
               disabled={locked}
-              onClick={() => onSelect(v)}
+              onClick={() => onSelect(row.video, row.startSeconds)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -171,11 +203,11 @@ function SectionBlock({
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {v.title}
+                  {row.title}
                 </div>
               </div>
               <span style={{ fontSize: 11, color: C.textDim, flexShrink: 0 }}>
-                {locked ? "준비중" : formatDuration(v.durationSeconds)}
+                {locked ? "준비중" : formatDuration(row.durationSeconds)}
               </span>
             </button>
           );
@@ -201,6 +233,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   };
 
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [selectedStartSeconds, setSelectedStartSeconds] = useState<number | undefined>(undefined);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [playLoading, setPlayLoading] = useState(false);
   const [playError, setPlayError] = useState<string | null>(null);
@@ -214,7 +247,10 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
         if (cancelled) return;
         setInfo(data);
         const firstPublished = data.sections.flatMap((s) => s.videos).find((v) => v.isPublished);
-        if (firstPublished) setSelectedVideoId(firstPublished.id);
+        if (firstPublished) {
+          setSelectedVideoId(firstPublished.id);
+          setSelectedStartSeconds(firstPublished.chapters?.[0]?.startSeconds);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -233,11 +269,17 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
     [info],
   );
   const publishedVideos = useMemo(() => allVideos.filter((v) => v.isPublished), [allVideos]);
+  // 챕터가 있는 영상은 챕터별로, 없으면 영상 그대로 — "이전/다음 강의"
+  // 이동과 총 재생시간 계산 모두 이 펼쳐진 목록 기준으로 한다.
+  const publishedRows = useMemo(() => publishedVideos.flatMap(expandVideoRows), [publishedVideos]);
   const totalDurationSeconds = useMemo(
     () => publishedVideos.reduce((sum, v) => sum + (v.durationSeconds ?? 0), 0),
     [publishedVideos],
   );
   const selectedVideo = allVideos.find((v) => v.id === selectedVideoId) ?? null;
+  const selectedRow = selectedVideo
+    ? expandVideoRows(selectedVideo).find((r) => r.startSeconds === selectedStartSeconds) ?? null
+    : null;
 
   useEffect(() => {
     if (!selectedVideo || !selectedVideo.isPublished) {
@@ -247,7 +289,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
     let cancelled = false;
     setPlayLoading(true);
     setPlayError(null);
-    fetchMyCoursePlayUrl(courseId, selectedVideo.id)
+    fetchMyCoursePlayUrl(courseId, selectedVideo.id, selectedStartSeconds)
       .then((res) => {
         if (!cancelled) setEmbedUrl(res.embedUrl);
       })
@@ -262,11 +304,17 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [courseId, selectedVideo?.id, selectedVideo?.isPublished]);
+  }, [courseId, selectedVideo?.id, selectedVideo?.isPublished, selectedStartSeconds]);
 
-  const curIdx = publishedVideos.findIndex((v) => v.id === selectedVideoId);
+  const curIdx = publishedRows.findIndex(
+    (r) => r.video.id === selectedVideoId && r.startSeconds === selectedStartSeconds,
+  );
   const hasPrev = curIdx > 0;
-  const hasNext = curIdx >= 0 && curIdx < publishedVideos.length - 1;
+  const hasNext = curIdx >= 0 && curIdx < publishedRows.length - 1;
+  const goToRow = (row: { video: LecturePublicVideo; startSeconds?: number }) => {
+    setSelectedVideoId(row.video.id);
+    setSelectedStartSeconds(row.startSeconds);
+  };
 
   if (loading) {
     return (
@@ -421,7 +469,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 <iframe
                   key={embedUrl}
                   src={embedUrl}
-                  title={selectedVideo.title}
+                  title={selectedRow?.title ?? selectedVideo.title}
                   loading="lazy"
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                   allowFullScreen
@@ -442,7 +490,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                     pointerEvents: "none",
                   }}
                 >
-                  {selectedVideo.title}
+                  {selectedRow?.title ?? selectedVideo.title}
                 </div>
               </>
             )}
@@ -461,7 +509,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           >
             <button
               type="button"
-              onClick={() => hasPrev && setSelectedVideoId(publishedVideos[curIdx - 1].id)}
+              onClick={() => hasPrev && goToRow(publishedRows[curIdx - 1])}
               disabled={!hasPrev}
               style={{
                 display: "flex",
@@ -481,10 +529,12 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
 
             {selectedVideo && (
               <div className="text-center min-w-0 flex-1 px-1">
-                <div className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{selectedVideo.title}</div>
-                {selectedVideo.durationSeconds != null && (
+                <div className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>
+                  {selectedRow?.title ?? selectedVideo.title}
+                </div>
+                {(selectedRow?.durationSeconds ?? selectedVideo.durationSeconds) != null && (
                   <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
-                    {formatDuration(selectedVideo.durationSeconds)}
+                    {formatDuration(selectedRow?.durationSeconds ?? selectedVideo.durationSeconds)}
                   </div>
                 )}
               </div>
@@ -492,7 +542,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
 
             <button
               type="button"
-              onClick={() => hasNext && setSelectedVideoId(publishedVideos[curIdx + 1].id)}
+              onClick={() => hasNext && goToRow(publishedRows[curIdx + 1])}
               disabled={!hasNext}
               style={{
                 display: "flex",
@@ -548,7 +598,11 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                 key={section.id}
                 section={section}
                 activeId={selectedVideoId}
-                onSelect={(v) => setSelectedVideoId(v.id)}
+                activeStartSeconds={selectedStartSeconds}
+                onSelect={(v, startSeconds) => {
+                  setSelectedVideoId(v.id);
+                  setSelectedStartSeconds(startSeconds);
+                }}
               />
             ))}
           </aside>

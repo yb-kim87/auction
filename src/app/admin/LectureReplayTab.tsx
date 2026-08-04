@@ -29,6 +29,7 @@ import {
   type LectureSection,
   type LectureUserSearchResult,
   type LectureVideo,
+  type LectureVideoChapter,
 } from "@/lib/api";
 
 function formatDate(value: string | null): string {
@@ -592,6 +593,42 @@ function EnrollmentsBlock({
   );
 }
 
+/** "1:23:45 제목" / "12:34 제목" / "90 제목" 같은 줄들을 챕터 배열로
+ * 파싱한다. 각 줄의 맨 앞 토큰이 시간, 나머지가 제목. 시간 형식이
+ * 아니거나 제목이 비어있는 줄은 무시한다. */
+function parseChaptersText(text: string): LectureVideoChapter[] {
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return null;
+      const [timeToken, ...rest] = trimmed.split(/\s+/);
+      const title = rest.join(" ").trim();
+      if (!title) return null;
+      const parts = timeToken.split(":").map((p) => Number(p));
+      if (parts.some((p) => !Number.isFinite(p))) return null;
+      let seconds = 0;
+      for (const p of parts) seconds = seconds * 60 + p;
+      if (!Number.isFinite(seconds) || seconds < 0) return null;
+      return { title, startSeconds: Math.round(seconds) };
+    })
+    .filter((c): c is LectureVideoChapter => c !== null);
+}
+
+function formatSecondsToClock(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
+function chaptersToText(chapters: LectureVideoChapter[] | null): string {
+  if (!chapters || chapters.length === 0) return "";
+  return chapters.map((c) => `${formatSecondsToClock(c.startSeconds)} ${c.title}`).join("\n");
+}
+
 function SectionBlock({
   section,
   onDelete,
@@ -605,9 +642,17 @@ function SectionBlock({
 }) {
   const [videos, setVideos] = useState<LectureVideo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ title: "", bunnyVideoId: "", description: "", durationSeconds: "" });
+  const [form, setForm] = useState({
+    title: "",
+    bunnyVideoId: "",
+    description: "",
+    durationSeconds: "",
+    chaptersText: "",
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: "", bunnyVideoId: "" });
+  const [chapterEditId, setChapterEditId] = useState<string | null>(null);
+  const [chapterDraft, setChapterDraft] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(section.title);
 
@@ -641,17 +686,37 @@ function SectionBlock({
     const bunnyVideoId = form.bunnyVideoId.trim();
     if (!title || !bunnyVideoId) return;
     try {
+      const chapters = parseChaptersText(form.chaptersText);
       const video = await createLectureVideo({
         sectionId: section.id,
         title,
         bunnyVideoId,
         description: form.description.trim() || undefined,
         durationSeconds: form.durationSeconds ? Number(form.durationSeconds) : undefined,
+        chapters: chapters.length > 0 ? chapters : undefined,
       });
       setVideos((prev) => [...prev, video]);
-      setForm({ title: "", bunnyVideoId: "", description: "", durationSeconds: "" });
+      setForm({ title: "", bunnyVideoId: "", description: "", durationSeconds: "", chaptersText: "" });
     } catch (err) {
       onError(err instanceof Error ? err.message : "영상 생성 실패");
+    }
+  }
+
+  function startEditChapters(video: LectureVideo) {
+    setChapterEditId(video.id);
+    setChapterDraft(chaptersToText(video.chapters));
+  }
+
+  async function handleSaveChapters(video: LectureVideo) {
+    try {
+      const chapters = parseChaptersText(chapterDraft);
+      const updated = await updateLectureVideo(video.id, {
+        chapters: chapters.length > 0 ? chapters : null,
+      });
+      setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      setChapterEditId(null);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "챕터 저장 실패");
     }
   }
 
@@ -810,6 +875,9 @@ function SectionBlock({
                     <div className="min-w-0">
                       <span className="font-medium text-foreground">{video.title}</span>
                       <span className="ml-2 text-muted-foreground">bunny: {video.bunnyVideoId}</span>
+                      {video.chapters && video.chapters.length > 0 && (
+                        <span className="ml-2 text-sky-700">챕터 {video.chapters.length}개</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
@@ -845,6 +913,13 @@ function SectionBlock({
                       </button>
                       <button
                         type="button"
+                        onClick={() => startEditChapters(video)}
+                        className="text-sky-700 hover:underline"
+                      >
+                        챕터
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => startEdit(video)}
                         className="text-primary hover:underline"
                       >
@@ -856,6 +931,37 @@ function SectionBlock({
                         className="text-destructive hover:underline"
                       >
                         삭제
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {chapterEditId === video.id && (
+                  <div className="mt-2 space-y-1.5 rounded-sm border border-border bg-secondary/20 p-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      한 줄에 하나씩, "시작시간 제목" 형식으로 입력하세요(예: 15:20 2강 실전 사례).
+                      영상 하나를 이 시간 구간대로 나눠서 강의 화면에 여러 섹션처럼 보여줍니다.
+                    </p>
+                    <textarea
+                      value={chapterDraft}
+                      onChange={(e) => setChapterDraft(e.target.value)}
+                      rows={4}
+                      placeholder={"0:00 1강 개요\n15:20 2강 실전 사례\n40:00 3강 정리"}
+                      className="w-full px-2 py-1.5 text-xs border border-border rounded-sm bg-background font-mono"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveChapters(video)}
+                        className="text-primary hover:underline"
+                      >
+                        저장
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChapterEditId(null)}
+                        className="text-muted-foreground hover:underline"
+                      >
+                        취소
                       </button>
                     </div>
                   </div>
@@ -891,6 +997,13 @@ function SectionBlock({
           placeholder="재생시간(초, 선택)"
           type="number"
           className="px-2 py-1.5 text-xs border border-border rounded-sm bg-background"
+        />
+        <textarea
+          value={form.chaptersText}
+          onChange={(e) => setForm((f) => ({ ...f, chaptersText: e.target.value }))}
+          rows={3}
+          placeholder={"챕터(선택) — 한 줄에 하나씩 \"시작시간 제목\"\n예) 0:00 1강 개요\n15:20 2강 실전 사례"}
+          className="col-span-2 px-2 py-1.5 text-xs border border-border rounded-sm bg-background font-mono"
         />
         <button
           type="button"

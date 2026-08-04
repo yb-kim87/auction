@@ -3755,6 +3755,11 @@ export type LectureSection = {
   sortOrder: number;
 };
 
+/** 영상 1개를 구간(챕터)으로 나눠 보여주기 위한 타임스탬프. startSeconds는
+ * 해당 챕터의 시작 지점(초)이고, 다음 챕터의 startSeconds(또는 영상
+ * 끝)가 사실상 종료 지점이 된다 — 별도 종료 필드는 없다. */
+export type LectureVideoChapter = { title: string; startSeconds: number };
+
 export type LectureVideo = {
   id: string;
   sectionId: string;
@@ -3767,6 +3772,7 @@ export type LectureVideo = {
   /** true면 강의 전체가 OT강의로 지정돼 있지 않아도 OT수강생에게 이
    * 영상만 자동 공개된다. */
   isOtVideo: boolean;
+  chapters: LectureVideoChapter[] | null;
   createdAt: string;
 };
 
@@ -3786,6 +3792,7 @@ export type LecturePublicVideo = {
   description: string | null;
   durationSeconds: number | null;
   isPublished: boolean;
+  chapters: LectureVideoChapter[] | null;
 };
 
 export type LecturePublicSection = {
@@ -3834,9 +3841,11 @@ export function fetchLectureAccessInfo(token: string): Promise<LectureAccessInfo
 export function fetchLecturePlayUrl(
   token: string,
   videoId: string,
+  startSeconds?: number,
 ): Promise<{ embedUrl: string }> {
+  const qs = startSeconds ? `?t=${Math.round(startSeconds)}` : "";
   return lectureReplayFetch(
-    `/public/lecture-replay/access/${encodeURIComponent(token)}/videos/${encodeURIComponent(videoId)}/play`,
+    `/public/lecture-replay/access/${encodeURIComponent(token)}/videos/${encodeURIComponent(videoId)}/play${qs}`,
     undefined,
     "영상을 재생할 수 없습니다.",
   );
@@ -3926,6 +3935,7 @@ export function createLectureVideo(body: {
   description?: string;
   bunnyVideoId: string;
   durationSeconds?: number;
+  chapters?: LectureVideoChapter[];
 }): Promise<LectureVideo> {
   return lectureReplayFetch(
     "/lecture-replay/videos",
@@ -3944,6 +3954,7 @@ export function updateLectureVideo(
     sortOrder?: number;
     isPublished?: boolean;
     isOtVideo?: boolean;
+    chapters?: LectureVideoChapter[] | null;
   },
 ): Promise<LectureVideo> {
   return lectureReplayFetch(
@@ -4052,9 +4063,11 @@ export function fetchMyCourseAccessInfo(courseId: string): Promise<LectureMyCour
 export function fetchMyCoursePlayUrl(
   courseId: string,
   videoId: string,
+  startSeconds?: number,
 ): Promise<{ embedUrl: string }> {
+  const qs = startSeconds ? `?t=${Math.round(startSeconds)}` : "";
   return lectureReplayFetch(
-    `/courses/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(videoId)}/play`,
+    `/courses/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(videoId)}/play${qs}`,
     undefined,
     "영상을 재생할 수 없습니다.",
   );
