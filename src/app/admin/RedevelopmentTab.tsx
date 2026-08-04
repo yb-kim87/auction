@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { formatWon } from "@/lib/kakao-maps";
 import { RedevelopmentMapView } from "./RedevelopmentMapView";
+import { RedevelopmentImageTraceTool } from "./RedevelopmentImageTraceTool";
 
 const STAGE_OPTIONS = [
   "정비구역지정",
@@ -41,6 +42,7 @@ export function RedevelopmentTab() {
   const [zoneAuctionsLoading, setZoneAuctionsLoading] = useState(false);
 
   const [drawing, setDrawing] = useState(false);
+  const [imageTracing, setImageTracing] = useState(false);
   const [editingZone, setEditingZone] = useState<RedevelopmentZone | null>(null);
   const [draftPointCount, setDraftPointCount] = useState(0);
   const [pendingPoints, setPendingPoints] = useState<RedevelopmentPoint[] | null>(null);
@@ -88,6 +90,14 @@ export function RedevelopmentTab() {
     setDrawing(true);
   }
 
+  function startNewZoneFromImage() {
+    setEditingZone(null);
+    setPendingPoints(null);
+    setForm(EMPTY_FORM);
+    setSelectedZoneId(null);
+    setImageTracing(true);
+  }
+
   function startRedrawZone(zone: RedevelopmentZone) {
     setEditingZone(zone);
     setPendingPoints(null);
@@ -105,6 +115,11 @@ export function RedevelopmentTab() {
   function handleFinishDraw(points: RedevelopmentPoint[]) {
     setPendingPoints(points);
     setDrawing(false);
+  }
+
+  function handleFinishImageTrace(points: RedevelopmentPoint[]) {
+    setPendingPoints(points);
+    setImageTracing(false);
   }
 
   async function handleSaveDraft() {
@@ -203,14 +218,23 @@ export function RedevelopmentTab() {
         <button type="button" onClick={load} disabled={loading} className="text-xs text-primary hover:underline disabled:opacity-50">
           {loading ? "불러오는 중..." : "새로고침"}
         </button>
-        {!drawing && !pendingPoints && (
-          <button
-            type="button"
-            onClick={startNewZone}
-            className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
-          >
-            + 새 구역 그리기
-          </button>
+        {!drawing && !imageTracing && !pendingPoints && (
+          <>
+            <button
+              type="button"
+              onClick={startNewZone}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
+            >
+              + 새 구역 그리기
+            </button>
+            <button
+              type="button"
+              onClick={startNewZoneFromImage}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-primary text-primary hover:bg-primary/5"
+            >
+              + 이미지로 구역 그리기
+            </button>
+          </>
         )}
         {drawing && (
           <button type="button" onClick={cancelDrawing} className="text-xs text-destructive hover:underline">
@@ -218,6 +242,10 @@ export function RedevelopmentTab() {
           </button>
         )}
       </div>
+
+      {imageTracing && (
+        <RedevelopmentImageTraceTool onComplete={handleFinishImageTrace} onCancel={() => setImageTracing(false)} />
+      )}
 
       {pendingPoints && (
         <div className="rounded-sm border border-primary/40 bg-primary/5 p-4 space-y-3">
