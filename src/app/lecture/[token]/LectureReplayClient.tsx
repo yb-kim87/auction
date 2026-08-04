@@ -179,6 +179,7 @@ export function LectureReplayClient({ token }: { token: string }) {
                 embedUrl={embedUrl}
                 startSeconds={selectedRow.startSeconds}
                 endSeconds={selectedRow.endSeconds}
+                videoDurationSeconds={selectedVideo.durationSeconds}
                 iframeId={PLAYER_IFRAME_ID}
                 title={selectedRow.title}
               />

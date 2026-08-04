@@ -25,12 +25,23 @@ export function BunnyChapterPlayer({
   embedUrl,
   startSeconds,
   endSeconds,
+  videoDurationSeconds,
   iframeId,
   title,
 }: {
   embedUrl: string;
   startSeconds: number;
+  /** 이 값에 도달하면 자동으로 멈춘다(명시 지정 또는 다음 챕터 시작).
+   * 마지막 챕터처럼 없을 수 있다 — 이땐 자동 정지하지 않고 영상 끝까지
+   * 자연스럽게 재생한다. */
   endSeconds: number | undefined;
+  /** 진행바/탐색 범위 계산용 폴백 — endSeconds가 없는 마지막 챕터도
+   * 진행바가 멈춰 있지 않고(0%에 고정) 정상적으로 채워지고 탐색도
+   * 되도록, 영상 전체 길이를 "이 챕터의 끝"으로 대신 쓴다(사용자 보고,
+   * 2026-08-04: "두번째 섹션 전화조사방법은 게이지 조절이 아예 안돼" —
+   * endSeconds가 없어 진행바 계산 자체가 막혀 있던 버그). 자동 정지에는
+   * 쓰지 않는다(끝까지 재생돼야 하므로). */
+  videoDurationSeconds: number | null;
   iframeId: string;
   title: string;
 }) {
@@ -81,7 +92,8 @@ export function BunnyChapterPlayer({
   }, [embedUrl, iframeId]);
 
   const relative = Math.max(0, current - startSeconds);
-  const chapterDuration = endSeconds != null ? Math.max(0, endSeconds - startSeconds) : null;
+  const displayEndSeconds = endSeconds ?? videoDurationSeconds ?? undefined;
+  const chapterDuration = displayEndSeconds != null ? Math.max(0, displayEndSeconds - startSeconds) : null;
   const progressPct = chapterDuration ? Math.min(100, (relative / chapterDuration) * 100) : 0;
 
   function seekAt(clientX: number) {
