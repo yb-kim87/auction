@@ -126,8 +126,13 @@ export function BunnyChapterPlayer({
         allowFullScreen
         className="absolute inset-0 w-full h-full border-0"
       />
-      {/* Bunny 기본 하단 컨트롤을 가리는 불투명 바 + 챕터 전용 커스텀 컨트롤 */}
-      <div className="absolute inset-x-0 bottom-0 h-12 bg-black flex items-center gap-3 px-3 sm:px-4">
+      {/* Bunny 기본 하단 컨트롤(재생바 포함)을 가리는 불투명 영역. 챕터
+       * 진행바만 h-12(48px)로는 Bunny 컨트롤 바 상단 일부(재생바 라인)가
+       * 위로 삐져나와 같이 보이는 문제가 있어(사용자 보고, 2026-08-04:
+       * "게이지가 버니스트리밍꺼도 같이 보이는데"), 마스크 영역을 좀 더
+       * 크게(h-20) 잡아 확실히 덮는다. */}
+      <div className="absolute inset-x-0 bottom-0 h-20 bg-black" />
+      <div className="absolute inset-x-0 bottom-0 h-12 flex items-center gap-3 px-3 sm:px-4">
         <button
           type="button"
           onClick={togglePlay}
