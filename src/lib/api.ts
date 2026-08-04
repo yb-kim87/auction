@@ -4031,7 +4031,11 @@ export function fetchLecturePlayUrl(
   videoId: string,
   startSeconds?: number,
 ): Promise<{ embedUrl: string }> {
-  const qs = startSeconds ? `?t=${Math.round(startSeconds)}` : "";
+  // startSeconds가 0이어도(챕터가 0:00부터 시작하는 경우) t=0을 명시적으로
+  // 보내야 한다 — 0을 falsy로 취급해 파라미터를 생략하면 Bunny 플레이어가
+  // "이어보기(마지막 시청 위치)"로 재생을 시작해버린다(사용자 보고,
+  // 2026-08-04: "경매기본지식이 00:00부터 시작을 안해").
+  const qs = startSeconds != null ? `?t=${Math.round(startSeconds)}` : "";
   return lectureReplayFetch(
     `/public/lecture-replay/access/${encodeURIComponent(token)}/videos/${encodeURIComponent(videoId)}/play${qs}`,
     undefined,
@@ -4260,7 +4264,11 @@ export function fetchMyCoursePlayUrl(
   videoId: string,
   startSeconds?: number,
 ): Promise<{ embedUrl: string }> {
-  const qs = startSeconds ? `?t=${Math.round(startSeconds)}` : "";
+  // startSeconds가 0이어도(챕터가 0:00부터 시작하는 경우) t=0을 명시적으로
+  // 보내야 한다 — 0을 falsy로 취급해 파라미터를 생략하면 Bunny 플레이어가
+  // "이어보기(마지막 시청 위치)"로 재생을 시작해버린다(사용자 보고,
+  // 2026-08-04: "경매기본지식이 00:00부터 시작을 안해").
+  const qs = startSeconds != null ? `?t=${Math.round(startSeconds)}` : "";
   return lectureReplayFetch(
     `/courses/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(videoId)}/play${qs}`,
     undefined,
