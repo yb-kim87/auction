@@ -343,7 +343,15 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
         const firstPublished = data.sections.flatMap((s) => s.videos).find((v) => v.isPublished);
         if (latest) {
           setSelectedVideoId(latest.videoId);
-          setSelectedStartSeconds(latest.chapterStartSeconds || undefined);
+          const latestVideo = data.sections
+            .flatMap((s) => s.videos)
+            .find((v) => v.id === latest.videoId);
+          // 챕터의 시작 시각 0초는 유효한 값이다. `|| undefined`를 사용하면
+          // 첫 챕터가 챕터 없는 일반 영상처럼 처리되어 행 선택과 진도가
+          // 서로 다른 키를 사용하게 된다.
+          setSelectedStartSeconds(
+            latestVideo?.chapters?.length ? latest.chapterStartSeconds : undefined,
+          );
         } else if (firstPublished) {
           setSelectedVideoId(firstPublished.id);
           setSelectedStartSeconds(firstPublished.chapters?.[0]?.startSeconds);
@@ -377,10 +385,18 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const selectedRow = selectedVideo
     ? expandVideoRows(selectedVideo).find((r) => r.startSeconds === selectedStartSeconds) ?? null
     : null;
-  const progressByRow = useMemo(
-    () => new Map(progress.map((item) => [item.chapterStartSeconds > 0 ? `${item.videoId}:${item.chapterStartSeconds}` : item.videoId, item])),
-    [progress],
-  );
+  const progressByRow = useMemo(() => {
+    const byRow = new Map<string, LectureCourseProgress>();
+    for (const row of publishedRows) {
+      const saved = progress.find(
+        (item) =>
+          item.videoId === row.video.id &&
+          item.chapterStartSeconds === (row.startSeconds ?? 0),
+      );
+      if (saved) byRow.set(row.key, saved);
+    }
+    return byRow;
+  }, [progress, publishedRows]);
   const selectedProgress = selectedVideo
     ? progress.find(
         (item) =>
