@@ -21,6 +21,7 @@ export function RedevelopmentImageTraceTool({
   onComplete,
   onCancel,
   initialImageUrl,
+  initialCenter,
 }: {
   onComplete: (points: RedevelopmentPoint[]) => void;
   onCancel: () => void;
@@ -29,6 +30,11 @@ export function RedevelopmentImageTraceTool({
    * 2026-08-04: "은평구청 데이터를 기반으로 정밀 경계를 통한 구역도
    * 적용해보는거 어때"). */
   initialImageUrl?: string | null;
+  /** 오른쪽 지도의 초기 중심 — 구역이 이미 가진 근사 좌표(원 근사의
+   * 중심 등)를 넘겨주면 관리자가 서울 전역에서 해당 구역을 직접 찾아
+   * 헤맬 필요 없이 바로 근처에서 랜드마크를 클릭할 수 있다(사용자 피드백,
+   * 2026-08-04: 기본 중심이 용산구라 은평구 구역을 찾기 불편했음). */
+  initialCenter?: GeoPoint | null;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(initialImageUrl ?? null);
   const [calibrationPairs, setCalibrationPairs] = useState<CalibrationPair[]>([]);
@@ -60,9 +66,15 @@ export function RedevelopmentImageTraceTool({
       if (cancelled || !mapContainerRef.current || !window.kakao) return;
       const kakao = window.kakao;
       mapRef.current = new kakao.maps.Map(mapContainerRef.current, {
-        center: new kakao.maps.LatLng(37.5326, 126.9975),
-        level: 6,
+        center: new kakao.maps.LatLng(initialCenter?.lat ?? 37.5326, initialCenter?.lng ?? 126.9975),
+        level: initialCenter ? 4 : 6,
       });
+      if (initialCenter) {
+        const refMarker = new kakao.maps.Marker({
+          position: new kakao.maps.LatLng(initialCenter.lat, initialCenter.lng),
+        });
+        refMarker.setMap(mapRef.current);
+      }
       setMapReady(true);
     });
     return () => {

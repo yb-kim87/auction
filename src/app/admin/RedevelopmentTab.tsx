@@ -46,6 +46,7 @@ export function RedevelopmentTab() {
   const [drawing, setDrawing] = useState(false);
   const [imageTracing, setImageTracing] = useState(false);
   const [imageTraceSourceUrl, setImageTraceSourceUrl] = useState<string | null>(null);
+  const [imageTraceCenter, setImageTraceCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [editingZone, setEditingZone] = useState<RedevelopmentZone | null>(null);
   const [draftPointCount, setDraftPointCount] = useState(0);
   const [pendingPoints, setPendingPoints] = useState<RedevelopmentPoint[] | null>(null);
@@ -111,6 +112,13 @@ export function RedevelopmentTab() {
     setForm({ name: zone.name, region: zone.region, stage: zone.stage, memo: zone.memo ?? "" });
     setSelectedZoneId(zone.id);
     setImageTraceSourceUrl(zone.referenceImageUrl);
+    if (zone.polygon.length > 0) {
+      const lat = zone.polygon.reduce((sum, p) => sum + p.lat, 0) / zone.polygon.length;
+      const lng = zone.polygon.reduce((sum, p) => sum + p.lng, 0) / zone.polygon.length;
+      setImageTraceCenter({ lat, lng });
+    } else {
+      setImageTraceCenter(null);
+    }
     setImageTracing(true);
   }
 
@@ -137,6 +145,7 @@ export function RedevelopmentTab() {
     setPendingPoints(points);
     setImageTracing(false);
     setImageTraceSourceUrl(null);
+    setImageTraceCenter(null);
   }
 
   async function handleSaveDraft() {
@@ -268,8 +277,10 @@ export function RedevelopmentTab() {
           onCancel={() => {
             setImageTracing(false);
             setImageTraceSourceUrl(null);
+            setImageTraceCenter(null);
           }}
           initialImageUrl={imageTraceSourceUrl}
+          initialCenter={imageTraceCenter}
         />
       )}
 
