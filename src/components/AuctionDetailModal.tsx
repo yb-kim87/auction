@@ -1747,6 +1747,16 @@ export function AuctionDetailModal({
   const [favoriteCategoriesLoading, setFavoriteCategoriesLoading] = useState(false);
   const [newFavoriteCategory, setNewFavoriteCategory] = useState("");
   const [favoriteMemoDraft, setFavoriteMemoDraft] = useState("");
+  // 모달 바깥에서 드래그를 시작/종료했는지 판별하기 위한 ref들 —
+  // 컴포넌트 하단의 `if (!item...) return null` 조기 반환보다 먼저
+  // 선언해야 한다(hooks는 조건부로 호출될 수 없음). 이전에 return 문
+  // 뒤에 둬서 item이 null→값 있음으로 바뀔 때 훅 호출 순서가 달라져
+  // "Application error: a client-side exception" 크래시가 났었다
+  // (사용자 리포트, 2026-08-04).
+  const backdropMouseDownRef = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const pickerMouseDownRef = useRef(false);
+  const pickerContentRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
@@ -2027,17 +2037,6 @@ export function AuctionDetailModal({
   };
 
   const favoriteDisabled = favoriteBusy || favoriteSaving;
-
-  // 입찰계획 숫자 입력 중 드래그로 텍스트를 선택하다가 마우스가 모달
-  // 바깥으로 나간 채로 손을 떼면(mouseup) 그 지점이 배경(backdrop)이라
-  // click 이벤트가 배경에서 발생해 곧바로 닫혀버려 입력 중이던 값이
-  // 날아가는 문제가 있었다(사용자 피드백, 2026-08-04). mousedown이
-  // 배경 자체에서 시작한 경우에만 닫히도록, mousedown/mouseup 쌍을
-  // 직접 추적한다(모달 안에서 시작한 드래그는 무시).
-  const backdropMouseDownRef = useRef(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const pickerMouseDownRef = useRef(false);
-  const pickerContentRef = useRef<HTMLDivElement>(null);
 
   return (
     <div
