@@ -210,8 +210,16 @@ export async function fetchFavorites(): Promise<FavoriteItem[]> {
       (await parseErrorMessage(res)) ?? "관심물건 목록을 불러오지 못했습니다.",
     );
   }
-  const data = await readJsonResponse<{ items?: FavoriteItem[] }>(res);
-  return data.items ?? [];
+  const data = await readJsonResponse<{
+    items?: FavoriteItem[];
+    auctionIds?: string[];
+  }>(res);
+
+  // 신규 API는 카테고리를 포함한 items를 반환하지만, 배포 전/구버전 API는
+  // auctionIds만 반환한다. 운영 API 전환 시점과 무관하게 내 물건 목록이
+  // 비어 보이지 않도록 기존 응답도 미분류 관심물건으로 변환한다.
+  if (Array.isArray(data.items)) return data.items;
+  return (data.auctionIds ?? []).map((auctionId) => ({ auctionId, category: null }));
 }
 
 export async function addFavorite(auctionId: string, category?: string | null): Promise<void> {
