@@ -1698,6 +1698,7 @@ export function AuctionDetailModal({
   appraisalRatio = null,
   loanPolicyLabel = null,
   requiredEquity: requiredEquityOverride = null,
+  hasBidPlan = null,
   regulatedArea = null,
   incomeLoanLimit = null,
   existingLoanWon = null,
@@ -1733,6 +1734,10 @@ export function AuctionDetailModal({
   appraisalRatio?: number | null;
   loanPolicyLabel?: string | null;
   requiredEquity?: number | null;
+  /** 이 물건에 실제로 저장된 입찰계획이 있는지(있으면 탭의 "입력 필요"
+   * 배지를 숨긴다). 넘기지 않으면 기존처럼 requiredEquity 유무로
+   * 대체 판단한다(호출부가 아직 입찰계획 목록을 안 들고 있는 경우). */
+  hasBidPlan?: boolean | null;
   regulatedArea?: boolean | null;
   incomeLoanLimit?: number | null;
   existingLoanWon?: number | null;
@@ -2098,14 +2103,16 @@ export function AuctionDetailModal({
                 type="button"
                 onClick={handleToggleFavorite}
                 disabled={favoriteDisabled}
-                className={`h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs border transition-colors disabled:opacity-50 ${
+                aria-label={isFavorite ? "관심물건 카테고리/메모 변경" : "관심등록"}
+                title={isFavorite ? "관심물건 카테고리/메모 변경" : "관심등록"}
+                className={
                   isFavorite
-                    ? "bg-primary/[0.06] text-primary border-primary/20 hover:bg-primary/[0.1]"
-                    : "text-muted-foreground hover:bg-secondary border-border"
-                }`}
+                    ? "h-8 w-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    : "h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs border border-border text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+                }
               >
-                <Heart size={14} className={isFavorite ? "fill-current" : ""} />
-                <span>{isFavorite ? "카테고리 변경" : "관심등록"}</span>
+                <Heart size={isFavorite ? 18 : 14} className={isFavorite ? "fill-current" : ""} />
+                {!isFavorite && <span>관심등록</span>}
               </button>
             )}
             {!editable && preview.link && (
@@ -2350,14 +2357,16 @@ export function AuctionDetailModal({
                     type="button"
                     onClick={handleToggleFavorite}
                     disabled={favoriteDisabled}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} border rounded-sm transition-colors disabled:opacity-50 ${
+                    aria-label={isFavorite ? "관심물건 카테고리/메모 변경" : "관심물건 추가"}
+                    title={isFavorite ? "관심물건 카테고리/메모 변경" : "관심물건 추가"}
+                    className={
                       isFavorite
-                        ? "bg-rose-500/10 border-rose-300 text-rose-600 hover:bg-rose-500/15"
-                        : "bg-card border-border hover:bg-secondary"
-                    }`}
+                        ? "flex items-center justify-center w-9 h-9 rounded-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                        : `flex items-center gap-1.5 px-3 py-1.5 ${LABEL_TEXT} bg-card border border-border rounded-sm hover:bg-secondary transition-colors disabled:opacity-50`
+                    }
                   >
-                    <Heart size={14} className={isFavorite ? "fill-current text-rose-500" : ""} />
-                    {isFavorite ? "카테고리 변경" : "관심물건 추가"}
+                    <Heart size={isFavorite ? 18 : 14} className={isFavorite ? "fill-current" : ""} />
+                    {!isFavorite && "관심물건 추가"}
                   </button>
                 )}
                 {onDislike && (
@@ -2578,7 +2587,9 @@ export function AuctionDetailModal({
               >
                 <FileText size={14} />
                 입찰계획
-                {requiredEquity == null && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[0.6rem] font-bold text-slate-500">입력 필요</span>}
+                {(hasBidPlan != null ? !hasBidPlan : requiredEquity == null) && (
+                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[0.6rem] font-bold text-slate-500">입력 필요</span>
+                )}
               </button>
             )}
           </div>

@@ -420,6 +420,7 @@ export default function FavoritesPage() {
         editable={false}
         isAdmin={isAdmin}
         initialTab={selectedItemModalTab}
+        hasBidPlan={selectedItem ? bidPlans.some((p) => p.auctionId === selectedItem.id) : null}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
         favoriteMemo={selectedItem ? favorites.find((f) => f.auctionId === selectedItem.id)?.memo ?? null : null}

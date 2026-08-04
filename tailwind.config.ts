@@ -1,6 +1,24 @@
 import type { Config } from "tailwindcss";
 
-const config: Config = {
+/** 테마 색상은 --primary: #1e3a5f 처럼 완성된 색(hex/oklch 등)을 담은
+ * CSS 변수라서, Tailwind의 기본 투명도 처리 방식인 rgb(var(--x) / 0.35)
+ * 로는 조합이 안 된다("rgb(#1e3a5f / 0.35)"는 잘못된 CSS라 브라우저가
+ * 선언 자체를 버려 완전 투명해진다 — 실측, 2026-08-05: "실거래 그래프가
+ * 제대로 안나오는데" → bg-primary/35 막대가 rgba(0,0,0,0)으로 렌더링됨
+ * 확인). color-mix()는 hex/oklch 등 어떤 표기든 그대로 섞을 수 있어
+ * 이 문제가 없다 — 투명도 없이 쓰는 기존 bg-primary 등은 그대로
+ * var(--x)를 반환해 영향이 없다. */
+function withOpacity(variable: string) {
+  return ({ opacityValue }: { opacityValue?: string }) =>
+    opacityValue === undefined
+      ? `var(${variable})`
+      : `color-mix(in srgb, var(${variable}) ${Number(opacityValue) * 100}%, transparent)`;
+}
+
+// Tailwind는 런타임에 색상 값으로 함수(opacityValue 콜백)를 받아들이지만
+// 설치된 @types 버전의 Config 타입 정의가 이를 표현하지 못해 색상 값을
+// 문자열로만 좁게 선언한다 — 여기서만 as unknown으로 우회한다.
+const config = {
   darkMode: ["class"],
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,57 +28,57 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        background: withOpacity("--background"),
+        foreground: withOpacity("--foreground"),
         card: {
-          DEFAULT: "var(--card)",
-          foreground: "var(--card-foreground)",
+          DEFAULT: withOpacity("--card"),
+          foreground: withOpacity("--card-foreground"),
         },
         popover: {
-          DEFAULT: "var(--popover)",
-          foreground: "var(--popover-foreground)",
+          DEFAULT: withOpacity("--popover"),
+          foreground: withOpacity("--popover-foreground"),
         },
         primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
+          DEFAULT: withOpacity("--primary"),
+          foreground: withOpacity("--primary-foreground"),
         },
         secondary: {
-          DEFAULT: "var(--secondary)",
-          foreground: "var(--secondary-foreground)",
+          DEFAULT: withOpacity("--secondary"),
+          foreground: withOpacity("--secondary-foreground"),
         },
         muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "var(--muted-foreground)",
+          DEFAULT: withOpacity("--muted"),
+          foreground: withOpacity("--muted-foreground"),
         },
         accent: {
-          DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
+          DEFAULT: withOpacity("--accent"),
+          foreground: withOpacity("--accent-foreground"),
         },
         destructive: {
-          DEFAULT: "var(--destructive)",
-          foreground: "var(--destructive-foreground)",
+          DEFAULT: withOpacity("--destructive"),
+          foreground: withOpacity("--destructive-foreground"),
         },
-        border: "var(--border)",
-        input: "var(--input)",
-        "input-background": "var(--input-background)",
-        "switch-background": "var(--switch-background)",
-        ring: "var(--ring)",
+        border: withOpacity("--border"),
+        input: withOpacity("--input"),
+        "input-background": withOpacity("--input-background"),
+        "switch-background": withOpacity("--switch-background"),
+        ring: withOpacity("--ring"),
         chart: {
-          1: "var(--chart-1)",
-          2: "var(--chart-2)",
-          3: "var(--chart-3)",
-          4: "var(--chart-4)",
-          5: "var(--chart-5)",
+          1: withOpacity("--chart-1"),
+          2: withOpacity("--chart-2"),
+          3: withOpacity("--chart-3"),
+          4: withOpacity("--chart-4"),
+          5: withOpacity("--chart-5"),
         },
         sidebar: {
-          DEFAULT: "var(--sidebar)",
-          foreground: "var(--sidebar-foreground)",
-          primary: "var(--sidebar-primary)",
-          "primary-foreground": "var(--sidebar-primary-foreground)",
-          accent: "var(--sidebar-accent)",
-          "accent-foreground": "var(--sidebar-accent-foreground)",
-          border: "var(--sidebar-border)",
-          ring: "var(--sidebar-ring)",
+          DEFAULT: withOpacity("--sidebar"),
+          foreground: withOpacity("--sidebar-foreground"),
+          primary: withOpacity("--sidebar-primary"),
+          "primary-foreground": withOpacity("--sidebar-primary-foreground"),
+          accent: withOpacity("--sidebar-accent"),
+          "accent-foreground": withOpacity("--sidebar-accent-foreground"),
+          border: withOpacity("--sidebar-border"),
+          ring: withOpacity("--sidebar-ring"),
         },
       },
       borderRadius: {
@@ -72,5 +90,5 @@ const config: Config = {
     },
   },
   plugins: [],
-};
+} as unknown as Config;
 export default config;
