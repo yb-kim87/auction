@@ -295,6 +295,28 @@ function CourseDetail({
     }
   }
 
+  const sortedSections = [...sections].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  /** 섹션(강의) 자체의 노출 순서를 바꾼다 — 기존 화살표는 같은 섹션 안
+   * 영상끼리만 순서를 바꿔서, 섹션당 영상이 1개뿐이면 아무 효과가
+   * 없었다(사용자 지적, 2026-08-04: "위아래 저 화살표가 그 기능
+   * 같기는한데 동작을 안하네" — 실제로는 섹션 순서를 바꾸고 싶었던 것). */
+  async function handleMoveSection(section: LectureSection, direction: -1 | 1) {
+    const idx = sortedSections.findIndex((s) => s.id === section.id);
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= sortedSections.length) return;
+    const other = sortedSections[swapIdx];
+    try {
+      const [a, b] = await Promise.all([
+        updateLectureSection(section.id, { sortOrder: other.sortOrder }),
+        updateLectureSection(other.id, { sortOrder: section.sortOrder }),
+      ]);
+      setSections((prev) => prev.map((s) => (s.id === a.id ? a : s.id === b.id ? b : s)));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "섹션 순서 변경 실패");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-sm border border-border bg-card p-4 space-y-3">
@@ -322,7 +344,7 @@ function CourseDetail({
           <p className="text-sm text-muted-foreground">섹션이 없습니다.</p>
         ) : (
           <div className="space-y-3">
-            {sections.map((section) => (
+            {sortedSections.map((section, idx) => (
               <SectionBlock
                 key={section.id}
                 section={section}
@@ -331,6 +353,8 @@ function CourseDetail({
                   setSections((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
                 }
                 onError={onError}
+                onMoveUp={idx > 0 ? () => void handleMoveSection(section, -1) : undefined}
+                onMoveDown={idx < sortedSections.length - 1 ? () => void handleMoveSection(section, 1) : undefined}
               />
             ))}
           </div>
@@ -654,11 +678,15 @@ function SectionBlock({
   onDelete,
   onUpdated,
   onError,
+  onMoveUp,
+  onMoveDown,
 }: {
   section: LectureSection;
   onDelete: () => void;
   onUpdated: (section: LectureSection) => void;
   onError: (message: string) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const [videos, setVideos] = useState<LectureVideo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -833,6 +861,24 @@ function SectionBlock({
           <h4 className="text-sm font-semibold text-foreground">{section.title}</h4>
         )}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            disabled={!onMoveUp}
+            onClick={onMoveUp}
+            title="섹션을 위로 이동"
+            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            disabled={!onMoveDown}
+            onClick={onMoveDown}
+            title="섹션을 아래로 이동"
+            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+          >
+            ▼
+          </button>
           {!editingTitle && (
             <button
               type="button"
