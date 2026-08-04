@@ -3328,9 +3328,16 @@ export function AuctionDetailModal({
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4"
           onMouseDown={(e) => {
+            // 이 팝업은 물건 상세 모달(contentRef) 바깥의 형제 요소라서,
+            // 여기서 발생한 mousedown/mouseup이 그대로 버블링되면 바깥
+            // 모달의 "모달 밖 클릭" 판정에 걸려 상세 모달 전체가 닫혀버린다
+            // (사용자 리포트, 2026-08-04: "빨간박스안에 있는거 누르면 저
+            // 창이 그냥꺼져버려"). 바깥으로 전파되지 않게 막는다.
+            e.stopPropagation();
             pickerMouseDownRef.current = !pickerContentRef.current?.contains(e.target as Node);
           }}
           onMouseUp={(e) => {
+            e.stopPropagation();
             if (pickerMouseDownRef.current && !pickerContentRef.current?.contains(e.target as Node)) {
               setFavoritePickerOpen(false);
             }
