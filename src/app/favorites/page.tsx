@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Calendar, FileText, Heart, LogOut, MapPin, Target } from "lucide-react";
+import { Calendar, FileText, Heart, LogOut, Target } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie } from "@/lib/auth";
 import {
   fetchAuctionsByIds,
   fetchFavorites,
+  fetchRecommendations,
   addFavorite,
   removeFavorite,
   fetchMyProfile,
@@ -18,9 +19,9 @@ import {
   type BidPlanWithAuction,
 } from "@/lib/api";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
+import { RecommendCard, type LoanInfo } from "@/components/RecommendCard";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
-import { UpdatedBadge } from "@/components/UpdatedBadge";
-import { formatWonShort } from "@/lib/investment-money";
+import { formatWonShort, parseMoneyToWon } from "@/lib/investment-money";
 import { AppHeader, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
 import { AccountNavLink } from "@/components/AccountNavLink";
 
@@ -56,6 +57,7 @@ export default function FavoritesPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [items, setItems] = useState<AuctionItem[]>([]);
+  const [loanInfoByItemId, setLoanInfoByItemId] = useState<Record<string, LoanInfo>>({});
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [bidPlans, setBidPlans] = useState<BidPlanWithAuction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,11 +99,22 @@ export default function FavoritesPage() {
       setFavorites(favs);
       setBidPlans(plans);
 
-      const ids = Array.from(new Set([
-        ...favs.map((f) => f.auctionId),
-        ...plans.map((plan) => plan.auctionId),
-      ]));
-      fetchAuctionsByIds(ids)
+      // 관심물건 카드를 추천 물건 페이지와 동일한 카드(RecommendCard)로
+      // 보여주기 위해 최소 필요자금/예상 수익 계산에 쓰는 loanInfoByItemId도
+      // 함께 받아온다 — favoritesOnly=true는 예산/필터와 무관하게 관심등록한
+      // 물건 전체를 반환한다(사용자 요청, 2026-08-05: "내물건에 관심 입찰계획
+      // 물건 표시방법도 추천물건탭에 나오는 방식이랑 똑같이 나오게").
+      fetchRecommendations(undefined, { limit: 200, offset: 0 }, { favoritesOnly: true })
+        .then((res) => {
+          if (cancelled) return Promise.resolve([] as AuctionItem[]);
+          setLoanInfoByItemId(res.loanInfoByItemId ?? {});
+          const favIds = new Set(res.items.map((item) => item.id));
+          const planOnlyIds = plans.map((plan) => plan.auctionId).filter((id) => !favIds.has(id));
+          if (planOnlyIds.length === 0) return Promise.resolve(res.items);
+          return fetchAuctionsByIds(planOnlyIds)
+            .then((extra) => [...res.items, ...extra])
+            .catch(() => res.items);
+        })
         .then((auctions) => {
           if (!cancelled) setItems(auctions);
         })
@@ -152,6 +165,9 @@ export default function FavoritesPage() {
   }, [items]);
 
   const favoriteIds = useMemo(() => new Set(favorites.map((f) => f.auctionId)), [favorites]);
+  const availableCapital = parseMoneyToWon(profile?.investableFunds ?? "");
+  const firstTimeBuyer = profile?.firstTimeBuyer ?? false;
+  const housingCount = profile?.housingCount ?? null;
 
   const groups = useMemo(() => {
     const byCategory = new Map<string, AuctionItem[]>();
@@ -287,50 +303,30 @@ export default function FavoritesPage() {
               {visibleItems.map((item) => {
                 const fav = favorites.find((f) => f.auctionId === item.id);
                 return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedItemModalTab("info");
-                      setSelectedItem(item);
-                    }}
-                    className="text-left rounded-xl border border-border bg-card p-4 hover:shadow-md hover:border-primary/40 transition-all"
-                  >
-                    <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                      <span className="px-1.5 py-0.5 rounded-md text-[0.65rem] font-bold bg-secondary text-muted-foreground">
-                        {item.propType}
-                      </span>
-                      <CaseStateBadge caseState={item.caseState} />
-                      {item.isUpdated && <UpdatedBadge />}
-                      {fav?.category && (
-                        <span className="ml-auto px-1.5 py-0.5 rounded-md text-[0.65rem] font-medium bg-primary/10 text-primary">
-                          {fav.category}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mb-0.5 text-[0.68rem] font-semibold text-primary">{item.auctionNo}</p>
-                    <div className="flex items-start gap-1.5 mb-2">
-                      <MapPin size={13} className="text-muted-foreground shrink-0 mt-0.5" />
-                      <p className="text-[0.82rem] font-medium text-foreground line-clamp-2">
-                        {item.address}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between text-[0.78rem]">
-                      <span className="text-muted-foreground">최저가</span>
-                      <span className="font-semibold text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
-                        {formatWonShort(item.minPrice)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[0.78rem]">
-                      <span className="text-muted-foreground">입찰기일</span>
-                      <span className="text-foreground">{item.bidDate || "-"}</span>
-                    </div>
-                    {fav?.memo && (
-                      <p className="mt-1.5 pt-1.5 border-t border-border/70 text-[0.72rem] text-muted-foreground line-clamp-2">
-                        메모 · {fav.memo}
-                      </p>
+                  <div key={item.id} className="space-y-1.5">
+                    <RecommendCard
+                      item={item}
+                      loanInfo={loanInfoByItemId[item.id]}
+                      firstTimeBuyer={firstTimeBuyer}
+                      housingCount={housingCount}
+                      availableCapital={availableCapital}
+                      isFavorite={favoriteIds.has(item.id)}
+                      favoriteBusy={favoriteBusy}
+                      onToggleFavorite={() => void handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
+                      onOpen={() => {
+                        setSelectedItemModalTab("info");
+                        setSelectedItem(item);
+                      }}
+                    />
+                    {(fav?.category || fav?.memo) && (
+                      <div className="rounded-lg border border-border bg-card px-3 py-2 text-[0.72rem] text-muted-foreground">
+                        {fav?.category && (
+                          <span className="mr-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 font-medium text-primary">{fav.category}</span>
+                        )}
+                        {fav?.memo && <span className="line-clamp-2">메모 · {fav.memo}</span>}
+                      </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
