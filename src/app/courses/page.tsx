@@ -119,7 +119,7 @@ export default function MyCoursesPage() {
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Link
-              href="/account"
+              href="/account?context=lecture"
               style={{
                 padding: "8px 16px",
                 color: C.textSecondary,

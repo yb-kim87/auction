@@ -162,7 +162,7 @@ export interface ProfitCalculatorResult {
   loanLimit: number; // 대출한도(감정가·낙찰가·소득 기준 중 최저, 기존대출 차감 전)
   loanAmount: number; // 최종 대출금 = max(0, 대출한도 - 기존대출)
   equity: number; // 실투자금(내자본금) = 취득금액합계 - 대출금
-  requiredCash: number; // 실제 준비자금 = 낙찰가+취득·보유 초기비용-대출금
+  requiredCash: number; // 실제 필요자금 = 낙찰가+취득·보유 초기비용-대출금
   acquisitionTaxRate: number;
   acquisitionTax: number; // 취득세(등기비용 중 취득세분)
   legalFee: number; // 법무비(법무사 보수·채권매입비 등 추정, 낙찰가의 0.7%)

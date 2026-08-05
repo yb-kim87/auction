@@ -564,7 +564,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               내 강의실
             </Link>
             <Link
-              href="/account"
+              href="/account?context=lecture"
               className="hidden sm:inline-block px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
               style={{
                 background: C.white,

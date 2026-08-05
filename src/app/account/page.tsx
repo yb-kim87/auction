@@ -2,11 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronDown, LogOut } from "lucide-react";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
 import { fetchMyProfile, logoutUser, updateMyProfile } from "@/lib/api";
 import { ROLE_LABELS } from "@/types/auction";
 import type { UserProfile } from "@/types/auction";
+import {
+  AppHeader,
+  HEADER_ACCENT_BAR,
+  HEADER_BTN,
+  HEADER_NAV_TRAILING,
+  HEADER_TITLE,
+} from "@/components/AppHeader";
 
 // ── palette (강의실/강의상세 페이지와 동일한 보라 톤) ─────────────────────────
 const C = {
@@ -47,6 +55,8 @@ const labelStyle: React.CSSProperties = {
 
 export default function AccountPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isLectureContext = searchParams.get("context") === "lecture";
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [name, setName] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -149,6 +159,28 @@ export default function AccountPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!isLectureContext) {
+    return (
+      <AuctionAccountView
+        profile={profile}
+        name={name}
+        setName={setName}
+        currentPassword={currentPassword}
+        setCurrentPassword={setCurrentPassword}
+        newPassword={newPassword}
+        setNewPassword={setNewPassword}
+        confirmPassword={confirmPassword}
+        setConfirmPassword={setConfirmPassword}
+        loading={loading}
+        saving={saving}
+        message={message}
+        onSubmit={handleSubmit}
+        onLogout={handleLogout}
+        homeHref={homeHref}
+      />
+    );
   }
 
   return (
@@ -391,5 +423,140 @@ export default function AccountPage() {
         )}
       </main>
     </div>
+  );
+}
+
+type AccountViewProps = {
+  profile: UserProfile | null;
+  name: string;
+  setName: (value: string) => void;
+  currentPassword: string;
+  setCurrentPassword: (value: string) => void;
+  newPassword: string;
+  setNewPassword: (value: string) => void;
+  confirmPassword: string;
+  setConfirmPassword: (value: string) => void;
+  loading: boolean;
+  saving: boolean;
+  message: { type: "success" | "error"; text: string } | null;
+  onSubmit: (event: React.FormEvent) => Promise<void>;
+  onLogout: () => Promise<void>;
+  homeHref: string;
+};
+
+/** 경매 화면에서 진입하는 기존 정보 밀도/네이비 톤의 회원정보 화면. */
+function AuctionAccountView({
+  profile,
+  name,
+  setName,
+  currentPassword,
+  setCurrentPassword,
+  newPassword,
+  setNewPassword,
+  confirmPassword,
+  setConfirmPassword,
+  loading,
+  saving,
+  message,
+  onSubmit,
+  onLogout,
+  homeHref,
+}: AccountViewProps) {
+  const inputClass =
+    "w-full px-3 py-2 border border-border rounded-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
+  const readOnlyClass = "w-full px-3 py-2 border border-border rounded-sm bg-secondary/30 text-foreground";
+
+  return (
+    <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+      <AppHeader
+        maxWidth="960"
+        nav={
+          <>
+            <div className={HEADER_ACCENT_BAR} />
+            <span className={HEADER_TITLE}>회원정보</span>
+            <div className={HEADER_NAV_TRAILING}>
+              <Link href={homeHref} className={HEADER_BTN}>
+                <ChevronDown size={13} className="rotate-90" />
+                돌아가기
+              </Link>
+              <button type="button" onClick={() => void onLogout()} className={HEADER_BTN}>
+                <LogOut size={13} />
+                로그아웃
+              </button>
+            </div>
+          </>
+        }
+      />
+
+      <main className="max-w-[960px] mx-auto px-3 sm:px-6 py-5 sm:py-8">
+        {message?.type === "error" && (
+          <div className="mb-5 rounded-sm border px-4 py-3 text-sm border-destructive/30 bg-destructive/5 text-destructive">
+            {message.text}
+          </div>
+        )}
+
+        <div className="bg-card border border-border rounded-sm shadow-sm p-4 sm:p-6">
+          <h1 className="text-lg font-bold text-foreground mb-1">내 정보 수정</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            이름과 비밀번호를 변경할 수 있습니다. 아이디는 변경할 수 없습니다.
+          </p>
+
+          {loading ? (
+            <p className="text-sm text-muted-foreground">불러오는 중...</p>
+          ) : profile ? (
+            <form onSubmit={(event) => void onSubmit(event)} className="space-y-6 max-w-lg">
+              <div className="space-y-4">
+                <label className="block text-sm space-y-1">
+                  <span className="text-muted-foreground">아이디</span>
+                  <input readOnly value={profile.username} className={readOnlyClass} />
+                </label>
+                {profile.phone && (
+                  <label className="block text-sm space-y-1">
+                    <span className="text-muted-foreground">전화번호</span>
+                    <input readOnly value={profile.phone} className={readOnlyClass} />
+                  </label>
+                )}
+                <label className="block text-sm space-y-1">
+                  <span className="text-muted-foreground">이름</span>
+                  <input value={name} onChange={(event) => setName(event.target.value)} className={inputClass} maxLength={50} />
+                </label>
+                <label className="block text-sm space-y-1">
+                  <span className="text-muted-foreground">등급</span>
+                  <input readOnly value={ROLE_LABELS[profile.role]} className={readOnlyClass} />
+                </label>
+              </div>
+
+              <div className="rounded-sm border border-border bg-secondary/25 p-4 sm:p-5 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">비밀번호 변경</p>
+                  <p className="text-xs text-muted-foreground mt-1">변경하지 않으려면 아래 칸을 비워 두세요.</p>
+                </div>
+                <PasswordInput label="현재 비밀번호" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" className={inputClass} />
+                <PasswordInput label="새 비밀번호" value={newPassword} onChange={setNewPassword} autoComplete="new-password" className={inputClass} />
+                <PasswordInput label="새 비밀번호 확인" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" className={inputClass} />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50">
+                  {saving ? "저장 중..." : "저장"}
+                </button>
+                {message?.type === "success" && <span className="text-sm text-emerald-600 font-medium">{message.text}</span>}
+              </div>
+            </form>
+          ) : (
+            <p className="text-sm text-muted-foreground">회원 정보를 불러오지 못했습니다. 로그인이 필요합니다.</p>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function PasswordInput({ label, value, onChange, autoComplete, className }: { label: string; value: string; onChange: (value: string) => void; autoComplete: string; className: string }) {
+  return (
+    <label className="block text-sm space-y-1">
+      <span className="text-muted-foreground">{label}</span>
+      <input type="password" value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} className={className} />
+    </label>
   );
 }

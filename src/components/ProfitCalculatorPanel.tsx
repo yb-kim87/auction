@@ -671,7 +671,7 @@ export function ProfitCalculatorPanel({
         <div className="grid grid-cols-2 gap-x-6 gap-y-1">
           <ResultRow label="대출금(LTV)" value={formatWonShort(result.loanAmount)} />
           <ResultRow
-            label="실제 준비자금"
+            label="실제 필요자금"
             value={formatWonShort(result.requiredCash)}
             helper="대출 실행 후 낙찰·취득·수리·명도 등에 필요한 현금"
           />
@@ -703,7 +703,7 @@ export function ProfitCalculatorPanel({
         </div>
         <details className="mt-3 pt-3 border-t border-primary/10 group">
           <summary className="flex items-center justify-between cursor-pointer list-none text-[12px] font-semibold text-primary">
-            <span>실제 준비자금 상세보기</span>
+            <span>실제 필요자금 상세보기</span>
             <span className="text-[11px] font-normal text-muted-foreground group-open:hidden">
               펼치기
             </span>
@@ -749,7 +749,7 @@ export function ProfitCalculatorPanel({
               status="자동 계산"
             />
             <div className="flex items-center justify-between py-2.5 border-t border-primary/20">
-              <span className="text-[12px] font-bold text-foreground">최종 실제 준비자금</span>
+              <span className="text-[12px] font-bold text-foreground">최종 실제 필요자금</span>
               <span
                 className="text-sm font-bold text-primary"
                 style={{ fontFamily: "'Inter', sans-serif" }}
