@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
+import { clearAuthCookie } from "@/lib/auth";
 import { fetchMyCourses, fetchMyProfile, logoutUser, type LectureMyCourse } from "@/lib/api";
 import type { UserProfile } from "@/types/auction";
 
@@ -77,7 +77,6 @@ export default function MyCoursesPage() {
     router.replace("/login");
   };
 
-  const homeHref = profile ? getLoginRedirect(profile.role) : "/";
   const resumeCourse = courses?.find(
     (course) => course.effectiveStatus === "ACTIVE" && course.lastLessonTitle,
   );
@@ -97,7 +96,7 @@ export default function MyCoursesPage() {
             justifyContent: "space-between",
           }}
         >
-          <Link href={homeHref} style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <Link href="/courses" aria-label="내 강의실" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
             <div
               style={{
                 height: 36,
@@ -118,6 +117,21 @@ export default function MyCoursesPage() {
           </Link>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Link
+              href="/"
+              style={{
+                padding: "8px 16px",
+                color: C.accent,
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 999,
+                border: `1px solid ${C.accentLight}`,
+                background: C.white,
+                textDecoration: "none",
+              }}
+            >
+              물건 추천
+            </Link>
             <Link
               href="/account?context=lecture"
               style={{

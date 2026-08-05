@@ -204,7 +204,7 @@ function AccountPageContent() {
             height: 64,
           }}
         >
-          <Link href={homeHref} className="shrink-0" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <Link href="/courses" aria-label="내 강의실" className="shrink-0" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
             <div
               style={{
                 height: 36,
@@ -225,6 +225,13 @@ function AccountPageContent() {
           </Link>
 
           <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+            <Link
+              href="/"
+              className="whitespace-nowrap"
+              style={{ padding: "8px 10px", color: C.accent, fontSize: 13, fontWeight: 700, borderRadius: 999, border: `1px solid ${C.accentLight}`, textDecoration: "none" }}
+            >
+              물건 추천
+            </Link>
             <Link
               href="/courses"
               className="whitespace-nowrap"

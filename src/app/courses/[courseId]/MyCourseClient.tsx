@@ -518,7 +518,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           className="flex items-center gap-2 sm:gap-3.5 px-3 sm:px-5"
           style={{ maxWidth: 1400, margin: "0 auto", height: 56 }}
         >
-          <div className="flex items-center shrink-0">
+          <Link href="/courses" aria-label="내 강의실" className="flex items-center shrink-0" style={{ textDecoration: "none" }}>
             <div
               style={{
                 height: 30,
@@ -537,7 +537,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
             >
               코치픽
             </div>
-          </div>
+          </Link>
 
           <div className="flex-1" />
 
@@ -549,6 +549,21 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto sm:ml-0">
+            <Link
+              href="/"
+              className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
+              style={{
+                background: C.white,
+                border: `1px solid ${C.accentLight}`,
+                color: C.accent,
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 999,
+                textDecoration: "none",
+              }}
+            >
+              물건 추천
+            </Link>
             <Link
               href="/courses"
               className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
