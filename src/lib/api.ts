@@ -3776,6 +3776,7 @@ export type RedevelopmentZone = {
   boundaryType: "EXACT" | "CONVEX_HULL_APPROX" | "POINT_ONLY" | "MANUAL";
   lastAutoSyncedAt: string | null;
   referenceImageUrl: string | null;
+  areaSqMeters: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -3915,6 +3916,7 @@ export function bulkUpsertRedevelopmentZones(
     sourceKey: string;
     asOfDate?: string | null;
     referenceImageUrl?: string | null;
+    areaSqMeters?: number | null;
   }>,
 ): Promise<{ created: number; updated: number; skippedManualOverride: number; failed: number }> {
   return redevelopmentFetch(

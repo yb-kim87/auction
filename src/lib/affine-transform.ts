@@ -62,3 +62,55 @@ export function solveAffineFrom3Points(
   const [d, e, f] = multiplyMatVec(invM, geoPts.map((p) => p.lng));
   return (p: PixelPoint) => ({ lat: a * p.x + b * p.y + c, lng: d * p.x + e * p.y + f });
 }
+
+const M_PER_DEG_LAT = 110_540;
+const M_PER_DEG_LNG_EQUATOR = 111_320;
+
+/** 2점 보정(유사변환 = 축척·회전·이동, 찌그러짐 없음).
+ *
+ * 어파인(3점)과 달리 전단(shear)·비등방 축척을 허용하지 않는 대신, 대응점이
+ * 2개만 있으면 된다 — 미지수 4개(축척1·회전1·이동2)에 방정식 4개(점 2개 ×
+ * x,y)라 정확히 풀린다. 구역도처럼 원본이 지적도(정사에 가깝고 찌그러지지
+ * 않은 도면)인 경우 이 가정이 성립해서, 클릭 수를 3번에서 2번으로 줄이면서도
+ * 오히려 안정적이다(3점 어파인은 클릭이 조금만 부정확해도 도형이 기울어진다).
+ *
+ * 위경도는 위도에 따라 경도 1도의 실거리가 달라져 그대로 쓰면 축척이
+ * 왜곡되므로, 기준점 기준 로컬 미터좌표(동/북)로 바꿔 계산한 뒤 되돌린다.
+ * 이미지 y축은 아래로 증가하므로 부호를 뒤집어 북쪽이 +가 되게 맞춘다. */
+export function solveSimilarityFrom2Points(
+  imgPts: PixelPoint[],
+  geoPts: GeoPoint[],
+): ((p: PixelPoint) => GeoPoint) | null {
+  if (imgPts.length !== 2 || geoPts.length !== 2) return null;
+  const [p1, p2] = imgPts;
+  const [g1, g2] = geoPts;
+
+  const mPerLng = M_PER_DEG_LNG_EQUATOR * Math.cos(((g1.lat + g2.lat) / 2) * (Math.PI / 180));
+  if (!Number.isFinite(mPerLng) || mPerLng <= 0) return null;
+
+  const du = p2.x - p1.x;
+  const dv = -(p2.y - p1.y);
+  const de = (g2.lng - g1.lng) * mPerLng;
+  const dn = (g2.lat - g1.lat) * M_PER_DEG_LAT;
+
+  const dImg = Math.hypot(du, dv);
+  const dGeo = Math.hypot(de, dn);
+  // 두 점이 너무 가까우면 축척·회전이 클릭 오차에 크게 흔들린다.
+  if (dImg < 1e-6 || dGeo < 1e-6) return null;
+
+  const scale = dGeo / dImg;
+  const theta = Math.atan2(dn, de) - Math.atan2(dv, du);
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+
+  return (p: PixelPoint) => {
+    const u = p.x - p1.x;
+    const v = -(p.y - p1.y);
+    const east = scale * (u * cos - v * sin);
+    const north = scale * (u * sin + v * cos);
+    return {
+      lat: g1.lat + north / M_PER_DEG_LAT,
+      lng: g1.lng + east / mPerLng,
+    };
+  };
+}

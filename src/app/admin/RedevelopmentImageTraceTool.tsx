@@ -1,11 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RedevelopmentPoint } from "@/lib/api";
 import { loadKakaoMaps, type KakaoMap, type KakaoMarker, type KakaoMouseEvent, type KakaoPolygon } from "@/lib/kakao-maps";
-import { solveAffineFrom3Points, type GeoPoint, type PixelPoint } from "@/lib/affine-transform";
+import {
+  solveAffineFrom3Points,
+  solveSimilarityFrom2Points,
+  type GeoPoint,
+  type PixelPoint,
+} from "@/lib/affine-transform";
+import { traceRedBoundary } from "@/lib/boundary-trace";
 
 type CalibrationPair = { img: PixelPoint; geo: GeoPoint };
+
+/** 위경도 폴리곤의 실제 면적(㎡). 자동 추출·보정이 제대로 됐는지
+ * 고시 면적과 비교하는 교차검증에 쓴다. */
+function geoPolygonAreaSqm(points: GeoPoint[]): number {
+  if (points.length < 3) return 0;
+  const lat0 = points.reduce((s, p) => s + p.lat, 0) / points.length;
+  const mPerLat = 110_540;
+  const mPerLng = 111_320 * Math.cos((lat0 * Math.PI) / 180);
+  const xy = points.map((p) => ({ x: p.lng * mPerLng, y: p.lat * mPerLat }));
+  let area = 0;
+  for (let i = 0, j = xy.length - 1; i < xy.length; j = i++) {
+    area += xy[j].x * xy[i].y - xy[i].x * xy[j].y;
+  }
+  return Math.abs(area) / 2;
+}
 
 /** 재개발 구역도 "이미지"를 업로드해서, 이미지 위 랜드마크 3곳을 실제
  * 카카오맵과 매칭시켜 좌표 변환식을 계산한 뒤, 이미지 위에서 클릭한
@@ -22,6 +43,7 @@ export function RedevelopmentImageTraceTool({
   onCancel,
   initialImageUrl,
   initialCenter,
+  areaSqMeters = null,
 }: {
   onComplete: (points: RedevelopmentPoint[]) => void;
   onCancel: () => void;
@@ -35,14 +57,20 @@ export function RedevelopmentImageTraceTool({
    * 헤맬 필요 없이 바로 근처에서 랜드마크를 클릭할 수 있다(사용자 피드백,
    * 2026-08-04: 기본 중심이 용산구라 은평구 구역을 찾기 불편했음). */
   initialCenter?: GeoPoint | null;
+  /** 구역 실제 면적(㎡) — 자동 추출한 경계가 제대로 잡혔는지 교차검증에
+   * 쓴다(변환 후 계산 면적과 비교). */
+  areaSqMeters?: number | null;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(initialImageUrl ?? null);
   const [calibrationPairs, setCalibrationPairs] = useState<CalibrationPair[]>([]);
   const [pendingImgPoint, setPendingImgPoint] = useState<PixelPoint | null>(null);
   const [tracePoints, setTracePoints] = useState<PixelPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [autoTracing, setAutoTracing] = useState(false);
+  const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
 
   const imgContainerRef = useRef<HTMLDivElement>(null);
+  const imgElRef = useRef<HTMLImageElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMap | null>(null);
   const calibMarkersRef = useRef<KakaoMarker[]>([]);
@@ -51,13 +79,33 @@ export function RedevelopmentImageTraceTool({
   const [mapReady, setMapReady] = useState(false);
 
   const appKey = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY;
-  const calibrationDone = calibrationPairs.length >= 3;
-  const transformFn = calibrationDone
-    ? solveAffineFrom3Points(
+
+  // 외부(지자체) 이미지는 그대로 canvas에 그리면 오염돼 픽셀을 읽을 수 없어
+  // 같은 오리진 프록시를 거친다. 업로드한 파일(data:)은 그대로 쓴다.
+  const displayImageUrl = useMemo(() => {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
+    return `/api/redevelopment/zone-image?url=${encodeURIComponent(imageUrl)}`;
+  }, [imageUrl]);
+
+  // 기준점 2개면 유사변환(축척·회전·이동)으로 충분하고, 3개 이상을 찍으면
+  // 어파인으로 승격해 도면이 약간 찌그러진 경우까지 잡는다.
+  const calibrationDone = calibrationPairs.length >= 2;
+  const transformFn = useMemo(() => {
+    if (calibrationPairs.length >= 3) {
+      return solveAffineFrom3Points(
         calibrationPairs.slice(0, 3).map((c) => c.img),
         calibrationPairs.slice(0, 3).map((c) => c.geo),
-      )
-    : null;
+      );
+    }
+    if (calibrationPairs.length === 2) {
+      return solveSimilarityFrom2Points(
+        calibrationPairs.map((c) => c.img),
+        calibrationPairs.map((c) => c.geo),
+      );
+    }
+    return null;
+  }, [calibrationPairs]);
 
   useEffect(() => {
     if (!appKey || !mapContainerRef.current) return;
@@ -96,8 +144,59 @@ export function RedevelopmentImageTraceTool({
       calibMarkersRef.current = [];
       tracePolygonRef.current?.setMap(null);
       tracePolygonRef.current = null;
+      setAutoTraceNote(null);
     };
     reader.readAsDataURL(file);
+  }
+
+  /** 이미지에서 빨간 경계선을 찾아 꼭짓점을 자동으로 채운다.
+   *
+   * 추출은 원본 픽셀 기준으로 하고, 화면에는 object-contain으로 축소돼
+   * 표시되므로 컨테이너 표시 좌표로 환산해서 저장한다(클릭으로 찍는
+   * 기준점과 같은 좌표계여야 변환식이 맞는다). */
+  function handleAutoTrace() {
+    const imgEl = imgElRef.current;
+    const container = imgContainerRef.current;
+    if (!imgEl || !container) return;
+    setAutoTracing(true);
+    setError(null);
+    setAutoTraceNote(null);
+    try {
+      const nw = imgEl.naturalWidth;
+      const nh = imgEl.naturalHeight;
+      if (!nw || !nh) throw new Error("이미지가 아직 로드되지 않았습니다.");
+
+      const canvas = document.createElement("canvas");
+      canvas.width = nw;
+      canvas.height = nh;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) throw new Error("캔버스를 만들지 못했습니다.");
+      ctx.drawImage(imgEl, 0, 0, nw, nh);
+
+      let pixels: ImageData;
+      try {
+        pixels = ctx.getImageData(0, 0, nw, nh);
+      } catch {
+        throw new Error("이미지 픽셀을 읽을 수 없습니다(외부 이미지 보안 제한).");
+      }
+
+      const result = traceRedBoundary(pixels);
+      if (!result) {
+        throw new Error("빨간 경계선을 찾지 못했습니다. 아래에서 직접 클릭해 그려 주세요.");
+      }
+
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      const s = Math.min(cw / nw, ch / nh);
+      const ox = (cw - nw * s) / 2;
+      const oy = (ch - nh * s) / 2;
+      setTracePoints(result.polygon.map((p) => ({ x: p.x * s + ox, y: p.y * s + oy })));
+      setAutoTraceNote(`경계 자동 추출 완료 — 꼭짓점 ${result.polygon.length}개`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "자동 추출에 실패했습니다.");
+    } finally {
+      setAutoTracing(false);
+    }
   }
 
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -187,18 +286,35 @@ export function RedevelopmentImageTraceTool({
     setTracePoints((prev) => prev.slice(0, -1));
   }
 
+  /** 기준점만 다시 찍는다 — 자동 추출해둔 경계는 그대로 두어야
+   * 추출을 다시 돌리지 않아도 된다. */
   function handleResetCalibration() {
     setCalibrationPairs([]);
     setPendingImgPoint(null);
-    setTracePoints([]);
+    setError(null);
     calibMarkersRef.current.forEach((m) => m.setMap(null));
     calibMarkersRef.current = [];
+  }
+
+  function handleClearBoundary() {
+    setTracePoints([]);
+    setAutoTraceNote(null);
+    tracePolygonRef.current?.setMap(null);
+    tracePolygonRef.current = null;
   }
 
   function handleComplete() {
     if (!transformFn || tracePoints.length < 3) return;
     onComplete(tracePoints.map(transformFn));
   }
+
+  // 보정까지 끝난 폴리곤의 실제 면적을 고시 면적과 비교해 보여준다.
+  // 크게 어긋나면 기준점을 잘못 찍었거나 경계 추출이 틀린 것이다.
+  const areaCheck = useMemo(() => {
+    if (!transformFn || tracePoints.length < 3 || !areaSqMeters || areaSqMeters <= 0) return null;
+    const computed = geoPolygonAreaSqm(tracePoints.map(transformFn));
+    return { computed, ratio: computed / areaSqMeters };
+  }, [transformFn, tracePoints, areaSqMeters]);
 
   if (!appKey) {
     return (
@@ -234,13 +350,30 @@ export function RedevelopmentImageTraceTool({
         </div>
       ) : (
         <>
+          <div className="flex flex-wrap items-center gap-2 rounded-sm border border-border bg-card px-3 py-2">
+            <button
+              type="button"
+              onClick={handleAutoTrace}
+              disabled={autoTracing}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+            >
+              {autoTracing ? "경계 추출 중..." : "① 경계 자동 추출"}
+            </button>
+            <span className="text-xs text-muted-foreground">
+              이미지의 빨간 경계선을 찾아 꼭짓점을 자동으로 채웁니다.
+            </span>
+            {autoTraceNote && (
+              <span className="ml-auto text-xs font-medium text-emerald-600">{autoTraceNote}</span>
+            )}
+          </div>
+
           <div className="text-xs space-y-1">
             {!calibrationDone ? (
               <p className="text-foreground">
-                <span className="font-semibold">1단계 — 좌표 보정 ({calibrationPairs.length}/3)</span>:
-                왼쪽 이미지에서 알아볼 수 있는 건물(랜드마크)을 클릭 → 오른쪽 실제 지도에서 같은
-                건물을 클릭. 이 과정을 서로 멀리 떨어진 지점으로 3번 반복하세요(가까운 지점끼리
-                고르면 오차가 커집니다).
+                <span className="font-semibold">② 기준점 보정 ({calibrationPairs.length}/2)</span>:
+                왼쪽 이미지에서 알아볼 수 있는 지점(건물 모서리 등)을 클릭 → 오른쪽 실제 지도에서
+                같은 지점을 클릭. 서로 멀리 떨어진 두 곳으로 2번만 하면 축척·회전·위치가 한 번에
+                결정됩니다.
                 {pendingImgPoint && (
                   <span className="ml-1 text-primary font-semibold">
                     → 이제 오른쪽 지도에서 같은 지점을 클릭하세요.
@@ -249,9 +382,24 @@ export function RedevelopmentImageTraceTool({
               </p>
             ) : (
               <p className="text-foreground">
-                <span className="font-semibold">2단계 — 구역 경계 그리기</span>: 왼쪽 이미지에서 구역
-                경계 꼭짓점을 순서대로 클릭하세요. 오른쪽 지도에 실시간으로 실제 위치가
-                표시됩니다({tracePoints.length}개).
+                <span className="font-semibold">③ 확인 후 확정</span>: 오른쪽 지도에 실제 위치가
+                표시됩니다(꼭짓점 {tracePoints.length}개). 어긋나면 이미지에서 경계를 직접 클릭해
+                추가하거나 보정을 다시 하세요. 기준점을 한 번 더 찍으면 더 정밀하게 보정됩니다.
+              </p>
+            )}
+            {areaCheck && (
+              <p
+                className={
+                  areaCheck.ratio > 0.75 && areaCheck.ratio < 1.3
+                    ? "text-emerald-600"
+                    : "text-amber-600"
+                }
+              >
+                면적 검증: 계산 {Math.round(areaCheck.computed).toLocaleString()}㎡ / 고시{" "}
+                {Math.round(areaSqMeters ?? 0).toLocaleString()}㎡ (
+                {Math.round(areaCheck.ratio * 100)}%)
+                {(areaCheck.ratio <= 0.75 || areaCheck.ratio >= 1.3) &&
+                  " — 차이가 큽니다. 기준점을 다시 확인하세요."}
               </p>
             )}
             {error && <p className="text-destructive">{error}</p>}
@@ -265,7 +413,13 @@ export function RedevelopmentImageTraceTool({
               style={{ height: 480 }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="구역도" className="w-full h-full object-contain pointer-events-none" draggable={false} />
+              <img
+                ref={imgElRef}
+                src={displayImageUrl ?? undefined}
+                alt="구역도"
+                className="w-full h-full object-contain pointer-events-none"
+                draggable={false}
+              />
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 {calibrationPairs.map((c, i) => (
                   <g key={`calib-${i}`}>
@@ -295,34 +449,34 @@ export function RedevelopmentImageTraceTool({
             <div ref={mapContainerRef} className="border border-border rounded-sm" style={{ height: 480 }} />
           </div>
 
-          <div className="flex items-center gap-2">
-            {!calibrationDone ? (
-              <button type="button" onClick={handleResetCalibration} className="text-xs text-muted-foreground hover:underline">
-                보정 다시 시작
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={handleUndoTracePoint}
-                  disabled={tracePoints.length === 0}
-                  className="px-2 py-1 text-xs rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
-                >
-                  마지막 점 취소
-                </button>
-                <button type="button" onClick={handleResetCalibration} className="text-xs text-muted-foreground hover:underline">
-                  보정 다시 하기
-                </button>
-                <button
-                  type="button"
-                  onClick={handleComplete}
-                  disabled={tracePoints.length < 3}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 ml-auto"
-                >
-                  이 경계로 확정
-                </button>
-              </>
-            )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleUndoTracePoint}
+              disabled={tracePoints.length === 0}
+              className="px-2 py-1 text-xs rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              마지막 점 취소
+            </button>
+            <button
+              type="button"
+              onClick={handleClearBoundary}
+              disabled={tracePoints.length === 0}
+              className="px-2 py-1 text-xs rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              경계 지우기
+            </button>
+            <button type="button" onClick={handleResetCalibration} className="text-xs text-muted-foreground hover:underline">
+              기준점 다시 찍기
+            </button>
+            <button
+              type="button"
+              onClick={handleComplete}
+              disabled={!calibrationDone || tracePoints.length < 3}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 ml-auto"
+            >
+              이 경계로 확정
+            </button>
           </div>
         </>
       )}

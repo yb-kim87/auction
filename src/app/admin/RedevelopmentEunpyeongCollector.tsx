@@ -60,6 +60,7 @@ export function RedevelopmentEunpyeongCollector({ onZonesSaved }: { onZonesSaved
         sourceDatasetId: string;
         sourceKey: string;
         referenceImageUrl: string | null;
+        areaSqMeters: number | null;
       }> = [];
       let geocodeFailCount = 0;
 
@@ -90,6 +91,7 @@ export function RedevelopmentEunpyeongCollector({ onZonesSaved }: { onZonesSaved
               sourceDatasetId: SOURCE_DATASET_ID,
               sourceKey: item.key,
               referenceImageUrl: detail.imageUrl,
+              areaSqMeters: detail.areaSqMeters,
             });
           }),
         );
