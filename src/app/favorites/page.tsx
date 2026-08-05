@@ -304,6 +304,12 @@ export default function FavoritesPage() {
                 const fav = favorites.find((f) => f.auctionId === item.id);
                 return (
                   <div key={item.id} className="space-y-1.5">
+                    {fav?.memo && (
+                      <div className="flex items-start gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.06] px-3 py-2 text-[0.72rem] text-foreground">
+                        <Heart size={12} className="mt-0.5 shrink-0 fill-current text-primary" />
+                        <span className="line-clamp-2"><span className="font-semibold text-primary">메모</span> · {fav.memo}</span>
+                      </div>
+                    )}
                     <RecommendCard
                       item={item}
                       loanInfo={loanInfoByItemId[item.id]}
@@ -318,12 +324,9 @@ export default function FavoritesPage() {
                         setSelectedItem(item);
                       }}
                     />
-                    {(fav?.category || fav?.memo) && (
+                    {fav?.category && (
                       <div className="rounded-lg border border-border bg-card px-3 py-2 text-[0.72rem] text-muted-foreground">
-                        {fav?.category && (
-                          <span className="mr-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 font-medium text-primary">{fav.category}</span>
-                        )}
-                        {fav?.memo && <span className="line-clamp-2">메모 · {fav.memo}</span>}
+                        <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-medium text-primary">{fav.category}</span>
                       </div>
                     )}
                   </div>
