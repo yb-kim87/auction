@@ -716,32 +716,32 @@ function RecommendListRow({
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="text-[0.7rem] font-medium text-muted-foreground mb-1.5">{item.auctionNo}</p>
+          <p className="text-[0.75rem] lg:text-[0.82rem] font-medium text-muted-foreground mb-1.5">{item.auctionNo}</p>
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-semibold border bg-[#EEF4FF] text-[#2A5298] border-transparent">
+            <span className="shrink-0 px-1.5 py-px rounded text-[0.66rem] lg:text-[0.7rem] font-semibold border bg-[#EEF4FF] text-[#2A5298] border-transparent">
               {item.usage || "물건"}
             </span>
             <CaseStateBadge caseState={item.caseState} />
             {isNew ? (
-              <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-medium border bg-blue-50 text-blue-700 border-blue-100">
+              <span className="shrink-0 px-1.5 py-px rounded text-[0.66rem] lg:text-[0.7rem] font-medium border bg-blue-50 text-blue-700 border-blue-100">
                 신건
               </span>
             ) : failureRate != null ? (
-              <span className="shrink-0 px-1.5 py-px rounded text-[0.62rem] font-medium border bg-amber-50 text-amber-700 border-amber-100">
+              <span className="shrink-0 px-1.5 py-px rounded text-[0.66rem] lg:text-[0.7rem] font-medium border bg-amber-50 text-amber-700 border-amber-100">
                 유찰 {failureCount}회<span className="hidden sm:inline"> · {failureRate}%</span>
               </span>
             ) : null}
             {displaySpecialNote(item.specialNote) && (
-              <span className="min-w-0 px-1.5 py-px rounded text-[0.62rem] font-medium border bg-red-50 text-red-600 border-red-100 truncate">
+              <span className="min-w-0 px-1.5 py-px rounded text-[0.66rem] lg:text-[0.7rem] font-medium border bg-red-50 text-red-600 border-red-100 truncate">
                 {displaySpecialNote(item.specialNote)}
               </span>
             )}
           </div>
-          <p className="font-semibold text-sm md:text-[0.95rem] text-foreground truncate">{item.address}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[0.72rem] text-muted-foreground">
+          <p className="font-semibold text-[0.95rem] lg:text-base text-foreground truncate">{item.address}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[0.75rem] lg:text-[0.8rem] text-muted-foreground">
             <span className="truncate">{formatAreaLabel(item.area)}</span>
             <span>·</span>
-            <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[0.6rem] font-bold ${bidTiming.className}`}>{bidTiming.label}</span>
+            <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[0.64rem] lg:text-[0.68rem] font-bold ${bidTiming.className}`}>{bidTiming.label}</span>
             <span className={`shrink-0 ${bidTiming.label === "입찰 종료" ? "text-red-600 font-medium" : ""}`}>{item.bidDate || "-"}</span>
           </div>
           {item.strategyTagsList && item.strategyTagsList.length > 0 && (
@@ -750,7 +750,7 @@ function RecommendListRow({
                 <span
                   key={tag.code}
                   title={tag.description}
-                  className="inline-flex items-center gap-0.5 px-1.5 py-px rounded-full text-[0.62rem] font-semibold"
+                  className="inline-flex items-center gap-0.5 px-1.5 py-px rounded-full text-[0.66rem] lg:text-[0.7rem] font-semibold"
                   style={{
                     background: "linear-gradient(135deg,#F5F0FF,#FBF6FF)",
                     border: "1px solid rgba(147,51,234,0.18)",
@@ -764,7 +764,7 @@ function RecommendListRow({
             </div>
           )}
           {recommendationReasons.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.68rem]">
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.72rem] lg:text-[0.78rem]">
               <span className={`rounded-full px-2 py-0.5 font-bold ${capitalUsageRatio != null && capitalUsageRatio > 90 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
                 {fitLabel}
               </span>
@@ -783,7 +783,7 @@ function RecommendListRow({
         </div>
       </button>
 
-        <div className="hidden md:grid flex-shrink-0 grid-cols-[9rem_8rem_7rem_7rem] items-center gap-3 self-stretch">
+        <div className="hidden md:grid flex-shrink-0 grid-cols-[9rem_8rem_7rem_7rem] lg:grid-cols-[9.25rem_8.5rem_7.25rem_7.25rem] items-center gap-3 self-stretch">
           {requiredEquity != null && (
             <div
               className="px-3 py-2.5 text-right"
@@ -796,7 +796,7 @@ function RecommendListRow({
               <div className="flex items-center justify-end gap-1 mb-0.5">
                 {loanInfo && (
                   <span
-                    className={`px-1 py-0.5 rounded text-[0.55rem] font-semibold ${
+                    className={`px-1 py-0.5 rounded text-[0.55rem] lg:text-[0.62rem] font-semibold ${
                       loanInfo.regulatedArea
                         ? "bg-red-50 text-red-600"
                         : "bg-emerald-50 text-emerald-600"
@@ -805,9 +805,9 @@ function RecommendListRow({
                     {loanInfo.regulatedArea ? "규제지역" : "비규제지역"}
                   </span>
                 )}
-                <p className="text-[0.62rem] font-semibold text-muted-foreground uppercase tracking-wide">최소 투자금</p>
+                <p className="text-[0.62rem] lg:text-[0.68rem] font-semibold text-muted-foreground uppercase tracking-wide">최소 투자금</p>
               </div>
-              <p className="font-bold text-primary text-sm" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+              <p className="font-bold text-primary text-sm lg:text-[0.95rem]" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
                 {formatWonShort(requiredEquity)}
               </p>
             </div>
@@ -815,15 +815,15 @@ function RecommendListRow({
 
           {loanInfo?.loanUnavailable ? (
             <div className="text-right flex-shrink-0 hidden lg:block">
-              <p className="text-[0.62rem] text-red-500 font-semibold whitespace-nowrap">
+              <p className="text-[0.62rem] lg:text-[0.68rem] text-red-500 font-semibold whitespace-nowrap">
                 {loanPolicyLabel} · 대출불가
               </p>
             </div>
           ) : (
             loanPolicyLabel && loanAmount != null && loanAmount > 0 && (
               <div className="text-right flex-shrink-0 hidden lg:block">
-                <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">{loanPolicyLabel} 예상대출</p>
-                <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+                <p className="text-[0.62rem] lg:text-[0.68rem] text-muted-foreground mb-0.5 whitespace-nowrap">{loanPolicyLabel} 예상대출</p>
+                <p className="font-semibold text-sm lg:text-[0.95rem] text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
                   {formatWonShort(loanAmount)}
                 </p>
               </div>
@@ -831,15 +831,15 @@ function RecommendListRow({
           )}
 
           <div className="text-right">
-            <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">최저입찰가</p>
-            <p className="font-semibold text-sm text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+            <p className="text-[0.62rem] lg:text-[0.68rem] text-muted-foreground mb-0.5 whitespace-nowrap">최저입찰가</p>
+            <p className="font-semibold text-sm lg:text-[0.95rem] text-foreground/80" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
               {fmtEok(item.minPrice)}
             </p>
           </div>
 
           <div className="text-right">
-            <p className="text-[0.62rem] text-muted-foreground mb-0.5 whitespace-nowrap">감정가</p>
-            <p className="text-sm text-foreground/50" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+            <p className="text-[0.62rem] lg:text-[0.68rem] text-muted-foreground mb-0.5 whitespace-nowrap">감정가</p>
+            <p className="text-sm lg:text-[0.95rem] text-foreground/50" style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
               {fmtEok(item.appraisedValue)}
             </p>
           </div>
@@ -858,7 +858,7 @@ function RecommendListRow({
         >
           <Heart size={16} className={isFavorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"} />
         </button>
-        <button type="button" onClick={onOpen} className="hidden lg:block whitespace-nowrap text-[0.68rem] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+        <button type="button" onClick={onOpen} className="hidden lg:block whitespace-nowrap text-[0.75rem] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
           상세보기 →
         </button>
       </div>
@@ -870,8 +870,8 @@ function RecommendListRow({
 function ListPriceMetric({ label, value, primary = false, muted = false }: { label: string; value: string; primary?: boolean; muted?: boolean }) {
   return (
     <div className="rounded-lg bg-secondary/35 px-3 py-2">
-      <p className="text-[0.62rem] text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 text-sm font-bold ${primary ? "text-primary" : muted ? "text-foreground/55" : "text-foreground/80"}`} style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
+      <p className="text-[0.68rem] text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 text-[0.95rem] font-bold ${primary ? "text-primary" : muted ? "text-foreground/55" : "text-foreground/80"}`} style={{ fontFamily: "'Inter', 'Noto Sans KR', sans-serif" }}>
         {value}
       </p>
     </div>
