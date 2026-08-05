@@ -1051,18 +1051,28 @@ export default function HomePage() {
   };
 
   async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null, memo?: string | null) {
+    const previousFavorite = favorites.find((favorite) => favorite.auctionId === auctionId);
     setFavoriteBusyId(auctionId);
+    // 클릭 직후 하트와 상단 건수가 반응하도록 먼저 화면 상태를 갱신한다.
+    // 네트워크 요청이 실패하면 아래 catch에서 이 물건만 원래 상태로 되돌린다.
+    setFavorites((prev) => {
+      const withoutExisting = prev.filter((favorite) => favorite.auctionId !== auctionId);
+      return next
+        ? [...withoutExisting, { auctionId, category: category?.trim() || null, memo: memo?.trim() || null }]
+        : withoutExisting;
+    });
     try {
       if (next) {
         await addFavorite(auctionId, category, memo);
-        setFavorites((prev) => [
-          ...prev.filter((f) => f.auctionId !== auctionId),
-          { auctionId, category: category?.trim() || null, memo: memo?.trim() || null },
-        ]);
       } else {
         await removeFavorite(auctionId);
-        setFavorites((prev) => prev.filter((f) => f.auctionId !== auctionId));
       }
+    } catch (err) {
+      setFavorites((prev) => {
+        const withoutCurrent = prev.filter((favorite) => favorite.auctionId !== auctionId);
+        return previousFavorite ? [...withoutCurrent, previousFavorite] : withoutCurrent;
+      });
+      throw err;
     } finally {
       setFavoriteBusyId(null);
     }

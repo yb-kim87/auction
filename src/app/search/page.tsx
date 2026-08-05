@@ -1050,10 +1050,15 @@ export default function Home() {
 
   async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null, memo?: string | null) {
     setFavoriteBusy(true);
+    setFavoriteIds((prev) => {
+      const nextSet = new Set(prev);
+      if (next) nextSet.add(auctionId);
+      else nextSet.delete(auctionId);
+      return nextSet;
+    });
     try {
       if (next) {
         await addFavorite(auctionId, category, memo);
-        setFavoriteIds((prev) => new Set([...Array.from(prev), auctionId]));
         logUserAction({
           itemId: auctionId,
           actionType: "favorite",
@@ -1061,13 +1066,14 @@ export default function Home() {
         });
       } else {
         await removeFavorite(auctionId);
-        setFavoriteIds((prev) => {
-          const nextSet = new Set(prev);
-          nextSet.delete(auctionId);
-          return nextSet;
-        });
       }
     } catch (err) {
+      setFavoriteIds((prev) => {
+        const nextSet = new Set(prev);
+        if (next) nextSet.delete(auctionId);
+        else nextSet.add(auctionId);
+        return nextSet;
+      });
       throw err instanceof Error
         ? err
         : new Error("관심물건 처리에 실패했습니다.");

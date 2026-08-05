@@ -141,18 +141,26 @@ export default function FavoritesPage() {
   };
 
   async function handleToggleFavorite(auctionId: string, next: boolean, category?: string | null, memo?: string | null) {
+    const previousFavorite = favorites.find((favorite) => favorite.auctionId === auctionId);
     setFavoriteBusy(true);
+    setFavorites((prev) => {
+      const withoutExisting = prev.filter((favorite) => favorite.auctionId !== auctionId);
+      return next
+        ? [...withoutExisting, { auctionId, category: category?.trim() || null, memo: memo?.trim() || null }]
+        : withoutExisting;
+    });
     try {
       if (next) {
         await addFavorite(auctionId, category, memo);
-        setFavorites((prev) => {
-          const withoutExisting = prev.filter((f) => f.auctionId !== auctionId);
-          return [...withoutExisting, { auctionId, category: category?.trim() || null, memo: memo?.trim() || null }];
-        });
       } else {
         await removeFavorite(auctionId);
-        setFavorites((prev) => prev.filter((f) => f.auctionId !== auctionId));
       }
+    } catch (err) {
+      setFavorites((prev) => {
+        const withoutCurrent = prev.filter((favorite) => favorite.auctionId !== auctionId);
+        return previousFavorite ? [...withoutCurrent, previousFavorite] : withoutCurrent;
+      });
+      throw err;
     } finally {
       setFavoriteBusy(false);
     }
