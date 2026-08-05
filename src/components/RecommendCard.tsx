@@ -136,9 +136,6 @@ export function RecommendCard({
   const capitalUsageRatio = requiredEquity != null && availableCapital && availableCapital > 0
     ? (requiredEquity / availableCapital) * 100
     : null;
-  const capitalBuffer = requiredEquity != null && availableCapital != null
-    ? Math.max(0, availableCapital - requiredEquity)
-    : null;
   const fitTone = capitalUsageRatio == null
     ? "조건 확인"
     : capitalUsageRatio <= 70
@@ -146,11 +143,6 @@ export function RecommendCard({
       : capitalUsageRatio <= 90
         ? "조건 충족"
         : "조건 경계";
-  const cautionLabels = [
-    displaySpecialNote(item.specialNote),
-    (item.unpaidFeeAmount ?? 0) > 0 ? "미납 관리비" : "",
-    /대항력|매수인\s*인수|인수조건/.test(`${item.tenantInfo ?? ""} ${item.tenantDetail ?? ""}`) ? "임차인 권리" : "",
-  ].filter(Boolean);
 
   return (
     <div
@@ -243,17 +235,6 @@ export function RecommendCard({
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border/70">
               <div className={`h-full rounded-full ${capitalUsageRatio != null && capitalUsageRatio > 90 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, capitalUsageRatio ?? 0)}%` }} />
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.66rem] text-muted-foreground">
-              <span>예상 필요자금 <strong className="text-foreground">{formatWonShort(requiredEquity)}</strong></span>
-              {capitalBuffer != null && <span>가용자금 대비 <strong className="text-emerald-700">{formatWonShort(capitalBuffer)} 여유</strong></span>}
-              {loanInfo && <span>{loanInfo.loanUnavailable ? "현금 매수 조건 충족" : loanInfo.regulatedArea ? "규제지역 기준 반영" : "비규제지역 기준 반영"}</span>}
-            </div>
-            {cautionLabels.length > 0 && (
-              <div className="mt-2 flex items-center gap-1.5 border-t border-border/60 pt-2">
-                <span className="text-[0.64rem] font-bold text-red-600">입찰 전 확인</span>
-                {cautionLabels.slice(0, 2).map((label) => <span key={label} className="rounded bg-red-50 px-1.5 py-0.5 text-[0.62rem] font-medium text-red-600">{label}</span>)}
-              </div>
-            )}
           </div>
         )}
 
