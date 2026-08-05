@@ -9,7 +9,10 @@ import {
   type GeoPoint,
   type PixelPoint,
 } from "@/lib/affine-transform";
-import { traceRedBoundary } from "@/lib/boundary-trace";
+import {
+  solveFrom1PointWithScale,
+} from "@/lib/affine-transform";
+import { polygonAreaPx, traceRedBoundary } from "@/lib/boundary-trace";
 
 type CalibrationPair = { img: PixelPoint; geo: GeoPoint };
 
@@ -69,6 +72,9 @@ export function RedevelopmentImageTraceTool({
   const [autoTracing, setAutoTracing] = useState(false);
   const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
   const [cadastralOn, setCadastralOn] = useState(false);
+  /** 화면 표시 좌표 기준 픽셀당 미터. 경계 자동 추출 + 고시 면적이 있으면
+   * 축척이 결정돼, 기준점을 1개만 찍어도 변환식이 완성된다. */
+  const [metersPerPixel, setMetersPerPixel] = useState<number | null>(null);
   /** 자동 추출로 알아낸 구역의 실제 크기(m) — 지도 배율을 이미지에 맞출 때 쓴다. */
   const zoneExtentRef = useRef<{ widthM: number; heightM: number } | null>(null);
 
@@ -91,9 +97,10 @@ export function RedevelopmentImageTraceTool({
     return `/api/redevelopment/zone-image?url=${encodeURIComponent(imageUrl)}`;
   }, [imageUrl]);
 
-  // 기준점 2개면 유사변환(축척·회전·이동)으로 충분하고, 3개 이상을 찍으면
-  // 어파인으로 승격해 도면이 약간 찌그러진 경우까지 잡는다.
-  const calibrationDone = calibrationPairs.length >= 2;
+  // 축척을 알면 1점(이동만) → 2점(회전까지 실측) → 3점(어파인)으로
+  // 찍을수록 정밀해지는 구조. 축척을 모르면 최소 2점이 필요하다.
+  const requiredPoints = metersPerPixel ? 1 : 2;
+  const calibrationDone = calibrationPairs.length >= requiredPoints;
   const transformFn = useMemo(() => {
     if (calibrationPairs.length >= 3) {
       return solveAffineFrom3Points(
@@ -107,8 +114,15 @@ export function RedevelopmentImageTraceTool({
         calibrationPairs.map((c) => c.geo),
       );
     }
+    if (calibrationPairs.length === 1 && metersPerPixel) {
+      return solveFrom1PointWithScale(
+        calibrationPairs[0].img,
+        calibrationPairs[0].geo,
+        metersPerPixel,
+      );
+    }
     return null;
-  }, [calibrationPairs]);
+  }, [calibrationPairs, metersPerPixel]);
 
   useEffect(() => {
     if (!appKey || !mapContainerRef.current) return;
@@ -160,6 +174,7 @@ export function RedevelopmentImageTraceTool({
       tracePolygonRef.current?.setMap(null);
       tracePolygonRef.current = null;
       setAutoTraceNote(null);
+      setMetersPerPixel(null);
     };
     reader.readAsDataURL(file);
   }
@@ -224,7 +239,18 @@ export function RedevelopmentImageTraceTool({
       const s = Math.min(cw / nw, ch / nh);
       const ox = (cw - nw * s) / 2;
       const oy = (ch - nh * s) / 2;
-      setTracePoints(result.polygon.map((p) => ({ x: p.x * s + ox, y: p.y * s + oy })));
+      const shown = result.polygon.map((p) => ({ x: p.x * s + ox, y: p.y * s + oy }));
+      setTracePoints(shown);
+
+      // 축척은 반드시 "화면 표시 좌표" 기준으로 계산해야 한다 — 기준점
+      // 클릭도 같은 좌표계로 들어오기 때문이다(원본 픽셀 기준으로 계산하면
+      // object-contain 축소 비율만큼 어긋난다).
+      if (areaSqMeters && areaSqMeters > 0) {
+        const shownAreaPx = polygonAreaPx(shown);
+        setMetersPerPixel(shownAreaPx > 0 ? Math.sqrt(areaSqMeters / shownAreaPx) : null);
+      } else {
+        setMetersPerPixel(null);
+      }
 
       // 고시 면적을 알면 픽셀당 미터를 역산할 수 있어, 구역의 실제 크기를
       // 계산해 지도 배율을 이미지와 비슷하게 맞춰줄 수 있다(사용자 피드백,
@@ -366,6 +392,7 @@ export function RedevelopmentImageTraceTool({
   function handleClearBoundary() {
     setTracePoints([]);
     setAutoTraceNote(null);
+    setMetersPerPixel(null);
     tracePolygonRef.current?.setMap(null);
     tracePolygonRef.current = null;
   }
@@ -379,9 +406,12 @@ export function RedevelopmentImageTraceTool({
   // 크게 어긋나면 기준점을 잘못 찍었거나 경계 추출이 틀린 것이다.
   const areaCheck = useMemo(() => {
     if (!transformFn || tracePoints.length < 3 || !areaSqMeters || areaSqMeters <= 0) return null;
+    // 1점 모드는 축척 자체를 고시 면적에서 역산했으므로 면적 비교가 순환
+    // 논리다(항상 100%가 나온다). 검증값으로 쓸 수 없어 표시하지 않는다.
+    if (calibrationPairs.length < 2) return null;
     const computed = geoPolygonAreaSqm(tracePoints.map(transformFn));
     return { computed, ratio: computed / areaSqMeters };
-  }, [transformFn, tracePoints, areaSqMeters]);
+  }, [transformFn, tracePoints, areaSqMeters, calibrationPairs.length]);
 
   if (!appKey) {
     return (
@@ -462,10 +492,14 @@ export function RedevelopmentImageTraceTool({
           <div className="text-xs space-y-1">
             {!calibrationDone ? (
               <p className="text-foreground">
-                <span className="font-semibold">② 기준점 보정 ({calibrationPairs.length}/2)</span>:
-                왼쪽 이미지에서 알아볼 수 있는 지점(건물 모서리 등)을 클릭 → 오른쪽 실제 지도에서
-                같은 지점을 클릭. 서로 멀리 떨어진 두 곳으로 2번만 하면 축척·회전·위치가 한 번에
-                결정됩니다.
+                <span className="font-semibold">
+                  ② 기준점 보정 ({calibrationPairs.length}/{requiredPoints})
+                </span>
+                : 왼쪽 이미지에서 알아볼 수 있는 지점(건물 모서리, 도로 교차점 등)을 클릭 →
+                오른쪽 실제 지도에서 같은 지점을 클릭.
+                {metersPerPixel
+                  ? " 축척은 고시 면적으로 이미 계산됐고 지적도는 정북 기준이라, 한 곳만 찍으면 됩니다."
+                  : " 서로 멀리 떨어진 두 곳을 찍으면 축척·회전·위치가 한 번에 결정됩니다."}
                 {pendingImgPoint && (
                   <span className="ml-1 text-primary font-semibold">
                     → 이제 오른쪽 지도에서 같은 지점을 클릭하세요.
@@ -475,8 +509,9 @@ export function RedevelopmentImageTraceTool({
             ) : (
               <p className="text-foreground">
                 <span className="font-semibold">③ 확인 후 확정</span>: 오른쪽 지도에 실제 위치가
-                표시됩니다(꼭짓점 {tracePoints.length}개). 어긋나면 이미지에서 경계를 직접 클릭해
-                추가하거나 보정을 다시 하세요. 기준점을 한 번 더 찍으면 더 정밀하게 보정됩니다.
+                표시됩니다(꼭짓점 {tracePoints.length}개). 방향이 틀어져 보이면 기준점을 한 번 더
+                찍으세요 — 2점이 되면 회전까지 실측으로 잡히고, 3점이면 도면 찌그러짐까지
+                보정됩니다.
               </p>
             )}
             {areaCheck && (

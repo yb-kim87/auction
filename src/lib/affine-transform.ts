@@ -66,6 +66,39 @@ export function solveAffineFrom3Points(
 const M_PER_DEG_LAT = 110_540;
 const M_PER_DEG_LNG_EQUATOR = 111_320;
 
+/** 1점 보정(축척을 이미 아는 경우).
+ *
+ * 구역도에서 경계를 자동 추출하면 픽셀 면적을 알 수 있고, 고시 면적(㎡)과
+ * 나누면 픽셀당 미터가 나온다. 즉 축척이 이미 결정돼 있고, 지적도는 관행상
+ * 정북 기준이라 회전도 0으로 볼 수 있다. 그러면 남은 미지수는 "지도상
+ * 위치"(이동) 둘뿐이라 대응점 1개로 충분하다 — 관리자가 찍어야 할 점이
+ * 2개에서 1개로 준다(사용자 요청, 2026-08-05).
+ *
+ * 정북 가정이 틀린 도면이면 결과가 회전한 채로 나오는데, 그때는 기준점을
+ * 하나 더 찍어 2점 유사변환으로 넘어가면 회전까지 실측으로 잡힌다. */
+export function solveFrom1PointWithScale(
+  imgPt: PixelPoint,
+  geoPt: GeoPoint,
+  metersPerPixel: number,
+  rotationRad = 0,
+): ((p: PixelPoint) => GeoPoint) | null {
+  if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return null;
+  const mPerLng = M_PER_DEG_LNG_EQUATOR * Math.cos((geoPt.lat * Math.PI) / 180);
+  if (!Number.isFinite(mPerLng) || mPerLng <= 0) return null;
+  const cos = Math.cos(rotationRad);
+  const sin = Math.sin(rotationRad);
+  return (p: PixelPoint) => {
+    const u = (p.x - imgPt.x) * metersPerPixel;
+    const v = -(p.y - imgPt.y) * metersPerPixel;
+    const east = u * cos - v * sin;
+    const north = u * sin + v * cos;
+    return {
+      lat: geoPt.lat + north / M_PER_DEG_LAT,
+      lng: geoPt.lng + east / mPerLng,
+    };
+  };
+}
+
 /** 2점 보정(유사변환 = 축척·회전·이동, 찌그러짐 없음).
  *
  * 어파인(3점)과 달리 전단(shear)·비등방 축척을 허용하지 않는 대신, 대응점이
