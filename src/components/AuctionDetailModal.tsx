@@ -1588,12 +1588,24 @@ function formatTradingCountDisplay(value: string): string {
   return parts.length > 0 ? parts.join(", ") : "-";
 }
 
-function parseTradingCountSeries(value: string): Array<{ year: number; count: number }> {
-  return Array.from(value.matchAll(/(20\d{2})\s*(\d+)\s*건/g))
-    .map((match) => ({ year: Number(match[1]), count: Number(match[2]) }))
-    .filter((item) => Number.isFinite(item.year) && Number.isFinite(item.count) && item.count > 0)
-    .sort((a, b) => a.year - b.year)
-    .slice(-3);
+/** "최근 3개년"은 데이터가 있는 아무 3개 연도가 아니라 올해를 포함한
+ * 직전 2년(예: 2026년 기준 2024·2025·2026)으로 고정한다 — 예전에는
+ * 0건인 최근 연도를 걸러내고 그보다 오래된 연도까지 끌어와 "최근
+ * 3개년"이라면서 실제로는 2021·2022·2025처럼 뒤죽박죽 연도가 나왔다
+ * (사용자 리포트, 2026-08-05). 데이터가 없는 연도도 0건으로 채워
+ * 항상 3개 막대가 나오게 한다. */
+function parseTradingCountSeries(value: string, currentYear = new Date().getFullYear()): Array<{ year: number; count: number }> {
+  const countByYear = new Map<number, number>();
+  for (const match of value.matchAll(/(20\d{2})\s*(\d+)\s*건/g)) {
+    const year = Number(match[1]);
+    const count = Number(match[2]);
+    if (Number.isFinite(year) && Number.isFinite(count)) countByYear.set(year, count);
+  }
+  if (countByYear.size === 0) return [];
+  return [currentYear - 2, currentYear - 1, currentYear].map((year) => ({
+    year,
+    count: countByYear.get(year) ?? 0,
+  }));
 }
 
 function TradingCountBadge({
