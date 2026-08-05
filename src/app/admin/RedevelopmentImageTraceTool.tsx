@@ -68,6 +68,9 @@ export function RedevelopmentImageTraceTool({
   const [error, setError] = useState<string | null>(null);
   const [autoTracing, setAutoTracing] = useState(false);
   const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
+  const [cadastralOn, setCadastralOn] = useState(true);
+  /** 자동 추출로 알아낸 구역의 실제 크기(m) — 지도 배율을 이미지에 맞출 때 쓴다. */
+  const zoneExtentRef = useRef<{ widthM: number; heightM: number } | null>(null);
 
   const imgContainerRef = useRef<HTMLDivElement>(null);
   const imgElRef = useRef<HTMLImageElement>(null);
@@ -131,6 +134,16 @@ export function RedevelopmentImageTraceTool({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appKey]);
 
+  // 지적편집도(필지 경계·지번) 오버레이 — 구역도 이미지가 지적도라서,
+  // 지도에도 같은 필지 모양을 띄우면 대조가 훨씬 쉬워진다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !window.kakao) return;
+    const id = window.kakao.maps.MapTypeId.USE_DISTRICT;
+    if (cadastralOn) map.addOverlayMapTypeId(id);
+    else map.removeOverlayMapTypeId(id);
+  }, [cadastralOn, mapReady]);
+
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -147,6 +160,22 @@ export function RedevelopmentImageTraceTool({
       setAutoTraceNote(null);
     };
     reader.readAsDataURL(file);
+  }
+
+  /** 지도에 보이는 범위를 구역 크기의 약 2배로 맞춘다 — 왼쪽 구역도
+   * 이미지와 축척이 비슷해져 같은 지점을 훨씬 찾기 쉬워진다. */
+  function fitMapToZone(widthM: number, heightM: number) {
+    const map = mapRef.current;
+    if (!map || !initialCenter || !window.kakao) return;
+    const kakao = window.kakao;
+    const halfLatM = (Math.max(heightM, 80) * 1.1) / 2;
+    const halfLngM = (Math.max(widthM, 80) * 1.1) / 2;
+    const dLat = halfLatM / 110_540;
+    const dLng = halfLngM / (111_320 * Math.cos((initialCenter.lat * Math.PI) / 180));
+    const bounds = new kakao.maps.LatLngBounds();
+    bounds.extend(new kakao.maps.LatLng(initialCenter.lat - dLat, initialCenter.lng - dLng));
+    bounds.extend(new kakao.maps.LatLng(initialCenter.lat + dLat, initialCenter.lng + dLng));
+    map.setBounds(bounds);
   }
 
   /** 이미지에서 빨간 경계선을 찾아 꼭짓점을 자동으로 채운다.
@@ -191,7 +220,28 @@ export function RedevelopmentImageTraceTool({
       const ox = (cw - nw * s) / 2;
       const oy = (ch - nh * s) / 2;
       setTracePoints(result.polygon.map((p) => ({ x: p.x * s + ox, y: p.y * s + oy })));
-      setAutoTraceNote(`경계 자동 추출 완료 — 꼭짓점 ${result.polygon.length}개`);
+
+      // 고시 면적을 알면 픽셀당 미터를 역산할 수 있어, 구역의 실제 크기를
+      // 계산해 지도 배율을 이미지와 비슷하게 맞춰줄 수 있다(사용자 피드백,
+      // 2026-08-05: "배율이 달라서 어렵네" — 좌우 축척이 크게 다르면 같은
+      // 지점을 찾기가 어렵다).
+      let sizeNote = "";
+      if (areaSqMeters && areaSqMeters > 0 && result.areaPx > 0) {
+        const mPerPx = Math.sqrt(areaSqMeters / result.areaPx);
+        const xs = result.polygon.map((p) => p.x);
+        const ys = result.polygon.map((p) => p.y);
+        const widthM = (Math.max(...xs) - Math.min(...xs)) * mPerPx;
+        const heightM = (Math.max(...ys) - Math.min(...ys)) * mPerPx;
+        zoneExtentRef.current = { widthM, heightM };
+        fitMapToZone(widthM, heightM);
+        sizeNote = ` · 구역 약 ${Math.round(widthM)}m × ${Math.round(heightM)}m`;
+      } else {
+        // 고시 면적이 없으면 실제 크기를 알 수 없다. 재개발 구역은 보통
+        // 100~400m 규모라 기본값으로라도 맞춰주는 편이 낫다.
+        fitMapToZone(300, 300);
+        sizeNote = " · 면적 정보가 없어 지도 배율은 기본값으로 맞춤";
+      }
+      setAutoTraceNote(`경계 자동 추출 완료 — 꼭짓점 ${result.polygon.length}개${sizeNote}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "자동 추출에 실패했습니다.");
     } finally {
@@ -365,6 +415,31 @@ export function RedevelopmentImageTraceTool({
             {autoTraceNote && (
               <span className="ml-auto text-xs font-medium text-emerald-600">{autoTraceNote}</span>
             )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 rounded-sm border border-border bg-card px-3 py-2">
+            <label className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cadastralOn}
+                onChange={(e) => setCadastralOn(e.target.checked)}
+              />
+              지적편집도 표시
+            </label>
+            <span className="text-xs text-muted-foreground">
+              지도에도 필지 경계가 나와 왼쪽 지적도와 모양을 맞춰 보기 쉽습니다.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const ext = zoneExtentRef.current;
+                if (ext) fitMapToZone(ext.widthM, ext.heightM);
+                else if (initialCenter) fitMapToZone(300, 300);
+              }}
+              className="ml-auto px-2 py-1 text-xs rounded-sm border border-border text-muted-foreground hover:text-foreground"
+            >
+              지도 배율 맞추기
+            </button>
           </div>
 
           <div className="text-xs space-y-1">

@@ -11,6 +11,10 @@ export type KakaoMap = {
   setBounds: (bounds: unknown) => void;
   setCenter: (latlng: unknown) => void;
   getCenter: () => { getLat: () => number; getLng: () => number };
+  /** 지적편집도 등 오버레이 지도 타입 토글 — 구역도(지적도) 이미지와
+   * 같은 필지 경계를 지도에도 띄워 대조하기 쉽게 하는 데 쓴다. */
+  addOverlayMapTypeId: (mapTypeId: unknown) => void;
+  removeOverlayMapTypeId: (mapTypeId: unknown) => void;
 };
 export type KakaoMarker = {
   setMap: (map: KakaoMap | null) => void;
@@ -43,6 +47,8 @@ declare global {
         load: (cb: () => void) => void;
         LatLng: new (lat: number, lng: number) => KakaoLatLng;
         LatLngBounds: new () => { extend: (latlng: KakaoLatLng) => void };
+        /** USE_DISTRICT = 지적편집도(필지 경계·지번 표시). */
+        MapTypeId: { USE_DISTRICT: unknown; ROADMAP: unknown; HYBRID: unknown };
         Map: new (container: HTMLElement, options: { center: KakaoLatLng; level: number }) => KakaoMap;
         Marker: new (options: { position: KakaoLatLng; image?: unknown; draggable?: boolean }) => KakaoMarker;
         MarkerImage: new (src: string, size: unknown, options?: unknown) => unknown;
