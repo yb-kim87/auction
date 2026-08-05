@@ -3122,7 +3122,7 @@ export function AuctionDetailModal({
         </div>
 
         {!editable && (
-          <aside className="hidden 2xl:block w-[288px] shrink-0 border-l border-border bg-secondary/10 px-5 py-5 space-y-4 sticky top-0 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
+          <aside className="hidden 2xl:block w-[288px] shrink-0 self-start border-l border-border bg-secondary/10 px-5 py-5 space-y-4 sticky top-0">
             {requiredEquity != null && (
               <div
                 className="rounded-xl p-4"
