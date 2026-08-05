@@ -2068,7 +2068,7 @@ export function AuctionDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center p-0 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-start justify-center p-0 sm:p-6 overflow-y-auto sm:items-center sm:overflow-hidden"
       onMouseDown={(e) => {
         backdropMouseDownRef.current = !contentRef.current?.contains(e.target as Node);
       }}
@@ -2083,7 +2083,7 @@ export function AuctionDetailModal({
 
       <div
         ref={contentRef}
-        className={`relative w-full ${editable ? "max-w-4xl" : "max-w-[1320px]"} sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-xl shadow-2xl overflow-hidden`}
+        className={`relative flex min-h-screen w-full flex-col ${editable ? "max-w-4xl" : "max-w-[1320px]"} sm:h-[calc(100dvh-3rem)] sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-xl shadow-2xl overflow-hidden`}
         style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
       >
         <div className="hidden sm:flex sm:sticky sm:top-0 z-10 h-14 bg-white border-b border-border px-4 sm:px-5 items-center gap-4">
@@ -2159,7 +2159,7 @@ export function AuctionDetailModal({
         )}
 
         <div
-          className={`max-h-[100vh] sm:max-h-[calc(100vh-6rem)] overflow-y-auto ${editable ? "" : "sm:flex sm:items-start"}`}
+          className={`flex-1 min-h-0 max-h-[100vh] overflow-y-auto sm:max-h-none ${editable ? "" : "sm:flex sm:items-start"}`}
           style={{ backgroundColor: "#f4f6f9" }}
         >
         <div className="flex-1 min-w-0">
@@ -3037,7 +3037,7 @@ export function AuctionDetailModal({
               )}
             </>
           ) : (
-            AUCTION_FIELD_GROUPS.map((group) => {
+            AUCTION_FIELD_GROUPS.map((group, groupIndex) => {
               const fields = detailVisibleFields(group).filter((field) => {
                 if (field.key === "owner" || field.key === "tenantInfo") return false;
                 if (field.key === "recordTime" && !isAdmin) return false;
@@ -3046,7 +3046,7 @@ export function AuctionDetailModal({
               if (fields.length === 0) return null;
 
               return (
-                <details key={group.title} open={group.title === "등기·임차인 정보" || group.title === "입찰 및 진행 상태"} className="group rounded-2xl bg-card border border-border overflow-hidden">
+                <details key={group.title} open={group.title === "등기·임차인 정보" || group.title === "입찰 및 진행 상태"} className={`group rounded-2xl bg-card border border-border overflow-hidden ${groupIndex === 0 ? "mt-3" : ""}`}>
                   <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 border-b border-border/50 hover:bg-secondary/30 transition-colors [&::-webkit-details-marker]:hidden">
                     <FileText size={16} className="text-muted-foreground" />
                     <h3 className="text-sm font-bold text-foreground">{group.title}</h3>
