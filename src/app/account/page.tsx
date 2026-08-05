@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, LogOut } from "lucide-react";
@@ -54,6 +54,14 @@ const labelStyle: React.CSSProperties = {
 };
 
 export default function AccountPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <AccountPageContent />
+    </Suspense>
+  );
+}
+
+function AccountPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isLectureContext = searchParams.get("context") === "lecture";
