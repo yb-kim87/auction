@@ -159,9 +159,15 @@ export function LoanPolicyTab() {
     setMessage(null);
   }
 
+  function toggleRoomDeduction(id: string, checked: boolean) {
+    setPolicies((prev) => prev.map((p) => (p.id === id ? { ...p, roomDeductionEnabled: checked } : p)));
+    setMessage(null);
+  }
+
   function isDirty(policy: LoanPolicy): boolean {
     const original = originalPolicies[policy.id];
     if (!original) return false;
+    if (original.roomDeductionEnabled !== policy.roomDeductionEnabled) return true;
     if (original.loanUnavailable !== policy.loanUnavailable) return true;
     if (policy.loanUnavailable) return false;
     return (
@@ -182,6 +188,7 @@ export function LoanPolicyTab() {
             loanRatio: policy.loanRatio,
             appraisalRatio: policy.appraisalRatio,
             loanUnavailable: policy.loanUnavailable,
+            roomDeductionEnabled: policy.roomDeductionEnabled,
           }),
         ),
       );
@@ -363,7 +370,10 @@ export function LoanPolicyTab() {
           <span className="font-medium text-foreground">
             min(감정가 × 감정가비율, 낙찰가 × 낙찰가비율, 연소득 × 소득배수)
           </span>
-          에서 기존대출을 뺀 값으로 계산됩니다.
+          에서 기존대출을 뺀 값으로 계산됩니다. "방공제"를 켜면 실제 임차인 유무와
+          무관하게 물건 소재지 기준 최우선변제금액(주택임대차보호법 시행령
+          2023.2.21. 개정 기준 — 서울 5,500만/과밀억제권역 4,800만/광역시 등
+          2,800만/그 외 2,500만원)을 대출한도에서 추가로 차감합니다.
         </p>
       </div>
 
@@ -380,6 +390,9 @@ export function LoanPolicyTab() {
               <th className="px-4 py-2.5 font-semibold text-foreground whitespace-nowrap">정책</th>
               <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
                 대출불가
+              </th>
+              <th className="px-3 py-2.5 font-semibold text-foreground text-center whitespace-nowrap w-20">
+                방공제
               </th>
               <th className="px-3 py-2.5 font-semibold text-foreground text-right whitespace-nowrap w-28">
                 감정가 비율
@@ -415,6 +428,7 @@ export function LoanPolicyTab() {
                     {policy.loanUnavailable
                       ? "대출 불가 (비율 지정 불가)"
                       : "min(감정가비율, 낙찰가비율) 중 낮은 쪽이 최종 적용"}
+                    {!policy.loanUnavailable && policy.roomDeductionEnabled && " · 방공제(지역별 최우선변제금액) 추가 차감"}
                   </p>
                 </td>
                 <td className="px-3 py-3 text-center align-middle">
@@ -422,6 +436,15 @@ export function LoanPolicyTab() {
                     type="checkbox"
                     checked={policy.loanUnavailable}
                     onChange={(e) => toggleUnavailable(policy.id, e.target.checked)}
+                  />
+                </td>
+                <td className="px-3 py-3 text-center align-middle">
+                  <input
+                    type="checkbox"
+                    checked={policy.roomDeductionEnabled}
+                    disabled={policy.loanUnavailable}
+                    onChange={(e) => toggleRoomDeduction(policy.id, e.target.checked)}
+                    title="물건 소재지 기준 최우선변제금액(방공제)을 대출한도에서 차감합니다"
                   />
                 </td>
                 {policy.loanUnavailable ? (

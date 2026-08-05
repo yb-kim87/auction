@@ -19,6 +19,10 @@ export type LoanInfo = {
   incomeLoanLimit: number | null;
   existingLoanWon: number;
   loanUnavailable?: boolean;
+  /** 방빼기(방공제) — 물건 소재지 기준 최우선변제금액. 이미 requiredEquity
+   * 계산에 반영돼 있으므로, 카드 내 "추정 수익" 재계산에도 동일하게
+   * 반영해 두 수치가 어긋나지 않게 한다. */
+  roomDeductionWon?: number;
 };
 
 const fmtEok = (n: number) => {
@@ -113,7 +117,7 @@ export function RecommendCard({
         loanRatioByAppraisal: loanInfo.appraisalRatio,
         loanRatioByBidPrice: loanInfo.loanRatio,
         incomeLoanLimit: loanInfo.incomeLoanLimit,
-        existingLoanWon: loanInfo.existingLoanWon,
+        existingLoanWon: loanInfo.existingLoanWon + (loanInfo.roomDeductionWon ?? 0),
         housingCount,
         regulatedArea: loanInfo.regulatedArea,
         usage: item.usage,

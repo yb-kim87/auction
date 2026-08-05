@@ -796,6 +796,9 @@ export type LoanPolicy = {
   regulatedArea: boolean;
   loanUnavailable: boolean;
   businessLoanOnly: boolean;
+  /** 방빼기(방공제) 적용 여부 — 켜면 물건 소재지 기준 최우선변제금액을
+   * 대출한도에서 차감한다. */
+  roomDeductionEnabled: boolean;
   sortOrder: number;
 };
 
@@ -814,7 +817,7 @@ export async function fetchLoanPolicies(): Promise<LoanPolicy[]> {
 
 export async function updateLoanPolicy(
   id: string,
-  input: { loanRatio: number; appraisalRatio: number; loanUnavailable: boolean },
+  input: { loanRatio: number; appraisalRatio: number; loanUnavailable: boolean; roomDeductionEnabled: boolean },
 ): Promise<LoanPolicy> {
   const res = await fetch(`${API_BASE}/loan-policies/${id}`, {
     method: "PATCH",
@@ -1427,6 +1430,7 @@ export async function fetchRecommendations(
       incomeLoanLimit: number | null;
       existingLoanWon: number;
       loanUnavailable?: boolean;
+      roomDeductionWon?: number;
     }
   >;
   total: number;
