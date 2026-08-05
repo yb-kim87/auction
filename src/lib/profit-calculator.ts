@@ -137,6 +137,8 @@ export interface ProfitCalculatorInput {
   loanRatioByBidPrice: number; // 낙찰가 기준 LTV 비율(예: 0.8)
   incomeLoanLimit: number | null; // 소득 기준 대출한도(연소득×배수). null이면 소득 기준 미적용
   existingLoanWon: number; // 기존대출금액(대출한도에서 차감), 기본 0
+  roomDeductionWon?: number; // 방공제(방빼기) 금액 — roomDeductionTarget 기준에서 min 전에 차감
+  roomDeductionTarget?: "none" | "appraisal" | "bid" | "both";
   loanInterestRate: number; // 대출 연이자율(예: 0.045)
   earlyRepaymentFeeRate: number; // 중도상환수수료율(기본 0)
   interiorCost: number; // 인테리어(필요경비), 기본 300만원
@@ -188,6 +190,8 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
     loanRatioByBidPrice,
     incomeLoanLimit,
     existingLoanWon,
+    roomDeductionWon = 0,
+    roomDeductionTarget = "none",
     loanInterestRate,
     earlyRepaymentFeeRate,
     interiorCost,
@@ -205,8 +209,12 @@ export function calculateProfit(input: ProfitCalculatorInput): ProfitCalculatorR
 
   const bidRatio = appraisedValue > 0 ? bidPrice / appraisedValue : 0;
 
-  const loanByAppraisal = Math.floor(appraisedValue * loanRatioByAppraisal);
-  const loanByBidPrice = Math.floor(bidPrice * loanRatioByBidPrice);
+  let loanByAppraisal = Math.floor(appraisedValue * loanRatioByAppraisal);
+  let loanByBidPrice = Math.floor(bidPrice * loanRatioByBidPrice);
+  if (roomDeductionWon > 0) {
+    if (roomDeductionTarget === "bid" || roomDeductionTarget === "both") loanByBidPrice -= roomDeductionWon;
+    if (roomDeductionTarget === "appraisal" || roomDeductionTarget === "both") loanByAppraisal -= roomDeductionWon;
+  }
   const loanLimit = Math.max(
     0,
     Math.min(loanByAppraisal, loanByBidPrice, incomeLoanLimit ?? Infinity),
@@ -323,6 +331,8 @@ export function estimateDefaultProfit(params: {
   loanRatioByBidPrice: number;
   incomeLoanLimit?: number | null;
   existingLoanWon?: number;
+  roomDeductionWon?: number;
+  roomDeductionTarget?: "none" | "appraisal" | "bid" | "both";
   housingCount?: number | null;
   regulatedArea?: boolean | null;
   usage?: string | null;
@@ -338,6 +348,8 @@ export function estimateDefaultProfit(params: {
     loanRatioByBidPrice,
     incomeLoanLimit = null,
     existingLoanWon = 0,
+    roomDeductionWon = 0,
+    roomDeductionTarget = "none",
     housingCount = null,
     regulatedArea = null,
     usage = null,
@@ -356,6 +368,8 @@ export function estimateDefaultProfit(params: {
     loanRatioByBidPrice: Math.min(loanRatioByBidPrice, 1),
     incomeLoanLimit,
     existingLoanWon,
+    roomDeductionWon,
+    roomDeductionTarget,
     loanInterestRate: 0.045,
     earlyRepaymentFeeRate: 0,
     interiorCost: 2_000_000,

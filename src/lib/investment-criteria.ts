@@ -12,7 +12,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: true,
     loanUnavailable: false,
     businessLoanOnly: false,
-    roomDeductionEnabled: false,
+    roomDeductionTarget: "none",
     sortOrder: 0,
   },
   {
@@ -23,7 +23,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: true,
     loanUnavailable: false,
     businessLoanOnly: false,
-    roomDeductionEnabled: false,
+    roomDeductionTarget: "none",
     sortOrder: 1,
   },
   {
@@ -34,7 +34,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: true,
     loanUnavailable: true,
     businessLoanOnly: false,
-    roomDeductionEnabled: false,
+    roomDeductionTarget: "none",
     sortOrder: 2,
   },
   {
@@ -45,7 +45,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: false,
     loanUnavailable: false,
     businessLoanOnly: false,
-    roomDeductionEnabled: false,
+    roomDeductionTarget: "none",
     sortOrder: 3,
   },
   {
@@ -56,7 +56,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: false,
     loanUnavailable: false,
     businessLoanOnly: false,
-    roomDeductionEnabled: false,
+    roomDeductionTarget: "none",
     sortOrder: 4,
   },
   {
@@ -67,7 +67,7 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     regulatedArea: false,
     loanUnavailable: false,
     businessLoanOnly: true,
-    roomDeductionEnabled: false,
+    roomDeductionTarget: "none",
     sortOrder: 5,
   },
 ];

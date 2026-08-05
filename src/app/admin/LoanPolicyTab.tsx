@@ -159,15 +159,15 @@ export function LoanPolicyTab() {
     setMessage(null);
   }
 
-  function toggleRoomDeduction(id: string, checked: boolean) {
-    setPolicies((prev) => prev.map((p) => (p.id === id ? { ...p, roomDeductionEnabled: checked } : p)));
+  function setRoomDeductionTarget(id: string, target: LoanPolicy["roomDeductionTarget"]) {
+    setPolicies((prev) => prev.map((p) => (p.id === id ? { ...p, roomDeductionTarget: target } : p)));
     setMessage(null);
   }
 
   function isDirty(policy: LoanPolicy): boolean {
     const original = originalPolicies[policy.id];
     if (!original) return false;
-    if (original.roomDeductionEnabled !== policy.roomDeductionEnabled) return true;
+    if (original.roomDeductionTarget !== policy.roomDeductionTarget) return true;
     if (original.loanUnavailable !== policy.loanUnavailable) return true;
     if (policy.loanUnavailable) return false;
     return (
@@ -188,7 +188,7 @@ export function LoanPolicyTab() {
             loanRatio: policy.loanRatio,
             appraisalRatio: policy.appraisalRatio,
             loanUnavailable: policy.loanUnavailable,
-            roomDeductionEnabled: policy.roomDeductionEnabled,
+            roomDeductionTarget: policy.roomDeductionTarget,
           }),
         ),
       );
@@ -370,10 +370,12 @@ export function LoanPolicyTab() {
           <span className="font-medium text-foreground">
             min(감정가 × 감정가비율, 낙찰가 × 낙찰가비율, 연소득 × 소득배수)
           </span>
-          에서 기존대출을 뺀 값으로 계산됩니다. "방공제"를 켜면 실제 임차인 유무와
-          무관하게 물건 소재지 기준 최우선변제금액(주택임대차보호법 시행령
-          2023.2.21. 개정 기준 — 서울 5,500만/과밀억제권역 4,800만/광역시 등
-          2,800만/그 외 2,500만원)을 대출한도에서 추가로 차감합니다.
+          에서 기존대출을 뺀 값으로 계산됩니다. "방공제"에서 감정가/낙찰가/둘다를
+          선택하면, 실제 임차인 유무와 무관하게 물건 소재지 기준
+          최우선변제금액(주택임대차보호법 시행령 2023.2.21. 개정 기준 — 서울
+          5,500만/과밀억제권역 4,800만/광역시 등 2,800만/그 외 2,500만원)을
+          선택한 기준 금액에서 먼저 뺀 뒤 min을 계산합니다(예: 감정가 선택 시
+          "감정가×비율 − 방공제"와 "낙찰가×비율" 중 낮은 금액이 최종 대출한도).
         </p>
       </div>
 
@@ -428,7 +430,16 @@ export function LoanPolicyTab() {
                     {policy.loanUnavailable
                       ? "대출 불가 (비율 지정 불가)"
                       : "min(감정가비율, 낙찰가비율) 중 낮은 쪽이 최종 적용"}
-                    {!policy.loanUnavailable && policy.roomDeductionEnabled && " · 방공제(지역별 최우선변제금액) 추가 차감"}
+                    {!policy.loanUnavailable && policy.roomDeductionTarget !== "none" && (
+                      <>
+                        {" · 방공제 "}
+                        {policy.roomDeductionTarget === "appraisal"
+                          ? "감정가 기준에서 차감"
+                          : policy.roomDeductionTarget === "bid"
+                            ? "낙찰가 기준에서 차감"
+                            : "감정가·낙찰가 기준 각각에서 차감"}
+                      </>
+                    )}
                   </p>
                 </td>
                 <td className="px-3 py-3 text-center align-middle">
@@ -439,13 +450,20 @@ export function LoanPolicyTab() {
                   />
                 </td>
                 <td className="px-3 py-3 text-center align-middle">
-                  <input
-                    type="checkbox"
-                    checked={policy.roomDeductionEnabled}
+                  <select
+                    value={policy.roomDeductionTarget}
                     disabled={policy.loanUnavailable}
-                    onChange={(e) => toggleRoomDeduction(policy.id, e.target.checked)}
-                    title="물건 소재지 기준 최우선변제금액(방공제)을 대출한도에서 차감합니다"
-                  />
+                    onChange={(e) =>
+                      setRoomDeductionTarget(policy.id, e.target.value as LoanPolicy["roomDeductionTarget"])
+                    }
+                    title="물건 소재지 기준 최우선변제금액(방공제)을 어느 기준 금액에서 차감할지 선택합니다"
+                    className="px-1.5 py-1 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
+                  >
+                    <option value="none">미적용</option>
+                    <option value="appraisal">감정가</option>
+                    <option value="bid">낙찰가</option>
+                    <option value="both">둘다</option>
+                  </select>
                 </td>
                 {policy.loanUnavailable ? (
                   <td colSpan={2} className="px-4 py-3 text-right align-middle">

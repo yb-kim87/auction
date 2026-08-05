@@ -1441,10 +1441,7 @@ export default function HomePage() {
           selectedItem ? loanInfoByItemId[selectedItem.id]?.incomeLoanLimit ?? null : null
         }
         existingLoanWon={
-          selectedItem
-            ? (loanInfoByItemId[selectedItem.id]?.existingLoanWon ?? 0) +
-              (loanInfoByItemId[selectedItem.id]?.roomDeductionWon ?? 0)
-            : null
+          selectedItem ? loanInfoByItemId[selectedItem.id]?.existingLoanWon ?? null : null
         }
         firstTimeBuyer={profile?.firstTimeBuyer ?? false}
         annualNetIncome={profile?.annualNetIncome ?? null}

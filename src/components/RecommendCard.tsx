@@ -23,6 +23,8 @@ export type LoanInfo = {
    * 계산에 반영돼 있으므로, 카드 내 "추정 수익" 재계산에도 동일하게
    * 반영해 두 수치가 어긋나지 않게 한다. */
   roomDeductionWon?: number;
+  /** 방공제를 어느 기준 금액(감정가/낙찰가/둘다)에서 차감할지. */
+  roomDeductionTarget?: "none" | "appraisal" | "bid" | "both";
 };
 
 const fmtEok = (n: number) => {
@@ -117,7 +119,9 @@ export function RecommendCard({
         loanRatioByAppraisal: loanInfo.appraisalRatio,
         loanRatioByBidPrice: loanInfo.loanRatio,
         incomeLoanLimit: loanInfo.incomeLoanLimit,
-        existingLoanWon: loanInfo.existingLoanWon + (loanInfo.roomDeductionWon ?? 0),
+        existingLoanWon: loanInfo.existingLoanWon,
+        roomDeductionWon: loanInfo.roomDeductionWon,
+        roomDeductionTarget: loanInfo.roomDeductionTarget,
         housingCount,
         regulatedArea: loanInfo.regulatedArea,
         usage: item.usage,
