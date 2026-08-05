@@ -343,27 +343,6 @@ export default function FavoritesPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-[0.68rem] text-muted-foreground">저장된 계획</p>
-                <p className="mt-1 text-lg font-bold text-foreground">{bidPlans.length}건</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-[0.68rem] text-muted-foreground">총 계획 입찰가</p>
-                <p className="mt-1 text-lg font-bold text-foreground">{formatWonShort(bidPlans.reduce((sum, plan) => sum + plan.bidPrice, 0))}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-[0.68rem] text-muted-foreground">총 필요 투자금</p>
-                <p className="mt-1 text-lg font-bold text-primary">{formatWonShort(bidPlans.reduce((sum, plan) => sum + (plan.requiredEquity ?? 0), 0))}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-[0.68rem] text-muted-foreground">총 예상수익</p>
-                <p className={`mt-1 text-lg font-bold ${bidPlans.reduce((sum, plan) => sum + (plan.finalProfit ?? 0), 0) >= 0 ? "text-blue-600" : "text-red-500"}`}>
-                  {formatWonShort(bidPlans.reduce((sum, plan) => sum + (plan.finalProfit ?? 0), 0))}
-                </p>
-              </div>
-            </div>
-
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <div className="hidden grid-cols-[minmax(15rem,1.5fr)_7rem_7rem_7rem_7rem_6rem] gap-3 border-b border-border bg-secondary/40 px-4 py-2.5 text-[0.68rem] font-semibold text-muted-foreground lg:grid">
                 <span>물건</span><span className="text-right">계획 입찰가</span><span className="text-right">예상 매도가</span><span className="text-right">투입자금</span><span className="text-right">예상수익</span><span className="text-right">수익률</span>
