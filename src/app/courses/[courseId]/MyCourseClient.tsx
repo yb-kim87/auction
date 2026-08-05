@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { clearAuthCookie } from "@/lib/auth";
+import { canAccessSearch } from "@/lib/roles";
 import {
   fetchMyCourseAccessInfo,
+  fetchMyProfile,
   fetchMyCourseNotes,
   fetchMyCourseQuestions,
   fetchMyCoursePlayUrl,
@@ -250,6 +252,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const [info, setInfo] = useState<LectureMyCourseAccessInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canOpenAuction, setCanOpenAuction] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -275,6 +278,12 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const [questions, setQuestions] = useState<LectureCourseQuestion[]>([]);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [activitySaving, setActivitySaving] = useState(false);
+
+  useEffect(() => {
+    fetchMyProfile()
+      .then((profile) => setCanOpenAuction(canAccessSearch(profile.role)))
+      .catch(() => setCanOpenAuction(false));
+  }, []);
 
   useEffect(() => {
     Promise.all([fetchMyCourseNotes(courseId), fetchMyCourseQuestions(courseId)])
@@ -549,21 +558,23 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto sm:ml-0">
-            <Link
-              href="/"
-              className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
-              style={{
-                background: C.white,
-                border: `1px solid ${C.accentLight}`,
-                color: C.accent,
-                fontSize: 12,
-                fontWeight: 700,
-                borderRadius: 999,
-                textDecoration: "none",
-              }}
-            >
-              물건 추천
-            </Link>
+            {canOpenAuction && (
+              <Link
+                href="/"
+                className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
+                style={{
+                  background: C.white,
+                  border: `1px solid ${C.accentLight}`,
+                  color: C.accent,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  textDecoration: "none",
+                }}
+              >
+                물건 추천
+              </Link>
+            )}
             <Link
               href="/courses"
               className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"

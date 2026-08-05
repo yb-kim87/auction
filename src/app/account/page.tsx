@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, LogOut } from "lucide-react";
 import { clearAuthCookie, getLoginRedirect } from "@/lib/auth";
+import { canAccessSearch } from "@/lib/roles";
 import { fetchMyProfile, logoutUser, updateMyProfile } from "@/lib/api";
 import { ROLE_LABELS } from "@/types/auction";
 import type { UserProfile } from "@/types/auction";
@@ -225,13 +226,15 @@ function AccountPageContent() {
           </Link>
 
           <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-            <Link
-              href="/"
-              className="whitespace-nowrap"
-              style={{ padding: "8px 10px", color: C.accent, fontSize: 13, fontWeight: 700, borderRadius: 999, border: `1px solid ${C.accentLight}`, textDecoration: "none" }}
-            >
-              물건 추천
-            </Link>
+            {profile && canAccessSearch(profile.role) && (
+              <Link
+                href="/"
+                className="whitespace-nowrap"
+                style={{ padding: "8px 10px", color: C.accent, fontSize: 13, fontWeight: 700, borderRadius: 999, border: `1px solid ${C.accentLight}`, textDecoration: "none" }}
+              >
+                물건 추천
+              </Link>
+            )}
             <Link
               href="/courses"
               className="whitespace-nowrap"
