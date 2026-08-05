@@ -75,6 +75,10 @@ export function RedevelopmentImageTraceTool({
   /** 화면 표시 좌표 기준 픽셀당 미터. 경계 자동 추출 + 고시 면적이 있으면
    * 축척이 결정돼, 기준점을 1개만 찍어도 변환식이 완성된다. */
   const [metersPerPixel, setMetersPerPixel] = useState<number | null>(null);
+  /** 지도에서 클릭한 "구역 중심" 위치. 축척을 알고 있으면 이 한 점만으로
+   * 구역을 지도에 얹을 수 있어, 양쪽에서 같은 지형지물을 찾아 짝지을
+   * 필요가 없다(사용자 피드백, 2026-08-05: 랜드마크 대조가 어렵다). */
+  const [centerGeo, setCenterGeo] = useState<GeoPoint | null>(null);
   /** 자동 추출로 알아낸 구역의 실제 크기(m) — 지도 배율을 이미지에 맞출 때 쓴다. */
   const zoneExtentRef = useRef<{ widthM: number; heightM: number } | null>(null);
 
@@ -97,10 +101,23 @@ export function RedevelopmentImageTraceTool({
     return `/api/redevelopment/zone-image?url=${encodeURIComponent(imageUrl)}`;
   }, [imageUrl]);
 
+  const polygonCentroid = useMemo<PixelPoint | null>(() => {
+    if (tracePoints.length < 3) return null;
+    const n = tracePoints.length;
+    return {
+      x: tracePoints.reduce((a, p) => a + p.x, 0) / n,
+      y: tracePoints.reduce((a, p) => a + p.y, 0) / n,
+    };
+  }, [tracePoints]);
+
+  /** 지도 클릭만으로 위치를 잡는 모드인지(축척을 알고 경계도 있을 때). */
+  const placeMode = Boolean(metersPerPixel && polygonCentroid && calibrationPairs.length === 0);
+
   // 축척을 알면 1점(이동만) → 2점(회전까지 실측) → 3점(어파인)으로
   // 찍을수록 정밀해지는 구조. 축척을 모르면 최소 2점이 필요하다.
   const requiredPoints = metersPerPixel ? 1 : 2;
-  const calibrationDone = calibrationPairs.length >= requiredPoints;
+  const calibrationDone =
+    calibrationPairs.length >= requiredPoints || (placeMode && centerGeo != null);
   const transformFn = useMemo(() => {
     if (calibrationPairs.length >= 3) {
       return solveAffineFrom3Points(
@@ -121,8 +138,12 @@ export function RedevelopmentImageTraceTool({
         metersPerPixel,
       );
     }
+    // 지형지물을 못 찾겠으면 지도에서 구역 중심만 찍어도 된다.
+    if (centerGeo && polygonCentroid && metersPerPixel) {
+      return solveFrom1PointWithScale(polygonCentroid, centerGeo, metersPerPixel);
+    }
     return null;
-  }, [calibrationPairs, metersPerPixel]);
+  }, [calibrationPairs, metersPerPixel, centerGeo, polygonCentroid]);
 
   useEffect(() => {
     if (!appKey || !mapContainerRef.current) return;
@@ -175,6 +196,7 @@ export function RedevelopmentImageTraceTool({
       tracePolygonRef.current = null;
       setAutoTraceNote(null);
       setMetersPerPixel(null);
+      setCenterGeo(null);
     };
     reader.readAsDataURL(file);
   }
@@ -247,7 +269,13 @@ export function RedevelopmentImageTraceTool({
       // object-contain 축소 비율만큼 어긋난다).
       if (areaSqMeters && areaSqMeters > 0) {
         const shownAreaPx = polygonAreaPx(shown);
-        setMetersPerPixel(shownAreaPx > 0 ? Math.sqrt(areaSqMeters / shownAreaPx) : null);
+        const mpp = shownAreaPx > 0 ? Math.sqrt(areaSqMeters / shownAreaPx) : null;
+        setMetersPerPixel(mpp);
+        // 축척을 알면 남은 미지수는 위치뿐이고, 지오코딩된 구역 대표
+        // 지번 좌표가 그 후보다. 일단 그 위치에 얹어두면 관리자는 확인만
+        // 하면 되고, 어긋나면 지도를 클릭해 옮기면 된다(사용자 질문,
+        // 2026-08-05: "이정도면 너가 할 수 있겠는데??").
+        if (mpp && initialCenter && calibrationPairs.length === 0) setCenterGeo(initialCenter);
       } else {
         setMetersPerPixel(null);
       }
@@ -323,9 +351,19 @@ export function RedevelopmentImageTraceTool({
     }
 
     const handler = (...args: unknown[]) => {
-      if (calibrationDone || !pendingImgPoint) return;
       const mouseEvent = args[0] as KakaoMouseEvent;
       const geo = { lat: mouseEvent.latLng.getLat(), lng: mouseEvent.latLng.getLng() };
+
+      // 이미지에서 찍어둔 점이 없고 축척을 안다면, 클릭한 곳을 구역 중심으로
+      // 삼아 폴리곤을 바로 얹는다. 다시 클릭하면 그 위치로 옮겨진다.
+      if (!pendingImgPoint) {
+        if (placeMode || centerGeo) {
+          setCenterGeo(geo);
+          setError(null);
+        }
+        return;
+      }
+      if (calibrationPairs.length >= requiredPoints) return;
       setCalibrationPairs((prev) => [...prev, { img: pendingImgPoint, geo }]);
       setPendingImgPoint(null);
       setError(null);
@@ -343,7 +381,7 @@ export function RedevelopmentImageTraceTool({
         mapClickHandlerRef.current = null;
       }
     };
-  }, [mapReady, pendingImgPoint, calibrationDone]);
+  }, [mapReady, pendingImgPoint, calibrationPairs.length, requiredPoints, placeMode, centerGeo]);
 
   // 추적(구역 그리기) 미리보기 — 지도 위에 실시간 폴리곤으로 표시
   useEffect(() => {
@@ -368,11 +406,8 @@ export function RedevelopmentImageTraceTool({
       fillOpacity: 0.25,
     });
     tracePolygonRef.current.setMap(map);
-    map.setBounds((() => {
-      const bounds = new kakao.maps.LatLngBounds();
-      path.forEach((p) => bounds.extend(p));
-      return bounds;
-    })());
+    // 여기서 지도를 폴리곤에 맞추면 위치를 옮길 때마다 화면이 튀어 미세
+    // 조정이 어렵다. 배율은 "지도 배율 맞추기"로 따로 맞춘다.
   }, [mapReady, tracePoints, transformFn]);
 
   function handleUndoTracePoint() {
@@ -384,6 +419,7 @@ export function RedevelopmentImageTraceTool({
   function handleResetCalibration() {
     setCalibrationPairs([]);
     setPendingImgPoint(null);
+    setCenterGeo(null);
     setError(null);
     calibMarkersRef.current.forEach((m) => m.setMap(null));
     calibMarkersRef.current = [];
@@ -393,6 +429,7 @@ export function RedevelopmentImageTraceTool({
     setTracePoints([]);
     setAutoTraceNote(null);
     setMetersPerPixel(null);
+    setCenterGeo(null);
     tracePolygonRef.current?.setMap(null);
     tracePolygonRef.current = null;
   }
@@ -498,7 +535,7 @@ export function RedevelopmentImageTraceTool({
                 : 왼쪽 이미지에서 알아볼 수 있는 지점(건물 모서리, 도로 교차점 등)을 클릭 →
                 오른쪽 실제 지도에서 같은 지점을 클릭.
                 {metersPerPixel
-                  ? " 축척은 고시 면적으로 이미 계산됐고 지적도는 정북 기준이라, 한 곳만 찍으면 됩니다."
+                  ? " 축척은 고시 면적으로 이미 계산됐고 지적도는 정북 기준이라, 한 곳만 찍으면 됩니다. 지형지물을 못 찾겠으면 오른쪽 지도에서 구역이 있을 자리를 그냥 클릭하세요 — 그 자리를 중심으로 구역이 얹힙니다."
                   : " 서로 멀리 떨어진 두 곳을 찍으면 축척·회전·위치가 한 번에 결정됩니다."}
                 {pendingImgPoint && (
                   <span className="ml-1 text-primary font-semibold">
@@ -509,9 +546,10 @@ export function RedevelopmentImageTraceTool({
             ) : (
               <p className="text-foreground">
                 <span className="font-semibold">③ 확인 후 확정</span>: 오른쪽 지도에 실제 위치가
-                표시됩니다(꼭짓점 {tracePoints.length}개). 방향이 틀어져 보이면 기준점을 한 번 더
-                찍으세요 — 2점이 되면 회전까지 실측으로 잡히고, 3점이면 도면 찌그러짐까지
-                보정됩니다.
+                표시됩니다(꼭짓점 {tracePoints.length}개).
+                {centerGeo && calibrationPairs.length === 0
+                  ? " 지도를 다시 클릭하면 그 자리로 옮겨집니다. 방향이 틀어져 보이면 왼쪽 이미지의 지형지물을 클릭한 뒤 지도에서 같은 곳을 찍으세요."
+                  : " 방향이 틀어져 보이면 기준점을 한 번 더 찍으세요 — 2점이 되면 회전까지 실측으로 잡히고, 3점이면 도면 찌그러짐까지 보정됩니다."}
               </p>
             )}
             {areaCheck && (

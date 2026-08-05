@@ -3773,7 +3773,7 @@ export type RedevelopmentZone = {
   sourceDatasetId: string | null;
   sourceKey: string | null;
   asOfDate: string | null;
-  boundaryType: "EXACT" | "CONVEX_HULL_APPROX" | "POINT_ONLY" | "MANUAL";
+  boundaryType: "EXACT" | "CONVEX_HULL_APPROX" | "POINT_ONLY" | "IMAGE_AUTO" | "MANUAL";
   lastAutoSyncedAt: string | null;
   referenceImageUrl: string | null;
   areaSqMeters: number | null;
