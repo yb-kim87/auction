@@ -1,13 +1,18 @@
 /** 구역도 이미지에서 빨간 경계선을 자동으로 찾아 폴리곤 꼭짓점으로 만든다.
  *
  * 지자체 위치도는 지적도 위에 구역 경계만 빨간 선으로 그려져 있어서, 색으로
- * 분리하면 라벨·지번 숫자가 겹쳐 있어도 경계만 깔끔하게 뽑힌다. 파이썬
- * OpenCV로 먼저 검증한 파이프라인(HSV 마스킹 → 모폴로지 클로징 → 윤곽
- * 추적 → 꼭짓점 단순화)을 그대로 옮긴 것으로, 실측에서 은평구 역촌1구역
- * 위치도가 16개 꼭짓점으로 정확히 추출됐다(2026-08-05).
+ * 분리하면 라벨·지번 숫자가 겹쳐 있어도 경계만 뽑을 수 있다.
  *
- * 관리자가 손으로 경계를 16번 클릭하던 것을 없애고 기준점 2번만 찍게 하는
- * 하이브리드 방식의 앞단이다.
+ * 핵심은 "선을 따라가는" 대신 **선으로 둘러싸인 내부 영역을 찾는** 것이다.
+ * 경계가 점선인 도면이 많은데(실측: 은평구 불광1구역은 빨간 픽셀 1,791개가
+ * 152개 점으로 흩어져 있었다), 선 추적 방식은 점 사이가 끊겨 일부만 잡히고
+ * 엉뚱한 대각선 도로를 구역으로 오인했다(사용자 리포트, 2026-08-05:
+ * "경계 자동 추출을했는데 제대로 못잡는데").
+ *
+ * 그래서 팽창(dilate)으로 점 사이를 메워 폐곡선을 만든 뒤, 테두리에서
+ * 흘러들어오지 못하는 배경 = 내부 영역을 찾고, 팽창한 만큼 되돌린다.
+ * 팽창 반경은 작은 값부터 올려가며 "그럴듯한 크기의 내부"가 처음 나오는
+ * 값을 쓴다 — 크게 잡을수록 옆 도로·다른 구역과 붙어버리기 때문이다.
  */
 
 export type PixelPoint = { x: number; y: number };
@@ -17,20 +22,24 @@ export type TraceOptions = {
   minSaturation?: number;
   /** 명도 하한 — 너무 어두운 픽셀(글자 테두리 등) 제외. */
   minValue?: number;
-  /** 끊긴 경계선을 이어 붙일 반경(px). */
-  closeRadius?: number;
   /** 꼭짓점 단순화 허용오차(둘레 대비 비율). */
   simplifyRatio?: number;
+  /** 내부 영역으로 인정할 최소/최대 비율(이미지 넓이 대비). */
+  minAreaRatio?: number;
+  maxAreaRatio?: number;
 };
 
 const DEFAULTS: Required<TraceOptions> = {
   minSaturation: 0.35,
   minValue: 0.27,
-  closeRadius: 3,
   simplifyRatio: 0.005,
+  minAreaRatio: 0.03,
+  maxAreaRatio: 0.7,
 };
 
-/** RGB → 색상(0~360). 빨강 판정에만 쓰므로 hue/sat/val만 계산한다. */
+const MIN_RADIUS = 2;
+const MAX_RADIUS = 12;
+
 function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
   const rn = r / 255;
   const gn = g / 255;
@@ -60,65 +69,81 @@ function redMask(data: Uint8ClampedArray, w: number, h: number, o: Required<Trac
   return mask;
 }
 
+/** 정사각 구조요소로 팽창 — 분리 계산(수평→수직)이라 반경이 커도 빠르다. */
 function dilate(src: Uint8Array, w: number, h: number, r: number): Uint8Array {
-  const out = new Uint8Array(w * h);
+  const tmp = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
+    const row = y * w;
     for (let x = 0; x < w; x++) {
-      if (!src[y * w + x]) continue;
-      const y0 = Math.max(0, y - r);
-      const y1 = Math.min(h - 1, y + r);
+      let v = 0;
       const x0 = Math.max(0, x - r);
       const x1 = Math.min(w - 1, x + r);
-      for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) out[yy * w + xx] = 1;
+      for (let xx = x0; xx <= x1; xx++) if (src[row + xx]) { v = 1; break; }
+      tmp[row + x] = v;
+    }
+  }
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - r);
+    const y1 = Math.min(h - 1, y + r);
+    for (let x = 0; x < w; x++) {
+      let v = 0;
+      for (let yy = y0; yy <= y1; yy++) if (tmp[yy * w + x]) { v = 1; break; }
+      out[y * w + x] = v;
     }
   }
   return out;
 }
 
-function erode(src: Uint8Array, w: number, h: number, r: number): Uint8Array {
-  const out = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let keep = 1;
-      const y0 = Math.max(0, y - r);
-      const y1 = Math.min(h - 1, y + r);
-      const x0 = Math.max(0, x - r);
-      const x1 = Math.min(w - 1, x + r);
-      for (let yy = y0; yy <= y1 && keep; yy++) {
-        for (let xx = x0; xx <= x1; xx++) {
-          if (!src[yy * w + xx]) { keep = 0; break; }
-        }
-      }
-      out[y * w + x] = keep;
-    }
+/** 테두리에서 도달할 수 없는 배경 = 폐곡선 내부. */
+function enclosedInterior(wall: Uint8Array, w: number, h: number): Uint8Array | null {
+  const seen = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let top = 0;
+  const push = (i: number) => {
+    if (!wall[i] && !seen[i]) { seen[i] = 1; stack[top++] = i; }
+  };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+
+  while (top > 0) {
+    const i = stack[--top];
+    const x = i % w;
+    const y = (i / w) | 0;
+    if (x > 0) push(i - 1);
+    if (x < w - 1) push(i + 1);
+    if (y > 0) push(i - w);
+    if (y < h - 1) push(i + w);
   }
-  return out;
+
+  const interior = new Uint8Array(w * h);
+  let count = 0;
+  for (let i = 0; i < interior.length; i++) {
+    if (!wall[i] && !seen[i]) { interior[i] = 1; count++; }
+  }
+  return count > 0 ? interior : null;
 }
 
-/** 가장 큰 연결 성분만 남긴다(작은 빨간 글자·범례 등 노이즈 제거). */
+/** 가장 큰 연결 성분만 남긴다(도면에 구역이 여러 개면 제일 큰 것). */
 function largestComponent(mask: Uint8Array, w: number, h: number): Uint8Array | null {
-  const label = new Int32Array(w * h).fill(-1);
-  const stack: number[] = [];
+  const label = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
   let best: number[] = [];
   for (let s = 0; s < mask.length; s++) {
-    if (!mask[s] || label[s] !== -1) continue;
+    if (!mask[s] || label[s]) continue;
     const cur: number[] = [];
-    stack.push(s);
-    label[s] = s;
-    while (stack.length) {
-      const i = stack.pop() as number;
+    let top = 0;
+    stack[top++] = s;
+    label[s] = 1;
+    while (top > 0) {
+      const i = stack[--top];
       cur.push(i);
       const x = i % w;
       const y = (i / w) | 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          const ni = ny * w + nx;
-          if (mask[ni] && label[ni] === -1) { label[ni] = s; stack.push(ni); }
-        }
-      }
+      if (x > 0 && mask[i - 1] && !label[i - 1]) { label[i - 1] = 1; stack[top++] = i - 1; }
+      if (x < w - 1 && mask[i + 1] && !label[i + 1]) { label[i + 1] = 1; stack[top++] = i + 1; }
+      if (y > 0 && mask[i - w] && !label[i - w]) { label[i - w] = 1; stack[top++] = i - w; }
+      if (y < h - 1 && mask[i + w] && !label[i + w]) { label[i + w] = 1; stack[top++] = i + w; }
     }
     if (cur.length > best.length) best = cur;
   }
@@ -128,38 +153,31 @@ function largestComponent(mask: Uint8Array, w: number, h: number): Uint8Array | 
   return out;
 }
 
-// 8방향 이웃(시계방향, 동쪽부터).
 const DIRS: Array<[number, number]> = [
   [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1],
 ];
 
-/** Moore 이웃 추적 — 도형 바깥 경계를 시계방향으로 한 바퀴 돈다. */
+/** Moore 이웃 추적 — 채워진 영역의 바깥 경계를 한 바퀴 돈다. */
 function traceContour(mask: Uint8Array, w: number, h: number): PixelPoint[] {
   let start = -1;
   for (let i = 0; i < mask.length; i++) if (mask[i]) { start = i; break; }
   if (start < 0) return [];
-
   const at = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : mask[y * w + x]);
   const sx = start % w;
   const sy = (start / w) | 0;
-
   const contour: PixelPoint[] = [{ x: sx, y: sy }];
   let cx = sx;
   let cy = sy;
-  let dir = 6; // 진입 방향(서쪽에서 들어온 것으로 간주)
+  let dir = 6;
   const maxSteps = w * h * 4;
-
   for (let step = 0; step < maxSteps; step++) {
     let found = false;
-    // 직전 진입 방향의 반대편부터 시계방향으로 이웃을 살핀다.
     for (let k = 0; k < 8; k++) {
       const d = (dir + 6 + k) % 8;
       const nx = cx + DIRS[d][0];
       const ny = cy + DIRS[d][1];
       if (at(nx, ny)) {
-        cx = nx;
-        cy = ny;
-        dir = d;
+        cx = nx; cy = ny; dir = d;
         contour.push({ x: cx, y: cy });
         found = true;
         break;
@@ -179,7 +197,6 @@ function perpDistance(p: PixelPoint, a: PixelPoint, b: PixelPoint): number {
   return Math.abs(dy * p.x - dx * p.y + b.x * a.y - b.y * a.x) / len;
 }
 
-/** Douglas-Peucker 단순화 — 픽셀 단위 계단 노이즈를 없애고 실제 꺾임만 남긴다. */
 function simplify(points: PixelPoint[], tolerance: number): PixelPoint[] {
   if (points.length < 3) return points;
   let maxD = 0;
@@ -196,7 +213,7 @@ function simplify(points: PixelPoint[], tolerance: number): PixelPoint[] {
   return [...left.slice(0, -1), ...right];
 }
 
-/** 폴리곤 면적(px²) — 신발끈 공식. 배율 검증에 쓴다. */
+/** 폴리곤 면적(px²) — 신발끈 공식. */
 export function polygonAreaPx(points: PixelPoint[]): number {
   let a = 0;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -208,35 +225,54 @@ export function polygonAreaPx(points: PixelPoint[]): number {
 export type TraceResult = {
   polygon: PixelPoint[];
   areaPx: number;
+  /** 이미지 넓이 대비 구역 비율 — 너무 작거나 크면 오검출 의심. */
+  areaRatio: number;
+  /** 실제로 채택된 팽창 반경(진단용). */
+  usedRadius: number;
   redPixels: number;
 };
 
-/** 이미지에서 빨간 경계선을 찾아 단순화된 폴리곤으로 반환한다. */
 export function traceRedBoundary(
   imageData: ImageData,
   options: TraceOptions = {},
 ): TraceResult | null {
   const o = { ...DEFAULTS, ...options };
   const { width: w, height: h, data } = imageData;
+  const total = w * h;
 
   const mask = redMask(data, w, h, o);
-  const redPixels = mask.reduce((s, v) => s + v, 0);
+  let redPixels = 0;
+  for (let i = 0; i < mask.length; i++) redPixels += mask[i];
   if (redPixels < 50) return null;
 
-  // 클로징(팽창 후 침식): 라벨에 가려 끊긴 경계선을 이어 닫힌 도형으로 만든다.
-  const closed = erode(dilate(mask, w, h, o.closeRadius), w, h, o.closeRadius);
-  const comp = largestComponent(closed, w, h);
-  if (!comp) return null;
+  for (let r = MIN_RADIUS; r <= MAX_RADIUS; r++) {
+    // 1) 점선 사이를 메워 폐곡선으로 만든다(침식은 하지 않는다 — 닫기
+    //    연산은 큰 반경에서 오히려 다리를 끊어버려 점선에 잘 듣지 않았다).
+    const wall = dilate(mask, w, h, r);
+    // 2) 테두리에서 못 닿는 배경 = 둘러싸인 내부
+    const inside = enclosedInterior(wall, w, h);
+    if (!inside) continue;
+    // 3) 선이 두꺼워진 만큼 내부를 되돌려 원래 경계에 맞춘다
+    const grown = dilate(inside, w, h, r);
+    const comp = largestComponent(grown, w, h);
+    if (!comp) continue;
 
-  const contour = traceContour(comp, w, h);
-  if (contour.length < 8) return null;
+    const contour = traceContour(comp, w, h);
+    if (contour.length < 8) continue;
+    let perimeter = 0;
+    for (let i = 1; i < contour.length; i++) {
+      perimeter += Math.hypot(contour[i].x - contour[i - 1].x, contour[i].y - contour[i - 1].y);
+    }
+    const polygon = simplify(contour, Math.max(1, perimeter * o.simplifyRatio));
+    if (polygon.length < 3) continue;
 
-  let perimeter = 0;
-  for (let i = 1; i < contour.length; i++) {
-    perimeter += Math.hypot(contour[i].x - contour[i - 1].x, contour[i].y - contour[i - 1].y);
+    const areaPx = polygonAreaPx(polygon);
+    const areaRatio = areaPx / total;
+    // 너무 작으면 라벨 같은 걸 잡은 것이고, 너무 크면 옆 도로·다른 구역과
+    // 붙어 화면 전체를 삼킨 것이다. 반경을 키워가며 첫 타당한 값을 쓴다.
+    if (areaRatio < o.minAreaRatio || areaRatio > o.maxAreaRatio) continue;
+
+    return { polygon, areaPx, areaRatio, usedRadius: r, redPixels };
   }
-  const polygon = simplify(contour, Math.max(1, perimeter * o.simplifyRatio));
-  if (polygon.length < 3) return null;
-
-  return { polygon, areaPx: polygonAreaPx(polygon), redPixels };
+  return null;
 }

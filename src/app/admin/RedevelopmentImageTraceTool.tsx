@@ -68,7 +68,7 @@ export function RedevelopmentImageTraceTool({
   const [error, setError] = useState<string | null>(null);
   const [autoTracing, setAutoTracing] = useState(false);
   const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
-  const [cadastralOn, setCadastralOn] = useState(true);
+  const [cadastralOn, setCadastralOn] = useState(false);
   /** 자동 추출로 알아낸 구역의 실제 크기(m) — 지도 배율을 이미지에 맞출 때 쓴다. */
   const zoneExtentRef = useRef<{ widthM: number; heightM: number } | null>(null);
 
@@ -134,8 +134,10 @@ export function RedevelopmentImageTraceTool({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appKey]);
 
-  // 지적편집도(필지 경계·지번) 오버레이 — 구역도 이미지가 지적도라서,
-  // 지도에도 같은 필지 모양을 띄우면 대조가 훨씬 쉬워진다.
+  // 카카오맵 USE_DISTRICT 오버레이. 이름은 "지적편집도"지만 실제로 그려지는
+  // 건 필지 경계가 아니라 용도지역(주거/녹지 등) 색면이라, 필지 모양 대조에는
+  // 도움이 안 되고 지도만 가린다(실측, 2026-08-05). 기본은 꺼두고 필요할 때만
+  // 켜도록 남겨둔다.
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map || !window.kakao) return;
@@ -211,7 +213,10 @@ export function RedevelopmentImageTraceTool({
 
       const result = traceRedBoundary(pixels);
       if (!result) {
-        throw new Error("빨간 경계선을 찾지 못했습니다. 아래에서 직접 클릭해 그려 주세요.");
+        throw new Error(
+          "닫힌 빨간 경계선을 찾지 못했습니다(경계가 흐리거나 색이 옅은 도면일 수 있습니다). " +
+            "아래 이미지에서 경계 꼭짓점을 직접 클릭해 그려 주세요.",
+        );
       }
 
       const cw = container.clientWidth;
@@ -241,7 +246,19 @@ export function RedevelopmentImageTraceTool({
         fitMapToZone(300, 300);
         sizeNote = " · 면적 정보가 없어 지도 배율은 기본값으로 맞춤";
       }
-      setAutoTraceNote(`경계 자동 추출 완료 — 꼭짓점 ${result.polygon.length}개${sizeNote}`);
+      const ratioPct = Math.round(result.areaRatio * 100);
+      setAutoTraceNote(
+        `경계 자동 추출 완료 — 꼭짓점 ${result.polygon.length}개 · 이미지의 ${ratioPct}%${sizeNote}`,
+      );
+      // 도면에 구역이 여러 개 그려져 있거나 경계가 옅으면 일부만 잡힐 수
+      // 있다(실측: 응암7·8·9구역이 한 장에 있는 도면은 한 구역만 잡힘).
+      // 사람이 보면 바로 아는 문제라, 의심스러우면 확인하라고 알린다.
+      if (result.areaRatio < 0.08) {
+        setError(
+          "추출된 구역이 이미지에서 차지하는 비율이 작습니다. 경계를 제대로 잡았는지 확인하고, " +
+            "틀렸다면 “경계 지우기” 후 직접 클릭해 그려 주세요.",
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "자동 추출에 실패했습니다.");
     } finally {
@@ -424,10 +441,10 @@ export function RedevelopmentImageTraceTool({
                 checked={cadastralOn}
                 onChange={(e) => setCadastralOn(e.target.checked)}
               />
-              지적편집도 표시
+              용도지역도 표시
             </label>
             <span className="text-xs text-muted-foreground">
-              지도에도 필지 경계가 나와 왼쪽 지적도와 모양을 맞춰 보기 쉽습니다.
+              주거/녹지 등 용도지역을 색으로 표시합니다(필지 경계는 아닙니다).
             </span>
             <button
               type="button"
