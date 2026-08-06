@@ -201,7 +201,7 @@ const buildColumns = (
           render: (r: AuctionItem) => {
             if (!r.minPrice || r.minPrice <= 0) return <span className="text-muted-foreground/40">-</span>;
             const regulated = isRegulatedArea(r.city, r.district, regulatedRegionNames);
-            const policy = selectLoanPolicy(recommendCriteria, regulated, loanPolicies);
+            const policy = selectLoanPolicy(recommendCriteria, regulated, loanPolicies, r);
             if (policy.loanUnavailable) {
               return <span className="text-xs text-destructive font-semibold">대출 불가({policy.label})</span>;
             }
@@ -539,6 +539,7 @@ function AuctionMobileCard({
           recommendCriteria,
           isRegulatedArea(item.city, item.district, regulatedRegionNames),
           loanPolicies,
+          item,
         )
       : null;
   const annualIncomeWon = recommendCriteria

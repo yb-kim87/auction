@@ -70,6 +70,28 @@ export const DEFAULT_LOAN_POLICIES: LoanPolicy[] = [
     roomDeductionTarget: "none",
     sortOrder: 5,
   },
+  {
+    id: "officetel",
+    label: "오피스텔(공시가·주택수 무관)",
+    loanRatio: 0.9,
+    appraisalRatio: 0.8,
+    regulatedArea: false,
+    loanUnavailable: false,
+    businessLoanOnly: false,
+    roomDeductionTarget: "none",
+    sortOrder: 6,
+  },
+  {
+    id: "low_price_nonmetro_apartment",
+    label: "비수도권 공시가 2억 이하 아파트(주택수 무관)",
+    loanRatio: 0.9,
+    appraisalRatio: 0.8,
+    regulatedArea: false,
+    loanUnavailable: false,
+    businessLoanOnly: false,
+    roomDeductionTarget: "none",
+    sortOrder: 7,
+  },
 ];
 
 /** 물건의 city/district 중 하나라도 등록된 규제지역명을 포함하면 규제지역으로 판정 */
@@ -85,10 +107,22 @@ export function selectLoanPolicy(
   criteria: { housingCount: number; firstTimeBuyer: boolean },
   regulatedArea: boolean,
   policies: LoanPolicy[],
+  item?: Pick<AuctionItem, "usage" | "city" | "officialLandPrice">,
 ): LoanPolicy {
   const byId = (id: string) => policies.find((p) => p.id === id);
   let policy: LoanPolicy | undefined;
-  if (regulatedArea) {
+  const usage = item?.usage ?? "";
+  const isOfficetel = usage.includes("오피스텔");
+  const isLowPriceNonmetroApartment =
+    usage.includes("아파트") &&
+    !isMetropolitanArea(item?.city) &&
+    (item?.officialLandPrice ?? 0) > 0 &&
+    (item?.officialLandPrice ?? 0) <= 200_000_000;
+  if (isOfficetel) {
+    policy = byId("officetel");
+  } else if (isLowPriceNonmetroApartment) {
+    policy = byId("low_price_nonmetro_apartment");
+  } else if (regulatedArea) {
     if (criteria.housingCount > 0) {
       policy = byId("regulated_owner");
     } else {
@@ -100,6 +134,11 @@ export function selectLoanPolicy(
     policy = byId("unregulated_owner");
   }
   return policy ?? byId("unregulated_no_house") ?? DEFAULT_LOAN_POLICIES[4];
+}
+
+function isMetropolitanArea(city: string | null | undefined): boolean {
+  const normalized = (city ?? "").trim();
+  return normalized.startsWith("서울") || normalized.startsWith("경기") || normalized.startsWith("인천");
 }
 
 export interface InvestmentCriteria {
