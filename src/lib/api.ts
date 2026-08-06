@@ -1798,6 +1798,92 @@ export async function checkTankLoginV3(): Promise<{ ok: boolean }> {
   return readJsonResponse(res);
 }
 
+/** 나이스옥션 작업창(탱크옥션 작업창과 완전히 독립된 병렬 시스템) API
+ * 클라이언트(사용자 요청, 2026-08-07). */
+export type NiceCrawlerPhase =
+  | "idle"
+  | "collecting_objids"
+  | "matching"
+  | "fetching_details"
+  | "stopped"
+  | "error";
+
+export type NiceCrawlerStatus = {
+  id: string;
+  running: boolean;
+  phase: NiceCrawlerPhase;
+  totalObjIds: number;
+  matched: number;
+  completed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  lastMessage: string | null;
+  error: string | null;
+  updatedAt: string;
+};
+
+export type NiceCrawlerLogEntry = {
+  id: string;
+  at: string;
+  level: "info" | "warn" | "error";
+  message: string;
+};
+
+export async function fetchNiceCrawlerStatus(): Promise<NiceCrawlerStatus> {
+  const res = await fetch(`${API_BASE}/nice-crawler/status`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "나이스옥션 작업창 상태를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchNiceCrawlerLogs(limit = 200): Promise<NiceCrawlerLogEntry[]> {
+  const res = await fetch(`${API_BASE}/nice-crawler/logs?limit=${limit}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "나이스옥션 로그를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function niceCrawlerClearLogs(): Promise<void> {
+  await fetch(`${API_BASE}/nice-crawler/logs/clear`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+}
+
+export async function niceCrawlerStart(): Promise<NiceCrawlerStatus> {
+  const res = await fetch(`${API_BASE}/nice-crawler/start`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "나이스옥션 작업창 시작에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function niceCrawlerStop(): Promise<NiceCrawlerStatus> {
+  const res = await fetch(`${API_BASE}/nice-crawler/stop`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "나이스옥션 작업창 중지에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchTankFavoriteSearches(): Promise<{
   ok: boolean;
   items: TankFavoriteSearch[];
@@ -3464,6 +3550,11 @@ export type VatBuildingRegister = {
   /** 지상층수 — mainPurposeName이 "공동주택"(아파트/연립/다세대 통칭)일
    * 때 5층 이상이면 아파트, 4층 이하면 연립·다세대로 구분하는 데 쓴다. */
   groundFloors: number | null;
+  /** 관리건축물대장PK — 국토부 주택 공시가격 CSV의 연계키. 동/호 지정
+   * 조회(전유부 경로)일 때만 채워진다(표제부 폴백 경로는 동이 여러 개일
+   * 수 있어 특정할 수 없다). */
+  housingLedgerPk: string | null;
+  housingLedgerDongNm: string | null;
 };
 
 /** PNU 기준 건축물대장 표제부 자동조회(연면적·신축연도). 공공데이터포털
@@ -3491,6 +3582,11 @@ export async function fetchVatBuildingRegister(
     strctCdNm?: string;
     mainPurpsCdNm?: string;
     grndFlrCnt?: number;
+    housingLedgerPk?: string;
+    housingLedgerDongNm?: string;
+    // 동/호 미지정(표제부 폴백) 경로는 이 필드명 그대로 온다.
+    mgmBldrgstPk?: number | string;
+    dongNm?: string;
   }>(res);
   return {
     totalArea: typeof item.totArea === "number" ? item.totArea : null,
@@ -3498,6 +3594,9 @@ export async function fetchVatBuildingRegister(
     structureName: item.strctCdNm ?? null,
     mainPurposeName: item.mainPurpsCdNm ?? null,
     groundFloors: typeof item.grndFlrCnt === "number" ? item.grndFlrCnt : null,
+    housingLedgerPk:
+      item.housingLedgerPk ?? (item.mgmBldrgstPk != null ? String(item.mgmBldrgstPk) : null),
+    housingLedgerDongNm: item.housingLedgerDongNm ?? item.dongNm ?? null,
   };
 }
 
@@ -3513,6 +3612,8 @@ export async function saveVatBuildingInfo(
     vatStructureName?: string | null;
     vatMainPurposeName?: string | null;
     vatGroundFloors?: number | null;
+    housingLedgerPk?: string | null;
+    housingLedgerDongNm?: string | null;
   },
 ): Promise<void> {
   try {

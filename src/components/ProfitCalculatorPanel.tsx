@@ -418,11 +418,16 @@ export function ProfitCalculatorPanel({
       // 고유값은 저장해두자", 2026-07-24) — 공시지가만 항상 새로 받는다.
       const hasCachedBuildingInfo =
         !!item.vatStructureName || !!item.vatMainPurposeName || item.vatGroundFloors != null;
+      const hasCachedHousingLedgerPk = !!item.housingLedgerPk;
+      // 구조/용도/층수가 이미 캐싱돼 있어도 housingLedgerPk가 아직 없으면
+      // (2026-08-06에 새로 추가된 필드라 이전 캐싱분엔 없다) 건축물대장을
+      // 다시 조회해 PK만이라도 채운다.
+      const needsBuildingLookup = !hasCachedBuildingInfo || !hasCachedHousingLedgerPk;
       const [jiga, buildingInfo] = await Promise.all([
         fetchVatLandPrice(coord.x, coord.y),
-        hasCachedBuildingInfo || !coord.pnu
-          ? null
-          : fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined),
+        needsBuildingLookup && coord.pnu
+          ? fetchVatBuildingRegister(coord.pnu, dong ?? undefined, ho ?? undefined)
+          : null,
       ]);
       if (jiga == null) {
         setVatAutoNote("개별공시지가를 조회하지 못해 자동계산을 사용할 수 없습니다.");
@@ -469,6 +474,20 @@ export function ProfitCalculatorPanel({
           vatStructureName: buildingInfo.structureName ?? null,
           vatMainPurposeName: buildingInfo.mainPurposeName ?? null,
           vatGroundFloors: buildingInfo.groundFloors ?? null,
+          ...(hasCachedHousingLedgerPk
+            ? {}
+            : {
+                housingLedgerPk: buildingInfo.housingLedgerPk ?? null,
+                housingLedgerDongNm: buildingInfo.housingLedgerDongNm ?? null,
+              }),
+        });
+      } else if (!hasCachedHousingLedgerPk && buildingInfo?.housingLedgerPk) {
+        // 구조/용도/층수는 이미 캐싱돼 자동조회를 건너뛴 물건이라도,
+        // PK만 따로 아직 없을 수 있다(2026-08-06에 새로 추가된 필드라
+        // 그 전에 저장된 물건들이 이 케이스다) — PK만 보강 저장한다.
+        void saveVatBuildingInfo(item.id, {
+          housingLedgerPk: buildingInfo.housingLedgerPk,
+          housingLedgerDongNm: buildingInfo.housingLedgerDongNm ?? null,
         });
       }
     } catch (err) {

@@ -57,6 +57,10 @@ export interface AuctionItem {
   vatStructureName?: string | null;
   vatMainPurposeName?: string | null;
   vatGroundFloors?: number | null;
+  /** 건축물대장 표제부에서 매칭된 관리건축물대장PK/동명 — 국토부 주택
+   * 공시가격 CSV의 연계키로 쓴다(사용자 요청, 2026-08-06). */
+  housingLedgerPk?: string | null;
+  housingLedgerDongNm?: string | null;
   bidDate: string;
   appraisedValue: number;
   minPrice: number;
