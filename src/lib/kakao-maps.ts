@@ -18,6 +18,12 @@ export type KakaoMap = {
   /** 지도 패닝 on/off — 구역 폴리곤을 드래그해 옮기는 동안 지도까지 같이
    * 끌려가지 않게 잠시 꺼둔다. */
   setDraggable: (draggable: boolean) => void;
+  /** 화면 픽셀 ↔ 위경도 변환. 구역 드래그는 카카오 마우스 이벤트 대신
+   * 표준 DOM 이벤트로 처리하므로(패닝과 경쟁하지 않게), 커서 픽셀 좌표를
+   * 직접 위경도로 바꿔야 한다. */
+  getProjection: () => {
+    coordsFromContainerPoint: (point: unknown) => { getLat: () => number; getLng: () => number };
+  };
 };
 export type KakaoMarker = {
   setMap: (map: KakaoMap | null) => void;

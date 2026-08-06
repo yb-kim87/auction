@@ -31,6 +31,23 @@ function geoPolygonAreaSqm(points: GeoPoint[]): number {
   return Math.abs(area) / 2;
 }
 
+/** 위경도 점이 폴리곤 내부인지(ray casting). 지도에서 구역을 잡아끌 때
+ * "구역 안쪽을 눌렀는지" 판정하는 데 쓴다. */
+function pointInPolygon(pt: GeoPoint, poly: GeoPoint[]): boolean {
+  if (poly.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].lng;
+    const yi = poly[i].lat;
+    const xj = poly[j].lng;
+    const yj = poly[j].lat;
+    const intersects =
+      yi > pt.lat !== yj > pt.lat && pt.lng < ((xj - xi) * (pt.lat - yi)) / (yj - yi) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
 /** 재개발 구역도 "이미지"를 업로드해서, 이미지 위 랜드마크 3곳을 실제
  * 카카오맵과 매칭시켜 좌표 변환식을 계산한 뒤, 이미지 위에서 클릭한
  * 구역 경계 꼭짓점을 실제 위경도로 자동 환산하는 도구. 이미지를 지도
@@ -128,6 +145,14 @@ export function RedevelopmentImageTraceTool({
       y: tracePoints.reduce((a, p) => a + p.y, 0) / n,
     };
   }, [tracePoints]);
+
+  /** 지도에 그려진 구역의 실제 위경도 꼭짓점 — 드래그 시작 시 "폴리곤
+   * 안쪽을 눌렀는지" 판정하는 데 쓴다. */
+  const geoPolygonRef = useRef<GeoPoint[]>([]);
+  /** 드래그 핸들러는 지도 준비 시점에 한 번만 붙으므로, 클로저가 낡지 않게
+   * 최신 값을 ref로 따로 들고 본다. */
+  const centerGeoRef = useRef<GeoPoint | null>(null);
+  const canRepositionRef = useRef(false);
 
   /** 지도 클릭만으로 위치를 잡는 모드인지(축척을 알고 경계도 있을 때). */
   const placeMode = Boolean(metersPerPixel && polygonCentroid && calibrationPairs.length === 0);
@@ -443,10 +468,9 @@ export function RedevelopmentImageTraceTool({
     tracePolygonRef.current = null;
     if (tracePoints.length < 2) return;
 
-    const path = tracePoints.map((p) => {
-      const geo = transformFn(p);
-      return new kakao.maps.LatLng(geo.lat, geo.lng);
-    });
+    const geoPoints = tracePoints.map((p) => transformFn(p));
+    geoPolygonRef.current = geoPoints;
+    const path = geoPoints.map((g) => new kakao.maps.LatLng(g.lat, g.lng));
     tracePolygonRef.current = new kakao.maps.Polygon({
       path,
       strokeWeight: 2,
@@ -456,55 +480,86 @@ export function RedevelopmentImageTraceTool({
       fillOpacity: 0.25,
     });
     tracePolygonRef.current.setMap(map);
-
-    // 구역을 잡아끌어 옮기기 — 클릭 이동은 한 번에 크게 튀어 미세 조정이
-    // 어렵다는 피드백(2026-08-06). 잡은 지점과 중심의 간격을 유지해야
-    // 폴리곤이 커서로 순간이동하지 않는다.
-    if (canReposition && centerGeo) {
-      const onDown = (...args: unknown[]) => {
-        const e = args[0] as KakaoMouseEvent;
-        dragOffsetRef.current = {
-          lat: centerGeo.lat - e.latLng.getLat(),
-          lng: centerGeo.lng - e.latLng.getLng(),
-        };
-        map.setDraggable(false);
-      };
-      kakao.maps.event.addListener(tracePolygonRef.current, "mousedown", onDown);
-    }
     // 여기서 지도를 폴리곤에 맞추면 위치를 옮길 때마다 화면이 튀어 미세
     // 조정이 어렵다. 배율은 "지도 배율 맞추기"로 따로 맞춘다.
-  }, [mapReady, tracePoints, transformFn, canReposition, centerGeo]);
+  }, [mapReady, tracePoints, transformFn]);
 
-  // 드래그 진행/종료는 지도 전역에서 받는다 — 폴리곤은 위치가 바뀔 때마다
-  // 새로 그려지므로, 폴리곤 자체의 이벤트로는 이동 중 추적이 끊긴다.
   useEffect(() => {
-    if (!mapReady || !mapRef.current || !window.kakao) return;
+    centerGeoRef.current = centerGeo;
+  }, [centerGeo]);
+  useEffect(() => {
+    canRepositionRef.current = canReposition;
+    const container = mapContainerRef.current;
+    if (container) container.style.cursor = canReposition ? "move" : "";
+  }, [canReposition]);
+
+  // 구역 드래그.
+  //
+  // 카카오 마우스 이벤트(폴리곤 mousedown / 지도 mousemove)에 기대면 지도
+  // 자체 패닝과 같은 제스처를 두고 경쟁해 동작이 불안정하다(2026-08-06
+  // 사용자 리포트: 드래그가 아예 안 됨). 그래서 카카오 이벤트는 쓰지 않고
+  // 지도 컨테이너의 표준 DOM 이벤트만 쓴다 — 캡처 단계에서 mousedown을
+  // 먼저 가로채 구역 안쪽이면 카카오까지 내려보내지 않으므로 패닝이
+  // 시작되지 않고, 이후 이동/종료는 window의 mousemove/mouseup으로 받는다.
+  // 커서 픽셀 → 위경도 변환만 카카오 projection을 쓴다.
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!mapReady || !mapRef.current || !window.kakao || !container) return;
     const kakao = window.kakao;
     const map = mapRef.current;
 
-    const onMove = (...args: unknown[]) => {
+    const toGeo = (e: MouseEvent): GeoPoint | null => {
+      const rect = container.getBoundingClientRect();
+      try {
+        const coords = map
+          .getProjection()
+          .coordsFromContainerPoint(
+            new kakao.maps.Point(e.clientX - rect.left, e.clientY - rect.top),
+          );
+        return { lat: coords.getLat(), lng: coords.getLng() };
+      } catch {
+        return null;
+      }
+    };
+
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const center = centerGeoRef.current;
+      if (!canRepositionRef.current || !center) return;
+      const cursor = toGeo(e);
+      if (!cursor || !pointInPolygon(cursor, geoPolygonRef.current)) return;
+      dragOffsetRef.current = { lat: center.lat - cursor.lat, lng: center.lng - cursor.lng };
+      map.setDraggable(false);
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const onMove = (e: MouseEvent) => {
       const offset = dragOffsetRef.current;
       if (!offset) return;
-      const e = args[0] as KakaoMouseEvent;
-      setCenterGeo({
-        lat: e.latLng.getLat() + offset.lat,
-        lng: e.latLng.getLng() + offset.lng,
-      });
+      const cursor = toGeo(e);
+      if (!cursor) return;
+      e.preventDefault();
+      setCenterGeo({ lat: cursor.lat + offset.lat, lng: cursor.lng + offset.lng });
     };
+
     const onUp = () => {
       if (!dragOffsetRef.current) return;
       dragOffsetRef.current = null;
       map.setDraggable(true);
+      // 드래그 직후 카카오가 흘리는 click으로 구역이 한 번 더 튀지 않게.
       justDraggedRef.current = true;
       window.setTimeout(() => {
         justDraggedRef.current = false;
       }, 250);
     };
 
-    kakao.maps.event.addListener(map, "mousemove", onMove);
+    container.addEventListener("mousedown", onDown, true);
+    window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
-      kakao.maps.event.removeListener(map, "mousemove", onMove);
+      container.removeEventListener("mousedown", onDown, true);
+      window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
   }, [mapReady]);
