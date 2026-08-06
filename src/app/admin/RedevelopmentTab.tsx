@@ -277,21 +277,6 @@ export function RedevelopmentTab() {
         )}
       </div>
 
-      {imageTracing && (
-        <RedevelopmentImageTraceTool
-          onComplete={handleFinishImageTrace}
-          onCancel={() => {
-            setImageTracing(false);
-            setImageTraceSourceUrl(null);
-            setImageTraceCenter(null);
-            setImageTraceArea(null);
-          }}
-          initialImageUrl={imageTraceSourceUrl}
-          initialCenter={imageTraceCenter}
-          areaSqMeters={imageTraceArea}
-        />
-      )}
-
       <RedevelopmentSeoulCollector onZonesSaved={load} />
       <RedevelopmentEunpyeongCollector onZonesSaved={load} />
       <RedevelopmentAutoBoundaryCollector zones={zones} onDone={load} />
@@ -486,6 +471,21 @@ export function RedevelopmentTab() {
           )}
         </div>
       </div>
+
+      {imageTracing && (
+        <RedevelopmentImageTraceTool
+          onComplete={handleFinishImageTrace}
+          onCancel={() => {
+            setImageTracing(false);
+            setImageTraceSourceUrl(null);
+            setImageTraceCenter(null);
+            setImageTraceArea(null);
+          }}
+          initialImageUrl={imageTraceSourceUrl}
+          initialCenter={imageTraceCenter}
+          areaSqMeters={imageTraceArea}
+        />
+      )}
     </div>
   );
 }
