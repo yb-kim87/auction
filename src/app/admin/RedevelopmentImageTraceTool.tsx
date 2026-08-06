@@ -76,7 +76,7 @@ export function RedevelopmentImageTraceTool({
   zoneName = null,
   zoneId = null,
 }: {
-  onComplete: (points: RedevelopmentPoint[]) => void;
+  onComplete: (points: RedevelopmentPoint[]) => void | Promise<void>;
   onCancel: () => void;
   /** 이미 확보한 위치도 이미지 URL(예: 은평구청 스크레이핑 결과) — 있으면
    * 업로드 단계 없이 바로 이 이미지로 보정을 시작한다(사용자 요청,
@@ -124,6 +124,8 @@ export function RedevelopmentImageTraceTool({
     existingIsRefined && existingPolygon && existingPolygon.length >= 3 ? existingPolygon : null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [savingBoundary, setSavingBoundary] = useState(false);
   const [autoTracing, setAutoTracing] = useState(false);
   const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
   // 구역 수정 화면에서는 배율과 용도지역을 바로 대조하는 것이 기본 작업 흐름이다.
@@ -770,7 +772,26 @@ export function RedevelopmentImageTraceTool({
         const target = { lat: cursor.lat + vertex.dLat, lng: cursor.lng + vertex.dLng };
         // 손보정은 "변환식 결과 대비 차이"로 저장한다 — 구역 전체를 옮기거나
         // 기준점을 다시 잡아도 손본 모양이 그대로 따라오게 하기 위함.
-        const base = transformRef.current?.(tracePointsRef.current[vertex.index]);
+        // 저장된 경계를 이어서 편집할 때는 이미지 좌표(tracePoints)가 없으므로
+        // 저장 당시 점 + 현재 구역 전체 이동량을 개별 점 보정의 기준으로 사용한다.
+        // 자동 추출/새 경계는 기존 이미지 좌표 변환 기준을 그대로 쓴다.
+        const base = savedBase
+          ? (() => {
+              const count = savedBase.length;
+              const baseCenter = {
+                lat: savedBase.reduce((sum, point) => sum + point.lat, 0) / count,
+                lng: savedBase.reduce((sum, point) => sum + point.lng, 0) / count,
+              };
+              const currentCenter = centerGeoRef.current ?? baseCenter;
+              const point = savedBase[vertex.index];
+              return point
+                ? {
+                    lat: point.lat + currentCenter.lat - baseCenter.lat,
+                    lng: point.lng + currentCenter.lng - baseCenter.lng,
+                  }
+                : null;
+            })()
+          : transformRef.current?.(tracePointsRef.current[vertex.index]);
         if (!base) return;
         setVertexOffsets((prev) => ({
           ...prev,
@@ -896,9 +917,18 @@ export function RedevelopmentImageTraceTool({
     tracePolygonRef.current = null;
   }
 
-  function handleComplete() {
+  async function handleComplete() {
     if (geoPolygon.length < 3) return;
-    onComplete(geoPolygon);
+    setSavingBoundary(true);
+    setSaveFeedback(null);
+    try {
+      await onComplete(geoPolygon);
+      setSaveFeedback("저장되었습니다.");
+    } catch (err) {
+      setSaveFeedback(err instanceof Error ? err.message : "경계 저장에 실패했습니다.");
+    } finally {
+      setSavingBoundary(false);
+    }
   }
 
   // 보정까지 끝난 폴리곤의 실제 면적을 고시 면적과 비교해 보여준다.
@@ -1121,11 +1151,16 @@ export function RedevelopmentImageTraceTool({
             <button type="button" onClick={handleResetCalibration} className="text-xs text-muted-foreground hover:underline">
               기준점 다시 찍기
             </button>
+            {saveFeedback && (
+              <span className={`ml-auto text-xs font-medium ${saveFeedback === "저장되었습니다." ? "text-emerald-600" : "text-destructive"}`}>
+                {saveFeedback}
+              </span>
+            )}
             <button
               type="button"
-              onClick={handleComplete}
-              disabled={!calibrationDone || geoPolygon.length < 3}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 ml-auto"
+              onClick={() => void handleComplete()}
+              disabled={savingBoundary || !calibrationDone || geoPolygon.length < 3}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
             >
               이 경계로 확정
             </button>

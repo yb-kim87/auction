@@ -154,13 +154,12 @@ export function RedevelopmentTab() {
    * (사용자 리포트, 2026-08-06: "확정 눌러도 실제 지도에 반영이 안되는데").
    * 새 구역을 그리는 중이면 구역명 등을 받아야 하므로 기존대로 폼으로 넘긴다. */
   async function handleFinishImageTrace(points: RedevelopmentPoint[]) {
-    setImageTracing(false);
-    setImageTraceSourceUrl(null);
-    setImageTraceCenter(null);
-    setImageTraceArea(null);
-
     if (!editingZone) {
       setPendingPoints(points);
+      setImageTracing(false);
+      setImageTraceSourceUrl(null);
+      setImageTraceCenter(null);
+      setImageTraceArea(null);
       return;
     }
 
@@ -171,13 +170,12 @@ export function RedevelopmentTab() {
         boundaryType: "MANUAL",
       });
       setPendingPoints(null);
-      setEditingZone(null);
-      setForm(EMPTY_FORM);
       setMessage(`"${editingZone.name}" 구역 경계를 저장했습니다.`);
       load();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "구역 경계 저장 실패");
       setPendingPoints(points);
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -516,7 +514,7 @@ export function RedevelopmentTab() {
           }
           zoneName={editingZone?.name ?? null}
           zoneId={editingZone?.id ?? null}
-          onComplete={(points) => void handleFinishImageTrace(points)}
+          onComplete={handleFinishImageTrace}
           onCancel={() => {
             setImageTracing(false);
             setImageTraceSourceUrl(null);
