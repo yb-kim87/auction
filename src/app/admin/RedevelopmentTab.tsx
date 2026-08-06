@@ -15,6 +15,7 @@ import {
 import { formatWon } from "@/lib/kakao-maps";
 import { RedevelopmentMapView } from "./RedevelopmentMapView";
 import { RedevelopmentImageTraceTool } from "./RedevelopmentImageTraceTool";
+import { RedevelopmentTraceFailurePanel } from "./RedevelopmentTraceFailurePanel";
 import { RedevelopmentSeoulCollector } from "./RedevelopmentSeoulCollector";
 import { RedevelopmentEunpyeongCollector } from "./RedevelopmentEunpyeongCollector";
 import { RedevelopmentAutoBoundaryCollector } from "./RedevelopmentAutoBoundaryCollector";
@@ -501,6 +502,8 @@ export function RedevelopmentTab() {
         </div>
       </div>
 
+      <RedevelopmentTraceFailurePanel />
+
       {imageTracing && (
         <RedevelopmentImageTraceTool
           // 구역이 바뀌면 통째로 새로 열리게 한다 — 도구가 내부 상태(이미지·
@@ -512,6 +515,7 @@ export function RedevelopmentTab() {
             editingZone?.boundaryType === "MANUAL" || editingZone?.boundaryType === "IMAGE_AUTO"
           }
           zoneName={editingZone?.name ?? null}
+          zoneId={editingZone?.id ?? null}
           onComplete={(points) => void handleFinishImageTrace(points)}
           onCancel={() => {
             setImageTracing(false);

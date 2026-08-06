@@ -3855,6 +3855,67 @@ export function updateRedevelopmentZone(
   );
 }
 
+/** 경계 자동 추출 실패 기록(사용자 요청, 2026-08-06: 실패하면 로그를 남기고
+ * 이유를 보고할 것). 같은 이미지의 반복 실패는 서버에서 한 행으로 합친다. */
+export type RedevelopmentTraceFailure = {
+  id: string;
+  zoneId: string | null;
+  zoneName: string;
+  imageUrl: string;
+  imageWidth: number;
+  imageHeight: number;
+  reason: "NO_RED" | "NOT_ENCLOSED" | "TOO_SMALL" | "TOO_LARGE";
+  summary: string;
+  detail: Record<string, unknown> | null;
+  occurrences: number;
+  resolvedAt: string | null;
+  createdAt: string;
+  lastSeenAt: string | null;
+};
+
+export function fetchRedevelopmentTraceFailures(): Promise<RedevelopmentTraceFailure[]> {
+  return redevelopmentFetch(
+    "/trace-failures",
+    undefined,
+    "경계 추출 실패 기록을 불러오지 못했습니다.",
+  );
+}
+
+export function recordRedevelopmentTraceFailure(body: {
+  zoneId?: string | null;
+  zoneName?: string;
+  imageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  reason: string;
+  summary?: string;
+  detail?: Record<string, unknown> | null;
+}): Promise<RedevelopmentTraceFailure> {
+  return redevelopmentFetch(
+    "/trace-failures",
+    { method: "POST", body: JSON.stringify(body) },
+    "경계 추출 실패 기록에 실패했습니다.",
+  );
+}
+
+export function resolveRedevelopmentTraceFailure(
+  id: string,
+): Promise<RedevelopmentTraceFailure> {
+  return redevelopmentFetch(
+    `/trace-failures/${id}/resolve`,
+    { method: "PATCH" },
+    "처리 완료 표시에 실패했습니다.",
+  );
+}
+
+export function deleteRedevelopmentTraceFailure(id: string): Promise<{ ok: boolean }> {
+  return redevelopmentFetch(
+    `/trace-failures/${id}`,
+    { method: "DELETE" },
+    "실패 기록 삭제에 실패했습니다.",
+  );
+}
+
 export function deleteRedevelopmentZone(id: string): Promise<{ ok: boolean }> {
   return redevelopmentFetch(`/zones/${id}`, { method: "DELETE" }, "재개발 구역 삭제에 실패했습니다.");
 }

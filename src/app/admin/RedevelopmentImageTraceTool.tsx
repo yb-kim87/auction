@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RedevelopmentPoint } from "@/lib/api";
+import { recordRedevelopmentTraceFailure, type RedevelopmentPoint } from "@/lib/api";
 import {
   loadKakaoMaps,
   type KakaoCustomOverlay,
@@ -19,7 +19,7 @@ import {
 import {
   solveFrom1PointWithScale,
 } from "@/lib/affine-transform";
-import { polygonAreaPx, traceRedBoundary } from "@/lib/boundary-trace";
+import { polygonAreaPx, traceRedBoundaryDetailed } from "@/lib/boundary-trace";
 
 type CalibrationPair = { img: PixelPoint; geo: GeoPoint };
 
@@ -74,6 +74,7 @@ export function RedevelopmentImageTraceTool({
   existingPolygon = null,
   existingIsRefined = false,
   zoneName = null,
+  zoneId = null,
 }: {
   onComplete: (points: RedevelopmentPoint[]) => void;
   onCancel: () => void;
@@ -102,6 +103,8 @@ export function RedevelopmentImageTraceTool({
   existingIsRefined?: boolean;
   /** 지금 어느 구역을 고치는 중인지 제목에 표시한다. */
   zoneName?: string | null;
+  /** 추출 실패를 기록할 때 어느 구역이었는지 남기기 위한 식별자. */
+  zoneId?: string | null;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(initialImageUrl ?? null);
   const [calibrationPairs, setCalibrationPairs] = useState<CalibrationPair[]>([]);
@@ -396,13 +399,29 @@ export function RedevelopmentImageTraceTool({
         throw new Error("이미지 픽셀을 읽을 수 없습니다(외부 이미지 보안 제한).");
       }
 
-      const result = traceRedBoundary(pixels);
-      if (!result) {
+      const traced = traceRedBoundaryDetailed(pixels);
+      if (!traced.ok) {
+        // 실패는 조용히 넘기지 않고 원인과 함께 서버에 남긴다 — 유형이
+        // 쌓여야 알고리즘을 고칠 수 있다(사용자 요청, 2026-08-06).
+        if (imageUrl) {
+          void recordRedevelopmentTraceFailure({
+            zoneId: zoneId ?? null,
+            zoneName: zoneName ?? "",
+            imageUrl,
+            imageWidth: nw,
+            imageHeight: nh,
+            reason: traced.failure.reason,
+            summary: traced.failure.summary,
+            detail: traced.failure.detail,
+          }).catch(() => {
+            /* 기록 실패가 추출 작업을 막지는 않게 한다. */
+          });
+        }
         throw new Error(
-          "닫힌 빨간 경계선을 찾지 못했습니다(경계가 흐리거나 색이 옅은 도면일 수 있습니다). " +
-            "아래 이미지에서 경계 꼭짓점을 직접 클릭해 그려 주세요.",
+          `${traced.failure.summary} 아래 이미지에서 경계 꼭짓점을 직접 클릭해 그려 주세요.`,
         );
       }
+      const result = traced.result;
 
       const cw = container.clientWidth;
       const ch = container.clientHeight;

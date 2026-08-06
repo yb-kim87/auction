@@ -350,6 +350,64 @@ export function traceRedBoundaryCandidates(
   return out;
 }
 
+/** 실패 원인 — 로그로 쌓아 유형별로 알고리즘을 고치는 데 쓴다
+ * (사용자 요청, 2026-08-06). 유형만 알면 대응이 정해진다:
+ * NO_RED는 색 임계값, NOT_ENCLOSED는 팽창 반경, TOO_SMALL/TOO_LARGE는
+ * 넓이 기준 문제다. */
+export type TraceFailure = {
+  reason: "NO_RED" | "NOT_ENCLOSED" | "TOO_SMALL" | "TOO_LARGE";
+  summary: string;
+  detail: Record<string, unknown>;
+};
+
+const FAILURE_SUMMARY: Record<TraceFailure["reason"], string> = {
+  NO_RED: "이미지에서 빨간 경계선을 거의 찾지 못했습니다(경계가 빨강이 아니거나 위성사진 위라 색이 죽은 도면).",
+  NOT_ENCLOSED: "빨간 선은 있지만 어떤 반경에서도 닫힌 영역이 만들어지지 않았습니다(점선 간격이 넓거나 선이 도면 밖으로 잘린 경우).",
+  TOO_SMALL: "찾은 영역이 최소 기준보다 작습니다(라벨·글자 구멍만 잡혔을 가능성).",
+  TOO_LARGE: "찾은 영역이 최대 기준보다 큽니다(옆 도로·다른 구역과 붙어 도면 전체를 삼킨 경우).",
+};
+
+/** 성공하면 결과를, 실패하면 원인을 돌려준다. */
+export function traceRedBoundaryDetailed(
+  imageData: ImageData,
+  options: TraceOptions = {},
+): { ok: true; result: TraceResult } | { ok: false; failure: TraceFailure } {
+  const o = { ...DEFAULTS, ...options };
+  const result = traceRedBoundary(imageData, options);
+  if (result) return { ok: true, result };
+
+  const candidates = traceRedBoundaryCandidates(imageData, options);
+  const redPixels = candidates[0]?.redPixels ?? countRedPixels(imageData, o);
+  const ratios = candidates.map((c) => c.areaRatio);
+  const detail: Record<string, unknown> = {
+    redPixels,
+    candidateCount: candidates.length,
+    minAreaRatio: o.minAreaRatio,
+    maxAreaRatio: o.maxAreaRatio,
+    // 반경별로 무엇이 잡혔는지 — 기준만 손보면 되는지 판단하는 근거.
+    candidates: candidates.map((c) => ({
+      radius: c.usedRadius,
+      areaRatio: Number(c.areaRatio.toFixed(5)),
+      points: c.polygon.length,
+    })),
+  };
+
+  let reason: TraceFailure["reason"];
+  if (redPixels < 50) reason = "NO_RED";
+  else if (!candidates.length) reason = "NOT_ENCLOSED";
+  else if (Math.max(...ratios) < o.minAreaRatio) reason = "TOO_SMALL";
+  else reason = "TOO_LARGE";
+
+  return { ok: false, failure: { reason, summary: FAILURE_SUMMARY[reason], detail } };
+}
+
+function countRedPixels(imageData: ImageData, o: Required<TraceOptions>): number {
+  const mask = redMask(imageData.data, imageData.width, imageData.height, o);
+  let n = 0;
+  for (let i = 0; i < mask.length; i++) n += mask[i];
+  return n;
+}
+
 export function traceRedBoundary(
   imageData: ImageData,
   options: TraceOptions = {},
