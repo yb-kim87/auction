@@ -508,6 +508,9 @@ export function RedevelopmentTab() {
           // 구역 화면이 그대로 남는다(사용자 리포트, 2026-08-06).
           key={editingZone?.id ?? "new"}
           existingPolygon={editingZone?.polygon ?? null}
+          existingIsRefined={
+            editingZone?.boundaryType === "MANUAL" || editingZone?.boundaryType === "IMAGE_AUTO"
+          }
           zoneName={editingZone?.name ?? null}
           onComplete={(points) => void handleFinishImageTrace(points)}
           onCancel={() => {

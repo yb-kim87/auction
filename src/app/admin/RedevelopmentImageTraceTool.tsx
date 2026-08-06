@@ -72,6 +72,7 @@ export function RedevelopmentImageTraceTool({
   initialCenter,
   areaSqMeters = null,
   existingPolygon = null,
+  existingIsRefined = false,
   zoneName = null,
 }: {
   onComplete: (points: RedevelopmentPoint[]) => void;
@@ -93,6 +94,12 @@ export function RedevelopmentImageTraceTool({
    * 새로 잡은 경계와 비교할 수 있게 한다(사용자 요청, 2026-08-06:
    * "지도내 설정된 구역에 대한 이미지가 아예 안나와"). */
   existingPolygon?: RedevelopmentPoint[] | null;
+  /** 저장된 경계가 이미 손본 결과(MANUAL/IMAGE_AUTO)인지. 그렇다면 이미지에서
+   * 다시 추출하지 않고 그 경계를 그대로 불러와 이어서 고친다(사용자 요청,
+   * 2026-08-06: "한번 구역수정이 되면 다시 수정을 누르면 수정된 구역이
+   * 나와야 하는데 초기 이미지 구역으로 나온다"). 원 근사(CONVEX_HULL_APPROX
+   * 등)는 고칠 만한 모양이 아니므로 기존대로 이미지 추출에서 시작한다. */
+  existingIsRefined?: boolean;
   /** 지금 어느 구역을 고치는 중인지 제목에 표시한다. */
   zoneName?: string | null;
 }) {
@@ -106,6 +113,12 @@ export function RedevelopmentImageTraceTool({
    * (사용자 요청, 2026-08-06: "모양이 잘 안맞을때 꼭짓점을 끌어서 수정"). */
   const [vertexOffsets, setVertexOffsets] = useState<Record<number, { dLat: number; dLng: number }>>(
     {},
+  );
+  /** 저장돼 있던 경계를 그대로 이어서 고치는 모드의 기준 모양. 이 값이
+   * 있으면 이미지 추출 결과 대신 이 모양을 편집한다. 새로 자동 추출을
+   * 돌리면 null로 바뀌어 이미지 기준으로 돌아간다. */
+  const [savedBase, setSavedBase] = useState<GeoPoint[] | null>(
+    existingIsRefined && existingPolygon && existingPolygon.length >= 3 ? existingPolygon : null,
   );
   const [error, setError] = useState<string | null>(null);
   const [autoTracing, setAutoTracing] = useState(false);
@@ -121,7 +134,16 @@ export function RedevelopmentImageTraceTool({
   /** 지도에서 클릭한 "구역 중심" 위치. 축척을 알고 있으면 이 한 점만으로
    * 구역을 지도에 얹을 수 있어, 양쪽에서 같은 지형지물을 찾아 짝지을
    * 필요가 없다(사용자 피드백, 2026-08-05: 랜드마크 대조가 어렵다). */
-  const [centerGeo, setCenterGeo] = useState<GeoPoint | null>(null);
+  const [centerGeo, setCenterGeo] = useState<GeoPoint | null>(() => {
+    // 저장된 경계를 이어서 고치는 모드는 시작부터 그 경계의 중심을 잡아둔다
+    // (드래그·방향키 이동이 곧바로 되게).
+    if (!existingIsRefined || !existingPolygon || existingPolygon.length < 3) return null;
+    const n = existingPolygon.length;
+    return {
+      lat: existingPolygon.reduce((a, g) => a + g.lat, 0) / n,
+      lng: existingPolygon.reduce((a, g) => a + g.lng, 0) / n,
+    };
+  });
   /** 자동 추출로 알아낸 구역의 실제 크기(m) — 지도 배율을 이미지에 맞출 때 쓴다. */
   const zoneExtentRef = useRef<{ widthM: number; heightM: number } | null>(null);
 
@@ -178,13 +200,13 @@ export function RedevelopmentImageTraceTool({
   /** 지도 위 구역을 드래그·방향키로 옮길 수 있는 상태인지 — 위치가
    * centerGeo 한 점으로 결정될 때만 가능하다(기준점을 찍어 맞춘 경우엔
    * 그 짝이 위치를 결정하므로 임의로 밀면 안 된다). */
-  const canReposition = Boolean(placeMode && centerGeo);
+  const canReposition = Boolean(savedBase || (placeMode && centerGeo));
 
   // 축척을 알면 1점(이동만) → 2점(회전까지 실측) → 3점(어파인)으로
   // 찍을수록 정밀해지는 구조. 축척을 모르면 최소 2점이 필요하다.
   const requiredPoints = metersPerPixel ? 1 : 2;
   const calibrationDone =
-    calibrationPairs.length >= requiredPoints || (placeMode && centerGeo != null);
+    Boolean(savedBase) || calibrationPairs.length >= requiredPoints || (placeMode && centerGeo != null);
   const transformFn = useMemo(() => {
     if (calibrationPairs.length >= 3) {
       return solveAffineFrom3Points(
@@ -215,13 +237,31 @@ export function RedevelopmentImageTraceTool({
   /** 지도에 실제로 그려질 구역 꼭짓점(위경도) — 변환식 결과에 꼭짓점별
    * 손보정을 더한 값. 미리보기·꼭짓점 핸들·최종 저장이 모두 이 값을 쓴다. */
   const geoPolygon = useMemo<GeoPoint[]>(() => {
+    if (savedBase) {
+      // 저장된 경계를 이어서 고치는 모드 — 구역 전체 이동은 중심 이동량으로,
+      // 모양 수정은 꼭짓점별 차이로 얹는다(이미지 모드와 같은 규칙).
+      const n = savedBase.length;
+      const c0 = {
+        lat: savedBase.reduce((a, g) => a + g.lat, 0) / n,
+        lng: savedBase.reduce((a, g) => a + g.lng, 0) / n,
+      };
+      const dLat = (centerGeo?.lat ?? c0.lat) - c0.lat;
+      const dLng = (centerGeo?.lng ?? c0.lng) - c0.lng;
+      return savedBase.map((g, i) => {
+        const off = vertexOffsets[i];
+        return {
+          lat: g.lat + dLat + (off?.dLat ?? 0),
+          lng: g.lng + dLng + (off?.dLng ?? 0),
+        };
+      });
+    }
     if (!transformFn) return [];
     return tracePoints.map((p, i) => {
       const base = transformFn(p);
       const off = vertexOffsets[i];
       return off ? { lat: base.lat + off.dLat, lng: base.lng + off.dLng } : base;
     });
-  }, [transformFn, tracePoints, vertexOffsets]);
+  }, [savedBase, centerGeo, transformFn, tracePoints, vertexOffsets]);
 
   const hasVertexEdits = Object.keys(vertexOffsets).length > 0;
 
@@ -296,6 +336,7 @@ export function RedevelopmentImageTraceTool({
       setPendingImgPoint(null);
       setTracePoints([]);
       setVertexOffsets({});
+      setSavedBase(null);
       calibMarkersRef.current.forEach((m) => m.setMap(null));
       calibMarkersRef.current = [];
       tracePolygonRef.current?.setMap(null);
@@ -371,6 +412,7 @@ export function RedevelopmentImageTraceTool({
       const shown = result.polygon.map((p) => ({ x: p.x * s + ox, y: p.y * s + oy }));
       setTracePoints(shown);
       setVertexOffsets({});
+      setSavedBase(null);
 
       // 축척은 반드시 "화면 표시 좌표" 기준으로 계산해야 한다 — 기준점
       // 클릭도 같은 좌표계로 들어오기 때문이다(원본 픽셀 기준으로 계산하면
@@ -494,7 +536,7 @@ export function RedevelopmentImageTraceTool({
 
   // 추적(구역 그리기) 미리보기 — 지도 위에 실시간 폴리곤으로 표시
   useEffect(() => {
-    if (!mapReady || !mapRef.current || !window.kakao || !transformFn) return;
+    if (!mapReady || !mapRef.current || !window.kakao) return;
     const kakao = window.kakao;
     const map = mapRef.current;
 
@@ -767,6 +809,7 @@ export function RedevelopmentImageTraceTool({
   function handleClearBoundary() {
     setTracePoints([]);
     setVertexOffsets({});
+    setSavedBase(null);
     setAutoTraceNote(null);
     setMetersPerPixel(null);
     setCenterGeo(null);
@@ -775,7 +818,7 @@ export function RedevelopmentImageTraceTool({
   }
 
   function handleComplete() {
-    if (!transformFn || tracePoints.length < 3) return;
+    if (geoPolygon.length < 3) return;
     onComplete(geoPolygon);
   }
 
@@ -837,10 +880,18 @@ export function RedevelopmentImageTraceTool({
               {autoTracing ? "경계 추출 중..." : "① 경계 자동 추출"}
             </button>
             <span className="text-xs text-muted-foreground">
-              이미지의 빨간 경계선을 찾아 꼭짓점을 자동으로 채웁니다.
+              {savedBase
+                ? "이미 저장된 경계를 불러왔습니다. 이미지에서 처음부터 다시 잡으려면 누르세요."
+                : "이미지의 빨간 경계선을 찾아 꼭짓점을 자동으로 채웁니다."}
             </span>
-            {autoTraceNote && (
-              <span className="ml-auto text-xs font-medium text-emerald-600">{autoTraceNote}</span>
+            {savedBase ? (
+              <span className="ml-auto text-xs font-medium text-primary">
+                저장된 경계 이어서 수정 중 — 꼭짓점 {savedBase.length}개
+              </span>
+            ) : (
+              autoTraceNote && (
+                <span className="ml-auto text-xs font-medium text-emerald-600">{autoTraceNote}</span>
+              )
             )}
           </div>
 
@@ -889,7 +940,7 @@ export function RedevelopmentImageTraceTool({
             ) : (
               <p className="text-foreground">
                 <span className="font-semibold">③ 확인 후 확정</span>: 오른쪽 지도에 실제 위치가
-                표시됩니다(꼭짓점 {tracePoints.length}개).
+                표시됩니다(꼭짓점 {geoPolygon.length}개).
                 {centerGeo && calibrationPairs.length === 0
                   ? " 구역 안쪽을 끌면 전체가 옮겨지고, 흰 점(꼭짓점)을 끌면 그 점만 움직여 모양을 다듬을 수 있습니다(손본 점은 주황색). 방향키(↑↓←→)로 1m씩(Shift 누르면 10m씩) 미세 조정하세요."
                   : " 방향이 틀어져 보이면 기준점을 한 번 더 찍으세요 — 2점이 되면 회전까지 실측으로 잡히고, 3점이면 도면 찌그러짐까지 보정됩니다."}
@@ -928,7 +979,8 @@ export function RedevelopmentImageTraceTool({
                 className="w-full h-full object-contain pointer-events-none"
                 draggable={false}
                 onLoad={() => {
-                  if (autoRanRef.current) return;
+                  // 이미 손본 경계를 불러온 경우엔 자동 추출로 덮어쓰지 않는다.
+                  if (savedBase || autoRanRef.current) return;
                   autoRanRef.current = true;
                   handleAutoTrace();
                 }}
@@ -974,7 +1026,7 @@ export function RedevelopmentImageTraceTool({
             <button
               type="button"
               onClick={handleClearBoundary}
-              disabled={tracePoints.length === 0}
+              disabled={geoPolygon.length === 0}
               className="px-2 py-1 text-xs rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
             >
               경계 지우기
@@ -993,7 +1045,7 @@ export function RedevelopmentImageTraceTool({
             <button
               type="button"
               onClick={handleComplete}
-              disabled={!calibrationDone || tracePoints.length < 3}
+              disabled={!calibrationDone || geoPolygon.length < 3}
               className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50 ml-auto"
             >
               이 경계로 확정
