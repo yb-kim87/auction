@@ -565,7 +565,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
       <AppHeader
-        maxWidth="960"
+        maxWidth="1600"
         nav={
           <>
             <div className={HEADER_ACCENT_BAR} />
@@ -588,7 +588,7 @@ export default function AdminPage() {
         }
       />
 
-      <main className="max-w-[960px] mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-[1600px] mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6">
         {message && (
           <div
             className={`rounded-sm border px-4 py-3 text-sm ${

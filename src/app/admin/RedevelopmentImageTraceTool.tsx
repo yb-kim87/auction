@@ -126,7 +126,9 @@ export function RedevelopmentImageTraceTool({
   const [error, setError] = useState<string | null>(null);
   const [autoTracing, setAutoTracing] = useState(false);
   const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
-  const [cadastralOn, setCadastralOn] = useState(false);
+  // 구역 수정 화면에서는 배율과 용도지역을 바로 대조하는 것이 기본 작업 흐름이다.
+  const [cadastralOn, setCadastralOn] = useState(true);
+  const [selectedVertexIndex, setSelectedVertexIndex] = useState<number | null>(null);
   /** 이미지가 준비되면 경계 추출을 한 번 자동으로 돌린다(구역 수정 화면을
    * 열자마자 바로 결과가 보이도록). 사용자가 "경계 지우기"로 지운 뒤에는
    * 다시 자동 실행하지 않는다. */
@@ -316,6 +318,21 @@ export function RedevelopmentImageTraceTool({
       poly.setMap(null);
     };
   }, [mapReady, existingPolygon]);
+
+  // 기존 경계를 다시 수정할 때도 지도를 구역 크기에 맞춰 바로 시작한다.
+  // 자동 추출 경계는 handleAutoTrace에서 실제 면적 기준으로 다시 맞춘다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !window.kakao) return;
+    if (existingPolygon && existingPolygon.length >= 3) {
+      const kakao = window.kakao;
+      const bounds = new kakao.maps.LatLngBounds();
+      existingPolygon.forEach((point) => bounds.extend(new kakao.maps.LatLng(point.lat, point.lng)));
+      map.setBounds(bounds);
+      return;
+    }
+    if (initialCenter) fitMapToZone(300, 300);
+  }, [mapReady, existingPolygon, initialCenter]);
 
   // 카카오맵 USE_DISTRICT 오버레이. 이름은 "지적편집도"지만 실제로 그려지는
   // 건 필지 경계가 아니라 용도지역(주거/녹지 등) 색면이라, 필지 모양 대조에는
@@ -583,7 +600,7 @@ export function RedevelopmentImageTraceTool({
   //
   // 만들기와 위치 갱신을 나눈 이유: 드래그 중에는 좌표가 매 프레임 바뀌는데,
   // 그때마다 오버레이 十여 개를 다시 만들면 DOM 교체가 잦아 끊겨 보인다.
-  const vertexStyleKey = `${geoPolygon.length}|${Object.keys(vertexOffsets).sort().join(",")}`;
+  const vertexStyleKey = `${geoPolygon.length}|${Object.keys(vertexOffsets).sort().join(",")}|${selectedVertexIndex ?? ""}`;
   useEffect(() => {
     if (!mapReady || !mapRef.current || !window.kakao) return;
     const kakao = window.kakao;
@@ -593,13 +610,14 @@ export function RedevelopmentImageTraceTool({
     vertexOverlaysRef.current = [];
     if (!canReposition || geoPolygonRef.current.length < 3) return;
 
-    geoPolygonRef.current.forEach((g, i) => {
+      geoPolygonRef.current.forEach((g, i) => {
       const edited = vertexOffsets[i] != null;
+      const selected = selectedVertexIndex === i;
       const overlay = new kakao.maps.CustomOverlay({
         position: new kakao.maps.LatLng(g.lat, g.lng),
         content:
           `<div style="width:13px;height:13px;border-radius:50%;` +
-          `background:${edited ? "#f59e0b" : "#ffffff"};` +
+          `background:${selected ? "#2563eb" : edited ? "#f59e0b" : "#ffffff"};` +
           `border:3px solid #6d28d9;box-sizing:border-box;` +
           `box-shadow:0 1px 3px rgba(0,0,0,.45);cursor:grab;"></div>`,
         yAnchor: 0.5,
@@ -638,6 +656,30 @@ export function RedevelopmentImageTraceTool({
     const container = mapContainerRef.current;
     if (container) container.style.cursor = canReposition ? "move" : "";
   }, [canReposition]);
+
+  /** 선택한 경계 점만 제거한다. 세 점 미만으로는 줄이지 않아 폴리곤을 보호한다. */
+  function removeVertex(index: number) {
+    if (geoPolygonRef.current.length <= 3) {
+      setError("구역 경계는 최소 3개의 점이 필요합니다.");
+      return;
+    }
+    setVertexOffsets((previous) => {
+      const next: Record<number, { dLat: number; dLng: number }> = {};
+      Object.entries(previous).forEach(([key, value]) => {
+        const currentIndex = Number(key);
+        if (currentIndex < index) next[currentIndex] = value;
+        if (currentIndex > index) next[currentIndex - 1] = value;
+      });
+      return next;
+    });
+    if (savedBase) {
+      setSavedBase((previous) => previous?.filter((_, currentIndex) => currentIndex !== index) ?? null);
+    } else {
+      setTracePoints((previous) => previous.filter((_, currentIndex) => currentIndex !== index));
+    }
+    setSelectedVertexIndex(null);
+    setError(null);
+  }
 
   // 구역 드래그.
   //
@@ -702,6 +744,7 @@ export function RedevelopmentImageTraceTool({
       // 꼭짓점을 잡았으면 그 점만 옮긴다(구역 전체 이동보다 우선).
       const vi = hitVertex(e);
       if (vi != null) {
+        setSelectedVertexIndex(vi);
         const v = geoPolygonRef.current[vi];
         vertexDragRef.current = { index: vi, dLat: v.lat - cursor.lat, dLng: v.lng - cursor.lng };
         map.setDraggable(false);
@@ -711,6 +754,7 @@ export function RedevelopmentImageTraceTool({
       }
 
       if (!pointInPolygon(cursor, geoPolygonRef.current)) return;
+      setSelectedVertexIndex(null);
       dragOffsetRef.current = { lat: center.lat - cursor.lat, lng: center.lng - cursor.lng };
       map.setDraggable(false);
       e.preventDefault();
@@ -763,15 +807,26 @@ export function RedevelopmentImageTraceTool({
       }, 250);
     };
 
+    const onContextMenu = (e: MouseEvent) => {
+      const vi = hitVertex(e);
+      if (vi == null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setSelectedVertexIndex(vi);
+      if (window.confirm("선택한 구역 점을 삭제할까요?")) removeVertex(vi);
+    };
+
     container.addEventListener("mousedown", onDown, true);
+    container.addEventListener("contextmenu", onContextMenu, true);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
       container.removeEventListener("mousedown", onDown, true);
+      container.removeEventListener("contextmenu", onContextMenu, true);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [mapReady]);
+  }, [mapReady, savedBase]);
 
   // 방향키 미세 조정 — 드래그로는 몇 미터 단위를 맞추기 어렵다
   // (사용자 요청, 2026-08-06). Shift를 누르면 10배로 움직인다.
@@ -781,6 +836,11 @@ export function RedevelopmentImageTraceTool({
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      if (e.key === "Delete" && selectedVertexIndex != null) {
+        e.preventDefault();
+        removeVertex(selectedVertexIndex);
+        return;
+      }
       const step =
         e.key === "ArrowUp" || e.key === "ArrowDown"
           ? { lat: e.key === "ArrowUp" ? 1 : -1, lng: 0 }
@@ -801,7 +861,7 @@ export function RedevelopmentImageTraceTool({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canReposition]);
+  }, [canReposition, selectedVertexIndex, savedBase]);
 
   function handleUndoTracePoint() {
     setTracePoints((prev) => {
