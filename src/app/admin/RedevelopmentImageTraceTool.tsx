@@ -101,6 +101,12 @@ export function RedevelopmentImageTraceTool({
   const calibMarkersRef = useRef<KakaoMarker[]>([]);
   const tracePolygonRef = useRef<KakaoPolygon | null>(null);
   const existingPolygonRef = useRef<KakaoPolygon | null>(null);
+  /** 폴리곤 드래그 중일 때 "잡은 지점 → 구역 중심" 오프셋(도 단위).
+   * null이면 드래그 중이 아니다. */
+  const dragOffsetRef = useRef<{ lat: number; lng: number } | null>(null);
+  /** 드래그 직후 카카오가 흘리는 click 이벤트로 구역이 한 번 더 튀지
+   * 않게 막는 플래그. */
+  const justDraggedRef = useRef(false);
   const mapClickHandlerRef = useRef<((...args: unknown[]) => void) | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
@@ -125,6 +131,10 @@ export function RedevelopmentImageTraceTool({
 
   /** 지도 클릭만으로 위치를 잡는 모드인지(축척을 알고 경계도 있을 때). */
   const placeMode = Boolean(metersPerPixel && polygonCentroid && calibrationPairs.length === 0);
+  /** 지도 위 구역을 드래그·방향키로 옮길 수 있는 상태인지 — 위치가
+   * centerGeo 한 점으로 결정될 때만 가능하다(기준점을 찍어 맞춘 경우엔
+   * 그 짝이 위치를 결정하므로 임의로 밀면 안 된다). */
+  const canReposition = Boolean(placeMode && centerGeo);
 
   // 축척을 알면 1점(이동만) → 2점(회전까지 실측) → 3점(어파인)으로
   // 찍을수록 정밀해지는 구조. 축척을 모르면 최소 2점이 필요하다.
@@ -390,6 +400,7 @@ export function RedevelopmentImageTraceTool({
     }
 
     const handler = (...args: unknown[]) => {
+      if (justDraggedRef.current) return;
       const mouseEvent = args[0] as KakaoMouseEvent;
       const geo = { lat: mouseEvent.latLng.getLat(), lng: mouseEvent.latLng.getLng() };
 
@@ -445,9 +456,88 @@ export function RedevelopmentImageTraceTool({
       fillOpacity: 0.25,
     });
     tracePolygonRef.current.setMap(map);
+
+    // 구역을 잡아끌어 옮기기 — 클릭 이동은 한 번에 크게 튀어 미세 조정이
+    // 어렵다는 피드백(2026-08-06). 잡은 지점과 중심의 간격을 유지해야
+    // 폴리곤이 커서로 순간이동하지 않는다.
+    if (canReposition && centerGeo) {
+      const onDown = (...args: unknown[]) => {
+        const e = args[0] as KakaoMouseEvent;
+        dragOffsetRef.current = {
+          lat: centerGeo.lat - e.latLng.getLat(),
+          lng: centerGeo.lng - e.latLng.getLng(),
+        };
+        map.setDraggable(false);
+      };
+      kakao.maps.event.addListener(tracePolygonRef.current, "mousedown", onDown);
+    }
     // 여기서 지도를 폴리곤에 맞추면 위치를 옮길 때마다 화면이 튀어 미세
     // 조정이 어렵다. 배율은 "지도 배율 맞추기"로 따로 맞춘다.
-  }, [mapReady, tracePoints, transformFn]);
+  }, [mapReady, tracePoints, transformFn, canReposition, centerGeo]);
+
+  // 드래그 진행/종료는 지도 전역에서 받는다 — 폴리곤은 위치가 바뀔 때마다
+  // 새로 그려지므로, 폴리곤 자체의 이벤트로는 이동 중 추적이 끊긴다.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.kakao) return;
+    const kakao = window.kakao;
+    const map = mapRef.current;
+
+    const onMove = (...args: unknown[]) => {
+      const offset = dragOffsetRef.current;
+      if (!offset) return;
+      const e = args[0] as KakaoMouseEvent;
+      setCenterGeo({
+        lat: e.latLng.getLat() + offset.lat,
+        lng: e.latLng.getLng() + offset.lng,
+      });
+    };
+    const onUp = () => {
+      if (!dragOffsetRef.current) return;
+      dragOffsetRef.current = null;
+      map.setDraggable(true);
+      justDraggedRef.current = true;
+      window.setTimeout(() => {
+        justDraggedRef.current = false;
+      }, 250);
+    };
+
+    kakao.maps.event.addListener(map, "mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      kakao.maps.event.removeListener(map, "mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [mapReady]);
+
+  // 방향키 미세 조정 — 드래그로는 몇 미터 단위를 맞추기 어렵다
+  // (사용자 요청, 2026-08-06). Shift를 누르면 10배로 움직인다.
+  useEffect(() => {
+    if (!canReposition) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      const step =
+        e.key === "ArrowUp" || e.key === "ArrowDown"
+          ? { lat: e.key === "ArrowUp" ? 1 : -1, lng: 0 }
+          : e.key === "ArrowLeft" || e.key === "ArrowRight"
+            ? { lat: 0, lng: e.key === "ArrowRight" ? 1 : -1 }
+            : null;
+      if (!step) return;
+      e.preventDefault();
+      const meters = e.shiftKey ? 10 : 1;
+      setCenterGeo((prev) => {
+        if (!prev) return prev;
+        const mPerLng = 111_320 * Math.cos((prev.lat * Math.PI) / 180);
+        return {
+          lat: prev.lat + (step.lat * meters) / 110_540,
+          lng: prev.lng + (step.lng * meters) / mPerLng,
+        };
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canReposition]);
 
   function handleUndoTracePoint() {
     setTracePoints((prev) => prev.slice(0, -1));
@@ -590,7 +680,7 @@ export function RedevelopmentImageTraceTool({
                 <span className="font-semibold">③ 확인 후 확정</span>: 오른쪽 지도에 실제 위치가
                 표시됩니다(꼭짓점 {tracePoints.length}개).
                 {centerGeo && calibrationPairs.length === 0
-                  ? " 지도를 다시 클릭하면 그 자리로 옮겨집니다. 방향이 틀어져 보이면 왼쪽 이미지의 지형지물을 클릭한 뒤 지도에서 같은 곳을 찍으세요."
+                  ? " 구역을 마우스로 끌어 옮기고, 방향키(↑↓←→)로 1m씩(Shift 누르면 10m씩) 미세 조정하세요. 방향이 틀어져 보이면 왼쪽 이미지의 지형지물을 클릭한 뒤 지도에서 같은 곳을 찍으세요."
                   : " 방향이 틀어져 보이면 기준점을 한 번 더 찍으세요 — 2점이 되면 회전까지 실측으로 잡히고, 3점이면 도면 찌그러짐까지 보정됩니다."}
               </p>
             )}

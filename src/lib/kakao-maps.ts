@@ -15,6 +15,9 @@ export type KakaoMap = {
    * 같은 필지 경계를 지도에도 띄워 대조하기 쉽게 하는 데 쓴다. */
   addOverlayMapTypeId: (mapTypeId: unknown) => void;
   removeOverlayMapTypeId: (mapTypeId: unknown) => void;
+  /** 지도 패닝 on/off — 구역 폴리곤을 드래그해 옮기는 동안 지도까지 같이
+   * 끌려가지 않게 잠시 꺼둔다. */
+  setDraggable: (draggable: boolean) => void;
 };
 export type KakaoMarker = {
   setMap: (map: KakaoMap | null) => void;
