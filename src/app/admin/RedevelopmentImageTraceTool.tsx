@@ -47,6 +47,8 @@ export function RedevelopmentImageTraceTool({
   initialImageUrl,
   initialCenter,
   areaSqMeters = null,
+  existingPolygon = null,
+  zoneName = null,
 }: {
   onComplete: (points: RedevelopmentPoint[]) => void;
   onCancel: () => void;
@@ -63,6 +65,12 @@ export function RedevelopmentImageTraceTool({
   /** 구역 실제 면적(㎡) — 자동 추출한 경계가 제대로 잡혔는지 교차검증에
    * 쓴다(변환 후 계산 면적과 비교). */
   areaSqMeters?: number | null;
+  /** 이 구역에 현재 저장돼 있는 경계 — 오른쪽 지도에 회색으로 함께 그려
+   * 새로 잡은 경계와 비교할 수 있게 한다(사용자 요청, 2026-08-06:
+   * "지도내 설정된 구역에 대한 이미지가 아예 안나와"). */
+  existingPolygon?: RedevelopmentPoint[] | null;
+  /** 지금 어느 구역을 고치는 중인지 제목에 표시한다. */
+  zoneName?: string | null;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(initialImageUrl ?? null);
   const [calibrationPairs, setCalibrationPairs] = useState<CalibrationPair[]>([]);
@@ -92,6 +100,7 @@ export function RedevelopmentImageTraceTool({
   const mapRef = useRef<KakaoMap | null>(null);
   const calibMarkersRef = useRef<KakaoMarker[]>([]);
   const tracePolygonRef = useRef<KakaoPolygon | null>(null);
+  const existingPolygonRef = useRef<KakaoPolygon | null>(null);
   const mapClickHandlerRef = useRef<((...args: unknown[]) => void) | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
@@ -172,6 +181,31 @@ export function RedevelopmentImageTraceTool({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appKey]);
+
+  // 현재 저장된 경계를 회색 점선으로 깔아둔다 — 새로 잡는 경계가 기존
+  // 대비 어디로 얼마나 움직이는지 눈으로 바로 비교할 수 있다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !window.kakao) return;
+    existingPolygonRef.current?.setMap(null);
+    existingPolygonRef.current = null;
+    if (!existingPolygon || existingPolygon.length < 3) return;
+    const kakao = window.kakao;
+    const poly = new kakao.maps.Polygon({
+      path: existingPolygon.map((p) => new kakao.maps.LatLng(p.lat, p.lng)),
+      strokeWeight: 2,
+      strokeColor: "#64748b",
+      strokeOpacity: 0.9,
+      strokeStyle: "dash",
+      fillColor: "#64748b",
+      fillOpacity: 0.12,
+    });
+    poly.setMap(map);
+    existingPolygonRef.current = poly;
+    return () => {
+      poly.setMap(null);
+    };
+  }, [mapReady, existingPolygon]);
 
   // 카카오맵 USE_DISTRICT 오버레이. 이름은 "지적편집도"지만 실제로 그려지는
   // 건 필지 경계가 아니라 용도지역(주거/녹지 등) 색면이라, 필지 모양 대조에는
@@ -466,7 +500,10 @@ export function RedevelopmentImageTraceTool({
   return (
     <div className="rounded-sm border border-primary/40 bg-primary/5 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-foreground">이미지로 구역 그리기(좌표 보정 트레이싱)</p>
+        <p className="text-sm font-semibold text-foreground">
+          이미지로 구역 그리기(좌표 보정 트레이싱)
+          {zoneName && <span className="ml-2 text-primary">— {zoneName}</span>}
+        </p>
         <div className="flex items-center gap-3">
           {imageUrl && (
             <label className="text-xs text-muted-foreground hover:underline cursor-pointer">

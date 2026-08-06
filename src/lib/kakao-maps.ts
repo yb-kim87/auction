@@ -62,6 +62,7 @@ declare global {
           strokeOpacity?: number;
           fillColor?: string;
           fillOpacity?: number;
+          strokeStyle?: string;
         }) => KakaoPolygon;
         Polyline: new (options: {
           path: KakaoLatLng[];

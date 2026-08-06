@@ -474,6 +474,12 @@ export function RedevelopmentTab() {
 
       {imageTracing && (
         <RedevelopmentImageTraceTool
+          // 구역이 바뀌면 통째로 새로 열리게 한다 — 도구가 내부 상태(이미지·
+          // 추출 결과·기준점)를 들고 있어서, key 없이 props만 바꾸면 이전
+          // 구역 화면이 그대로 남는다(사용자 리포트, 2026-08-06).
+          key={editingZone?.id ?? "new"}
+          existingPolygon={editingZone?.polygon ?? null}
+          zoneName={editingZone?.name ?? null}
           onComplete={handleFinishImageTrace}
           onCancel={() => {
             setImageTracing(false);
