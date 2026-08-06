@@ -193,6 +193,7 @@ export function RedevelopmentTab() {
   }
 
   function startInfoEdit(zone: RedevelopmentZone) {
+    setSelectedZoneId(zone.id);
     setInfoEditId(zone.id);
     setInfoForm({ name: zone.name, region: zone.region, stage: zone.stage, memo: zone.memo ?? "" });
   }
@@ -434,18 +435,13 @@ export function RedevelopmentTab() {
                         <button type="button" onClick={() => startInfoEdit(zone)} className="text-primary hover:underline">
                           정보 수정
                         </button>
-                        <button type="button" onClick={() => startRedrawZone(zone)} className="text-primary hover:underline">
-                          경계 다시 그리기
+                        <button
+                          type="button"
+                          onClick={() => startImageRefine(zone)}
+                          className="text-primary hover:underline"
+                        >
+                          구역 수정
                         </button>
-                        {zone.referenceImageUrl && (
-                          <button
-                            type="button"
-                            onClick={() => startImageRefine(zone)}
-                            className="text-primary hover:underline"
-                          >
-                            정밀 보정(위치도)
-                          </button>
-                        )}
                         <button
                           type="button"
                           onClick={() => void handleDeleteZone(zone)}

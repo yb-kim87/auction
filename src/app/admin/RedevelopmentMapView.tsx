@@ -148,6 +148,24 @@ export function RedevelopmentMapView({
     });
   }, [ready, auctions, selectedZoneId]);
 
+  // 목록에서 구역을 고르면 지도를 그 구역으로 이동시킨다 — 154개 중에서
+  // 해당 구역을 손으로 찾아 헤매지 않도록(사용자 요청, 2026-08-06).
+  useEffect(() => {
+    if (!ready || !mapRef.current || !window.kakao || !selectedZoneId) return;
+    const zone = zones.find((z) => z.id === selectedZoneId);
+    if (!zone || zone.polygon.length < 3) return;
+    const kakao = window.kakao;
+    const bounds = new kakao.maps.LatLngBounds();
+    // 구역만 꽉 채우면 주변이 안 보여 위치 판단이 어려우니 여유를 둔다.
+    const lats = zone.polygon.map((p) => p.lat);
+    const lngs = zone.polygon.map((p) => p.lng);
+    const padLat = Math.max((Math.max(...lats) - Math.min(...lats)) * 0.6, 0.0012);
+    const padLng = Math.max((Math.max(...lngs) - Math.min(...lngs)) * 0.6, 0.0015);
+    bounds.extend(new kakao.maps.LatLng(Math.min(...lats) - padLat, Math.min(...lngs) - padLng));
+    bounds.extend(new kakao.maps.LatLng(Math.max(...lats) + padLat, Math.max(...lngs) + padLng));
+    mapRef.current.setBounds(bounds);
+  }, [ready, selectedZoneId, zones]);
+
   // 그리기 모드 — 지도 클릭으로 꼭짓점 추가
   useEffect(() => {
     if (!ready || !mapRef.current || !window.kakao) return;
@@ -219,6 +237,7 @@ export function RedevelopmentMapView({
       const mouseEvent = args[0] as KakaoMouseEvent;
       const lat = mouseEvent.latLng.getLat();
       const lng = mouseEvent.latLng.getLng();
+
       draftPointsRef.current = [...draftPointsRef.current, { lat, lng }];
       redrawDraft();
     };

@@ -72,6 +72,10 @@ export function RedevelopmentImageTraceTool({
   const [autoTracing, setAutoTracing] = useState(false);
   const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
   const [cadastralOn, setCadastralOn] = useState(false);
+  /** 이미지가 준비되면 경계 추출을 한 번 자동으로 돌린다(구역 수정 화면을
+   * 열자마자 바로 결과가 보이도록). 사용자가 "경계 지우기"로 지운 뒤에는
+   * 다시 자동 실행하지 않는다. */
+  const autoRanRef = useRef(false);
   /** 화면 표시 좌표 기준 픽셀당 미터. 경계 자동 추출 + 고시 면적이 있으면
    * 축척이 결정돼, 기준점을 1개만 찍어도 변환식이 완성된다. */
   const [metersPerPixel, setMetersPerPixel] = useState<number | null>(null);
@@ -197,6 +201,7 @@ export function RedevelopmentImageTraceTool({
       setAutoTraceNote(null);
       setMetersPerPixel(null);
       setCenterGeo(null);
+      autoRanRef.current = false;
     };
     reader.readAsDataURL(file);
   }
@@ -584,6 +589,11 @@ export function RedevelopmentImageTraceTool({
                 alt="구역도"
                 className="w-full h-full object-contain pointer-events-none"
                 draggable={false}
+                onLoad={() => {
+                  if (autoRanRef.current) return;
+                  autoRanRef.current = true;
+                  handleAutoTrace();
+                }}
               />
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 {calibrationPairs.map((c, i) => (
