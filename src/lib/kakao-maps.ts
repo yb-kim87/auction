@@ -23,6 +23,7 @@ export type KakaoMap = {
    * 직접 위경도로 바꿔야 한다. */
   getProjection: () => {
     coordsFromContainerPoint: (point: unknown) => { getLat: () => number; getLng: () => number };
+    containerPointFromCoords: (latlng: unknown) => { x: number; y: number };
   };
 };
 export type KakaoMarker = {
@@ -84,6 +85,8 @@ declare global {
           position: KakaoLatLng;
           content: string;
           yAnchor?: number;
+          xAnchor?: number;
+          zIndex?: number;
         }) => KakaoCustomOverlay;
         event: {
           addListener: (target: unknown, type: string, handler: (...args: unknown[]) => void) => void;

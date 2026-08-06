@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RedevelopmentPoint } from "@/lib/api";
-import { loadKakaoMaps, type KakaoMap, type KakaoMarker, type KakaoMouseEvent, type KakaoPolygon } from "@/lib/kakao-maps";
+import {
+  loadKakaoMaps,
+  type KakaoCustomOverlay,
+  type KakaoMap,
+  type KakaoMarker,
+  type KakaoMouseEvent,
+  type KakaoPolygon,
+} from "@/lib/kakao-maps";
 import {
   solveAffineFrom3Points,
   solveSimilarityFrom2Points,
@@ -93,6 +100,13 @@ export function RedevelopmentImageTraceTool({
   const [calibrationPairs, setCalibrationPairs] = useState<CalibrationPair[]>([]);
   const [pendingImgPoint, setPendingImgPoint] = useState<PixelPoint | null>(null);
   const [tracePoints, setTracePoints] = useState<PixelPoint[]>([]);
+  /** 꼭짓점별 손보정 값 — 변환식이 만들어낸 위치에서 얼마나 옮겼는지를
+   * 위경도 차이로 들고 있는다. 절대좌표가 아니라 "차이"로 저장해야 구역
+   * 전체를 드래그하거나 기준점을 다시 잡아도 손본 모양이 따라온다
+   * (사용자 요청, 2026-08-06: "모양이 잘 안맞을때 꼭짓점을 끌어서 수정"). */
+  const [vertexOffsets, setVertexOffsets] = useState<Record<number, { dLat: number; dLng: number }>>(
+    {},
+  );
   const [error, setError] = useState<string | null>(null);
   const [autoTracing, setAutoTracing] = useState(false);
   const [autoTraceNote, setAutoTraceNote] = useState<string | null>(null);
@@ -149,10 +163,15 @@ export function RedevelopmentImageTraceTool({
   /** 지도에 그려진 구역의 실제 위경도 꼭짓점 — 드래그 시작 시 "폴리곤
    * 안쪽을 눌렀는지" 판정하는 데 쓴다. */
   const geoPolygonRef = useRef<GeoPoint[]>([]);
+  /** 꼭짓점 드래그 중인 인덱스(없으면 null)와 잡은 지점과의 간격. */
+  const vertexDragRef = useRef<{ index: number; dLat: number; dLng: number } | null>(null);
+  const vertexOverlaysRef = useRef<KakaoCustomOverlay[]>([]);
   /** 드래그 핸들러는 지도 준비 시점에 한 번만 붙으므로, 클로저가 낡지 않게
    * 최신 값을 ref로 따로 들고 본다. */
   const centerGeoRef = useRef<GeoPoint | null>(null);
   const canRepositionRef = useRef(false);
+  const transformRef = useRef<((p: PixelPoint) => GeoPoint) | null>(null);
+  const tracePointsRef = useRef<PixelPoint[]>([]);
 
   /** 지도 클릭만으로 위치를 잡는 모드인지(축척을 알고 경계도 있을 때). */
   const placeMode = Boolean(metersPerPixel && polygonCentroid && calibrationPairs.length === 0);
@@ -192,6 +211,19 @@ export function RedevelopmentImageTraceTool({
     }
     return null;
   }, [calibrationPairs, metersPerPixel, centerGeo, polygonCentroid]);
+
+  /** 지도에 실제로 그려질 구역 꼭짓점(위경도) — 변환식 결과에 꼭짓점별
+   * 손보정을 더한 값. 미리보기·꼭짓점 핸들·최종 저장이 모두 이 값을 쓴다. */
+  const geoPolygon = useMemo<GeoPoint[]>(() => {
+    if (!transformFn) return [];
+    return tracePoints.map((p, i) => {
+      const base = transformFn(p);
+      const off = vertexOffsets[i];
+      return off ? { lat: base.lat + off.dLat, lng: base.lng + off.dLng } : base;
+    });
+  }, [transformFn, tracePoints, vertexOffsets]);
+
+  const hasVertexEdits = Object.keys(vertexOffsets).length > 0;
 
   useEffect(() => {
     if (!appKey || !mapContainerRef.current) return;
@@ -263,6 +295,7 @@ export function RedevelopmentImageTraceTool({
       setCalibrationPairs([]);
       setPendingImgPoint(null);
       setTracePoints([]);
+      setVertexOffsets({});
       calibMarkersRef.current.forEach((m) => m.setMap(null));
       calibMarkersRef.current = [];
       tracePolygonRef.current?.setMap(null);
@@ -337,6 +370,7 @@ export function RedevelopmentImageTraceTool({
       const oy = (ch - nh * s) / 2;
       const shown = result.polygon.map((p) => ({ x: p.x * s + ox, y: p.y * s + oy }));
       setTracePoints(shown);
+      setVertexOffsets({});
 
       // 축척은 반드시 "화면 표시 좌표" 기준으로 계산해야 한다 — 기준점
       // 클릭도 같은 좌표계로 들어오기 때문이다(원본 픽셀 기준으로 계산하면
@@ -466,11 +500,10 @@ export function RedevelopmentImageTraceTool({
 
     tracePolygonRef.current?.setMap(null);
     tracePolygonRef.current = null;
-    if (tracePoints.length < 2) return;
+    geoPolygonRef.current = geoPolygon;
+    if (geoPolygon.length < 2) return;
 
-    const geoPoints = tracePoints.map((p) => transformFn(p));
-    geoPolygonRef.current = geoPoints;
-    const path = geoPoints.map((g) => new kakao.maps.LatLng(g.lat, g.lng));
+    const path = geoPolygon.map((g) => new kakao.maps.LatLng(g.lat, g.lng));
     tracePolygonRef.current = new kakao.maps.Polygon({
       path,
       strokeWeight: 2,
@@ -482,11 +515,63 @@ export function RedevelopmentImageTraceTool({
     tracePolygonRef.current.setMap(map);
     // 여기서 지도를 폴리곤에 맞추면 위치를 옮길 때마다 화면이 튀어 미세
     // 조정이 어렵다. 배율은 "지도 배율 맞추기"로 따로 맞춘다.
-  }, [mapReady, tracePoints, transformFn]);
+  }, [mapReady, geoPolygon, transformFn]);
+
+  // 꼭짓점 손잡이 — 모양이 안 맞을 때 개별 꼭짓점을 끌어 고칠 수 있게
+  // 지도 위에 작은 점으로 띄운다. 손본 꼭짓점은 주황색으로 구분한다.
+  //
+  // 만들기와 위치 갱신을 나눈 이유: 드래그 중에는 좌표가 매 프레임 바뀌는데,
+  // 그때마다 오버레이 十여 개를 다시 만들면 DOM 교체가 잦아 끊겨 보인다.
+  const vertexStyleKey = `${geoPolygon.length}|${Object.keys(vertexOffsets).sort().join(",")}`;
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.kakao) return;
+    const kakao = window.kakao;
+    const map = mapRef.current;
+
+    vertexOverlaysRef.current.forEach((ov) => ov.setMap(null));
+    vertexOverlaysRef.current = [];
+    if (!canReposition || geoPolygonRef.current.length < 3) return;
+
+    geoPolygonRef.current.forEach((g, i) => {
+      const edited = vertexOffsets[i] != null;
+      const overlay = new kakao.maps.CustomOverlay({
+        position: new kakao.maps.LatLng(g.lat, g.lng),
+        content:
+          `<div style="width:13px;height:13px;border-radius:50%;` +
+          `background:${edited ? "#f59e0b" : "#ffffff"};` +
+          `border:3px solid #6d28d9;box-sizing:border-box;` +
+          `box-shadow:0 1px 3px rgba(0,0,0,.45);cursor:grab;"></div>`,
+        yAnchor: 0.5,
+        xAnchor: 0.5,
+        zIndex: 5,
+      });
+      overlay.setMap(map);
+      vertexOverlaysRef.current.push(overlay);
+    });
+
+    return () => {
+      vertexOverlaysRef.current.forEach((ov) => ov.setMap(null));
+      vertexOverlaysRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, canReposition, vertexStyleKey]);
+
+  useEffect(() => {
+    if (!window.kakao) return;
+    const kakao = window.kakao;
+    vertexOverlaysRef.current.forEach((ov, i) => {
+      const g = geoPolygon[i];
+      if (g) ov.setPosition(new kakao.maps.LatLng(g.lat, g.lng));
+    });
+  }, [geoPolygon]);
 
   useEffect(() => {
     centerGeoRef.current = centerGeo;
   }, [centerGeo]);
+  useEffect(() => {
+    transformRef.current = transformFn;
+    tracePointsRef.current = tracePoints;
+  }, [transformFn, tracePoints]);
   useEffect(() => {
     canRepositionRef.current = canReposition;
     const container = mapContainerRef.current;
@@ -522,12 +607,49 @@ export function RedevelopmentImageTraceTool({
       }
     };
 
+    /** 커서에서 화면상 HIT_PX 안에 있는 가장 가까운 꼭짓점. */
+    const hitVertex = (e: MouseEvent): number | null => {
+      const rect = container.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      const HIT_PX = 11;
+      let best: number | null = null;
+      let bestDist = HIT_PX;
+      try {
+        const proj = map.getProjection();
+        geoPolygonRef.current.forEach((g, i) => {
+          const pt = proj.containerPointFromCoords(new kakao.maps.LatLng(g.lat, g.lng));
+          const d = Math.hypot(pt.x - px, pt.y - py);
+          if (d <= bestDist) {
+            bestDist = d;
+            best = i;
+          }
+        });
+      } catch {
+        return null;
+      }
+      return best;
+    };
+
     const onDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       const center = centerGeoRef.current;
       if (!canRepositionRef.current || !center) return;
       const cursor = toGeo(e);
-      if (!cursor || !pointInPolygon(cursor, geoPolygonRef.current)) return;
+      if (!cursor) return;
+
+      // 꼭짓점을 잡았으면 그 점만 옮긴다(구역 전체 이동보다 우선).
+      const vi = hitVertex(e);
+      if (vi != null) {
+        const v = geoPolygonRef.current[vi];
+        vertexDragRef.current = { index: vi, dLat: v.lat - cursor.lat, dLng: v.lng - cursor.lng };
+        map.setDraggable(false);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      if (!pointInPolygon(cursor, geoPolygonRef.current)) return;
       dragOffsetRef.current = { lat: center.lat - cursor.lat, lng: center.lng - cursor.lng };
       map.setDraggable(false);
       e.preventDefault();
@@ -535,6 +657,23 @@ export function RedevelopmentImageTraceTool({
     };
 
     const onMove = (e: MouseEvent) => {
+      const vertex = vertexDragRef.current;
+      if (vertex) {
+        const cursor = toGeo(e);
+        if (!cursor) return;
+        e.preventDefault();
+        const target = { lat: cursor.lat + vertex.dLat, lng: cursor.lng + vertex.dLng };
+        // 손보정은 "변환식 결과 대비 차이"로 저장한다 — 구역 전체를 옮기거나
+        // 기준점을 다시 잡아도 손본 모양이 그대로 따라오게 하기 위함.
+        const base = transformRef.current?.(tracePointsRef.current[vertex.index]);
+        if (!base) return;
+        setVertexOffsets((prev) => ({
+          ...prev,
+          [vertex.index]: { dLat: target.lat - base.lat, dLng: target.lng - base.lng },
+        }));
+        return;
+      }
+
       const offset = dragOffsetRef.current;
       if (!offset) return;
       const cursor = toGeo(e);
@@ -544,6 +683,15 @@ export function RedevelopmentImageTraceTool({
     };
 
     const onUp = () => {
+      if (vertexDragRef.current) {
+        vertexDragRef.current = null;
+        map.setDraggable(true);
+        justDraggedRef.current = true;
+        window.setTimeout(() => {
+          justDraggedRef.current = false;
+        }, 250);
+        return;
+      }
       if (!dragOffsetRef.current) return;
       dragOffsetRef.current = null;
       map.setDraggable(true);
@@ -595,7 +743,14 @@ export function RedevelopmentImageTraceTool({
   }, [canReposition]);
 
   function handleUndoTracePoint() {
-    setTracePoints((prev) => prev.slice(0, -1));
+    setTracePoints((prev) => {
+      setVertexOffsets((offs) => {
+        const next = { ...offs };
+        delete next[prev.length - 1];
+        return next;
+      });
+      return prev.slice(0, -1);
+    });
   }
 
   /** 기준점만 다시 찍는다 — 자동 추출해둔 경계는 그대로 두어야
@@ -611,6 +766,7 @@ export function RedevelopmentImageTraceTool({
 
   function handleClearBoundary() {
     setTracePoints([]);
+    setVertexOffsets({});
     setAutoTraceNote(null);
     setMetersPerPixel(null);
     setCenterGeo(null);
@@ -620,7 +776,7 @@ export function RedevelopmentImageTraceTool({
 
   function handleComplete() {
     if (!transformFn || tracePoints.length < 3) return;
-    onComplete(tracePoints.map(transformFn));
+    onComplete(geoPolygon);
   }
 
   // 보정까지 끝난 폴리곤의 실제 면적을 고시 면적과 비교해 보여준다.
@@ -630,9 +786,9 @@ export function RedevelopmentImageTraceTool({
     // 1점 모드는 축척 자체를 고시 면적에서 역산했으므로 면적 비교가 순환
     // 논리다(항상 100%가 나온다). 검증값으로 쓸 수 없어 표시하지 않는다.
     if (calibrationPairs.length < 2) return null;
-    const computed = geoPolygonAreaSqm(tracePoints.map(transformFn));
+    const computed = geoPolygonAreaSqm(geoPolygon);
     return { computed, ratio: computed / areaSqMeters };
-  }, [transformFn, tracePoints, areaSqMeters, calibrationPairs.length]);
+  }, [transformFn, tracePoints, geoPolygon, areaSqMeters, calibrationPairs.length]);
 
   if (!appKey) {
     return (
@@ -735,7 +891,7 @@ export function RedevelopmentImageTraceTool({
                 <span className="font-semibold">③ 확인 후 확정</span>: 오른쪽 지도에 실제 위치가
                 표시됩니다(꼭짓점 {tracePoints.length}개).
                 {centerGeo && calibrationPairs.length === 0
-                  ? " 구역을 마우스로 끌어 옮기고, 방향키(↑↓←→)로 1m씩(Shift 누르면 10m씩) 미세 조정하세요. 방향이 틀어져 보이면 왼쪽 이미지의 지형지물을 클릭한 뒤 지도에서 같은 곳을 찍으세요."
+                  ? " 구역 안쪽을 끌면 전체가 옮겨지고, 흰 점(꼭짓점)을 끌면 그 점만 움직여 모양을 다듬을 수 있습니다(손본 점은 주황색). 방향키(↑↓←→)로 1m씩(Shift 누르면 10m씩) 미세 조정하세요."
                   : " 방향이 틀어져 보이면 기준점을 한 번 더 찍으세요 — 2점이 되면 회전까지 실측으로 잡히고, 3점이면 도면 찌그러짐까지 보정됩니다."}
               </p>
             )}
@@ -822,6 +978,14 @@ export function RedevelopmentImageTraceTool({
               className="px-2 py-1 text-xs rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
             >
               경계 지우기
+            </button>
+            <button
+              type="button"
+              onClick={() => setVertexOffsets({})}
+              disabled={!hasVertexEdits}
+              className="px-2 py-1 text-xs rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              꼭짓점 원래대로
             </button>
             <button type="button" onClick={handleResetCalibration} className="text-xs text-muted-foreground hover:underline">
               기준점 다시 찍기
