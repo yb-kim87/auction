@@ -13,6 +13,20 @@
  * 흘러들어오지 못하는 배경 = 내부 영역을 찾고, 팽창한 만큼 되돌린다.
  * 팽창 반경은 작은 값부터 올려가며 "그럴듯한 크기의 내부"가 처음 나오는
  * 값을 쓴다 — 크게 잡을수록 옆 도로·다른 구역과 붙어버리기 때문이다.
+ *
+ * 2026-08-06 개정 — 은평구 위치도 17장을 전부 돌려보니 9장만 성공했다.
+ * 실패 원인이 셋이었고, 각각을 다음처럼 고쳤다.
+ *
+ * 1. **구역이 빨갛게 칠해진 도면**(갈현1·신사170-12 등): 내부까지 빨간
+ *    픽셀이라 "벽에 둘러싸인 빈 공간"이 아예 없었다. 그래서 내부를 찾는
+ *    대신 **테두리에서 닿는 바깥을 찾아 그 여집합**을 구역으로 본다.
+ *    여집합에는 벽·내부·내부에 얹힌 글자가 모두 포함되므로, 칠해진
+ *    도면과 선으로만 그린 도면을 같은 방식으로 처리할 수 있다.
+ * 2. **구역 안에 빨간 라벨이 있는 도면**(응암동 755 등): 글자가 내부를
+ *    조각내 largestComponent가 일부만 집었다. 여집합 방식은 글자도 구역에
+ *    포함하므로 자연히 해결된다.
+ * 3. **구역이 아주 작은 도면**(서부연립 1,362㎡): 정확히 찾아놓고도 최소
+ *    면적 3% 기준에 걸려 버려졌다. 하한을 0.15%로 낮췄다.
  */
 
 export type PixelPoint = { x: number; y: number };
@@ -33,7 +47,9 @@ const DEFAULTS: Required<TraceOptions> = {
   minSaturation: 0.35,
   minValue: 0.27,
   simplifyRatio: 0.005,
-  minAreaRatio: 0.03,
+  // 실측(2026-08-06): 은평구 서부연립(1,362㎡)은 도면의 0.23%밖에 안 된다.
+  // 글자 속 빈 구멍은 0.05% 미만이라 0.15%면 둘을 가를 수 있다.
+  minAreaRatio: 0.0015,
   maxAreaRatio: 0.7,
 };
 
@@ -95,8 +111,40 @@ function dilate(src: Uint8Array, w: number, h: number, r: number): Uint8Array {
   return out;
 }
 
-/** 테두리에서 도달할 수 없는 배경 = 폐곡선 내부. */
-function enclosedInterior(wall: Uint8Array, w: number, h: number): Uint8Array | null {
+/** 침식 — 팽창으로 두꺼워진 만큼 되돌린다. 이미지 밖은 배경으로 본다. */
+function erode(src: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  const tmp = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      let v = 1;
+      if (x - r < 0 || x + r > w - 1) v = 0;
+      else {
+        for (let xx = x - r; xx <= x + r; xx++) if (!src[row + xx]) { v = 0; break; }
+      }
+      tmp[row + x] = v;
+    }
+  }
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let v = 1;
+      if (y - r < 0 || y + r > h - 1) v = 0;
+      else {
+        for (let yy = y - r; yy <= y + r; yy++) if (!tmp[yy * w + x]) { v = 0; break; }
+      }
+      out[y * w + x] = v;
+    }
+  }
+  return out;
+}
+
+/** 벽에 막혀 테두리에서 닿지 않는 영역(= 벽 + 그 안쪽 전부)을 1로 채운다.
+ *
+ * 예전에는 "벽을 뺀 내부"만 봤는데, 구역이 통째로 빨갛게 칠해진 도면에서는
+ * 내부가 존재하지 않고(전부 벽), 구역 안에 빨간 라벨이 있으면 내부가
+ * 조각나 일부만 잡혔다. 여집합을 쓰면 두 경우 모두 구역 하나로 잡힌다. */
+function fillFromOutside(wall: Uint8Array, w: number, h: number): Uint8Array {
   const seen = new Uint8Array(w * h);
   const stack = new Int32Array(w * h);
   let top = 0;
@@ -105,7 +153,6 @@ function enclosedInterior(wall: Uint8Array, w: number, h: number): Uint8Array | 
   };
   for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
   for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
-
   while (top > 0) {
     const i = stack[--top];
     const x = i % w;
@@ -115,20 +162,24 @@ function enclosedInterior(wall: Uint8Array, w: number, h: number): Uint8Array | 
     if (y > 0) push(i - w);
     if (y < h - 1) push(i + w);
   }
-
-  const interior = new Uint8Array(w * h);
-  let count = 0;
-  for (let i = 0; i < interior.length; i++) {
-    if (!wall[i] && !seen[i]) { interior[i] = 1; count++; }
-  }
-  return count > 0 ? interior : null;
+  const filled = new Uint8Array(w * h);
+  for (let i = 0; i < filled.length; i++) if (!seen[i]) filled[i] = 1;
+  return filled;
 }
 
-/** 가장 큰 연결 성분만 남긴다(도면에 구역이 여러 개면 제일 큰 것). */
-function largestComponent(mask: Uint8Array, w: number, h: number): Uint8Array | null {
+/** 큰 것부터 최대 maxCount개의 연결 성분을 각각의 마스크로 돌려준다.
+ * 도면에 구역이 여러 개거나 테두리 액자가 통째로 잡히는 경우가 있어,
+ * "가장 큰 하나"만 보면 정작 구역을 놓친다. */
+function topComponents(
+  mask: Uint8Array,
+  w: number,
+  h: number,
+  maxCount: number,
+  minPixels: number,
+): Uint8Array[] {
   const label = new Uint8Array(w * h);
   const stack = new Int32Array(w * h);
-  let best: number[] = [];
+  const found: number[][] = [];
   for (let s = 0; s < mask.length; s++) {
     if (!mask[s] || label[s]) continue;
     const cur: number[] = [];
@@ -145,12 +196,14 @@ function largestComponent(mask: Uint8Array, w: number, h: number): Uint8Array | 
       if (y > 0 && mask[i - w] && !label[i - w]) { label[i - w] = 1; stack[top++] = i - w; }
       if (y < h - 1 && mask[i + w] && !label[i + w]) { label[i + w] = 1; stack[top++] = i + w; }
     }
-    if (cur.length > best.length) best = cur;
+    if (cur.length >= minPixels) found.push(cur);
   }
-  if (!best.length) return null;
-  const out = new Uint8Array(w * h);
-  for (const i of best) out[i] = 1;
-  return out;
+  found.sort((a, b) => b.length - a.length);
+  return found.slice(0, maxCount).map((pixels) => {
+    const out = new Uint8Array(w * h);
+    for (const i of pixels) out[i] = 1;
+    return out;
+  });
 }
 
 const DIRS: Array<[number, number]> = [
@@ -230,12 +283,29 @@ export type TraceResult = {
   /** 실제로 채택된 팽창 반경(진단용). */
   usedRadius: number;
   redPixels: number;
+  /** 경계 상자(진단·후보 비교용). */
+  bbox: { x0: number; y0: number; x1: number; y1: number };
 };
 
-export function traceRedBoundary(
+function bboxOf(points: PixelPoint[]) {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const p of points) {
+    if (p.x < x0) x0 = p.x;
+    if (p.y < y0) y0 = p.y;
+    if (p.x > x1) x1 = p.x;
+    if (p.y > y1) y1 = p.y;
+  }
+  return { x0, y0, x1, y1 };
+}
+
+/** 팽창 반경을 바꿔가며 나온 후보를 모두 돌려준다(선택 로직·진단 공용). */
+export function traceRedBoundaryCandidates(
   imageData: ImageData,
   options: TraceOptions = {},
-): TraceResult | null {
+): TraceResult[] {
   const o = { ...DEFAULTS, ...options };
   const { width: w, height: h, data } = imageData;
   const total = w * h;
@@ -243,36 +313,73 @@ export function traceRedBoundary(
   const mask = redMask(data, w, h, o);
   let redPixels = 0;
   for (let i = 0; i < mask.length; i++) redPixels += mask[i];
-  if (redPixels < 50) return null;
+  if (redPixels < 50) return [];
 
+  const minPixels = Math.max(24, Math.floor(total * o.minAreaRatio * 0.5));
+  const out: TraceResult[] = [];
   for (let r = MIN_RADIUS; r <= MAX_RADIUS; r++) {
     // 1) 점선 사이를 메워 폐곡선으로 만든다(침식은 하지 않는다 — 닫기
     //    연산은 큰 반경에서 오히려 다리를 끊어버려 점선에 잘 듣지 않았다).
     const wall = dilate(mask, w, h, r);
-    // 2) 테두리에서 못 닿는 배경 = 둘러싸인 내부
-    const inside = enclosedInterior(wall, w, h);
-    if (!inside) continue;
-    // 3) 선이 두꺼워진 만큼 내부를 되돌려 원래 경계에 맞춘다
-    const grown = dilate(inside, w, h, r);
-    const comp = largestComponent(grown, w, h);
-    if (!comp) continue;
+    // 2) 테두리에서 못 닿는 영역 = 벽과 그 안쪽 전부
+    const filled = fillFromOutside(wall, w, h);
+    // 3) 선이 두꺼워진 만큼 되돌려 원래 경계에 맞춘다
+    const shrunk = erode(filled, w, h, r);
 
-    const contour = traceContour(comp, w, h);
-    if (contour.length < 8) continue;
-    let perimeter = 0;
-    for (let i = 1; i < contour.length; i++) {
-      perimeter += Math.hypot(contour[i].x - contour[i - 1].x, contour[i].y - contour[i - 1].y);
+    for (const comp of topComponents(shrunk, w, h, 4, minPixels)) {
+      const contour = traceContour(comp, w, h);
+      if (contour.length < 8) continue;
+      let perimeter = 0;
+      for (let i = 1; i < contour.length; i++) {
+        perimeter += Math.hypot(contour[i].x - contour[i - 1].x, contour[i].y - contour[i - 1].y);
+      }
+      const polygon = simplify(contour, Math.max(1, perimeter * o.simplifyRatio));
+      if (polygon.length < 3) continue;
+
+      const areaPx = polygonAreaPx(polygon);
+      out.push({
+        polygon,
+        areaPx,
+        areaRatio: areaPx / total,
+        usedRadius: r,
+        redPixels,
+        bbox: bboxOf(polygon),
+      });
     }
-    const polygon = simplify(contour, Math.max(1, perimeter * o.simplifyRatio));
-    if (polygon.length < 3) continue;
-
-    const areaPx = polygonAreaPx(polygon);
-    const areaRatio = areaPx / total;
-    // 너무 작으면 라벨 같은 걸 잡은 것이고, 너무 크면 옆 도로·다른 구역과
-    // 붙어 화면 전체를 삼킨 것이다. 반경을 키워가며 첫 타당한 값을 쓴다.
-    if (areaRatio < o.minAreaRatio || areaRatio > o.maxAreaRatio) continue;
-
-    return { polygon, areaPx, areaRatio, usedRadius: r, redPixels };
   }
-  return null;
+  return out;
+}
+
+export function traceRedBoundary(
+  imageData: ImageData,
+  options: TraceOptions = {},
+): TraceResult | null {
+  const o = { ...DEFAULTS, ...options };
+  const candidates = traceRedBoundaryCandidates(imageData, options);
+
+  const usable = candidates.filter(
+    (c) => c.areaRatio >= o.minAreaRatio && c.areaRatio <= o.maxAreaRatio,
+  );
+  if (!usable.length) return null;
+
+  // 어느 후보를 쓸지는 두 가지를 함께 봐야 한다.
+  //
+  // - "제일 작은 반경"만 보면, 경계가 점선인 도면은 아직 닫히지 않은 상태라
+  //   구역 대신 라벨 글자 구멍 같은 작은 오검출을 집는다(실측: 응암1 cts1124).
+  // - "제일 넓은 것"만 보면, 반경이 커질수록 팽창분만큼 영역이 부풀기 때문에
+  //   늘 최대 반경이 뽑혀 실제보다 크게 잡힌다(실측: 불광8 cts1120 2.5%→4.5%).
+  //
+  // 그래서 먼저 최대 넓이로 "찾으려는 대상이 어느 정도 크기인지"를 정하고,
+  // 그 크기에 근접(60% 이상)하는 후보 중 **가장 작은 반경**을 고른다.
+  // 대상을 제대로 집으면서 팽창 왜곡은 최소로 남는다.
+  const maxArea = Math.max(...usable.map((c) => c.areaPx));
+  const target = maxArea * 0.6;
+  let best: TraceResult | null = null;
+  for (const c of usable) {
+    if (c.areaPx < target) continue;
+    if (!best || c.usedRadius < best.usedRadius || (c.usedRadius === best.usedRadius && c.areaPx > best.areaPx)) {
+      best = c;
+    }
+  }
+  return best ?? usable[0];
 }

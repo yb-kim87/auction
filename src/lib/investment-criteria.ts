@@ -107,7 +107,7 @@ export function selectLoanPolicy(
   criteria: { housingCount: number; firstTimeBuyer: boolean },
   regulatedArea: boolean,
   policies: LoanPolicy[],
-  item?: Pick<AuctionItem, "usage" | "city" | "officialLandPrice">,
+  item?: Pick<AuctionItem, "usage" | "city" | "officialLandPrice" | "specialNote">,
 ): LoanPolicy {
   const byId = (id: string) => policies.find((p) => p.id === id);
   let policy: LoanPolicy | undefined;
@@ -115,9 +115,11 @@ export function selectLoanPolicy(
   const isOfficetel = usage.includes("오피스텔");
   const isLowPriceNonmetroHome =
     ["아파트", "다세대", "연립", "도시형생활주택", "도시형 생활주택"].some((type) => usage.includes(type)) &&
+    Boolean(item?.city?.trim()) &&
     !isMetropolitanArea(item?.city) &&
-    (item?.officialLandPrice ?? 0) > 0 &&
-    (item?.officialLandPrice ?? 0) <= 200_000_000;
+    ((item?.officialLandPrice ?? 0) > 0
+      ? (item?.officialLandPrice ?? 0) <= 200_000_000
+      : hasTankLowPriceBand(item?.specialNote));
   if (isOfficetel) {
     policy = byId("officetel");
   } else if (isLowPriceNonmetroHome) {
@@ -139,6 +141,11 @@ export function selectLoanPolicy(
 function isMetropolitanArea(city: string | null | undefined): boolean {
   const normalized = (city ?? "").trim();
   return normalized.startsWith("서울") || normalized.startsWith("경기") || normalized.startsWith("인천");
+}
+
+function hasTankLowPriceBand(specialNote: string | null | undefined): boolean {
+  const text = (specialNote ?? "").replace(/\s+/g, "");
+  return text.includes("공시가1억이하") || text.includes("공시가1~2억");
 }
 
 export interface InvestmentCriteria {
