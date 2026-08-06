@@ -22,6 +22,12 @@ import {
 import { polygonAreaPx, traceRedBoundaryDetailed } from "@/lib/boundary-trace";
 
 type CalibrationPair = { img: PixelPoint; geo: GeoPoint };
+type EditorSnapshot = {
+  tracePoints: PixelPoint[];
+  vertexOffsets: Record<number, { dLat: number; dLng: number }>;
+  savedBase: GeoPoint[] | null;
+  centerGeo: GeoPoint | null;
+};
 
 /** 위경도 폴리곤의 실제 면적(㎡). 자동 추출·보정이 제대로 됐는지
  * 고시 면적과 비교하는 교차검증에 쓴다. */
@@ -201,6 +207,9 @@ export function RedevelopmentImageTraceTool({
   const canRepositionRef = useRef(false);
   const transformRef = useRef<((p: PixelPoint) => GeoPoint) | null>(null);
   const tracePointsRef = useRef<PixelPoint[]>([]);
+  const savedBaseRef = useRef<GeoPoint[] | null>(savedBase);
+  const vertexOffsetsRef = useRef<Record<number, { dLat: number; dLng: number }>>(vertexOffsets);
+  const editHistoryRef = useRef<EditorSnapshot[]>([]);
 
   /** 지도 클릭만으로 위치를 잡는 모드인지(축척을 알고 경계도 있을 때). */
   const placeMode = Boolean(metersPerPixel && polygonCentroid && calibrationPairs.length === 0);
@@ -524,6 +533,7 @@ export function RedevelopmentImageTraceTool({
     }
 
     if (!transformFn) return;
+    rememberEditState();
     setTracePoints((prev) => [...prev, { x, y }]);
   }
 
@@ -650,6 +660,12 @@ export function RedevelopmentImageTraceTool({
     centerGeoRef.current = centerGeo;
   }, [centerGeo]);
   useEffect(() => {
+    savedBaseRef.current = savedBase;
+  }, [savedBase]);
+  useEffect(() => {
+    vertexOffsetsRef.current = vertexOffsets;
+  }, [vertexOffsets]);
+  useEffect(() => {
     transformRef.current = transformFn;
     tracePointsRef.current = tracePoints;
   }, [transformFn, tracePoints]);
@@ -659,12 +675,36 @@ export function RedevelopmentImageTraceTool({
     if (container) container.style.cursor = canReposition ? "move" : "";
   }, [canReposition]);
 
+  function rememberEditState() {
+    editHistoryRef.current.push({
+      tracePoints: tracePointsRef.current.map((point) => ({ ...point })),
+      vertexOffsets: Object.fromEntries(
+        Object.entries(vertexOffsetsRef.current).map(([key, value]) => [key, { ...value }]),
+      ),
+      savedBase: savedBaseRef.current?.map((point) => ({ ...point })) ?? null,
+      centerGeo: centerGeoRef.current ? { ...centerGeoRef.current } : null,
+    });
+    if (editHistoryRef.current.length > 30) editHistoryRef.current.shift();
+  }
+
+  function undoLastEdit() {
+    const previous = editHistoryRef.current.pop();
+    if (!previous) return;
+    setTracePoints(previous.tracePoints);
+    setVertexOffsets(previous.vertexOffsets);
+    setSavedBase(previous.savedBase);
+    setCenterGeo(previous.centerGeo);
+    setSelectedVertexIndex(null);
+    setError(null);
+  }
+
   /** 선택한 경계 점만 제거한다. 세 점 미만으로는 줄이지 않아 폴리곤을 보호한다. */
   function removeVertex(index: number) {
     if (geoPolygonRef.current.length <= 3) {
       setError("구역 경계는 최소 3개의 점이 필요합니다.");
       return;
     }
+    rememberEditState();
     setVertexOffsets((previous) => {
       const next: Record<number, { dLat: number; dLng: number }> = {};
       Object.entries(previous).forEach(([key, value]) => {
@@ -746,6 +786,7 @@ export function RedevelopmentImageTraceTool({
       // 꼭짓점을 잡았으면 그 점만 옮긴다(구역 전체 이동보다 우선).
       const vi = hitVertex(e);
       if (vi != null) {
+        rememberEditState();
         setSelectedVertexIndex(vi);
         const v = geoPolygonRef.current[vi];
         vertexDragRef.current = { index: vi, dLat: v.lat - cursor.lat, dLng: v.lng - cursor.lng };
@@ -756,6 +797,7 @@ export function RedevelopmentImageTraceTool({
       }
 
       if (!pointInPolygon(cursor, geoPolygonRef.current)) return;
+      rememberEditState();
       setSelectedVertexIndex(null);
       dragOffsetRef.current = { lat: center.lat - cursor.lat, lng: center.lng - cursor.lng };
       map.setDraggable(false);
@@ -852,11 +894,16 @@ export function RedevelopmentImageTraceTool({
   // 방향키 미세 조정 — 드래그로는 몇 미터 단위를 맞추기 어렵다
   // (사용자 요청, 2026-08-06). Shift를 누르면 10배로 움직인다.
   useEffect(() => {
-    if (!canReposition) return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undoLastEdit();
+        return;
+      }
+      if (!canReposition) return;
       if (e.key === "Delete" && selectedVertexIndex != null) {
         e.preventDefault();
         removeVertex(selectedVertexIndex);
@@ -885,6 +932,8 @@ export function RedevelopmentImageTraceTool({
   }, [canReposition, selectedVertexIndex, savedBase]);
 
   function handleUndoTracePoint() {
+    if (tracePoints.length === 0) return;
+    rememberEditState();
     setTracePoints((prev) => {
       setVertexOffsets((offs) => {
         const next = { ...offs };
@@ -907,6 +956,8 @@ export function RedevelopmentImageTraceTool({
   }
 
   function handleClearBoundary() {
+    if (geoPolygon.length === 0) return;
+    rememberEditState();
     setTracePoints([]);
     setVertexOffsets({});
     setSavedBase(null);
