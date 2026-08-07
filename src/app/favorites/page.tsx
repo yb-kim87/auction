@@ -16,7 +16,6 @@ import {
   logoutUser,
   fetchMyBidPlans,
   fetchAssignments,
-  updateAssignment,
   type FavoriteItem,
   type BidPlanWithAuction,
   type AuctionAssignment,
@@ -57,68 +56,21 @@ function PlanMetric({
 }
 
 const STATUS_LABEL: Record<string, string> = { draft: "제출됨", reviewed: "코치 확인됨" };
-function digitsOnly(value: string): string {
-  return value.replace(/[^0-9]/g, "");
-}
-function formatDigits(value: string): string {
-  return Number(digitsOnly(value) || 0).toLocaleString("ko-KR");
-}
 
-/** 과제제출 탭의 항목 하나 — 제출 현황 표시 + 인라인 수정(사용자 요청,
- * 2026-08-07: "저기서 누르면 제출 현황을 볼 수 있고 수정도 할 수 있고"). */
+/** 과제제출 탭의 항목 하나 — 제출 현황 표시 전용. 수정은 물건 상세의
+ * 수익계산기(제출 당시와 동일한 화면)에서 하도록 안내한다(사용자 요청,
+ * 2026-08-07: "그냥 아예 그쪽으로 가서 수정하게 하는건 어때?" — 이
+ * 탭에 별도 수정 폼을 두면 메모/전화시세/안전마진은 고칠 수 있어도
+ * 입찰가·매도가는 여기서 못 고쳐 혼란스러웠음). */
 function AssignmentCard({
   assignment,
-  onUpdated,
+  itemAvailable,
+  onOpenDetail,
 }: {
   assignment: AuctionAssignment;
-  onUpdated: (next: AuctionAssignment) => void;
+  itemAvailable: boolean;
+  onOpenDetail: (auctionId: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [form, setForm] = useState(assignment);
-
-  useEffect(() => {
-    setForm(assignment);
-  }, [assignment]);
-
-  async function handleSave() {
-    setSaving(true);
-    setMessage("");
-    try {
-      const saved = await updateAssignment(assignment.id, {
-        memo: form.memo,
-        phoneBuyer: form.phoneBuyer,
-        phoneSeller: form.phoneSeller,
-        phoneBidder: form.phoneBidder,
-        phoneFinal: form.phoneFinal,
-        safetyResearch1: form.safetyResearch1,
-        safetyResearch2: form.safetyResearch2,
-        safetyResearch3: form.safetyResearch3,
-        finalSafetyMargin: form.finalSafetyMargin,
-      });
-      onUpdated(saved);
-      setEditing(false);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "수정에 실패했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const phoneRows: [string, keyof AuctionAssignment][] = [
-    ["매수자", "phoneBuyer"],
-    ["매도자", "phoneSeller"],
-    ["입찰자", "phoneBidder"],
-    ["최종 시세", "phoneFinal"],
-  ];
-  const safetyRows: [string, keyof AuctionAssignment][] = [
-    ["조사 1", "safetyResearch1"],
-    ["조사 2", "safetyResearch2"],
-    ["조사 3", "safetyResearch3"],
-    ["최종 안전마진", "finalSafetyMargin"],
-  ];
-
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -145,73 +97,25 @@ function AssignmentCard({
           />
           <button
             type="button"
-            onClick={() => setEditing((v) => !v)}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-secondary"
+            onClick={() => onOpenDetail(assignment.auctionId)}
+            disabled={!itemAvailable}
+            title={itemAvailable ? undefined : "물건 정보를 불러오는 중이거나 삭제된 물건입니다."}
+            className="rounded-lg border border-primary/25 bg-primary/[0.05] px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/[0.1] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {editing ? "닫기" : "수정"}
+            물건 상세에서 수정
           </button>
         </div>
       </div>
 
+      {assignment.memo && (
+        <p className="text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">메모</span> · {assignment.memo}
+        </p>
+      )}
+
       {assignment.coachFeedback && (
         <div className="rounded-lg border border-primary/20 bg-primary/[0.05] px-3 py-2 text-xs text-foreground">
           <span className="font-semibold text-primary">코치 피드백</span> · {assignment.coachFeedback}
-        </div>
-      )}
-
-      {editing && (
-        <div className="space-y-2 border-t border-border pt-3">
-          <textarea
-            rows={2}
-            placeholder="메모"
-            value={form.memo}
-            onChange={(e) => setForm({ ...form, memo: e.target.value })}
-            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-secondary/10 resize-y"
-          />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-border p-3">
-              <p className="text-xs font-semibold text-foreground mb-2">전화 시세 결과</p>
-              {phoneRows.map(([label, key]) => (
-                <label key={key} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
-                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
-                  <input
-                    inputMode="numeric"
-                    value={form[key] ? formatDigits(String(form[key])) : ""}
-                    onChange={(e) => setForm({ ...form, [key]: digitsOnly(e.target.value) })}
-                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="rounded-lg border border-border p-3">
-              <p className="text-xs font-semibold text-foreground mb-2">주변 안전마진 조사</p>
-              {safetyRows.map(([label, key]) => (
-                <label key={key} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
-                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
-                  <input
-                    inputMode="numeric"
-                    value={form[key] ? formatDigits(String(form[key])) : ""}
-                    onChange={(e) => setForm({ ...form, [key]: digitsOnly(e.target.value) })}
-                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-            >
-              {saving ? "저장 중..." : "수정 저장"}
-            </button>
-            {message && <span className="text-xs text-destructive">{message}</span>}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            입찰가·매도가는 물건 상세의 수익계산기에서 다시 과제제출해야 갱신됩니다.
-          </p>
         </div>
       )}
     </div>
@@ -264,15 +168,17 @@ export default function FavoritesPage() {
     // 리포트, 2026-08-04: "관심물건이 7개나 있는데 내물건에는 1개도 안나옴").
     let favs: FavoriteItem[] = [];
     let plans: BidPlanWithAuction[] = [];
+    let submittedAssignments: AuctionAssignment[] = [];
 
     Promise.allSettled([fetchFavorites(), fetchMyBidPlans(), fetchAssignments()]).then((results) => {
       if (cancelled) return;
       const [favResult, planResult, assignmentResult] = results;
       favs = favResult.status === "fulfilled" ? favResult.value : [];
       plans = planResult.status === "fulfilled" ? planResult.value : [];
+      submittedAssignments = assignmentResult.status === "fulfilled" ? assignmentResult.value : [];
       setFavorites(favs);
       setBidPlans(plans);
-      setAssignments(assignmentResult.status === "fulfilled" ? assignmentResult.value : []);
+      setAssignments(submittedAssignments);
       // 핵심 목록은 관심물건/입찰계획 응답만으로 즉시 표시하고, 카드 상세 데이터는 백그라운드에서 보강한다.
       setLoading(false);
 
@@ -286,7 +192,16 @@ export default function FavoritesPage() {
           if (cancelled) return Promise.resolve([] as AuctionItem[]);
           setLoanInfoByItemId(res.loanInfoByItemId ?? {});
           const favIds = new Set(res.items.map((item) => item.id));
-          const planOnlyIds = plans.map((plan) => plan.auctionId).filter((id) => !favIds.has(id));
+          // 과제제출 탭에서 "물건 상세에서 수정" 버튼을 누르면 바로 상세
+          // 모달을 열 수 있어야 하므로, 관심물건/입찰계획에 없는 과제제출
+          // 물건도 함께 받아온다(사용자 요청, 2026-08-07: "제출한 과제를
+          // 수정하고 싶을땐 어떻게 해야돼? 입찰계획이 안보이는데?").
+          const extraIds = new Set(
+            [...plans.map((p) => p.auctionId), ...submittedAssignments.map((a) => a.auctionId)].filter(
+              (id) => !favIds.has(id),
+            ),
+          );
+          const planOnlyIds = Array.from(extraIds);
           if (planOnlyIds.length === 0) return Promise.resolve(res.items);
           return fetchAuctionsByIds(planOnlyIds)
             .then((extra) => [...res.items, ...extra])
@@ -600,9 +515,13 @@ export default function FavoritesPage() {
               <AssignmentCard
                 key={assignment.id}
                 assignment={assignment}
-                onUpdated={(next) =>
-                  setAssignments((prev) => prev.map((a) => (a.id === next.id ? next : a)))
-                }
+                itemAvailable={itemById.has(assignment.auctionId)}
+                onOpenDetail={(auctionId) => {
+                  const item = itemById.get(auctionId);
+                  if (!item) return;
+                  setSelectedItemModalTab("profit");
+                  setSelectedItem(item);
+                }}
               />
             ))}
           </div>
