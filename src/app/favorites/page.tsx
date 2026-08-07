@@ -221,11 +221,14 @@ export default function FavoritesPage() {
                 컨설턴트
               </Link>
             )}
-            <Link href="/courses" className={HEADER_BTN}>
-              강의실
-            </Link>
             <span className={HEADER_TAB_ACTIVE}>내 물건</span>
             <div className={HEADER_NAV_TRAILING}>
+              <Link
+                href="/courses"
+                className={`${HEADER_BTN} border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}
+              >
+                강의실
+              </Link>
               {isAdmin && (
                 <Link href="/admin" className={HEADER_BTN}>
                   관리자

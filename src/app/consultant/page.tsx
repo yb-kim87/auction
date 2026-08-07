@@ -148,7 +148,10 @@ export default function ConsultantPage() {
                 <ChevronDown size={13} className="rotate-90" />
                 검색 페이지
               </Link>
-              <Link href="/courses" className={HEADER_BTN}>
+              <Link
+                href="/courses"
+                className={`${HEADER_BTN} border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}
+              >
                 강의실
               </Link>
               <AccountNavLink />

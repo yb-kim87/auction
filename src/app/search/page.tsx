@@ -1303,13 +1303,16 @@ export default function Home() {
                 컨설턴트
               </Link>
             )}
-            <Link href="/courses" className={HEADER_BTN}>
-              강의실
-            </Link>
             <Link href="/favorites" className={HEADER_BTN}>
               내 물건
             </Link>
             <div className={HEADER_NAV_TRAILING}>
+              <Link
+                href="/courses"
+                className={`${HEADER_BTN} border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}
+              >
+                강의실
+              </Link>
               {isAdmin && (
                 <Link href="/admin" className={HEADER_BTN}>
                   관리자
