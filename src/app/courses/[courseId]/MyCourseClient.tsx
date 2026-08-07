@@ -572,7 +572,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                   textDecoration: "none",
                 }}
               >
-                물건 추천
+                물건 검색
               </Link>
             )}
             <Link

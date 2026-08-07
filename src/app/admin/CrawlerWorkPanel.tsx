@@ -21,6 +21,7 @@ import {
   type CrawlerResaleRunSummary,
 } from "@/lib/api";
 import { CrawlerAlgorithmTab } from "./CrawlerAlgorithmTab";
+import { NiceCrawlerWorkPanel } from "./NiceCrawlerWorkPanel";
 import { CrawlerDailyJobTab } from "./CrawlerDailyJobTab";
 import { CrawlerProfitTab } from "./CrawlerProfitTab";
 import { CrawlerVatTab } from "./CrawlerVatTab";
@@ -29,10 +30,11 @@ import { ResaleMatchTab } from "./ResaleMatchTab";
 import { RedevelopmentTab } from "./RedevelopmentTab";
 import { renderLogMessage } from "@/lib/crawler-log-format";
 
-type CrawlerSubTab = "work" | "algorithm" | "daily" | "profit" | "vat" | "resale" | "redevelopment";
+type CrawlerSubTab = "work" | "nice" | "algorithm" | "daily" | "profit" | "vat" | "resale" | "redevelopment";
 
 const SUB_TABS: { id: CrawlerSubTab; label: string }[] = [
   { id: "work", label: "작업창" },
+  { id: "nice", label: "나이스(작업창)" },
   { id: "daily", label: "매일 작업" },
   { id: "algorithm", label: "알고리즘" },
   { id: "profit", label: "수익계산" },
@@ -335,6 +337,7 @@ export function CrawlerWorkPanel() {
         ))}
       </div>
 
+      {subTab === "nice" && <NiceCrawlerWorkPanel />}
       {subTab === "algorithm" && <CrawlerAlgorithmTab />}
       {subTab === "daily" && <CrawlerDailyJobTab />}
       {subTab === "profit" && <CrawlerProfitTab />}

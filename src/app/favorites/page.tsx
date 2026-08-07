@@ -98,13 +98,15 @@ export default function FavoritesPage() {
       plans = planResult.status === "fulfilled" ? planResult.value : [];
       setFavorites(favs);
       setBidPlans(plans);
+      // 핵심 목록은 관심물건/입찰계획 응답만으로 즉시 표시하고, 카드 상세 데이터는 백그라운드에서 보강한다.
+      setLoading(false);
 
       // 관심물건 카드를 추천 물건 페이지와 동일한 카드(RecommendCard)로
       // 보여주기 위해 최소 필요자금/예상 수익 계산에 쓰는 loanInfoByItemId도
       // 함께 받아온다 — favoritesOnly=true는 예산/필터와 무관하게 관심등록한
       // 물건 전체를 반환한다(사용자 요청, 2026-08-05: "내물건에 관심 입찰계획
       // 물건 표시방법도 추천물건탭에 나오는 방식이랑 똑같이 나오게").
-      fetchRecommendations(undefined, { limit: 200, offset: 0 }, { favoritesOnly: true })
+      fetchRecommendations(undefined, { limit: 50, offset: 0 }, { favoritesOnly: true })
         .then((res) => {
           if (cancelled) return Promise.resolve([] as AuctionItem[]);
           setLoanInfoByItemId(res.loanInfoByItemId ?? {});
@@ -121,9 +123,6 @@ export default function FavoritesPage() {
         .catch(() => {
           if (!cancelled) setItems([]);
         })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
     });
     return () => {
       cancelled = true;

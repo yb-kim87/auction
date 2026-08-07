@@ -32,7 +32,6 @@ import { AppHeader, HEADER_ACCENT_BAR, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_T
 import { AccountNavLink } from "@/components/AccountNavLink";
 import { UpdatedBadge, formatAuctionImportMessage } from "@/components/UpdatedBadge";
 import { CrawlerWorkPanel } from "./CrawlerWorkPanel";
-import { NiceCrawlerWorkPanel } from "./NiceCrawlerWorkPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { RightsRulesTab } from "./RightsRulesTab";
 import { LoanPolicyTab } from "./LoanPolicyTab";
@@ -87,7 +86,6 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
 type AdminTab =
   | "data"
   | "crawler"
-  | "niceCrawler"
   | "kakaoNotify"
   | "users"
   | "aiOps"
@@ -104,7 +102,6 @@ type StrategyTagsSubTab = "tagRules" | "strategyRules";
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
   { id: "crawler", label: "물건 작업" },
-  { id: "niceCrawler", label: "나이스(작업창)" },
   { id: "kakaoNotify", label: "알림톡 관리" },
   { id: "aiOps", label: "AI운영" },
   { id: "users", label: "회원권한 관리" },
@@ -1031,7 +1028,6 @@ export default function AdminPage() {
 
           {activeTab === "crawler" && <CrawlerWorkPanel />}
 
-          {activeTab === "niceCrawler" && <NiceCrawlerWorkPanel />}
 
           {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}
 

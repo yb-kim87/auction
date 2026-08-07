@@ -232,7 +232,7 @@ function AccountPageContent() {
                 className="whitespace-nowrap"
                 style={{ padding: "8px 10px", color: C.accent, fontSize: 13, fontWeight: 700, borderRadius: 999, border: `1px solid ${C.accentLight}`, textDecoration: "none" }}
               >
-                물건 추천
+                물건 검색
               </Link>
             )}
             <Link
