@@ -228,7 +228,6 @@ export default function FavoritesPage() {
               >
                 강의실
               </Link>
-              <Link href="/favorites/calendar" className={HEADER_BTN}>입찰 달력</Link>
               {isAdmin && (
                 <Link href="/admin" className={HEADER_BTN}>
                   관리자
@@ -268,6 +267,9 @@ export default function FavoritesPage() {
             >
               <FileText size={14} /> 입찰계획 <span className="opacity-75">{bidPlans.length}</span>
             </button>
+            <Link href="/favorites/calendar" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary">
+              <Calendar size={14} /> 입찰 달력
+            </Link>
           </div>
         </div>
 
