@@ -4701,3 +4701,16 @@ export function revokeLectureEnrollment(id: string): Promise<LectureEnrollmentAd
     "수강권 회수에 실패했습니다.",
   );
 }
+
+export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
+export interface ServiceReport { id: string; username: string; type: string; title: string; description: string; reproduction: string; expectedResult: string; actualResult: string; pageUrl: string; status: string; adminReply: string; createdAt: string; updatedAt: string; }
+async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(init?.headers) });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? `요청에 실패했습니다. (${res.status})`);
+  return readJsonResponse<T>(res);
+}
+export const fetchAssignments = () => learningBoardFetch<AuctionAssignment[]>("/learning-board/assignments");
+export const createAssignment = (body: Partial<AuctionAssignment>) => learningBoardFetch<AuctionAssignment>("/learning-board/assignments", { method: "POST", body: JSON.stringify(body) });
+export const updateAssignment = (id: string, body: Partial<AuctionAssignment>) => learningBoardFetch<AuctionAssignment>(`/learning-board/assignments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) });
+export const fetchServiceReports = () => learningBoardFetch<ServiceReport[]>("/learning-board/reports");
+export const createServiceReport = (body: Partial<ServiceReport>) => learningBoardFetch<ServiceReport>("/learning-board/reports", { method: "POST", body: JSON.stringify(body) });
