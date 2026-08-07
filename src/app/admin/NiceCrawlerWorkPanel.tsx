@@ -5,16 +5,22 @@ import {
   DEFAULT_NICE_SEARCH_CONFIG,
   deleteNiceSavedSearch,
   fetchNiceCrawlerLogs,
+  fetchNiceCrawlerResaleRunSummary,
   fetchNiceCrawlerStatus,
   fetchNiceSavedSearches,
   fetchTankFavoriteSearches,
   niceCrawlerClearLogs,
+  niceCrawlerCollect,
+  niceCrawlerManageUrls,
   niceCrawlerStart,
   niceCrawlerStop,
+  parseNiceCrawlerUrls,
   saveNiceSavedSearch,
   type CrawlerSearchConfig,
   type NiceCrawlerLogEntry,
+  type NiceCrawlerResaleRunSummary,
   type NiceCrawlerStatus,
+  type NiceCrawlerUrlEntry,
   type NiceSavedSearch,
   type NiceSearchConfig,
   type TankFavoriteSearch,
@@ -26,17 +32,21 @@ import {
 } from "@/lib/nice-crawler-codes";
 
 /** 나이스옥션 작업창 — 탱크옥션 작업창(CrawlerWorkPanel.tsx)과 완전히
- * 독립된 병렬 시스템(사용자 요청, 2026-08-07). 검색조건 UI는 탱크옥션의
- * CrawlerSearchPanel.tsx와 박스 구성·필드 순서·컴포넌트 스타일까지
- * 동일하게 맞춘다(사용자 요청, 2026-08-07: "작업창이랑 버튼하나 레이아웃
- * 하나 모든게 다 똑같고 동작은 나이스 경매로 돌아가는걸로 만들어야돼") —
- * 다른 점은 오직 실제로 호출하는 대상이 나이스옥션 API라는 것뿐이다.
+ * 독립된 병렬 시스템(사용자 요청, 2026-08-07). 검색조건 UI뿐 아니라
+ * 작업목록(URL) 스테이징 + 매도분석 연동까지 탱크와 동일한 흐름으로
+ * 맞춘다(사용자 요청, 2026-08-07: "1 2번도 일단 붙이고 테스트 해보자") —
+ * "주소 추가"(nice_collect.py, 검색만) → 작업목록 다듬기(선택삭제/모두삭제
+ * /수동추가) → "조회 시작"(nice_worker.py, 상세조회+저장+매도분석). 다른
+ * 점은 오직 실제로 호출하는 대상이 나이스옥션 API라는 것뿐이다.
  *
  * 나이스는 로그인이 필요 없어 "나이스 즐겨찾기" 개념이 없다 — 대신
- * 탱크옥션 즐겨찾기를 불러와 나이스 필터로 변환하는 버튼을 제공한다
- * (사용자 요청). 지역코드(법정동코드/pnuCd)는 두 사이트의 체계가 완전히
- * 달라 탱크의 시/도~동 선택 UI를 그대로 재현할 수 없으므로, 같은 자리에
- * pnuCd 자유 입력 필드를 둔다(정직하게 실측 안 된 부분은 꾸며내지 않음).
+ * 탱크옥션 즐겨찾기를 불러와 나이스 필터로 변환하는 버튼을 제공한다.
+ * 지역코드(법정동코드/pnuCd)는 두 사이트의 체계가 완전히 달라 탱크의
+ * 시/도~동 선택 UI를 그대로 재현할 수 없으므로, 같은 자리에 pnuCd 자유
+ * 입력 필드를 둔다(정직하게 실측 안 된 부분은 꾸며내지 않음). 탱크옥션
+ * 로그인 확인/네이버 ID 수집/워커 재시작은 나이스에 진짜로 대응되는
+ * 개념이 없어 넣지 않았다(docs/niceauction-integration-research.md
+ * 8차 追記 참고).
  */
 
 const PHASE_LABELS: Record<string, string> = {
@@ -184,6 +194,23 @@ export function NiceCrawlerWorkPanel() {
   const [tankFavorites, setTankFavorites] = useState<TankFavoriteSearch[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
   const [favoritesLoaded, setFavoritesLoaded] = useState(false);
+  const [collecting, setCollecting] = useState(false);
+  const [collectSummary, setCollectSummary] = useState<string | null>(null);
+
+  // 작업목록 스테이징(탱크의 "주소 추가 → 조회 시작" 2단계) + 매도분석.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [manualObjId, setManualObjId] = useState("");
+  const [autoStartAfterCollect, setAutoStartAfterCollect] = useState(false);
+  const [resaleAnalysisEnabled, setResaleAnalysisEnabled] = useState(false);
+  const [resaleStats, setResaleStats] = useState<NiceCrawlerResaleRunSummary | null>(null);
+  const [resaleStatsLoading, setResaleStatsLoading] = useState(false);
+  const [resaleStatsError, setResaleStatsError] = useState("");
+  const [resaleStillRunning, setResaleStillRunning] = useState(false);
+  const pendingResaleSummaryFetchRef = useRef(false);
+  const prevFetchingPhaseRef = useRef(false);
+  const resalePollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const urls = parseNiceCrawlerUrls(status);
 
   const refresh = useCallback(async () => {
     try {
@@ -208,6 +235,56 @@ export function NiceCrawlerWorkPanel() {
     refreshSavedSearches();
   }, []);
 
+  // "조회 시작"(상세조회) 단계가 끝나는 순간을 감지해 매도분석 결과를
+  // 가져온다 — 탱크옥션 CrawlerWorkPanel.tsx의 동일 패턴(사용자 요청,
+  // 2026-08-01/2026-08-03: 매도분석 결과는 db 저장 진행 상황이 아니라
+  // 분석이 끝난 시점의 최종 값으로만 채운다).
+  useEffect(() => {
+    const nowFetching = status?.phase === "fetching_details";
+    const justFinished = prevFetchingPhaseRef.current && !nowFetching;
+    prevFetchingPhaseRef.current = nowFetching;
+
+    if (justFinished && pendingResaleSummaryFetchRef.current) {
+      pendingResaleSummaryFetchRef.current = false;
+      setResaleStatsLoading(true);
+      setResaleStatsError("");
+      setResaleStats(null);
+      setResaleStillRunning(true);
+
+      const POLL_INTERVAL_MS = 3000;
+      const POLL_TIMEOUT_MS = 15 * 60_000;
+      const startedAt = Date.now();
+
+      const poll = () => {
+        fetchNiceCrawlerResaleRunSummary()
+          .then((summary) => {
+            setResaleStatsLoading(false);
+            const done = !summary || summary.processed >= summary.totalRequested;
+            const timedOut = Date.now() - startedAt > POLL_TIMEOUT_MS;
+            if (done || timedOut) {
+              setResaleStats(summary);
+              setResaleStillRunning(false);
+              return;
+            }
+            resalePollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+          })
+          .catch((err) => {
+            setResaleStatsError(err instanceof Error ? err.message : "매도분석 조회에 실패했습니다.");
+            setResaleStatsLoading(false);
+            setResaleStillRunning(false);
+          });
+      };
+      poll();
+    }
+
+    return () => {
+      if (resalePollTimerRef.current) {
+        clearTimeout(resalePollTimerRef.current);
+        resalePollTimerRef.current = null;
+      }
+    };
+  }, [status?.phase]);
+
   function refreshSavedSearches() {
     fetchNiceSavedSearches()
       .then(setSavedSearches)
@@ -218,24 +295,45 @@ export function NiceCrawlerWorkPanel() {
     setConfig((prev) => ({ ...prev, ...fields }));
   }
 
-  async function handleStart() {
-    setBusy("start");
+  // 탱크의 "주소 추가"에 대응 — 검색조건으로 작업목록(objId)만 만든다.
+  async function handleCollect() {
+    setCollecting(true);
     setError(null);
+    setCollectSummary(null);
     try {
       let presetLabel = activePresetId ? presetName.trim() : "";
       const name = presetName.trim();
       if (name) {
-        const saved = await saveNiceSavedSearch({
-          id: activePresetId ?? undefined,
-          name,
-          search: config,
-        });
+        const saved = await saveNiceSavedSearch({ id: activePresetId ?? undefined, name, search: config });
         setActivePresetId(saved.id);
         presetLabel = saved.name;
         refreshSavedSearches();
       }
       void presetLabel;
-      await niceCrawlerStart(config);
+      const result = await niceCrawlerCollect(config);
+      const parts = [`나이스 검색 ${result.total.toLocaleString("ko-KR")}건 중 확인 ${result.rawCount}건`];
+      if (result.excluded) parts.push(`DB중복 ${result.excluded}건 제외`);
+      parts.push(`작업목록 ${result.items.length}건`);
+      setCollectSummary(parts.join(" · "));
+      setSelected(new Set());
+      await refresh();
+      if (autoStartAfterCollect && result.items.length > 0) {
+        await handleStart();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "수집에 실패했습니다.");
+    } finally {
+      setCollecting(false);
+    }
+  }
+
+  // 탱크의 "조회 시작"에 대응 — 스테이징된 작업목록을 상세조회+저장.
+  async function handleStart() {
+    setBusy("start");
+    setError(null);
+    try {
+      if (resaleAnalysisEnabled) pendingResaleSummaryFetchRef.current = true;
+      await niceCrawlerStart({ resaleAnalysisEnabled });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "시작에 실패했습니다.");
@@ -277,11 +375,7 @@ export function NiceCrawlerWorkPanel() {
     setSavingPreset(true);
     setError(null);
     try {
-      const saved = await saveNiceSavedSearch({
-        id: activePresetId ?? undefined,
-        name,
-        search: config,
-      });
+      const saved = await saveNiceSavedSearch({ id: activePresetId ?? undefined, name, search: config });
       setActivePresetId(saved.id);
       setPresetName(saved.name);
       refreshSavedSearches();
@@ -370,66 +464,143 @@ export function NiceCrawlerWorkPanel() {
     });
   }
 
+  function toggleSelect(index: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected((prev) => (prev.size === urls.length ? new Set() : new Set(urls.map((_, i) => i))));
+  }
+
+  async function handleRemoveSelected() {
+    const indices = Array.from(selected);
+    if (indices.length === 0) return;
+    setBusy("remove");
+    try {
+      await niceCrawlerManageUrls({ action: "remove", indices });
+      setSelected(new Set());
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "삭제 실패");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleClearUrls() {
+    setBusy("clearUrls");
+    try {
+      await niceCrawlerManageUrls({ action: "clear" });
+      setSelected(new Set());
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "삭제 실패");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleAddManual() {
+    const raw = manualObjId.trim();
+    if (!raw) return;
+    setBusy("add");
+    try {
+      await niceCrawlerManageUrls({ action: "add", objId: raw });
+      setManualObjId("");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "추가 실패");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const stale = status?.running && Date.now() - new Date(status.updatedAt).getTime() > 60_000;
+  const isRunning = status?.phase === "fetching_details" || status?.phase === "collecting_objids";
+  const progress =
+    status && status.matched > 0 ? Math.min(100, Math.round((status.completed / status.matched) * 100)) : 0;
 
   return (
     <div className="space-y-4">
       <div className="rounded-sm border border-border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm font-semibold text-foreground">나이스옥션 작업창</p>
+          <div>
+            <p className="text-sm font-semibold text-foreground">나이스옥션 작업창</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              검색조건(관심조건/직접설정) → 주소 추가 → 조회 시작
+            </p>
+          </div>
           <span className="px-2 py-0.5 text-xs rounded-sm bg-muted text-muted-foreground">
             {PHASE_LABELS[status?.phase ?? "idle"] ?? status?.phase ?? "-"}
           </span>
           {status?.running && (
-            <span className="px-2 py-0.5 text-xs rounded-sm bg-emerald-100 text-emerald-700">
-              실행 중
-            </span>
+            <span className="px-2 py-0.5 text-xs rounded-sm bg-emerald-100 text-emerald-700">실행 중</span>
           )}
           {stale && (
-            <span className="px-2 py-0.5 text-xs rounded-sm bg-amber-100 text-amber-800">
-              워커 응답 없음
-            </span>
+            <span className="px-2 py-0.5 text-xs rounded-sm bg-amber-100 text-amber-800">워커 응답 없음</span>
           )}
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleStart()}
-              disabled={busy !== null || status?.running}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-            >
-              조회 시작
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleStop()}
-              disabled={busy !== null || !status?.running}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-border disabled:opacity-50"
-            >
-              중지
-            </button>
-          </div>
         </div>
 
         {error && <p className="text-xs text-destructive">{error}</p>}
         {status?.error && <p className="text-xs text-destructive">워커 오류: {status.error}</p>}
         {status?.lastMessage && <p className="text-xs text-muted-foreground">{status.lastMessage}</p>}
+        {collectSummary && (
+          <div className="rounded-sm border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-950">
+            {collectSummary}
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-center">
-          {[
-            ["목록 수집", status?.totalObjIds],
-            ["매칭", status?.matched],
-            ["처리", status?.completed],
-            ["신규", status?.created],
-            ["갱신", status?.updated],
-            ["스킵", status?.skipped],
-          ].map(([label, value]) => (
-            <div key={label as string} className="rounded-sm border border-border bg-background p-2">
-              <p className="text-[0.65rem] text-muted-foreground">{label}</p>
-              <p className="text-sm font-semibold text-foreground tabular-nums">
-                {(value as number | undefined)?.toLocaleString("ko-KR") ?? "-"}
-              </p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+          <div>
+            <label className="text-muted-foreground text-xs">완료 개수</label>
+            <input
+              readOnly
+              value={status?.completed ?? 0}
+              className="w-full mt-1 px-3 py-2 border border-border rounded-sm bg-secondary/30"
+            />
+          </div>
+          <div>
+            <label className="text-muted-foreground text-xs">총 작업 개수</label>
+            <input
+              readOnly
+              value={status?.matched ?? urls.length}
+              className="w-full mt-1 px-3 py-2 border border-border rounded-sm bg-secondary/30"
+            />
+          </div>
+          <div>
+            <label className="text-muted-foreground text-xs">DB 등록</label>
+            <input
+              readOnly
+              value={status?.created ?? 0}
+              className="w-full mt-1 px-3 py-2 border border-border rounded-sm bg-secondary/30"
+            />
+          </div>
+          <div>
+            <label className="text-muted-foreground text-xs">DB 갱신</label>
+            <input
+              readOnly
+              value={status?.updated ?? 0}
+              className="w-full mt-1 px-3 py-2 border border-border rounded-sm bg-secondary/30"
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-muted-foreground">진행률</span>
+            <span className="text-xs font-mono">{progress}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-secondary overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
       </div>
 
@@ -443,7 +614,7 @@ export function NiceCrawlerWorkPanel() {
           <div>
             <h3 className="text-sm font-bold">검색조건</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              관심조건을 선택하거나 직접 설정한 뒤 조회 시작을 누르세요. (나이스옥션 API 기준)
+              관심조건을 선택하거나 직접 설정한 뒤 주소 추가를 누르세요. (나이스옥션 API 기준)
             </p>
           </div>
           <span className="text-muted-foreground text-sm">{expanded ? "접기 ▲" : "펼치기 ▼"}</span>
@@ -871,16 +1042,171 @@ export function NiceCrawlerWorkPanel() {
               </div>
             </div>
 
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-2 px-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={autoStartAfterCollect}
+                  onChange={(e) => setAutoStartAfterCollect(e.target.checked)}
+                  disabled={isRunning}
+                  className="accent-primary"
+                />
+                주소 추가 후 자동으로 조회 시작
+              </label>
+              <label className="flex items-center gap-2 px-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={resaleAnalysisEnabled}
+                  onChange={(e) => setResaleAnalysisEnabled(e.target.checked)}
+                  disabled={isRunning}
+                  className="accent-primary"
+                />
+                매도분석
+              </label>
+            </div>
+
             <button
               type="button"
-              onClick={() => void handleStart()}
-              disabled={busy !== null || savingPreset || status?.running}
+              onClick={() => void handleCollect()}
+              disabled={collecting || savingPreset || isRunning}
               className="px-4 py-2 text-sm font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
             >
-              {busy === "start" ? "조회 시작 중..." : "조회 시작"}
+              {collecting ? "수집 중..." : "주소 추가"}
             </button>
           </div>
         )}
+      </div>
+
+      {(resaleStatsLoading || resaleStats || resaleStatsError || resaleStillRunning) && (
+        <div className="rounded-sm border border-border bg-card p-4 space-y-3">
+          {resaleStatsLoading ? (
+            <p className="text-sm text-muted-foreground">매도분석 조회 중...</p>
+          ) : resaleStatsError ? (
+            <p className="text-sm text-destructive">{resaleStatsError}</p>
+          ) : resaleStillRunning && !resaleStats ? (
+            <p className="text-sm text-muted-foreground">매도분석 진행 중...</p>
+          ) : resaleStats ? (
+            <>
+              <p className="text-sm font-semibold text-foreground">
+                매도분석 결과 (요청 {resaleStats.totalRequested}건 기준, 분석 완료)
+              </p>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="p-3 border border-border rounded-sm">
+                  <p className="text-xs text-muted-foreground">요청 건수</p>
+                  <p className="text-xl font-bold text-foreground mt-0.5">{resaleStats.totalRequested}건</p>
+                </div>
+                <div className="p-3 border border-border rounded-sm">
+                  <p className="text-xs text-muted-foreground">분석 시도</p>
+                  <p className="text-xl font-bold text-foreground mt-0.5">{resaleStats.attempted}건</p>
+                </div>
+                <div className="p-3 border border-border rounded-sm">
+                  <p className="text-xs text-muted-foreground">QA 후보 있음</p>
+                  <p className="text-xl font-bold text-foreground mt-0.5">{resaleStats.candidateFound}건</p>
+                </div>
+                <div className="p-3 border border-border rounded-sm">
+                  <p className="text-xs text-muted-foreground">매도 확정 표시</p>
+                  <p className="text-xl font-bold text-emerald-700 mt-0.5">{resaleStats.displayed}건</p>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* 작업목록(URL) — 탱크옥션 "주소 추가"로 만든 목록과 동일한 스테이징 UI */}
+      <div className="space-y-3">
+        <div className="border border-border rounded-sm h-64 overflow-y-auto bg-card">
+          {urls.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground text-center">작업목록이 없습니다. 검색조건에서 주소 추가를 눌러 주세요.</p>
+          ) : (
+            <ul className="divide-y divide-border text-xs font-mono">
+              <li className="flex items-center gap-2 px-3 py-2 bg-secondary/40 sticky top-0">
+                <input
+                  type="checkbox"
+                  checked={urls.length > 0 && selected.size === urls.length}
+                  onChange={toggleSelectAll}
+                  className="accent-primary"
+                />
+                <span className="font-semibold text-foreground/80">
+                  전체 선택 ({selected.size}/{urls.length})
+                </span>
+              </li>
+              {urls.map((entry: NiceCrawlerUrlEntry, index: number) => (
+                <li key={`${entry.objId}-${index}`} className="flex items-start gap-2 px-3 py-2 hover:bg-secondary/20">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(index)}
+                    onChange={() => toggleSelect(index)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <span className="break-all">{entry.label || entry.objId}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <button
+            type="button"
+            disabled={busy !== null || selected.size === 0}
+            onClick={() => void handleRemoveSelected()}
+            className="px-3 py-2 text-sm border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50"
+          >
+            선택 삭제
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null || urls.length === 0}
+            onClick={() => void handleClearUrls()}
+            className="px-3 py-2 text-sm border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50"
+          >
+            모두 삭제
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null || urls.length === 0}
+            title="브라우저 없이 HTTPX로 조회합니다(서버 자체 실행)."
+            onClick={() =>
+              void (status?.phase === "fetching_details" ? handleStop() : handleStart())
+            }
+            className="px-3 py-2 text-sm font-semibold rounded-sm bg-emerald-600 text-white disabled:opacity-50"
+          >
+            {busy === "start"
+              ? "시작 중..."
+              : busy === "stop"
+                ? "중단 중..."
+                : status?.phase === "fetching_details"
+                  ? "조회 중단"
+                  : "조회 시작"}
+          </button>
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            value={manualObjId}
+            onChange={(e) => setManualObjId(e.target.value)}
+            placeholder="objId 또는 나이스 상세 링크"
+            className="flex-1 px-3 py-2 text-sm border border-border rounded-sm"
+          />
+          <button
+            type="button"
+            disabled={busy !== null || !manualObjId.trim()}
+            onClick={() => void handleAddManual()}
+            className="px-4 py-2 text-sm border border-border rounded-sm hover:bg-secondary/40 disabled:opacity-50"
+          >
+            추가
+          </button>
+        </div>
+
+        <button
+          type="button"
+          disabled={busy !== null || !isRunning}
+          onClick={() => void handleStop()}
+          className="px-4 py-2 text-sm border border-red-200 text-red-700 rounded-sm hover:bg-red-50 disabled:opacity-50"
+        >
+          작업 중단
+        </button>
       </div>
 
       <div className="rounded-sm border border-border bg-card p-4 space-y-2">

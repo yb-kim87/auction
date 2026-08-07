@@ -1808,6 +1808,10 @@ export type NiceCrawlerPhase =
   | "stopped"
   | "error";
 
+export type NiceCrawlerUrlEntry = { objId: string; label: string };
+
+export type NiceCrawlerResaleRunSummary = CrawlerResaleRunSummary;
+
 export type NiceCrawlerStatus = {
   id: string;
   running: boolean;
@@ -1821,7 +1825,21 @@ export type NiceCrawlerStatus = {
   lastMessage: string | null;
   error: string | null;
   updatedAt: string;
+  /** 작업목록 스테이징(2026-08-07) — JSON 문자열로 내려온다. */
+  urls: string | null;
+  resaleAnalysisEnabled: boolean;
 };
+
+/** status.urls(JSON 문자열)를 파싱한다 — 비어있거나 파싱 실패 시 []. */
+export function parseNiceCrawlerUrls(status: NiceCrawlerStatus | null): NiceCrawlerUrlEntry[] {
+  if (!status?.urls) return [];
+  try {
+    const parsed = JSON.parse(status.urls);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export type NiceCrawlerLogEntry = {
   id: string;
@@ -1913,15 +1931,70 @@ export type NiceSavedSearch = {
   updatedAt: string;
 };
 
-export async function niceCrawlerStart(search: NiceSearchConfig): Promise<NiceCrawlerStatus> {
-  const res = await fetch(`${API_BASE}/nice-crawler/start`, {
+/** 탱크옥션의 "주소 추가"에 대응 — 검색조건으로 작업목록(objId)만
+ * 수집하고 아직 실행하지 않는다. 기존 작업목록은 교체된다. */
+export async function niceCrawlerCollect(search: NiceSearchConfig): Promise<{
+  items: NiceCrawlerUrlEntry[];
+  rawCount: number;
+  excluded: number;
+  total: number;
+}> {
+  const res = await fetch(`${API_BASE}/nice-crawler/collect`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
     body: JSON.stringify({ search }),
   });
   if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "나이스옥션 수집에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+/** 작업목록 편집(선택 삭제/모두 삭제/수동 추가) — 탱크옥션
+ * crawlerManageUrls와 동일한 계약. */
+export async function niceCrawlerManageUrls(body: {
+  action: "add" | "remove" | "clear";
+  objId?: string;
+  label?: string;
+  indices?: number[];
+}): Promise<{ urls: NiceCrawlerUrlEntry[] }> {
+  const res = await fetch(`${API_BASE}/nice-crawler/manage-urls`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "작업목록 편집에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+/** 탱크옥션의 "조회 시작"에 대응 — 현재 스테이징된 작업목록(objId)을
+ * 처리한다. 검색조건은 다시 넘기지 않는다(collect가 이미 만들어 둠). */
+export async function niceCrawlerStart(options: {
+  resaleAnalysisEnabled?: boolean;
+} = {}): Promise<NiceCrawlerStatus> {
+  const res = await fetch(`${API_BASE}/nice-crawler/start`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "나이스옥션 작업창 시작에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchNiceCrawlerResaleRunSummary(): Promise<NiceCrawlerResaleRunSummary | null> {
+  const res = await fetch(`${API_BASE}/nice-crawler/resale-run-summary`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "매도분석 결과를 불러오지 못했습니다.");
   }
   return readJsonResponse(res);
 }
@@ -4793,7 +4866,7 @@ export function revokeLectureEnrollment(id: string): Promise<LectureEnrollmentAd
   );
 }
 
-export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; safetyResearch1: string; safetyResearch2: string; safetyResearch3: string; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
+export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; phoneFinal: string; safetyResearch1: string; safetyResearch2: string; safetyResearch3: string; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
 export interface ServiceReport { id: string; username: string; type: string; title: string; description: string; reproduction: string; expectedResult: string; actualResult: string; pageUrl: string; status: string; adminReply: string; createdAt: string; updatedAt: string; }
 async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(init?.headers) });
