@@ -228,6 +228,7 @@ export default function FavoritesPage() {
               >
                 강의실
               </Link>
+              <Link href="/favorites/calendar" className={HEADER_BTN}>입찰 달력</Link>
               {isAdmin && (
                 <Link href="/admin" className={HEADER_BTN}>
                   관리자
