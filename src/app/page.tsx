@@ -286,7 +286,7 @@ function RecommendFilterModal({
 
           <div className="space-y-1.5">
             <span className="text-muted-foreground text-[13px]">전용면적(㎡)</span>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <input
                 type="number"
                 inputMode="decimal"
@@ -936,6 +936,7 @@ export default function HomePage() {
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
+  const hasLearningSupport = ["student", "consulting_student", "consultant", "admin"].includes(profile?.role ?? "");
 
   useEffect(() => {
     fetchMyProfile()
@@ -1131,6 +1132,7 @@ export default function HomePage() {
                 내 물건
               </Link>
               <div className={HEADER_NAV_TRAILING}>
+                {hasLearningSupport && <Link href="/learning" className={HEADER_BTN}>학습 지원</Link>}
                 <Link
                   href="/courses"
                   className={`${HEADER_BTN} border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}
