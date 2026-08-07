@@ -295,6 +295,19 @@ export async function fetchMyBidPlans(): Promise<BidPlanWithAuction[]> {
   return readJsonResponse(res);
 }
 
+/** 코치(관리자) 전용 — 과제 검토 화면에서 제출자의 저장된 입찰계획
+ * 상세(계산기 전체 입력값 포함)를 조회한다(사용자 요청, 2026-08-07). */
+export async function fetchCoachBidPlan(username: string, auctionId: string): Promise<BidPlan | null> {
+  const res = await fetch(`${API_BASE}/bid-plans/coach/${encodeURIComponent(username)}/${encodeURIComponent(auctionId)}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "입찰계획을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function saveBidPlan(
   auctionId: string,
   input: {

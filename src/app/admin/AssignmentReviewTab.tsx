@@ -1,13 +1,94 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchCoachAssignments, updateCoachAssignment, type AuctionAssignment } from "@/lib/api";
+import {
+  fetchCoachAssignments,
+  fetchCoachBidPlan,
+  updateCoachAssignment,
+  type AuctionAssignment,
+  type BidPlan,
+} from "@/lib/api";
 import { formatWonShort } from "@/lib/investment-money";
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "draft", label: "제출됨" },
   { value: "reviewed", label: "코치 확인됨" },
 ];
+
+/** 입찰계획 inputsJson의 계산기 전체 입력값 라벨 — ProfitCalculatorPanel.tsx
+ * handleSaveBidPlan()이 저장하는 키와 1:1 대응(사용자 요청, 2026-08-07:
+ * "제출된 과제는 관리자(코치)한테는 어떻게 보여? 입찰계획까지 보이나??
+ * 지금은 안보이는거 같아서"). */
+const BID_PLAN_INPUT_LABELS: { key: string; label: string; unit?: string; percent?: boolean }[] = [
+  { key: "holdingMonths", label: "보유기간", unit: "개월" },
+  { key: "loanRatioByAppraisal", label: "감정가 기준 대출비율", percent: true },
+  { key: "loanRatioByBidPrice", label: "낙찰가 기준 대출비율", percent: true },
+  { key: "loanInterestRate", label: "대출 연이자율", percent: true },
+  { key: "earlyRepaymentFeeRate", label: "중도상환수수료율", percent: true },
+  { key: "interiorCost", label: "인테리어 비용", unit: "원" },
+  { key: "evictionCost", label: "명도비", unit: "원" },
+  { key: "unpaidMaintenanceFee", label: "미납관리비", unit: "원" },
+  { key: "extraRealtyFee", label: "부동산 추가수수료", unit: "원" },
+  { key: "vatAmount", label: "부가세", unit: "원" },
+  { key: "existingIncome", label: "기존소득(연간)", unit: "원" },
+];
+
+function BidPlanDetail({ plan, loading }: { plan: BidPlan | null; loading: boolean }) {
+  if (loading) return <p className="text-xs text-muted-foreground">입찰계획을 불러오는 중...</p>;
+  if (!plan) return <p className="text-xs text-muted-foreground">저장된 입찰계획이 없습니다.</p>;
+
+  let inputs: Record<string, unknown> = {};
+  try {
+    inputs = JSON.parse(plan.inputsJson || "{}");
+  } catch {
+    inputs = {};
+  }
+
+  return (
+    <div className="rounded-sm border border-primary/20 bg-primary/[0.03] p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-primary">입찰계획 상세</p>
+        <span className="text-[10px] text-muted-foreground">
+          {new Date(plan.updatedAt).toLocaleString("ko-KR")} 저장
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">낙찰가(입찰가)</span>
+          <span className="font-medium">{formatWonShort(plan.bidPrice)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">매도가</span>
+          <span className="font-medium">{formatWonShort(plan.salePrice)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">투입자금</span>
+          <span className="font-medium">{plan.requiredEquity != null ? formatWonShort(plan.requiredEquity) : "-"}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">최종수익</span>
+          <span className="font-medium">{plan.finalProfit != null ? formatWonShort(plan.finalProfit) : "-"}</span>
+        </div>
+        {BID_PLAN_INPUT_LABELS.map(({ key, label, unit, percent }) => {
+          const raw = inputs[key];
+          if (typeof raw !== "number") return null;
+          const value = percent ? `${(raw * 100).toFixed(1)}%` : `${raw.toLocaleString("ko-KR")}${unit ?? ""}`;
+          return (
+            <div key={key} className="flex justify-between">
+              <span className="text-muted-foreground">{label}</span>
+              <span className="font-medium">{value}</span>
+            </div>
+          );
+        })}
+      </div>
+      {plan.memo && (
+        <p className="text-xs text-muted-foreground border-t border-border pt-2">
+          <span className="font-semibold text-foreground">입찰계획 메모</span> · {plan.memo}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** 코치(관리자)가 수강생이 제출한 과제(물건 상세의 "과제제출" 버튼으로
  * 제출한 내용)를 전체 조회하고 피드백을 남기는 탭(사용자 요청,
@@ -20,6 +101,8 @@ export function AssignmentReviewTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [feedbackDraft, setFeedbackDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [bidPlan, setBidPlan] = useState<BidPlan | null>(null);
+  const [bidPlanLoading, setBidPlanLoading] = useState(false);
 
   function load() {
     setLoading(true);
@@ -43,6 +126,12 @@ export function AssignmentReviewTab() {
     }
     setExpandedId(row.id);
     setFeedbackDraft(row.coachFeedback ?? "");
+    setBidPlan(null);
+    setBidPlanLoading(true);
+    fetchCoachBidPlan(row.username, row.auctionId)
+      .then(setBidPlan)
+      .catch(() => setBidPlan(null))
+      .finally(() => setBidPlanLoading(false));
   }
 
   async function handleSaveFeedback(row: AuctionAssignment, status?: string) {
@@ -114,6 +203,7 @@ export function AssignmentReviewTab() {
                 <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
                   <span>입찰가 {formatWonShort(row.targetBidPrice)}</span>
                   <span>매도가 {formatWonShort(row.finalMarketPrice)}</span>
+                  <span>투입자금 {formatWonShort(row.requiredEquity)}</span>
                   <span>수익 {formatWonShort(row.finalProfit)}</span>
                   <span>{new Date(row.updatedAt).toLocaleDateString("ko-KR")}</span>
                 </div>
@@ -121,9 +211,11 @@ export function AssignmentReviewTab() {
 
               {expandedId === row.id && (
                 <div className="border-t border-border p-4 space-y-3 text-sm">
+                  <BidPlanDetail plan={bidPlan} loading={bidPlanLoading} />
+
                   {row.memo && (
                     <p className="text-muted-foreground">
-                      <span className="font-semibold text-foreground">메모</span> · {row.memo}
+                      <span className="font-semibold text-foreground">과제 메모</span> · {row.memo}
                     </p>
                   )}
                   <div className="grid gap-3 sm:grid-cols-2">
