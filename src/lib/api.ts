@@ -4901,5 +4901,13 @@ export const deleteAssignment = (id: string) => learningBoardFetch<{ ok: boolean
 export const fetchCoachAssignments = () => learningBoardFetch<AuctionAssignment[]>("/learning-board/assignments/coach");
 export const updateCoachAssignment = (id: string, body: { coachFeedback?: string; status?: string }) =>
   learningBoardFetch<AuctionAssignment>(`/learning-board/assignments/${encodeURIComponent(id)}/coach`, { method: "PATCH", body: JSON.stringify(body) });
+/** 코치(관리자) 전용 — 물건 상세(수익계산기) 화면에서 특정 수강생이
+ * 제출한 과제를 조회한다(사용자 요청, 2026-08-07: "과제 물건번호를
+ * 누르면 입찰계획으로 넘어가고 거기에 수강생이 과제로 제출한 정보가
+ * 보이게 하는건 어떨까?"). */
+export const fetchCoachAssignmentByAuction = (username: string, auctionId: string) =>
+  learningBoardFetch<AuctionAssignment | null>(
+    `/learning-board/assignments/coach/${encodeURIComponent(username)}/${encodeURIComponent(auctionId)}`,
+  );
 export const fetchServiceReports = () => learningBoardFetch<ServiceReport[]>("/learning-board/reports");
 export const createServiceReport = (body: Partial<ServiceReport>) => learningBoardFetch<ServiceReport>("/learning-board/reports", { method: "POST", body: JSON.stringify(body) });

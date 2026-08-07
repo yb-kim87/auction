@@ -23,6 +23,9 @@ import {
   fetchMyProfile,
   fetchAssignmentByAuction,
   createAssignment,
+  fetchCoachBidPlan,
+  fetchCoachAssignmentByAuction,
+  updateCoachAssignment,
   type BidPlan,
   type AuctionAssignment,
 } from "@/lib/api";
@@ -231,6 +234,7 @@ export function ProfitCalculatorPanel({
   housingCount,
   regulatedArea,
   annualNetIncomeWon,
+  coachViewUsername,
 }: {
   item: AuctionItem;
   rightsAnalysis?: AuctionAnalysisResult | null;
@@ -243,7 +247,15 @@ export function ProfitCalculatorPanel({
   /** 회원 투자정보의 연순소득(원). 저장된 입찰계획이 없을 때 "기존소득(연간)"
    * 초기값으로 자동 반영한다(사용자 요청, 2026-08-02). */
   annualNetIncomeWon?: number | null;
+  /** 코치(관리자)가 과제 검토 목록에서 물건번호를 눌러 들어온 경우 이
+   * 수강생의 아이디 — 지정되면 로그인한 본인(관리자) 것이 아니라 이
+   * 수강생이 저장한 입찰계획·제출한 과제를 읽기 전용으로 보여준다
+   * (사용자 요청, 2026-08-07: "과제 물건번호를 누르면 입찰계획으로
+   * 넘어가고 거기에 수강생이 과제로 제출한 정보가 보이게 하는건
+   * 어떨까?"). */
+  coachViewUsername?: string | null;
 }) {
+  const isCoachView = Boolean(coachViewUsername);
   // 이미 낙찰된 물건은 예상 최저가가 아니라 실제 낙찰가(item.salePrice,
   // DB 엑셀 컬럼명 "낙찰가")로 초기값을 채운다(사용자 요청: "낙찰된
   // 물건은 낙찰가에 최저가를 넣지 말고 실제 낙찰가정보를 넣어줘",
@@ -340,11 +352,32 @@ export function ProfitCalculatorPanel({
   const [safetyResearch3, setSafetyResearch3] = useState("");
   const [finalSafetyMargin, setFinalSafetyMargin] = useState("");
 
+  // 코치 보기 모드 전용 — 이 화면에서 바로 피드백을 남길 수 있게 한다.
+  const [coachFeedbackDraft, setCoachFeedbackDraft] = useState("");
+  const [coachFeedbackSaving, setCoachFeedbackSaving] = useState(false);
+  const [coachFeedbackMessage, setCoachFeedbackMessage] = useState("");
+
+  async function handleSaveCoachFeedback() {
+    if (!savedAssignment) return;
+    setCoachFeedbackSaving(true);
+    setCoachFeedbackMessage("");
+    try {
+      const saved = await updateCoachAssignment(savedAssignment.id, { coachFeedback: coachFeedbackDraft });
+      setSavedAssignment(saved);
+      setCoachFeedbackMessage("피드백을 저장했습니다.");
+    } catch (err) {
+      setCoachFeedbackMessage(err instanceof Error ? err.message : "피드백 저장에 실패했습니다.");
+    } finally {
+      setCoachFeedbackSaving(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
-    setShowBidPlanEditor(false);
+    setShowBidPlanEditor(isCoachView);
     setBidPlanMessage("");
-    fetchBidPlan(item.id)
+    const loadPlan = isCoachView ? fetchCoachBidPlan(coachViewUsername as string, item.id) : fetchBidPlan(item.id);
+    loadPlan
       .then((plan) => {
         if (cancelled || !plan) return;
         setSavedBidPlan(plan);
@@ -381,17 +414,23 @@ export function ProfitCalculatorPanel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.id]);
+  }, [item.id, isCoachView, coachViewUsername]);
 
   useEffect(() => {
+    if (isCoachView) {
+      // 코치 보기 모드에서는 관리자 본인 등급과 무관하게 제출/저장 버튼을
+      // 항상 숨긴다(읽기 전용) — 관리자 계정으로 실수로 저장하는 것을 방지.
+      setAssignmentEligible(false);
+      return;
+    }
     fetchMyProfile()
       .then((profile) => setAssignmentEligible(ASSIGNMENT_ELIGIBLE_ROLES.has(profile.role)))
       .catch(() => setAssignmentEligible(false));
-  }, []);
+  }, [isCoachView]);
 
   useEffect(() => {
     let cancelled = false;
-    setShowAssignmentEditor(false);
+    setShowAssignmentEditor(isCoachView);
     setAssignmentMessage("");
     setSavedAssignment(null);
     setAssignmentMemo("");
@@ -403,7 +442,10 @@ export function ProfitCalculatorPanel({
     setSafetyResearch2("");
     setSafetyResearch3("");
     setFinalSafetyMargin("");
-    fetchAssignmentByAuction(item.id)
+    const loadAssignment = isCoachView
+      ? fetchCoachAssignmentByAuction(coachViewUsername as string, item.id)
+      : fetchAssignmentByAuction(item.id);
+    loadAssignment
       .then((a) => {
         if (cancelled || !a) return;
         setSavedAssignment(a);
@@ -416,6 +458,7 @@ export function ProfitCalculatorPanel({
         setSafetyResearch2(a.safetyResearch2 ?? "");
         setSafetyResearch3(a.safetyResearch3 ?? "");
         setFinalSafetyMargin(a.finalSafetyMargin ?? "");
+        if (isCoachView) setCoachFeedbackDraft(a.coachFeedback ?? "");
       })
       .catch(() => {
         // 제출한 과제가 없거나 조회 실패 — 조용히 무시(빈 폼 유지).
@@ -423,7 +466,7 @@ export function ProfitCalculatorPanel({
     return () => {
       cancelled = true;
     };
-  }, [item.id]);
+  }, [item.id, isCoachView, coachViewUsername]);
 
   async function handleSaveBidPlan() {
     setBidPlanSaving(true);
@@ -752,57 +795,75 @@ export function ProfitCalculatorPanel({
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-bold text-foreground">나의 입찰 계획</h3>
+          <h3 className="text-sm font-bold text-foreground">
+            {isCoachView ? `${coachViewUsername}님의 입찰 계획` : "나의 입찰 계획"}
+          </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            목표 입찰가와 매도가를 조정해 필요한 자금과 예상 수익을 확인하세요. 대출한도는
-            min(감정가×감정가비율, 낙찰가×낙찰가비율)로 계산되며, 아래 비율은 이 물건에 적용된
-            대출정책 값으로 기본 설정되어 있습니다.
+            {isCoachView
+              ? "수강생이 과제제출 당시 저장한 입찰계획과 제출 내용입니다(읽기 전용)."
+              : "목표 입찰가와 매도가를 조정해 필요한 자금과 예상 수익을 확인하세요. 대출한도는 min(감정가×감정가비율, 낙찰가×낙찰가비율)로 계산되며, 아래 비율은 이 물건에 적용된 대출정책 값으로 기본 설정되어 있습니다."}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          {assignmentEligible && (
-            <button
-              type="button"
-              onClick={() => setShowAssignmentEditor((open) => !open)}
-              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                showAssignmentEditor
-                  ? "border-amber-500 bg-amber-500 text-white"
-                  : savedAssignment
-                    ? "border-amber-400/40 bg-amber-400/[0.08] text-amber-700 hover:bg-amber-400/[0.15]"
-                    : "border-border bg-card text-foreground hover:bg-secondary"
-              }`}
-            >
-              {showAssignmentEditor ? "과제제출 닫기" : savedAssignment ? "제출한 과제 수정" : "과제제출"}
-            </button>
+          {isCoachView ? (
+            <span className="rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-3 py-2 text-xs font-semibold text-amber-700">
+              코치 보기 모드
+            </span>
+          ) : (
+            <>
+              {assignmentEligible && (
+                <button
+                  type="button"
+                  onClick={() => setShowAssignmentEditor((open) => !open)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                    showAssignmentEditor
+                      ? "border-amber-500 bg-amber-500 text-white"
+                      : savedAssignment
+                        ? "border-amber-400/40 bg-amber-400/[0.08] text-amber-700 hover:bg-amber-400/[0.15]"
+                        : "border-border bg-card text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {showAssignmentEditor ? "과제제출 닫기" : savedAssignment ? "제출한 과제 수정" : "과제제출"}
+                </button>
+              )}
+              <div className="flex items-center gap-2">
+                {savedBidPlan && !showBidPlanEditor && (
+                  <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                    {new Date(savedBidPlan.updatedAt).toLocaleDateString("ko-KR")} 저장됨
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowBidPlanEditor((open) => !open)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                    showBidPlanEditor
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : savedBidPlan
+                        ? "border-primary/25 bg-primary/[0.05] text-primary hover:bg-primary/[0.1]"
+                        : "border-border bg-card text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {showBidPlanEditor ? "계획 닫기" : savedBidPlan ? "저장된 입찰계획" : "입찰계획 저장"}
+                </button>
+              </div>
+            </>
           )}
-          <div className="flex items-center gap-2">
-            {savedBidPlan && !showBidPlanEditor && (
-              <span className="hidden text-[11px] text-muted-foreground sm:inline">
-                {new Date(savedBidPlan.updatedAt).toLocaleDateString("ko-KR")} 저장됨
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowBidPlanEditor((open) => !open)}
-              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                showBidPlanEditor
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : savedBidPlan
-                    ? "border-primary/25 bg-primary/[0.05] text-primary hover:bg-primary/[0.1]"
-                    : "border-border bg-card text-foreground hover:bg-secondary"
-              }`}
-            >
-              {showBidPlanEditor ? "계획 닫기" : savedBidPlan ? "저장된 입찰계획" : "입찰계획 저장"}
-            </button>
-          </div>
         </div>
       </div>
 
-      {showAssignmentEditor && (
+      {showAssignmentEditor && isCoachView && !savedAssignment && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.04] p-4">
+          <p className="text-xs text-muted-foreground">
+            {coachViewUsername}님이 이 물건에 제출한 과제가 없습니다.
+          </p>
+        </div>
+      )}
+
+      {showAssignmentEditor && (!isCoachView || savedAssignment) && (
         <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.04] p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-foreground">
-              과제제출
+              {isCoachView ? "제출한 과제" : "과제제출"}
               {savedAssignment && (
                 <span className="ml-2 font-normal text-muted-foreground">
                   {new Date(savedAssignment.updatedAt).toLocaleString("ko-KR")} 제출됨
@@ -810,16 +871,19 @@ export function ProfitCalculatorPanel({
               )}
             </p>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            현재 입찰계획(낙찰가 {bidPrice.toLocaleString("ko-KR")}원 · 매도가 {salePrice.toLocaleString("ko-KR")}원 ·
-            최종수익 {result.finalProfit.toLocaleString("ko-KR")}원)과 함께 아래 내용을 제출합니다.
-          </p>
+          {!isCoachView && (
+            <p className="text-[11px] text-muted-foreground">
+              현재 입찰계획(낙찰가 {bidPrice.toLocaleString("ko-KR")}원 · 매도가 {salePrice.toLocaleString("ko-KR")}원 ·
+              최종수익 {result.finalProfit.toLocaleString("ko-KR")}원)과 함께 아래 내용을 제출합니다.
+            </p>
+          )}
           <textarea
             rows={2}
             placeholder="메모"
             value={assignmentMemo}
             onChange={(e) => setAssignmentMemo(e.target.value)}
-            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card resize-y"
+            readOnly={isCoachView}
+            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card resize-y read-only:bg-secondary/10"
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-border bg-card p-3">
@@ -838,6 +902,7 @@ export function ProfitCalculatorPanel({
                     inputMode="numeric"
                     value={value ? formatDigits(value) : ""}
                     onChange={(e) => setValue(digitsOnly(e.target.value))}
+                    readOnly={isCoachView}
                     className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
                   />
                 </label>
@@ -859,34 +924,68 @@ export function ProfitCalculatorPanel({
                     inputMode="numeric"
                     value={value ? formatDigits(value) : ""}
                     onChange={(e) => setValue(digitsOnly(e.target.value))}
+                    readOnly={isCoachView}
                     className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
                   />
                 </label>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleSubmitAssignment()}
-              disabled={assignmentSaving}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-amber-500 text-white disabled:opacity-50"
-            >
-              {assignmentSaving ? "제출 중..." : savedAssignment ? "다시 제출하기" : "과제 제출하기"}
-            </button>
-            {assignmentMessage && <span className="text-xs text-muted-foreground">{assignmentMessage}</span>}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            제출한 과제는 상단 메뉴의 내 물건 &gt; 과제제출에서 모아보고 수정할 수 있습니다.
-          </p>
+
+          {isCoachView ? (
+            <div className="space-y-2 border-t border-amber-400/20 pt-3">
+              <p className="text-xs font-semibold text-foreground">코치 피드백</p>
+              <textarea
+                rows={3}
+                value={coachFeedbackDraft}
+                onChange={(e) => setCoachFeedbackDraft(e.target.value)}
+                placeholder="이 과제에 대한 피드백을 남겨 주세요."
+                className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card resize-y"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveCoachFeedback()}
+                  disabled={coachFeedbackSaving}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-amber-500 text-white disabled:opacity-50"
+                >
+                  {coachFeedbackSaving ? "저장 중..." : "피드백 저장"}
+                </button>
+                {coachFeedbackMessage && <span className="text-xs text-muted-foreground">{coachFeedbackMessage}</span>}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitAssignment()}
+                  disabled={assignmentSaving}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-amber-500 text-white disabled:opacity-50"
+                >
+                  {assignmentSaving ? "제출 중..." : savedAssignment ? "다시 제출하기" : "과제 제출하기"}
+                </button>
+                {assignmentMessage && <span className="text-xs text-muted-foreground">{assignmentMessage}</span>}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                제출한 과제는 상단 메뉴의 내 물건 &gt; 과제제출에서 모아보고 수정할 수 있습니다.
+              </p>
+            </>
+          )}
         </div>
       )}
 
-      {showBidPlanEditor && (
+      {showBidPlanEditor && isCoachView && !savedBidPlan && (
+        <div className="rounded-xl border border-primary/15 bg-primary/[0.025] p-4">
+          <p className="text-xs text-muted-foreground">{coachViewUsername}님이 저장한 입찰계획이 없습니다.</p>
+        </div>
+      )}
+
+      {showBidPlanEditor && (!isCoachView || savedBidPlan) && (
       <div className="rounded-xl border border-primary/15 bg-primary/[0.025] p-4 space-y-2.5">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-foreground">
-            입찰 계획 저장
+            {isCoachView ? "저장된 입찰계획" : "입찰 계획 저장"}
             {savedBidPlan && (
               <span className="ml-2 font-normal text-muted-foreground">
                 {new Date(savedBidPlan.updatedAt).toLocaleString("ko-KR")} 저장됨
@@ -899,29 +998,32 @@ export function ProfitCalculatorPanel({
           placeholder="메모(예: 이 가격 이하로만 입찰, 전세가 확인 후 결정 등)"
           value={bidPlanMemo}
           onChange={(e) => setBidPlanMemo(e.target.value)}
+          readOnly={isCoachView}
           className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-secondary/10 resize-y"
         />
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void handleSaveBidPlan()}
-            disabled={bidPlanSaving}
-            className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-          >
-            {bidPlanSaving ? "처리 중..." : savedBidPlan ? "다시 저장" : "이 계획 저장하기"}
-          </button>
-          {savedBidPlan && (
+        {!isCoachView && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void handleDeleteBidPlan()}
+              onClick={() => void handleSaveBidPlan()}
               disabled={bidPlanSaving}
-              className="px-3 py-1.5 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-50"
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
             >
-              삭제
+              {bidPlanSaving ? "처리 중..." : savedBidPlan ? "다시 저장" : "이 계획 저장하기"}
             </button>
-          )}
-          {bidPlanMessage && <span className="text-xs text-muted-foreground">{bidPlanMessage}</span>}
-        </div>
+            {savedBidPlan && (
+              <button
+                type="button"
+                onClick={() => void handleDeleteBidPlan()}
+                disabled={bidPlanSaving}
+                className="px-3 py-1.5 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-50"
+              >
+                삭제
+              </button>
+            )}
+            {bidPlanMessage && <span className="text-xs text-muted-foreground">{bidPlanMessage}</span>}
+          </div>
+        )}
         <p className="text-[11px] text-muted-foreground">저장한 계획은 상단 메뉴의 내 물건 &gt; 입찰계획에서 모아볼 수 있습니다.</p>
       </div>
       )}

@@ -1722,6 +1722,7 @@ export function AuctionDetailModal({
   aiAnalysisLimit,
   aiAnalysisUsed,
   onAiAnalysisUsed,
+  coachViewUsername = null,
 }: {
   item: AuctionItem | null;
   onClose: () => void;
@@ -1761,6 +1762,11 @@ export function AuctionDetailModal({
   aiAnalysisLimit?: number;
   aiAnalysisUsed?: number;
   onAiAnalysisUsed?: () => void;
+  /** 코치(관리자)가 과제 검토 목록에서 물건번호를 눌러 들어온 경우 이
+   * 수강생의 아이디 — ProfitCalculatorPanel에 그대로 전달해 본인이
+   * 아니라 이 수강생의 입찰계획·제출 과제를 읽기 전용으로 보여준다
+   * (사용자 요청, 2026-08-07). */
+  coachViewUsername?: string | null;
 }) {
   const [form, setForm] = useState<UpdateAuctionPayload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -2634,6 +2640,7 @@ export function AuctionDetailModal({
                 housingCount={housingCount}
                 regulatedArea={regulatedArea}
                 annualNetIncomeWon={parseIncomeToWon(annualNetIncome ?? undefined) ?? undefined}
+                coachViewUsername={coachViewUsername}
               />
             )}
           </div>
