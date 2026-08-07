@@ -21,10 +21,15 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
  * 지금은 안보이는거 같아서"). */
 const BID_PLAN_INPUT_LABELS: { key: string; label: string; unit?: string; percent?: boolean }[] = [
   { key: "holdingMonths", label: "보유기간", unit: "개월" },
-  { key: "loanRatioByAppraisal", label: "감정가 기준 대출비율", percent: true },
-  { key: "loanRatioByBidPrice", label: "낙찰가 기준 대출비율", percent: true },
-  { key: "loanInterestRate", label: "대출 연이자율", percent: true },
-  { key: "earlyRepaymentFeeRate", label: "중도상환수수료율", percent: true },
+  // loanRatioByAppraisal/loanRatioByBidPrice/loanInterestRate/
+  // earlyRepaymentFeeRate는 ProfitCalculatorPanel의 NumberField(suffix="%")
+  // 입력값을 그대로 저장한 것이라 이미 70·4.5 같은 %단위 숫자다(0~1
+  // 소수가 아님) — *100 하면 안 된다(2026-08-07, 실측 확인: 저장된
+  // 80이 "8000.0%"로 잘못 표시되는 걸 발견해 수정).
+  { key: "loanRatioByAppraisal", label: "감정가 기준 대출비율", unit: "%" },
+  { key: "loanRatioByBidPrice", label: "낙찰가 기준 대출비율", unit: "%" },
+  { key: "loanInterestRate", label: "대출 연이자율", unit: "%" },
+  { key: "earlyRepaymentFeeRate", label: "중도상환수수료율", unit: "%" },
   { key: "interiorCost", label: "인테리어 비용", unit: "원" },
   { key: "evictionCost", label: "명도비", unit: "원" },
   { key: "unpaidMaintenanceFee", label: "미납관리비", unit: "원" },
