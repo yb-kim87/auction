@@ -267,7 +267,6 @@ export default function FavoritesPage() {
             >
               <FileText size={14} /> 입찰계획 <span className="opacity-75">{bidPlans.length}</span>
             </button>
-            <Link href="/learning" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary">학습 지원</Link>
             <Link href="/favorites/calendar" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary">
               <Calendar size={14} /> 입찰 달력
             </Link>
@@ -392,6 +391,7 @@ export default function FavoritesPage() {
                         <span>{new Date(plan.updatedAt).toLocaleDateString("ko-KR")} 저장</span>
                       </div>
                       {plan.memo && <p className="mt-1.5 truncate text-[0.68rem] text-muted-foreground">메모 · {plan.memo}</p>}
+                      <Link href={`/assignments?auctionId=${encodeURIComponent(plan.auctionId)}&auctionNo=${encodeURIComponent(auction?.auctionNo ?? "")}&address=${encodeURIComponent(auction?.address ?? "")}`} onClick={(event) => event.stopPropagation()} className="mt-2 inline-flex rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90">과제 제출</Link>
                     </div>
                     <PlanMetric label="계획 입찰가" value={formatWonShort(plan.bidPrice)} />
                     <PlanMetric label="예상 매도가" value={formatWonShort(plan.salePrice)} />
