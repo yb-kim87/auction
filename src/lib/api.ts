@@ -4866,7 +4866,7 @@ export function revokeLectureEnrollment(id: string): Promise<LectureEnrollmentAd
   );
 }
 
-export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; phoneFinal: string; safetyResearch1: string; safetyResearch2: string; safetyResearch3: string; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
+export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; phoneFinal: string; safetyResearch1: string; safetyResearch2: string; safetyResearch3: string; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; finalProfit: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
 export interface ServiceReport { id: string; username: string; type: string; title: string; description: string; reproduction: string; expectedResult: string; actualResult: string; pageUrl: string; status: string; adminReply: string; createdAt: string; updatedAt: string; }
 async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(init?.headers) });
@@ -4874,8 +4874,19 @@ async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<
   return readJsonResponse<T>(res);
 }
 export const fetchAssignments = () => learningBoardFetch<AuctionAssignment[]>("/learning-board/assignments");
+/** 물건 상세 "과제제출" 버튼에서 이 물건에 이미 제출한 과제가 있는지
+ * 확인 — 있으면 폼을 채워 재제출 시 수정으로 처리한다(사용자 요청,
+ * 2026-08-07). 없으면 null. */
+export const fetchAssignmentByAuction = (auctionId: string) =>
+  learningBoardFetch<AuctionAssignment | null>(`/learning-board/assignments/by-auction/${encodeURIComponent(auctionId)}`);
+/** auctionId를 넣어 호출하면 백엔드가 같은 물건에 대한 기존 제출을
+ * 찾아 덮어쓴다(upsert) — 신규/재제출 구분 없이 이 함수 하나로 처리. */
 export const createAssignment = (body: Partial<AuctionAssignment>) => learningBoardFetch<AuctionAssignment>("/learning-board/assignments", { method: "POST", body: JSON.stringify(body) });
 export const updateAssignment = (id: string, body: Partial<AuctionAssignment>) => learningBoardFetch<AuctionAssignment>(`/learning-board/assignments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) });
 export const deleteAssignment = (id: string) => learningBoardFetch<{ ok: boolean }>(`/learning-board/assignments/${encodeURIComponent(id)}`, { method: "DELETE" });
+/** 코치(관리자) 전용 — 전체 수강생 과제 제출 현황(사용자 요청, 2026-08-07). */
+export const fetchCoachAssignments = () => learningBoardFetch<AuctionAssignment[]>("/learning-board/assignments/coach");
+export const updateCoachAssignment = (id: string, body: { coachFeedback?: string; status?: string }) =>
+  learningBoardFetch<AuctionAssignment>(`/learning-board/assignments/${encodeURIComponent(id)}/coach`, { method: "PATCH", body: JSON.stringify(body) });
 export const fetchServiceReports = () => learningBoardFetch<ServiceReport[]>("/learning-board/reports");
 export const createServiceReport = (body: Partial<ServiceReport>) => learningBoardFetch<ServiceReport>("/learning-board/reports", { method: "POST", body: JSON.stringify(body) });

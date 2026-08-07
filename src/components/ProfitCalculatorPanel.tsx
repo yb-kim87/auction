@@ -20,8 +20,28 @@ import {
   fetchBidPlan,
   saveBidPlan,
   deleteBidPlan,
+  fetchMyProfile,
+  fetchAssignmentByAuction,
+  createAssignment,
   type BidPlan,
+  type AuctionAssignment,
 } from "@/lib/api";
+
+/** "과제제출" 버튼을 볼 수 있는 등급 — 기존 /assignments 페이지의
+ * 접근 등급과 동일(사용자 요청, 2026-08-07: 물건 상세에서 바로
+ * 과제제출하는 방식으로 변경). */
+const ASSIGNMENT_ELIGIBLE_ROLES = new Set(["student", "consulting_student", "consultant", "admin"]);
+
+/** 숫자만 남기고 콤마 포맷으로 보여주는 간단한 금액 입력 — 과제제출
+ * 폼의 전화시세/안전마진 조사 항목에 사용(기존 /assignments 페이지와
+ * 동일한 입력 방식). */
+function digitsOnly(value: string): string {
+  return value.replace(/[^0-9]/g, "");
+}
+function formatDigits(value: string): string {
+  const n = Number(digitsOnly(value) || 0);
+  return n.toLocaleString("ko-KR");
+}
 
 function parseAreaNumber(value: string | null | undefined): number | null {
   const num = Number.parseFloat(String(value ?? "").match(/[\d.]+/)?.[0] ?? "");
@@ -299,6 +319,27 @@ export function ProfitCalculatorPanel({
   const [bidPlanMessage, setBidPlanMessage] = useState("");
   const [showBidPlanEditor, setShowBidPlanEditor] = useState(false);
 
+  // 과제제출 — 물건 상세에서 바로 "메모/전화시세결과/주변 안전마진
+  // 조사"를 입력해 현재 입찰계획 값과 함께 제출한다(사용자 요청,
+  // 2026-08-07: "기존에 과제 제출에 있었던 메모/전화시세결과/주변
+  // 안전마진 조사 부분을 입력하게 하고 그거랑 같이 입찰계획 내용이
+  // 같이 저장돼서 과제제출이 되면"). 제출 현황·수정은 내 물건 >
+  // 과제제출 탭에서 한다 — 여기서는 제출/재제출만 담당.
+  const [assignmentEligible, setAssignmentEligible] = useState(false);
+  const [savedAssignment, setSavedAssignment] = useState<AuctionAssignment | null>(null);
+  const [showAssignmentEditor, setShowAssignmentEditor] = useState(false);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+  const [assignmentMemo, setAssignmentMemo] = useState("");
+  const [phoneBuyer, setPhoneBuyer] = useState("");
+  const [phoneSeller, setPhoneSeller] = useState("");
+  const [phoneBidder, setPhoneBidder] = useState("");
+  const [phoneFinal, setPhoneFinal] = useState("");
+  const [safetyResearch1, setSafetyResearch1] = useState("");
+  const [safetyResearch2, setSafetyResearch2] = useState("");
+  const [safetyResearch3, setSafetyResearch3] = useState("");
+  const [finalSafetyMargin, setFinalSafetyMargin] = useState("");
+
   useEffect(() => {
     let cancelled = false;
     setShowBidPlanEditor(false);
@@ -340,6 +381,48 @@ export function ProfitCalculatorPanel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
+  useEffect(() => {
+    fetchMyProfile()
+      .then((profile) => setAssignmentEligible(ASSIGNMENT_ELIGIBLE_ROLES.has(profile.role)))
+      .catch(() => setAssignmentEligible(false));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setShowAssignmentEditor(false);
+    setAssignmentMessage("");
+    setSavedAssignment(null);
+    setAssignmentMemo("");
+    setPhoneBuyer("");
+    setPhoneSeller("");
+    setPhoneBidder("");
+    setPhoneFinal("");
+    setSafetyResearch1("");
+    setSafetyResearch2("");
+    setSafetyResearch3("");
+    setFinalSafetyMargin("");
+    fetchAssignmentByAuction(item.id)
+      .then((a) => {
+        if (cancelled || !a) return;
+        setSavedAssignment(a);
+        setAssignmentMemo(a.memo ?? "");
+        setPhoneBuyer(a.phoneBuyer ?? "");
+        setPhoneSeller(a.phoneSeller ?? "");
+        setPhoneBidder(a.phoneBidder ?? "");
+        setPhoneFinal(a.phoneFinal ?? "");
+        setSafetyResearch1(a.safetyResearch1 ?? "");
+        setSafetyResearch2(a.safetyResearch2 ?? "");
+        setSafetyResearch3(a.safetyResearch3 ?? "");
+        setFinalSafetyMargin(a.finalSafetyMargin ?? "");
+      })
+      .catch(() => {
+        // 제출한 과제가 없거나 조회 실패 — 조용히 무시(빈 폼 유지).
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [item.id]);
 
   async function handleSaveBidPlan() {
@@ -389,6 +472,66 @@ export function ProfitCalculatorPanel({
       setBidPlanMessage(err instanceof Error ? err.message : "삭제에 실패했습니다.");
     } finally {
       setBidPlanSaving(false);
+    }
+  }
+
+  async function handleSubmitAssignment() {
+    setAssignmentSaving(true);
+    setAssignmentMessage("");
+    try {
+      // 과제제출은 현재 입찰계획 값도 함께 저장한다(사용자 요청: "입찰계획
+      // 내용이 같이 저장돼서 과제제출이 되면") — 계획을 아직 저장 안 한
+      // 상태에서 과제만 먼저 제출하는 경우도 있으므로 여기서도 한 번 더
+      // 입찰계획을 저장해 둔다.
+      const plan = await saveBidPlan(item.id, {
+        bidPrice,
+        salePrice,
+        finalProfit: result.finalProfit,
+        requiredEquity: result.equity,
+        memo: bidPlanMemo,
+        inputs: {
+          bidPrice,
+          salePrice,
+          holdingMonths,
+          loanRatioByAppraisal,
+          loanRatioByBidPrice,
+          loanInterestRate,
+          earlyRepaymentFeeRate,
+          interiorCost,
+          evictionCost,
+          unpaidMaintenanceFee,
+          extraRealtyFee,
+          vatAmount,
+          applyProgressiveDeduction,
+          existingIncome,
+        },
+      });
+      setSavedBidPlan(plan);
+
+      const saved = await createAssignment({
+        auctionId: item.id,
+        auctionNo: item.auctionNo,
+        address: item.address,
+        memo: assignmentMemo,
+        phoneBuyer,
+        phoneSeller,
+        phoneBidder,
+        phoneFinal,
+        safetyResearch1,
+        safetyResearch2,
+        safetyResearch3,
+        finalSafetyMargin,
+        finalMarketPrice: salePrice,
+        targetBidPrice: bidPrice,
+        requiredEquity: result.equity,
+        finalProfit: result.finalProfit,
+      });
+      setSavedAssignment(saved);
+      setAssignmentMessage("과제가 제출되었습니다. 제출 현황은 내 물건 > 과제제출에서 확인할 수 있습니다.");
+    } catch (err) {
+      setAssignmentMessage(err instanceof Error ? err.message : "과제 제출에 실패했습니다.");
+    } finally {
+      setAssignmentSaving(false);
     }
   }
 
@@ -616,27 +759,128 @@ export function ProfitCalculatorPanel({
             대출정책 값으로 기본 설정되어 있습니다.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {savedBidPlan && !showBidPlanEditor && (
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">
-              {new Date(savedBidPlan.updatedAt).toLocaleDateString("ko-KR")} 저장됨
-            </span>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {assignmentEligible && (
+            <button
+              type="button"
+              onClick={() => setShowAssignmentEditor((open) => !open)}
+              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                showAssignmentEditor
+                  ? "border-amber-500 bg-amber-500 text-white"
+                  : savedAssignment
+                    ? "border-amber-400/40 bg-amber-400/[0.08] text-amber-700 hover:bg-amber-400/[0.15]"
+                    : "border-border bg-card text-foreground hover:bg-secondary"
+              }`}
+            >
+              {showAssignmentEditor ? "과제제출 닫기" : savedAssignment ? "제출한 과제 수정" : "과제제출"}
+            </button>
           )}
-          <button
-            type="button"
-            onClick={() => setShowBidPlanEditor((open) => !open)}
-            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-              showBidPlanEditor
-                ? "border-primary bg-primary text-primary-foreground"
-                : savedBidPlan
-                  ? "border-primary/25 bg-primary/[0.05] text-primary hover:bg-primary/[0.1]"
-                  : "border-border bg-card text-foreground hover:bg-secondary"
-            }`}
-          >
-            {showBidPlanEditor ? "계획 닫기" : savedBidPlan ? "저장된 입찰계획" : "입찰계획 저장"}
-          </button>
+          <div className="flex items-center gap-2">
+            {savedBidPlan && !showBidPlanEditor && (
+              <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                {new Date(savedBidPlan.updatedAt).toLocaleDateString("ko-KR")} 저장됨
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowBidPlanEditor((open) => !open)}
+              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                showBidPlanEditor
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : savedBidPlan
+                    ? "border-primary/25 bg-primary/[0.05] text-primary hover:bg-primary/[0.1]"
+                    : "border-border bg-card text-foreground hover:bg-secondary"
+              }`}
+            >
+              {showBidPlanEditor ? "계획 닫기" : savedBidPlan ? "저장된 입찰계획" : "입찰계획 저장"}
+            </button>
+          </div>
         </div>
       </div>
+
+      {showAssignmentEditor && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.04] p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-foreground">
+              과제제출
+              {savedAssignment && (
+                <span className="ml-2 font-normal text-muted-foreground">
+                  {new Date(savedAssignment.updatedAt).toLocaleString("ko-KR")} 제출됨
+                </span>
+              )}
+            </p>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            현재 입찰계획(낙찰가 {bidPrice.toLocaleString("ko-KR")}원 · 매도가 {salePrice.toLocaleString("ko-KR")}원 ·
+            최종수익 {result.finalProfit.toLocaleString("ko-KR")}원)과 함께 아래 내용을 제출합니다.
+          </p>
+          <textarea
+            rows={2}
+            placeholder="메모"
+            value={assignmentMemo}
+            onChange={(e) => setAssignmentMemo(e.target.value)}
+            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card resize-y"
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-border bg-card p-3">
+              <p className="text-xs font-semibold text-foreground mb-2">전화 시세 결과</p>
+              {(
+                [
+                  ["매수자", phoneBuyer, setPhoneBuyer],
+                  ["매도자", phoneSeller, setPhoneSeller],
+                  ["입찰자", phoneBidder, setPhoneBidder],
+                  ["최종 시세", phoneFinal, setPhoneFinal],
+                ] as const
+              ).map(([label, value, setValue]) => (
+                <label key={label} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
+                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+                  <input
+                    inputMode="numeric"
+                    value={value ? formatDigits(value) : ""}
+                    onChange={(e) => setValue(digitsOnly(e.target.value))}
+                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="rounded-lg border border-border bg-card p-3">
+              <p className="text-xs font-semibold text-foreground mb-2">주변 안전마진 조사</p>
+              {(
+                [
+                  ["조사 1", safetyResearch1, setSafetyResearch1],
+                  ["조사 2", safetyResearch2, setSafetyResearch2],
+                  ["조사 3", safetyResearch3, setSafetyResearch3],
+                  ["최종 안전마진", finalSafetyMargin, setFinalSafetyMargin],
+                ] as const
+              ).map(([label, value, setValue]) => (
+                <label key={label} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
+                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+                  <input
+                    inputMode="numeric"
+                    value={value ? formatDigits(value) : ""}
+                    onChange={(e) => setValue(digitsOnly(e.target.value))}
+                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleSubmitAssignment()}
+              disabled={assignmentSaving}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-amber-500 text-white disabled:opacity-50"
+            >
+              {assignmentSaving ? "제출 중..." : savedAssignment ? "다시 제출하기" : "과제 제출하기"}
+            </button>
+            {assignmentMessage && <span className="text-xs text-muted-foreground">{assignmentMessage}</span>}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            제출한 과제는 상단 메뉴의 내 물건 &gt; 과제제출에서 모아보고 수정할 수 있습니다.
+          </p>
+        </div>
+      )}
 
       {showBidPlanEditor && (
       <div className="rounded-xl border border-primary/15 bg-primary/[0.025] p-4 space-y-2.5">

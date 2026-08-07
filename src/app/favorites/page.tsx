@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Calendar, FileText, Heart, LogOut, Target } from "lucide-react";
+import { Calendar, ClipboardList, FileText, Heart, LogOut, Target } from "lucide-react";
 import type { AuctionItem, UserProfile } from "@/types/auction";
 import { clearAuthCookie } from "@/lib/auth";
 import {
@@ -15,8 +15,11 @@ import {
   fetchMyProfile,
   logoutUser,
   fetchMyBidPlans,
+  fetchAssignments,
+  updateAssignment,
   type FavoriteItem,
   type BidPlanWithAuction,
+  type AuctionAssignment,
 } from "@/lib/api";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { RecommendCard, type LoanInfo } from "@/components/RecommendCard";
@@ -53,6 +56,168 @@ function PlanMetric({
   );
 }
 
+const STATUS_LABEL: Record<string, string> = { draft: "제출됨", reviewed: "코치 확인됨" };
+function digitsOnly(value: string): string {
+  return value.replace(/[^0-9]/g, "");
+}
+function formatDigits(value: string): string {
+  return Number(digitsOnly(value) || 0).toLocaleString("ko-KR");
+}
+
+/** 과제제출 탭의 항목 하나 — 제출 현황 표시 + 인라인 수정(사용자 요청,
+ * 2026-08-07: "저기서 누르면 제출 현황을 볼 수 있고 수정도 할 수 있고"). */
+function AssignmentCard({
+  assignment,
+  onUpdated,
+}: {
+  assignment: AuctionAssignment;
+  onUpdated: (next: AuctionAssignment) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState(assignment);
+
+  useEffect(() => {
+    setForm(assignment);
+  }, [assignment]);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage("");
+    try {
+      const saved = await updateAssignment(assignment.id, {
+        memo: form.memo,
+        phoneBuyer: form.phoneBuyer,
+        phoneSeller: form.phoneSeller,
+        phoneBidder: form.phoneBidder,
+        phoneFinal: form.phoneFinal,
+        safetyResearch1: form.safetyResearch1,
+        safetyResearch2: form.safetyResearch2,
+        safetyResearch3: form.safetyResearch3,
+        finalSafetyMargin: form.finalSafetyMargin,
+      });
+      onUpdated(saved);
+      setEditing(false);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "수정에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const phoneRows: [string, keyof AuctionAssignment][] = [
+    ["매수자", "phoneBuyer"],
+    ["매도자", "phoneSeller"],
+    ["입찰자", "phoneBidder"],
+    ["최종 시세", "phoneFinal"],
+  ];
+  const safetyRows: [string, keyof AuctionAssignment][] = [
+    ["조사 1", "safetyResearch1"],
+    ["조사 2", "safetyResearch2"],
+    ["조사 3", "safetyResearch3"],
+    ["최종 안전마진", "finalSafetyMargin"],
+  ];
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[0.68rem] font-semibold text-primary">{assignment.auctionNo || "사건번호 없음"}</span>
+            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[0.6rem] font-semibold text-amber-700">
+              {STATUS_LABEL[assignment.status] ?? assignment.status}
+            </span>
+          </div>
+          <p className="mt-1 text-[0.82rem] font-semibold text-foreground">{assignment.address || "주소 정보 없음"}</p>
+          <p className="mt-1 text-[0.68rem] text-muted-foreground">
+            {new Date(assignment.updatedAt).toLocaleString("ko-KR")} 제출
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <PlanMetric label="입찰가" value={formatWonShort(assignment.targetBidPrice)} />
+          <PlanMetric label="예상 매도가" value={formatWonShort(assignment.finalMarketPrice)} />
+          <PlanMetric
+            label="최종수익"
+            value={formatWonShort(assignment.finalProfit)}
+            positive={assignment.finalProfit >= 0}
+            primary
+          />
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-secondary"
+          >
+            {editing ? "닫기" : "수정"}
+          </button>
+        </div>
+      </div>
+
+      {assignment.coachFeedback && (
+        <div className="rounded-lg border border-primary/20 bg-primary/[0.05] px-3 py-2 text-xs text-foreground">
+          <span className="font-semibold text-primary">코치 피드백</span> · {assignment.coachFeedback}
+        </div>
+      )}
+
+      {editing && (
+        <div className="space-y-2 border-t border-border pt-3">
+          <textarea
+            rows={2}
+            placeholder="메모"
+            value={form.memo}
+            onChange={(e) => setForm({ ...form, memo: e.target.value })}
+            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-secondary/10 resize-y"
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs font-semibold text-foreground mb-2">전화 시세 결과</p>
+              {phoneRows.map(([label, key]) => (
+                <label key={key} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
+                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+                  <input
+                    inputMode="numeric"
+                    value={form[key] ? formatDigits(String(form[key])) : ""}
+                    onChange={(e) => setForm({ ...form, [key]: digitsOnly(e.target.value) })}
+                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs font-semibold text-foreground mb-2">주변 안전마진 조사</p>
+              {safetyRows.map(([label, key]) => (
+                <label key={key} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
+                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+                  <input
+                    inputMode="numeric"
+                    value={form[key] ? formatDigits(String(form[key])) : ""}
+                    onChange={(e) => setForm({ ...form, [key]: digitsOnly(e.target.value) })}
+                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+            >
+              {saving ? "저장 중..." : "수정 저장"}
+            </button>
+            {message && <span className="text-xs text-destructive">{message}</span>}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            입찰가·매도가는 물건 상세의 수익계산기에서 다시 과제제출해야 갱신됩니다.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FavoritesPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -60,12 +225,21 @@ export default function FavoritesPage() {
   const [loanInfoByItemId, setLoanInfoByItemId] = useState<Record<string, LoanInfo>>({});
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [bidPlans, setBidPlans] = useState<BidPlanWithAuction[]>([]);
+  const [assignments, setAssignments] = useState<AuctionAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [selectedItemModalTab, setSelectedItemModalTab] = useState<"info" | "profit">("info");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
-  const [activeTab, setActiveTab] = useState<"favorites" | "plans">("favorites");
+  const [activeTab, setActiveTab] = useState<"favorites" | "plans" | "assignments">("favorites");
+
+  // "/favorites?tab=assignments"로 들어오면 과제제출 탭을 바로 연다
+  // (사용자 요청, 2026-08-07 — 과제제출 방식 변경으로 없어진 /assignments
+  // 링크 대신 쓰는 안내용 쿼리 파라미터).
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "assignments" || tab === "plans") setActiveTab(tab);
+  }, []);
 
   const isAdmin = profile?.role === "admin";
   const isConsultant = profile?.role === "consultant";
@@ -91,13 +265,14 @@ export default function FavoritesPage() {
     let favs: FavoriteItem[] = [];
     let plans: BidPlanWithAuction[] = [];
 
-    Promise.allSettled([fetchFavorites(), fetchMyBidPlans()]).then((results) => {
+    Promise.allSettled([fetchFavorites(), fetchMyBidPlans(), fetchAssignments()]).then((results) => {
       if (cancelled) return;
-      const [favResult, planResult] = results;
+      const [favResult, planResult, assignmentResult] = results;
       favs = favResult.status === "fulfilled" ? favResult.value : [];
       plans = planResult.status === "fulfilled" ? planResult.value : [];
       setFavorites(favs);
       setBidPlans(plans);
+      setAssignments(assignmentResult.status === "fulfilled" ? assignmentResult.value : []);
       // 핵심 목록은 관심물건/입찰계획 응답만으로 즉시 표시하고, 카드 상세 데이터는 백그라운드에서 보강한다.
       setLoading(false);
 
@@ -267,6 +442,13 @@ export default function FavoritesPage() {
             >
               <FileText size={14} /> 입찰계획 <span className="opacity-75">{bidPlans.length}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("assignments")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${activeTab === "assignments" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+            >
+              <ClipboardList size={14} /> 과제제출 <span className="opacity-75">{assignments.length}</span>
+            </button>
             <Link href="/favorites/calendar" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary">
               <Calendar size={14} /> 입찰 달력
             </Link>
@@ -348,7 +530,8 @@ export default function FavoritesPage() {
             </div>
           </>
           )
-        ) : bidPlans.length === 0 ? (
+        ) : activeTab === "plans" ? (
+          bidPlans.length === 0 ? (
           <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
             <FileText size={28} className="mx-auto text-muted-foreground/50" />
             <p className="mt-3 text-sm font-semibold text-foreground">저장한 입찰 계획이 없습니다.</p>
@@ -391,7 +574,6 @@ export default function FavoritesPage() {
                         <span>{new Date(plan.updatedAt).toLocaleDateString("ko-KR")} 저장</span>
                       </div>
                       {plan.memo && <p className="mt-1.5 truncate text-[0.68rem] text-muted-foreground">메모 · {plan.memo}</p>}
-                      <Link href={`/assignments?auctionId=${encodeURIComponent(plan.auctionId)}&auctionNo=${encodeURIComponent(auction?.auctionNo ?? "")}&address=${encodeURIComponent(auction?.address ?? "")}`} onClick={(event) => event.stopPropagation()} className="mt-2 inline-flex rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90">과제 제출</Link>
                     </div>
                     <PlanMetric label="계획 입찰가" value={formatWonShort(plan.bidPrice)} />
                     <PlanMetric label="예상 매도가" value={formatWonShort(plan.salePrice)} />
@@ -402,6 +584,27 @@ export default function FavoritesPage() {
                 );
               })}
             </div>
+          </div>
+          )
+        ) : assignments.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
+            <ClipboardList size={28} className="mx-auto text-muted-foreground/50" />
+            <p className="mt-3 text-sm font-semibold text-foreground">제출한 과제가 없습니다.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              물건 상세의 수익계산기에서 "과제제출" 버튼을 눌러 제출해 보세요.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {assignments.map((assignment) => (
+              <AssignmentCard
+                key={assignment.id}
+                assignment={assignment}
+                onUpdated={(next) =>
+                  setAssignments((prev) => prev.map((a) => (a.id === next.id ? next : a)))
+                }
+              />
+            ))}
           </div>
         )}
       </main>
