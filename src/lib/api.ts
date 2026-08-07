@@ -1860,16 +1860,100 @@ export async function niceCrawlerClearLogs(): Promise<void> {
   });
 }
 
-export async function niceCrawlerStart(): Promise<NiceCrawlerStatus> {
+export type NiceSearchConfig = {
+  objTypes: "경매" | "공매";
+  yongdoCd: string[];
+  objProgStatusCd: string[];
+  caseYear?: string;
+  caseSerial?: string;
+  courtCd?: string;
+  pnuCd?: string;
+  dspslDxdyYmdStart?: string;
+  dspslDxdyYmdEnd?: string;
+  uchalCntStart?: string;
+  uchalCntEnd?: string;
+  gamjungAmtStart?: string;
+  gamjungAmtEnd?: string;
+  minAmtStart?: string;
+  minAmtEnd?: string;
+  gamjungAmtRateStart?: string;
+  gamjungAmtRateEnd?: string;
+  tojiAreaStart?: string;
+  tojiAreaEnd?: string;
+  bldgAreaStart?: string;
+  bldgAreaEnd?: string;
+  initRegYmdStart?: string;
+  initRegYmdEnd?: string;
+  gamjungCompanyNm?: string;
+  soyujaNm?: string;
+  chamujaNm?: string;
+  chaeonjaNm?: string;
+  maxItems: number;
+};
+
+export const DEFAULT_NICE_SEARCH_CONFIG: NiceSearchConfig = {
+  objTypes: "경매",
+  yongdoCd: [],
+  objProgStatusCd: [],
+  maxItems: 50,
+};
+
+export type NiceSavedSearch = {
+  id: string;
+  name: string;
+  search: NiceSearchConfig;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function niceCrawlerStart(search: NiceSearchConfig): Promise<NiceCrawlerStatus> {
   const res = await fetch(`${API_BASE}/nice-crawler/start`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
+    body: JSON.stringify({ search }),
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "나이스옥션 작업창 시작에 실패했습니다.");
   }
   return readJsonResponse(res);
+}
+
+export async function fetchNiceSavedSearches(): Promise<NiceSavedSearch[]> {
+  const res = await fetch(`${API_BASE}/nice-crawler/saved-searches`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "저장된 검색조건을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function saveNiceSavedSearch(input: {
+  id?: string;
+  name: string;
+  search: NiceSearchConfig;
+}): Promise<NiceSavedSearch> {
+  const res = await fetch(`${API_BASE}/nice-crawler/saved-searches`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "검색조건 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteNiceSavedSearch(id: string): Promise<void> {
+  await fetch(`${API_BASE}/nice-crawler/saved-searches/delete`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ id }),
+  });
 }
 
 export async function niceCrawlerStop(): Promise<NiceCrawlerStatus> {
@@ -4712,5 +4796,6 @@ async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<
 export const fetchAssignments = () => learningBoardFetch<AuctionAssignment[]>("/learning-board/assignments");
 export const createAssignment = (body: Partial<AuctionAssignment>) => learningBoardFetch<AuctionAssignment>("/learning-board/assignments", { method: "POST", body: JSON.stringify(body) });
 export const updateAssignment = (id: string, body: Partial<AuctionAssignment>) => learningBoardFetch<AuctionAssignment>(`/learning-board/assignments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) });
+export const deleteAssignment = (id: string) => learningBoardFetch<{ ok: boolean }>(`/learning-board/assignments/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const fetchServiceReports = () => learningBoardFetch<ServiceReport[]>("/learning-board/reports");
 export const createServiceReport = (body: Partial<ServiceReport>) => learningBoardFetch<ServiceReport>("/learning-board/reports", { method: "POST", body: JSON.stringify(body) });
