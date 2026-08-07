@@ -1888,6 +1888,13 @@ export type NiceSearchConfig = {
   soyujaNm?: string;
   chamujaNm?: string;
   chaeonjaNm?: string;
+  /** 특수조건 코드 다중 선택(nice-crawler-codes.ts:NICE_SPECIALOBJCD_GROUPS).
+   * 쿼리 파라미터 specialObjCd(콤마 구분)로 전달 — 카운트 델타로 실제
+   * 필터링 동작을 검증했다(2026-08-07). */
+  specialObjCd?: string[];
+  /** "exclude"=선택 항목 제외, "include"=선택 항목 중 1개 이상 포함.
+   * 탱크의 "선택 모두 포함"(AND) 모드는 나이스에서 확인되지 않아 미지원. */
+  specialObjCdMode?: "include" | "exclude";
   maxItems: number;
 };
 

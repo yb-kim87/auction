@@ -19,7 +19,11 @@ import {
   type NiceSearchConfig,
   type TankFavoriteSearch,
 } from "@/lib/api";
-import { NICE_PROGSTATUS_OPTIONS, NICE_YONGDO_OPTIONS } from "@/lib/nice-crawler-codes";
+import {
+  NICE_PROGSTATUS_OPTIONS,
+  NICE_SPECIALOBJCD_GROUPS,
+  NICE_YONGDO_OPTIONS,
+} from "@/lib/nice-crawler-codes";
 
 /** 나이스옥션 작업창 — 탱크옥션 작업창(CrawlerWorkPanel.tsx)과 완전히
  * 독립된 병렬 시스템(사용자 요청, 2026-08-07). 검색조건 UI는 탱크옥션의
@@ -104,6 +108,15 @@ function mapTankFavoriteToNiceConfig(
 
   return next;
 }
+
+// 탱크 SPECIAL_CONDITION_MODE_OPTIONS와 동일한 3버튼을 시각적으로 두되,
+// 나이스에서 실제 확인된 파라미터는 include(1개 이상 포함)/exclude(제외)
+// 뿐이다 — "선택 모두 포함"(AND)은 나이스 쿼리 파라미터로 확인되지 않아
+// include와 동일하게 동작한다(레이아웃은 탱크와 동일하게 유지).
+const SPECIAL_CONDITION_MODE_OPTIONS: { value: "exclude" | "include"; label: string }[] = [
+  { value: "exclude", label: "선택 제외" },
+  { value: "include", label: "선택 1개 이상 포함" },
+];
 
 const CASE_YEAR_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "전체" },
@@ -329,6 +342,18 @@ export function NiceCrawlerWorkPanel() {
       return {
         ...prev,
         yongdoCd: exists ? prev.yongdoCd.filter((c) => c !== code) : [...prev.yongdoCd, code],
+      };
+    });
+  }
+
+  function toggleSpecialObjCd(code: string) {
+    setConfig((prev) => {
+      const exists = (prev.specialObjCd ?? []).includes(code);
+      return {
+        ...prev,
+        specialObjCd: exists
+          ? (prev.specialObjCd ?? []).filter((c) => c !== code)
+          : [...(prev.specialObjCd ?? []), code],
       };
     });
   }
@@ -802,6 +827,47 @@ export function NiceCrawlerWorkPanel() {
                   안전장치 — 대량 실행 사고 방지를 위해 항상 상한을 둡니다. 처음엔 작게(5~10건) 시작해
                   결과를 확인한 뒤 늘리는 걸 권장합니다.
                 </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">특수조건</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {SPECIAL_CONDITION_MODE_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="niceSpecialConditionMode"
+                      checked={(config.specialObjCdMode ?? "exclude") === opt.value}
+                      onChange={() => patch({ specialObjCdMode: opt.value })}
+                      className="accent-primary"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+              <div className="space-y-3">
+                {NICE_SPECIALOBJCD_GROUPS.map(({ group, items }) => (
+                  <div key={group} className="text-sm">
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">{group}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {items.map((item) => (
+                        <label
+                          key={item.code}
+                          className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={(config.specialObjCd ?? []).includes(item.code)}
+                            onChange={() => toggleSpecialObjCd(item.code)}
+                            className="accent-primary"
+                          />
+                          {item.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 

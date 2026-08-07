@@ -99,6 +99,106 @@ export const NICE_YONGDO_OPTIONS: { code: string; label: string }[] = [
   { code: "2040202", label: "미지정" },
 ];
 
+/** 나이스옥션 특수조건 코드(specialObjCd) — /api/v1/code/list의
+ * groupACode=specialObjCd 53개 항목을 실측(2026-08-07). 쿼리 파라미터
+ * `specialObjCd`(콤마 구분)+`specialObjCdMode`(include/exclude)가 실제로
+ * 결과 건수를 필터링하는 것을 카운트 델타로 검증했다(유치권=13000031
+ * include 14,826건 + exclude 1,131,406건 = 전체 1,146,232건과 정확히
+ * 일치). 탱크옥션 CrawlerSearchPanel.tsx의 SPECIAL_CONDITION_GROUPS와
+ * 동일한 시각적 레이아웃(그룹 헤더+체크박스)을 맞추기 위해, 나이스
+ * 코드표 자체엔 하위 그룹 메타데이터가 없어 라벨 의미로 직접 묶었다
+ * (그룹 이름은 탱크와 다를 수 있으나 코드값·라벨은 100% 실측 그대로). */
+export const NICE_SPECIALOBJCD_GROUPS: { group: string; items: { code: string; label: string }[] }[] = [
+  {
+    group: "권리관계",
+    items: [
+      { code: "13000031", label: "유치권" },
+      { code: "13000032", label: "유치권에의한경매" },
+      { code: "13000020", label: "법정지상권" },
+      { code: "13000043", label: "선순위지상권" },
+      { code: "13000023", label: "분묘기지권" },
+      { code: "13000024", label: "선순위가등기" },
+      { code: "13000025", label: "선순위가처분" },
+      { code: "13000026", label: "선순위임차권" },
+      { code: "13000027", label: "선순위전세권" },
+      { code: "13000018", label: "대항력있는임차인" },
+      { code: "13000021", label: "별도등기" },
+      { code: "13000035", label: "전세권매각" },
+      { code: "13000036", label: "전세권에의한경매" },
+      { code: "13000037", label: "전소유자가압류" },
+    ],
+  },
+  {
+    group: "인수조건변경",
+    items: [
+      { code: "13000044", label: "HUG 인수조건 변경" },
+      { code: "13000045", label: "SGI 인수조건 변경" },
+      { code: "13000046", label: "HF 인수조건 변경" },
+    ],
+  },
+  {
+    group: "매각형태",
+    items: [
+      { code: "13000009", label: "건물만매각" },
+      { code: "13000010", label: "토지만매각" },
+      { code: "13000040", label: "지분매각" },
+      { code: "13000011", label: "공동담보" },
+      { code: "13000047", label: "공동담보" },
+      { code: "13000012", label: "공유물분할경매" },
+    ],
+  },
+  {
+    group: "물건현황",
+    items: [
+      { code: "13000017", label: "대지권미등기" },
+      { code: "13000029", label: "위반건축물" },
+      { code: "13000034", label: "재매각" },
+      { code: "13000030", label: "유동화물건" },
+      { code: "13000028", label: "예고등기" },
+      { code: "13000050", label: "맹지" },
+      { code: "13000049", label: "영농여건불리농지" },
+    ],
+  },
+  {
+    group: "자격·절차",
+    items: [
+      { code: "13000013", label: "공유자우선매수신고" },
+      { code: "13000015", label: "농지취득자격증명" },
+      { code: "13000016", label: "대위변제" },
+      { code: "13000041", label: "항고사건" },
+      { code: "13000033", label: "임금채권" },
+      { code: "13000019", label: "배당요구철회" },
+      { code: "13000042", label: "형식적경매" },
+    ],
+  },
+  {
+    group: "개발·계획구역",
+    items: [
+      { code: "13000001", label: "개발행위허가제한구역" },
+      { code: "13000002", label: "건축허가제한구역" },
+      { code: "13000003", label: "건축허가착공제한구역" },
+      { code: "13000004", label: "토지거래허가구역" },
+      { code: "13000005", label: "재개발구역" },
+      { code: "13000006", label: "재건축구역" },
+      { code: "13000007", label: "재정비촉진지구" },
+      { code: "13000008", label: "주거환경개선지구" },
+      { code: "13000048", label: "택지개발" },
+      { code: "13000051", label: "도시개발구역" },
+      { code: "13000052", label: "도시관리계획" },
+      { code: "13000053", label: "정비구역" },
+    ],
+  },
+  {
+    group: "사건관계",
+    items: [
+      { code: "13000014", label: "관련사건" },
+      { code: "13000022", label: "병합사건" },
+      { code: "13000038", label: "중복병합사건" },
+      { code: "13000039", label: "중복사건" },
+    ],
+  },
+];
+
 export const NICE_PROGSTATUS_OPTIONS: { code: string; label: string }[] = [
   { code: "9000001", label: "미정" },
   { code: "9000002", label: "예정물건" },
