@@ -4793,7 +4793,7 @@ export function revokeLectureEnrollment(id: string): Promise<LectureEnrollmentAd
   );
 }
 
-export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
+export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; safetyResearch1: string; safetyResearch2: string; safetyResearch3: string; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
 export interface ServiceReport { id: string; username: string; type: string; title: string; description: string; reproduction: string; expectedResult: string; actualResult: string; pageUrl: string; status: string; adminReply: string; createdAt: string; updatedAt: string; }
 async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(init?.headers) });
