@@ -10,7 +10,7 @@ import {
   toPayload,
 } from "@/lib/auction-form";
 import { AuctionFieldInput } from "@/components/AuctionFieldInput";
-import { createFavoriteCategory, deleteAuction, updateAuction, fetchFavoriteCategories } from "@/lib/api";
+import { createFavoriteCategory, deleteAuction, updateAuction, fetchFavoriteCategories, fetchSiteSettings } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
 import { NaverComplexLink } from "@/components/NaverComplexLink";
@@ -1778,6 +1778,20 @@ export function AuctionDetailModal({
    * 섹션을 볼 수 없다(사용자 요청, 2026-08-08). */
   viewerRole?: UserRole | null;
 }) {
+  // "등기·임차인 정보" 섹션을 수강생 이하 등급에게 숨길지는 관리자가
+  // 토글로 켜고 끌 수 있다(사용자 요청, 2026-08-08). 기본값(true)은
+  // 기존 하드코딩 동작과 동일 — 설정 조회가 끝나기 전까지는 안전한
+  // 기본값(숨김)으로 렌더링해 잠깐이라도 보였다 사라지는 깜빡임을
+  // 방지한다.
+  const [hideRegistryTenantForStudents, setHideRegistryTenantForStudents] = useState(true);
+  useEffect(() => {
+    fetchSiteSettings()
+      .then((settings) => setHideRegistryTenantForStudents(settings.hideRegistryTenantForStudents))
+      .catch(() => {
+        // 설정 조회 실패 — 안전한 기본값(숨김) 유지.
+      });
+  }, []);
+
   const [form, setForm] = useState<UpdateAuctionPayload | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -3057,6 +3071,7 @@ export function AuctionDetailModal({
             AUCTION_FIELD_GROUPS.map((group, groupIndex) => {
               if (
                 group.title === REGISTRY_TENANT_GROUP_TITLE &&
+                hideRegistryTenantForStudents &&
                 !isAdmin &&
                 !(viewerRole && REGISTRY_TENANT_VISIBLE_ROLES.has(viewerRole))
               ) {

@@ -44,6 +44,7 @@ import { SecurityLogTab } from "./SecurityLogTab";
 import { SwimApplyTab } from "./SwimApplyTab";
 import { ResaleMatchTab } from "./ResaleMatchTab";
 import { AssignmentReviewTab } from "./AssignmentReviewTab";
+import { SiteSettingsPanel } from "./SiteSettingsPanel";
 import { LectureReplayTab } from "./LectureReplayTab";
 
 function formatRegisteredAt(value: string | null | undefined): string {
@@ -1122,6 +1123,8 @@ export default function AdminPage() {
                   </p>
                 </div>
               </div>
+
+              <SiteSettingsPanel />
 
               {loadingUsers ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">불러오는 중...</p>

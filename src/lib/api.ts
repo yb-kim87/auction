@@ -759,6 +759,40 @@ export async function deleteUser(id: string): Promise<{ ok: boolean }> {
   return readJsonResponse(res);
 }
 
+/** 사이트 전역 설정(사용자 요청, 2026-08-08) — 현재는 "등기·임차인
+ * 정보를 수강생 이하 등급에게 숨길지" 토글 하나. */
+export interface SiteSettings {
+  id: string;
+  hideRegistryTenantForStudents: boolean;
+  updatedAt: string;
+}
+
+export async function fetchSiteSettings(): Promise<SiteSettings> {
+  const res = await fetch(`${API_BASE}/settings`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "설정을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function updateSiteSettings(
+  patch: Partial<Pick<SiteSettings, "hideRegistryTenantForStudents">>,
+): Promise<SiteSettings> {
+  const res = await fetch(`${API_BASE}/settings`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "설정 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 export async function fetchMyProfile(): Promise<UserProfile> {
   const res = await fetch(`${API_BASE}/users/me`, {
     cache: "no-store",
