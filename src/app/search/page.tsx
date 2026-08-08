@@ -1688,6 +1688,7 @@ export default function Home() {
         }}
         editable={isAdmin}
         isAdmin={isAdmin}
+        viewerRole={profile?.role ?? null}
         housingCount={profile?.housingCount}
         annualNetIncome={profile?.annualNetIncome ?? null}
         regulatedArea={

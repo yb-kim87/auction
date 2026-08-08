@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, WalletCards, TrendingDown, ShieldCheck, CircleAlert, Copy, Check } from "lucide-react";
-import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload } from "@/types/auction";
+import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload, UserRole } from "@/types/auction";
 import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import {
   AUCTION_FIELD_GROUPS,
@@ -175,6 +175,12 @@ const DETAIL_HIDDEN_FIELDS = new Set<keyof UpdateAuctionPayload>([
 function detailVisibleFields(group: (typeof AUCTION_FIELD_GROUPS)[number]) {
   return group.fields.filter((field) => !DETAIL_HIDDEN_FIELDS.has(field.key));
 }
+
+/** "등기·임차인 정보"(건물 등기 권리내역/임차인·점유 현황 등) 그룹을 볼 수
+ * 있는 등급 — 수강생(student)과 그 이하 등급(member/ot_student)은 못 보게
+ * 해달라는 요청(사용자 요청, 2026-08-08). 컨설팅수강생 이상만 허용. */
+const REGISTRY_TENANT_VISIBLE_ROLES = new Set<UserRole>(["consulting_student", "consultant", "admin"]);
+const REGISTRY_TENANT_GROUP_TITLE = "등기·임차인 정보";
 
 function hasDisplayValue(value: unknown): boolean {
   if (value == null) return false;
@@ -1723,6 +1729,7 @@ export function AuctionDetailModal({
   aiAnalysisUsed,
   onAiAnalysisUsed,
   coachViewUsername = null,
+  viewerRole = null,
 }: {
   item: AuctionItem | null;
   onClose: () => void;
@@ -1767,6 +1774,9 @@ export function AuctionDetailModal({
    * 아니라 이 수강생의 입찰계획·제출 과제를 읽기 전용으로 보여준다
    * (사용자 요청, 2026-08-07). */
   coachViewUsername?: string | null;
+  /** 보고 있는 회원의 등급 — 수강생(student) 이하는 "등기·임차인 정보"
+   * 섹션을 볼 수 없다(사용자 요청, 2026-08-08). */
+  viewerRole?: UserRole | null;
 }) {
   const [form, setForm] = useState<UpdateAuctionPayload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -3045,6 +3055,13 @@ export function AuctionDetailModal({
             </>
           ) : (
             AUCTION_FIELD_GROUPS.map((group, groupIndex) => {
+              if (
+                group.title === REGISTRY_TENANT_GROUP_TITLE &&
+                !isAdmin &&
+                !(viewerRole && REGISTRY_TENANT_VISIBLE_ROLES.has(viewerRole))
+              ) {
+                return null;
+              }
               const fields = detailVisibleFields(group).filter((field) => {
                 if (field.key === "owner" || field.key === "tenantInfo") return false;
                 if (field.key === "recordTime" && !isAdmin) return false;

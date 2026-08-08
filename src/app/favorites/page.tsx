@@ -533,6 +533,7 @@ export default function FavoritesPage() {
         onClose={() => setSelectedItem(null)}
         editable={false}
         isAdmin={isAdmin}
+        viewerRole={profile?.role ?? null}
         initialTab={selectedItemModalTab}
         hasBidPlan={selectedItem ? bidPlans.some((p) => p.auctionId === selectedItem.id) : null}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}

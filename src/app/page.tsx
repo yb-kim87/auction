@@ -1424,6 +1424,7 @@ export default function HomePage() {
         onClose={() => setSelectedItem(null)}
         editable={false}
         isAdmin={isAdmin}
+        viewerRole={profile?.role ?? null}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={selectedItem ? favoriteBusyId === selectedItem.id : false}
         favoriteMemo={selectedItem ? favoriteById.get(selectedItem.id)?.memo ?? null : null}
