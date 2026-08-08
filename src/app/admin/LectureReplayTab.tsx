@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createLectureCourse,
   createLectureLink,
@@ -8,11 +8,13 @@ import {
   createLectureVideo,
   deleteLectureCourse,
   deleteLectureLink,
+  deleteLectureMaterial,
   deleteLectureSection,
   deleteLectureVideo,
   fetchLectureCourses,
   fetchLectureEnrollments,
   fetchLectureLinks,
+  fetchLectureMaterials,
   fetchLectureSections,
   fetchLectureVideos,
   grantLectureEnrollment,
@@ -23,10 +25,12 @@ import {
   updateLectureLink,
   updateLectureSection,
   updateLectureVideo,
+  uploadLectureMaterial,
   type LectureAccessLink,
   type LectureCourse,
   type LectureEnrollmentAdminItem,
   type LectureSection,
+  type LectureSectionMaterial,
   type LectureUserSearchResult,
   type LectureVideo,
   type LectureVideoChapter,
@@ -1081,6 +1085,109 @@ function SectionBlock({
           className="col-span-2 px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
         >
           영상 추가
+        </button>
+      </div>
+
+      <MaterialsBlock sectionId={section.id} />
+    </div>
+  );
+}
+
+/** 이 주차(섹션)의 강의자료 파일 업로드/목록/삭제(사용자 요청,
+ * 2026-08-08: "강의실에서 해당 주차에 대한 강의자료 올릴 수 있는
+ * 기능을 넣어줘"). */
+function MaterialsBlock({ sectionId }: { sectionId: string }) {
+  const [materials, setMaterials] = useState<LectureSectionMaterial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchLectureMaterials(sectionId)
+      .then(setMaterials)
+      .catch((err) => setError(err instanceof Error ? err.message : "강의자료 조회 실패"))
+      .finally(() => setLoading(false));
+  }, [sectionId]);
+
+  useEffect(load, [load]);
+
+  async function handleUpload() {
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const material = await uploadLectureMaterial(sectionId, title.trim(), file);
+      setMaterials((prev) => [...prev, material]);
+      setTitle("");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "강의자료 업로드 실패");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("이 강의자료를 삭제할까요?")) return;
+    try {
+      await deleteLectureMaterial(id);
+      setMaterials((prev) => prev.filter((m) => m.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "강의자료 삭제 실패");
+    }
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/60 space-y-2">
+      <p className="text-xs font-semibold text-foreground">강의자료</p>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {loading ? (
+        <p className="text-xs text-muted-foreground">불러오는 중...</p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {materials.map((m) => (
+            <li key={m.id} className="py-1.5 flex items-center justify-between gap-2 text-xs">
+              <span className="truncate">
+                {m.title}{" "}
+                <span className="text-muted-foreground">({(m.fileSize / 1024 / 1024).toFixed(1)}MB)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleDelete(m.id)}
+                className="text-destructive hover:underline shrink-0"
+              >
+                삭제
+              </button>
+            </li>
+          ))}
+          {materials.length === 0 && <li className="py-1.5 text-xs text-muted-foreground">등록된 자료 없음</li>}
+        </ul>
+      )}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="자료 이름(비우면 파일명)"
+          className="flex-1 min-w-[140px] px-2 py-1.5 text-xs border border-border rounded-sm bg-background"
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          className="text-xs"
+        />
+        <button
+          type="button"
+          onClick={() => void handleUpload()}
+          disabled={!file || uploading}
+          className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+        >
+          {uploading ? "업로드 중..." : "업로드"}
         </button>
       </div>
     </div>

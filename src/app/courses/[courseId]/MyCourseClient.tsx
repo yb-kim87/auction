@@ -16,17 +16,20 @@ import {
   deleteMyCourseNote,
   logoutUser,
   saveMyCourseProgress,
+  fetchMyCourseMaterials,
+  downloadMyCourseMaterial,
   type LectureCourseProgress,
   type LectureCourseNote,
   type LectureCourseQuestion,
   type LectureMyCourseAccessInfo,
   type LecturePublicSection,
   type LecturePublicVideo,
+  type LectureSectionMaterial,
 } from "@/lib/api";
 import { attachLearningProgress } from "@/lib/bunny-playerjs";
 
 const PLAYER_IFRAME_ID = "bunny-player-my-course";
-const COURSE_TABS = ["강의정보", "Q&A", "노트", "수강후기"] as const;
+const COURSE_TABS = ["강의정보", "강의자료", "Q&A", "노트", "수강후기"] as const;
 type CourseTab = (typeof COURSE_TABS)[number];
 
 // ── palette (피그마 디자인 그대로, 이 페이지 전용) ──────────────────────────────
@@ -141,6 +144,82 @@ function expandVideoRows(v: LecturePublicVideo): Array<{
       durationSeconds,
     };
   });
+}
+
+/** 한 주차(섹션)의 강의자료 목록 + 다운로드(사용자 요청, 2026-08-08:
+ * "강의실에서 해당 주차에 대한 강의자료 올릴 수 있는 기능을 넣어줘.
+ * 강의 하단 부분에 탭을 추가해서 만들어주면 될꺼같아"). */
+function SectionMaterialsBlock({ courseId, section }: { courseId: string; section: LecturePublicSection }) {
+  const [materials, setMaterials] = useState<LectureSectionMaterial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchMyCourseMaterials(courseId, section.id)
+      .then((data) => {
+        if (!cancelled) setMaterials(data);
+      })
+      .catch(() => {
+        if (!cancelled) setMaterials([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, section.id]);
+
+  async function handleDownload(material: LectureSectionMaterial) {
+    setDownloadingId(material.id);
+    setError("");
+    try {
+      await downloadMyCourseMaterial(courseId, material.id, material.fileName);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "다운로드에 실패했습니다.");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  if (loading || materials.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.textPrimary, marginBottom: 6 }}>{section.title}</div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {materials.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => void handleDownload(m)}
+            disabled={downloadingId === m.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              background: C.bg,
+              cursor: downloadingId === m.id ? "default" : "pointer",
+              textAlign: "left",
+            }}
+          >
+            <span style={{ fontSize: 13, color: C.textPrimary, fontWeight: 600 }}>{m.title}</span>
+            <span style={{ fontSize: 11, color: C.accent, fontWeight: 700, whiteSpace: "nowrap" }}>
+              {downloadingId === m.id ? "다운로드 중..." : `다운로드 (${(m.fileSize / 1024 / 1024).toFixed(1)}MB)`}
+            </span>
+          </button>
+        ))}
+      </div>
+      {error && <p style={{ margin: "6px 0 0", fontSize: 11, color: "#dc2626" }}>{error}</p>}
+    </div>
+  );
 }
 
 function SectionBlock({
@@ -781,6 +860,18 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
                   </div>
                   <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{info.course.description ?? "강의 소개가 준비 중입니다."}</p>
                 </>
+              )}
+              {activeTab === "강의자료" && (
+                <div>
+                  {info.sections.map((section) => (
+                    <SectionMaterialsBlock key={section.id} courseId={courseId} section={section} />
+                  ))}
+                  {info.sections.length === 0 && (
+                    <p style={{ margin: 0, textAlign: "center", fontSize: 12, color: C.textDim }}>
+                      등록된 주차가 없습니다.
+                    </p>
+                  )}
+                </div>
               )}
               {activeTab === "Q&A" && (
                 <div>
