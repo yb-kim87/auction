@@ -198,7 +198,7 @@ function SectionMaterialsBlock({ courseId, section }: { courseId: string; sectio
           >
             <span style={{ fontSize: 13, color: C.textPrimary, fontWeight: 600 }}>{m.title}</span>
             <span style={{ fontSize: 11, color: C.accent, fontWeight: 700, whiteSpace: "nowrap" }}>
-              OneDrive에서 열기
+              자료 다운받기
             </span>
           </a>
         ))}
