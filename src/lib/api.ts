@@ -4858,9 +4858,7 @@ export type LectureSectionMaterial = {
   id: string;
   sectionId: string;
   title: string;
-  fileName: string;
-  mimeType: string;
-  fileSize: number;
+  url: string;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -4875,24 +4873,16 @@ export function fetchLectureMaterials(sectionId: string): Promise<LectureSection
   );
 }
 
-export async function uploadLectureMaterial(
+export function createLectureMaterial(
   sectionId: string,
   title: string,
-  file: File,
+  url: string,
 ): Promise<LectureSectionMaterial> {
-  const formData = new FormData();
-  formData.append("sectionId", sectionId);
-  formData.append("title", title || file.name);
-  formData.append("file", file);
-  const res = await fetch(`${API_BASE}/lecture-replay/materials`, {
-    method: "POST",
-    credentials: FETCH_CREDENTIALS,
-    body: formData,
-  });
-  if (!res.ok) {
-    throw new Error((await parseErrorMessage(res)) ?? "강의자료 업로드에 실패했습니다.");
-  }
-  return readJsonResponse(res);
+  return lectureReplayFetch(
+    `/lecture-replay/materials`,
+    { method: "POST", body: JSON.stringify({ sectionId, title, url }) },
+    "강의자료 등록에 실패했습니다.",
+  );
 }
 
 export function deleteLectureMaterial(id: string): Promise<{ ok: boolean }> {
@@ -4910,31 +4900,6 @@ export function fetchMyCourseMaterials(courseId: string, sectionId: string): Pro
     undefined,
     "강의자료 목록을 불러오지 못했습니다.",
   );
-}
-
-/** 인증 쿠키가 필요한 다운로드라 <a href>로 바로 걸 수 없어(다른 오리진),
- * fetch로 blob을 받아 임시 링크를 만들어 클릭한다. */
-export async function downloadMyCourseMaterial(
-  courseId: string,
-  materialId: string,
-  fileName: string,
-): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/courses/${encodeURIComponent(courseId)}/materials/${encodeURIComponent(materialId)}/download`,
-    { credentials: FETCH_CREDENTIALS },
-  );
-  if (!res.ok) {
-    throw new Error((await parseErrorMessage(res)) ?? "파일을 다운로드하지 못했습니다.");
-  }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 // 관리자용

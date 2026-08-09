@@ -17,7 +17,6 @@ import {
   logoutUser,
   saveMyCourseProgress,
   fetchMyCourseMaterials,
-  downloadMyCourseMaterial,
   type LectureCourseProgress,
   type LectureCourseNote,
   type LectureCourseQuestion,
@@ -146,14 +145,13 @@ function expandVideoRows(v: LecturePublicVideo): Array<{
   });
 }
 
-/** 한 주차(섹션)의 강의자료 목록 + 다운로드(사용자 요청, 2026-08-08:
- * "강의실에서 해당 주차에 대한 강의자료 올릴 수 있는 기능을 넣어줘.
- * 강의 하단 부분에 탭을 추가해서 만들어주면 될꺼같아"). */
+/** 한 주차(섹션)의 강의자료 목록(사용자 요청, 2026-08-08: "강의실에서
+ * 해당 주차에 대한 강의자료 올릴 수 있는 기능을 넣어줘. 강의 하단
+ * 부분에 탭을 추가해서 만들어주면 될꺼같아" → 이후 서버 부하 우려로
+ * OneDrive 링크 등록 방식으로 전환, 파일은 OneDrive에서 직접 받는다). */
 function SectionMaterialsBlock({ courseId, section }: { courseId: string; section: LecturePublicSection }) {
   const [materials, setMaterials] = useState<LectureSectionMaterial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -173,18 +171,6 @@ function SectionMaterialsBlock({ courseId, section }: { courseId: string; sectio
     };
   }, [courseId, section.id]);
 
-  async function handleDownload(material: LectureSectionMaterial) {
-    setDownloadingId(material.id);
-    setError("");
-    try {
-      await downloadMyCourseMaterial(courseId, material.id, material.fileName);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "다운로드에 실패했습니다.");
-    } finally {
-      setDownloadingId(null);
-    }
-  }
-
   if (loading || materials.length === 0) return null;
 
   return (
@@ -192,11 +178,11 @@ function SectionMaterialsBlock({ courseId, section }: { courseId: string; sectio
       <div style={{ fontSize: 12, fontWeight: 700, color: C.textPrimary, marginBottom: 6 }}>{section.title}</div>
       <div style={{ display: "grid", gap: 6 }}>
         {materials.map((m) => (
-          <button
+          <a
             key={m.id}
-            type="button"
-            onClick={() => void handleDownload(m)}
-            disabled={downloadingId === m.id}
+            href={m.url}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               display: "flex",
               alignItems: "center",
@@ -206,18 +192,17 @@ function SectionMaterialsBlock({ courseId, section }: { courseId: string; sectio
               border: `1px solid ${C.border}`,
               borderRadius: 8,
               background: C.bg,
-              cursor: downloadingId === m.id ? "default" : "pointer",
               textAlign: "left",
+              textDecoration: "none",
             }}
           >
             <span style={{ fontSize: 13, color: C.textPrimary, fontWeight: 600 }}>{m.title}</span>
             <span style={{ fontSize: 11, color: C.accent, fontWeight: 700, whiteSpace: "nowrap" }}>
-              {downloadingId === m.id ? "다운로드 중..." : `다운로드 (${(m.fileSize / 1024 / 1024).toFixed(1)}MB)`}
+              OneDrive에서 열기
             </span>
-          </button>
+          </a>
         ))}
       </div>
-      {error && <p style={{ margin: "6px 0 0", fontSize: 11, color: "#dc2626" }}>{error}</p>}
     </div>
   );
 }

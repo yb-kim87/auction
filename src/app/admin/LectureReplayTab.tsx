@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   createLectureCourse,
   createLectureLink,
+  createLectureMaterial,
   createLectureSection,
   createLectureVideo,
   deleteLectureCourse,
@@ -25,7 +26,6 @@ import {
   updateLectureLink,
   updateLectureSection,
   updateLectureVideo,
-  uploadLectureMaterial,
   type LectureAccessLink,
   type LectureCourse,
   type LectureEnrollmentAdminItem,
@@ -1093,17 +1093,20 @@ function SectionBlock({
   );
 }
 
-/** 이 주차(섹션)의 강의자료 파일 업로드/목록/삭제(사용자 요청,
+/** 이 주차(섹션)의 강의자료 링크 등록/목록/삭제(사용자 요청,
  * 2026-08-08: "강의실에서 해당 주차에 대한 강의자료 올릴 수 있는
- * 기능을 넣어줘"). */
+ * 기능을 넣어줘" → 이후 "OneDrive에서 다운받게 하는건?"이라는 질문에
+ * 답하며 파일 업로드 방식 대신 OneDrive 등 외부 공유 링크를 등록하는
+ * 방식으로 전환). 관리자가 OneDrive에 파일을 올리고 공유 링크를
+ * 붙여넣으면, 학생은 그 링크를 그대로 클릭해 OneDrive에서 직접
+ * 받는다 — 우리 서버는 파일 바이트를 전혀 다루지 않는다. */
 function MaterialsBlock({ sectionId }: { sectionId: string }) {
   const [materials, setMaterials] = useState<LectureSectionMaterial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState("");
   const [error, setError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -1115,20 +1118,19 @@ function MaterialsBlock({ sectionId }: { sectionId: string }) {
 
   useEffect(load, [load]);
 
-  async function handleUpload() {
-    if (!file) return;
-    setUploading(true);
+  async function handleCreate() {
+    if (!url.trim()) return;
+    setSaving(true);
     setError("");
     try {
-      const material = await uploadLectureMaterial(sectionId, title.trim(), file);
+      const material = await createLectureMaterial(sectionId, title.trim(), url.trim());
       setMaterials((prev) => [...prev, material]);
       setTitle("");
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setUrl("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "강의자료 업로드 실패");
+      setError(err instanceof Error ? err.message : "강의자료 등록 실패");
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
   }
 
@@ -1144,7 +1146,7 @@ function MaterialsBlock({ sectionId }: { sectionId: string }) {
 
   return (
     <div className="mt-2 pt-2 border-t border-border/60 space-y-2">
-      <p className="text-xs font-semibold text-foreground">강의자료</p>
+      <p className="text-xs font-semibold text-foreground">강의자료 (OneDrive 링크)</p>
       {error && <p className="text-xs text-destructive">{error}</p>}
       {loading ? (
         <p className="text-xs text-muted-foreground">불러오는 중...</p>
@@ -1152,10 +1154,9 @@ function MaterialsBlock({ sectionId }: { sectionId: string }) {
         <ul className="divide-y divide-border">
           {materials.map((m) => (
             <li key={m.id} className="py-1.5 flex items-center justify-between gap-2 text-xs">
-              <span className="truncate">
-                {m.title}{" "}
-                <span className="text-muted-foreground">({(m.fileSize / 1024 / 1024).toFixed(1)}MB)</span>
-              </span>
+              <a href={m.url} target="_blank" rel="noopener noreferrer" className="truncate underline">
+                {m.title}
+              </a>
               <button
                 type="button"
                 onClick={() => void handleDelete(m.id)}
@@ -1172,22 +1173,22 @@ function MaterialsBlock({ sectionId }: { sectionId: string }) {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="자료 이름(비우면 파일명)"
+          placeholder="자료 이름(비우면 링크)"
           className="flex-1 min-w-[140px] px-2 py-1.5 text-xs border border-border rounded-sm bg-background"
         />
         <input
-          ref={fileInputRef}
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="text-xs"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="OneDrive 공유 링크 URL"
+          className="flex-1 min-w-[200px] px-2 py-1.5 text-xs border border-border rounded-sm bg-background"
         />
         <button
           type="button"
-          onClick={() => void handleUpload()}
-          disabled={!file || uploading}
+          onClick={() => void handleCreate()}
+          disabled={!url.trim() || saving}
           className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
         >
-          {uploading ? "업로드 중..." : "업로드"}
+          {saving ? "등록 중..." : "등록"}
         </button>
       </div>
     </div>
