@@ -10,7 +10,16 @@ import {
   toPayload,
 } from "@/lib/auction-form";
 import { AuctionFieldInput } from "@/components/AuctionFieldInput";
-import { createFavoriteCategory, deleteAuction, updateAuction, fetchFavoriteCategories, fetchSiteSettings } from "@/lib/api";
+import {
+  createFavoriteCategory,
+  deleteAuction,
+  updateAuction,
+  fetchFavoriteCategories,
+  fetchSiteSettings,
+  fetchAuctionsByIds,
+  crawlerStart,
+  fetchCrawlerStatus,
+} from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
 import { NaverComplexLink } from "@/components/NaverComplexLink";
@@ -1813,6 +1822,8 @@ export function AuctionDetailModal({
   const pickerMouseDownRef = useRef(false);
   const pickerContentRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
+  const [naverRefreshBusy, setNaverRefreshBusy] = useState(false);
+  const [naverRefreshMessage, setNaverRefreshMessage] = useState("");
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
   const [showMemo, setShowMemo] = useState(false);
@@ -2010,6 +2021,49 @@ export function AuctionDetailModal({
       setError(err instanceof Error ? err.message : "저장에 실패했습니다.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  /** 이 물건 하나만 다시 크롤링해서 네이버 호가를 최신화한다(관리자 전용,
+   * 사용자 요청 2026-08-09: "해당 물건에 대한 호가 크롤링을 다시해서
+   * 최신정보로 호가를 업데이트해서 물건 가져올때처럼 로직에 적용"). 물건을
+   * 처음 수집할 때와 동일하게 /crawler/start(v3)를 이 물건의 link 하나만
+   * 대상으로 호출한다 — 층수 매칭 등 기존 매핑 로직을 그대로 재사용하기
+   * 위해 별도 경량 API를 새로 만들지 않았다. 크롤링은 관리자 PC의 워커가
+   * 백그라운드로 처리하므로, 완료될 때까지 상태를 몇 초 간격으로 폴링한
+   * 뒤 최신 물건 데이터를 다시 불러온다. */
+  const handleRefreshNaverPrice = async () => {
+    if (!preview.link?.trim()) {
+      setNaverRefreshMessage("이 물건에 원본 링크가 없어 재크롤링할 수 없습니다.");
+      return;
+    }
+    setNaverRefreshBusy(true);
+    setNaverRefreshMessage("호가 크롤링을 요청했습니다...");
+    try {
+      await crawlerStart({ urls: [preview.link], crawlerVersion: "v3" });
+      let settled = false;
+      for (let i = 0; i < 30; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          const status = await fetchCrawlerStatus();
+          if (status.phase !== "crawling" && status.phase !== "starting" && status.phase !== "collecting") {
+            settled = true;
+            break;
+          }
+        } catch {
+          // 상태 조회 실패는 무시하고 계속 폴링
+        }
+      }
+      const [updated] = await fetchAuctionsByIds([item.id]);
+      if (updated) {
+        setForm(toFormState(updated));
+        onSaved?.(updated);
+      }
+      setNaverRefreshMessage(settled ? "완료: 최신 호가로 업데이트했습니다." : "완료까지 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요.");
+    } catch (err) {
+      setNaverRefreshMessage(err instanceof Error ? err.message : "호가 업데이트에 실패했습니다.");
+    } finally {
+      setNaverRefreshBusy(false);
     }
   };
 
@@ -2905,15 +2959,28 @@ export function AuctionDetailModal({
               <div className="rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.045] to-card px-5 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[0.72rem] font-bold text-primary/70">주변 매물 호가</p>
                       <NaverComplexLink naverId={naverId} inLabelRow />
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => void handleRefreshNaverPrice()}
+                          disabled={naverRefreshBusy}
+                          className="rounded-full border border-primary/30 px-2.5 py-0.5 text-[0.62rem] font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
+                        >
+                          {naverRefreshBusy ? "업데이트 중..." : "호가 업데이트"}
+                        </button>
+                      )}
                     </div>
                     <div className="mt-1 text-[1.65rem] font-extrabold tracking-tight text-primary">
                       {editable
                         ? renderPriceField("naverPrice", naverPriceDisplay, { accent: "primary", title: "클릭하여 네이버 호가 수정" })
                         : naverPriceDisplay}
                     </div>
+                    {isAdmin && naverRefreshMessage && (
+                      <p className="mt-1 text-[0.64rem] text-muted-foreground">{naverRefreshMessage}</p>
+                    )}
                   </div>
                   {d2 && (
                     <div className={`rounded-xl px-3.5 py-2.5 text-right ${d2.amount >= 0 ? "bg-blue-50 text-blue-700" : "bg-red-50 text-red-700"}`}>

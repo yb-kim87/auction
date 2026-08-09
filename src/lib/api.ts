@@ -2246,6 +2246,7 @@ export async function crawlerManageUrls(body: {
 }
 
 export async function crawlerStart(options?: {
+  urls?: string[];
   repeatAfterCollect?: boolean;
   crawlerVersion?: CrawlerVersion;
   runResaleAnalysisForExisting?: boolean;
