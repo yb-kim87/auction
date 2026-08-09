@@ -2029,9 +2029,10 @@ export function AuctionDetailModal({
    * 최신정보로 호가를 업데이트해서 물건 가져올때처럼 로직에 적용"). 물건을
    * 처음 수집할 때와 동일하게 /crawler/start(v3)를 이 물건의 link 하나만
    * 대상으로 호출한다 — 층수 매칭 등 기존 매핑 로직을 그대로 재사용하기
-   * 위해 별도 경량 API를 새로 만들지 않았다. 크롤링은 관리자 PC의 워커가
-   * 백그라운드로 처리하므로, 완료될 때까지 상태를 몇 초 간격으로 폴링한
-   * 뒤 최신 물건 데이터를 다시 불러온다. */
+   * 위해 별도 경량 API를 새로 만들지 않았다. v3 크롤러는 Railway 서버가
+   * 자체적으로 Python 워커를 띄워 백그라운드로 처리하므로(관리자 PC를
+   * 켜둘 필요 없음), 완료될 때까지 상태를 몇 초 간격으로 폴링한 뒤 최신
+   * 물건 데이터를 다시 불러온다. */
   const handleRefreshNaverPrice = async () => {
     if (!preview.link?.trim()) {
       setNaverRefreshMessage("이 물건에 원본 링크가 없어 재크롤링할 수 없습니다.");
