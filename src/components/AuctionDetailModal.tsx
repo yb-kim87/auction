@@ -3509,6 +3509,14 @@ export function AuctionDetailModal({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-full border border-border bg-secondary/20 px-3 py-1 text-[0.68rem] font-semibold text-foreground hover:bg-secondary"
+                        onClick={(e) => {
+                          // 탭이 아니라 새 창으로 열리게 한다(사용자 요청,
+                          // 2026-08-10) — NaverComplexLink와 동일 패턴으로
+                          // window.open에 크기를 지정해 별도 창으로 강제한다.
+                          e.preventDefault();
+                          e.stopPropagation();
+                          window.open(link.url, `ref-link-${link.label}`, "noopener,noreferrer,width=1100,height=900");
+                        }}
                       >
                         {link.label}
                       </a>
