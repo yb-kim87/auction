@@ -1904,6 +1904,18 @@ export function AuctionDetailModal({
             label: "부동산플래닛",
             url: `https://www.bdsplanet.com/map/realprice_map.ytp?s_area_lat=${lat}&s_area_lng=${lng}&s_area_zoom=19&use=true&utm_campaign=share`,
           },
+          {
+            label: "네이버부동산",
+            url: (() => {
+              const usage = item.usage ?? "";
+              const { path, filter } = /빌라|연립|다세대|다가구|도시형생활주택/.test(usage)
+                ? { path: "houses", filter: "VL:JWJT:DDDGG:SGJT:HOJT" }
+                : /아파트|오피스텔/.test(usage)
+                  ? { path: "complexes", filter: "APT:OPST" }
+                  : { path: "offices", filter: "SG:SMS:GJCG:GM:TJ:APTHGJ" };
+              return `https://new.land.naver.com/${path}?ms=${lat},${lng},16&a=${filter}&e=RETAIL`;
+            })(),
+          },
         ]);
         void saveVatBuildingInfo(item.id, { latitude: lat, longitude: lng });
       })
