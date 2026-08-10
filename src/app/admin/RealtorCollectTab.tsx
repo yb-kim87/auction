@@ -6,6 +6,7 @@ import {
   fetchRealtorSubOptions,
   fetchRealtorCollectStatus,
   startRealtorCollect,
+  stopRealtorCollect,
   fetchRealtorOffices,
   realtorExportExcelUrl,
   type RealtorRegionOption,
@@ -168,6 +169,15 @@ export function RealtorCollectTab() {
     }
   }
 
+  async function handleStop() {
+    try {
+      await stopRealtorCollect();
+      pollStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "중단 요청에 실패했습니다.");
+    }
+  }
+
   const loadOffices = useCallback(
     (targetPage: number) => {
       setLoadingList(true);
@@ -262,6 +272,15 @@ export function RealtorCollectTab() {
           >
             {status?.running ? "수집 중..." : "실행"}
           </button>
+          {status?.running && (
+            <button
+              type="button"
+              onClick={() => void handleStop()}
+              className="h-9 px-4 text-sm font-semibold border border-destructive text-destructive rounded-sm hover:bg-destructive/10 transition-colors"
+            >
+              중단
+            </button>
+          )}
         </div>
 
         {error && <p className="text-xs text-destructive">{error}</p>}

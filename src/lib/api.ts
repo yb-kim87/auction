@@ -5161,6 +5161,10 @@ export function startRealtorCollect(input: {
   );
 }
 
+export function stopRealtorCollect(): Promise<{ ok: boolean }> {
+  return lectureReplayFetch(`/realtor-collect/stop`, { method: "POST" }, "중단 요청에 실패했습니다.");
+}
+
 export function fetchRealtorOffices(filters: {
   sidoCode?: string;
   gugunCode?: string;
