@@ -5076,3 +5076,125 @@ export async function uploadLandingImageFile(file: File): Promise<{ url: string 
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "이미지 업로드에 실패했습니다.");
   return readJsonResponse<{ url: string }>(res);
 }
+
+// ---------- 부동산수집(한방/karhanbang.com 중개업소, 2026-08-10) ----------
+
+export type RealtorRegionOption = { code: string; name: string };
+
+export type RealtorOffice = {
+  id: string;
+  memNo: string;
+  sidoCode: string;
+  sidoName: string;
+  gugunCode: string;
+  gugunName: string;
+  dongCode: string;
+  dongName: string;
+  name: string;
+  managerName: string;
+  address: string;
+  landline: string;
+  mobilePrimary: string;
+  mobileAll: string;
+  detailUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RealtorCollectStatus = {
+  running: boolean;
+  logs: string[];
+  total: number;
+  done: number;
+  saved: number;
+  sidoName: string;
+  gugunName: string;
+  dongName: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+};
+
+export function fetchRealtorSidoList(): Promise<RealtorRegionOption[]> {
+  return lectureReplayFetch(
+    `/realtor-collect/sido`,
+    undefined,
+    "시/도 목록을 불러오지 못했습니다.",
+  );
+}
+
+export function fetchRealtorSubOptions(
+  flag: "S" | "G",
+  sidoCode: string,
+  gugunCode?: string,
+): Promise<RealtorRegionOption[]> {
+  const q = new URLSearchParams({ flag, sidoCode });
+  if (gugunCode) q.set("gugunCode", gugunCode);
+  return lectureReplayFetch(
+    `/realtor-collect/sub-options?${q.toString()}`,
+    undefined,
+    "지역 목록을 불러오지 못했습니다.",
+  );
+}
+
+export function fetchRealtorCollectStatus(): Promise<RealtorCollectStatus> {
+  return lectureReplayFetch(
+    `/realtor-collect/status`,
+    { cache: "no-store" },
+    "수집 상태를 불러오지 못했습니다.",
+  );
+}
+
+export function startRealtorCollect(input: {
+  sidoCode: string;
+  gugunCode: string;
+  dongCode: string;
+  sidoName: string;
+  gugunName: string;
+  dongName: string;
+}): Promise<{ ok: boolean }> {
+  const q = new URLSearchParams(input);
+  return lectureReplayFetch(
+    `/realtor-collect/start?${q.toString()}`,
+    { method: "POST" },
+    "수집 시작에 실패했습니다.",
+  );
+}
+
+export function fetchRealtorOffices(filters: {
+  sidoCode?: string;
+  gugunCode?: string;
+  dongCode?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: RealtorOffice[]; total: number; page: number; pageSize: number }> {
+  const q = new URLSearchParams();
+  if (filters.sidoCode) q.set("sidoCode", filters.sidoCode);
+  if (filters.gugunCode) q.set("gugunCode", filters.gugunCode);
+  if (filters.dongCode) q.set("dongCode", filters.dongCode);
+  if (filters.search) q.set("search", filters.search);
+  if (filters.page) q.set("page", String(filters.page));
+  if (filters.pageSize) q.set("pageSize", String(filters.pageSize));
+  const qs = q.toString();
+  return lectureReplayFetch(
+    `/realtor-collect${qs ? `?${qs}` : ""}`,
+    { cache: "no-store" },
+    "중개업소 목록을 불러오지 못했습니다.",
+  );
+}
+
+export function realtorExportExcelUrl(filters: {
+  sidoCode?: string;
+  gugunCode?: string;
+  dongCode?: string;
+  search?: string;
+}): string {
+  const q = new URLSearchParams();
+  if (filters.sidoCode) q.set("sidoCode", filters.sidoCode);
+  if (filters.gugunCode) q.set("gugunCode", filters.gugunCode);
+  if (filters.dongCode) q.set("dongCode", filters.dongCode);
+  if (filters.search) q.set("search", filters.search);
+  const qs = q.toString();
+  return `${API_BASE}/realtor-collect/export${qs ? `?${qs}` : ""}`;
+}

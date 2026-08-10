@@ -43,6 +43,7 @@ import { CoupangSourcingTab } from "./CoupangSourcingTab";
 import { SecurityLogTab } from "./SecurityLogTab";
 import { SwimApplyTab } from "./SwimApplyTab";
 import { ResaleMatchTab } from "./ResaleMatchTab";
+import { RealtorCollectTab } from "./RealtorCollectTab";
 import { AssignmentReviewTab } from "./AssignmentReviewTab";
 import { SiteSettingsPanel } from "./SiteSettingsPanel";
 import { LectureReplayTab } from "./LectureReplayTab";
@@ -96,6 +97,7 @@ type AdminTab =
   | "resaleMatch"
   | "lectureReplay"
   | "assignments"
+  | "realtorCollect"
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
   | "coupangSourcing";
 type AiOpsSubTab = "rightsRules" | "knowledge" | "loanPolicy" | "strategyTags" | "aiPlatform";
@@ -111,6 +113,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "securityLog", label: "보안 로그" },
   { id: "lectureReplay", label: "영상업로드" },
   { id: "assignments", label: "과제 검토" },
+  { id: "realtorCollect", label: "부동산수집" },
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
 ];
 
@@ -1043,6 +1046,8 @@ export default function AdminPage() {
           {activeTab === "assignments" && <AssignmentReviewTab />}
 
           {activeTab === "lectureReplay" && <LectureReplayTab />}
+
+          {activeTab === "realtorCollect" && <RealtorCollectTab />}
 
           {activeTab === "swimApply" && <SwimApplyTab />}
 
