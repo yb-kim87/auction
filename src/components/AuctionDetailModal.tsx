@@ -1872,12 +1872,16 @@ export function AuctionDetailModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
-  // 물건 상세 우측 "외부 참고링크"(부동산플래닛 등, 사용자 요청
-  // 2026-08-10: "탱크옥션처럼 우측에 배치해서 물건별로"). 백엔드
-  // (Railway, 해외 리전)는 VWorld API에 직접 연결하지 못해(기존
-  // 부가세계산기/매도분석 지도와 동일 이슈) 좌표가 캐싱돼 있지 않으면
-  // 빈 배열을 준다 — 그 경우 프론트가 Vercel(서울 리전) 라우트로
-  // 직접 지오코딩한 뒤 결과를 캐싱해준다.
+  // 물건 상세 우측 "외부 참고링크"(부동산플래닛/네이버부동산/
+  // 네이버지도/다음지도, 사용자 요청 2026-08-10: "탱크옥션처럼 우측에
+  // 배치해서 물건별로" → "모든 용도에 해당하는 네이버지도 다음지도도
+  // 넣어줘"). 네이버지도/다음지도는 주소 텍스트 검색이라 좌표 없이도
+  // 백엔드가 항상 즉시 내려준다. 부동산플래닛/네이버부동산은 좌표
+  // (VWorld 지오코딩)가 캐싱돼 있어야만 포함되는데, 백엔드(Railway,
+  // 해외 리전)는 VWorld API에 직접 연결하지 못해(기존 부가세계산기/
+  // 매도분석 지도와 동일 이슈) 캐싱 전에는 빠져 있다 — 그 경우
+  // "부동산플래닛" 라벨이 없는지로 판단해 프론트가 Vercel(서울 리전)
+  // 라우트로 직접 지오코딩한 뒤 기존 목록에 이어붙이고 캐싱해준다.
   useEffect(() => {
     if (!item?.id) {
       setReferenceLinks([]);
@@ -1887,34 +1891,28 @@ export function AuctionDetailModal({
     fetchAuctionReferenceLinks(item.id)
       .then(async (links) => {
         if (cancelled) return;
-        if (links.length > 0 || !item.address?.trim()) {
-          setReferenceLinks(links);
-          return;
-        }
+        setReferenceLinks(links);
+        if (links.some((l) => l.label === "부동산플래닛") || !item.address?.trim()) return;
+
         const coord = await fetchVatAddressCoord(item.address).catch(() => null);
-        if (cancelled) return;
-        if (!coord) {
-          setReferenceLinks([]);
-          return;
-        }
+        if (cancelled || !coord) return;
         const lat = Number(coord.y);
         const lng = Number(coord.x);
-        setReferenceLinks([
+        const usage = item.usage ?? "";
+        const { path, filter } = /빌라|연립|다세대|다가구|도시형생활주택/.test(usage)
+          ? { path: "houses", filter: "VL:JWJT:DDDGG:SGJT:HOJT" }
+          : /아파트|오피스텔/.test(usage)
+            ? { path: "complexes", filter: "APT:OPST" }
+            : { path: "offices", filter: "SG:SMS:GJCG:GM:TJ:APTHGJ" };
+        setReferenceLinks((prev) => [
+          ...prev,
           {
             label: "부동산플래닛",
             url: `https://www.bdsplanet.com/map/realprice_map.ytp?s_area_lat=${lat}&s_area_lng=${lng}&s_area_zoom=19&use=true&utm_campaign=share`,
           },
           {
             label: "네이버부동산",
-            url: (() => {
-              const usage = item.usage ?? "";
-              const { path, filter } = /빌라|연립|다세대|다가구|도시형생활주택/.test(usage)
-                ? { path: "houses", filter: "VL:JWJT:DDDGG:SGJT:HOJT" }
-                : /아파트|오피스텔/.test(usage)
-                  ? { path: "complexes", filter: "APT:OPST" }
-                  : { path: "offices", filter: "SG:SMS:GJCG:GM:TJ:APTHGJ" };
-              return `https://new.land.naver.com/${path}?ms=${lat},${lng},16&a=${filter}&e=RETAIL`;
-            })(),
+            url: `https://new.land.naver.com/${path}?ms=${lat},${lng},16&a=${filter}&e=RETAIL`,
           },
         ]);
         void saveVatBuildingInfo(item.id, { latitude: lat, longitude: lng });
