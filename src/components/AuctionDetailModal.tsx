@@ -3511,11 +3511,21 @@ export function AuctionDetailModal({
                         className="rounded-full border border-border bg-secondary/20 px-3 py-1 text-[0.68rem] font-semibold text-foreground hover:bg-secondary"
                         onClick={(e) => {
                           // 탭이 아니라 새 창으로 열리게 한다(사용자 요청,
-                          // 2026-08-10) — NaverComplexLink와 동일 패턴으로
-                          // window.open에 크기를 지정해 별도 창으로 강제한다.
+                          // 2026-08-10). 크기/위치는 탱크옥션 원본
+                          // (tank_detailview.js의 "out-link" 핸들러)을 실측해
+                          // 그대로 맞췄다 — 현재 창 오른쪽에 크게 띄워서
+                          // 물건은 좌측, 외부링크는 우측에 나란히 보이게
+                          // 하는 구조(width=1220, height=화면 높이-100,
+                          // left=현재 창 X좌표+1350).
                           e.preventDefault();
                           e.stopPropagation();
-                          window.open(link.url, `ref-link-${link.label}`, "noopener,noreferrer,width=1100,height=900");
+                          const left = window.screenX + 1350;
+                          const height = window.screen.availHeight - 100;
+                          window.open(
+                            link.url,
+                            `ref-link-${link.label}`,
+                            `noopener,noreferrer,width=1220,height=${height},left=${left},top=0,scrollbars=yes,resizable=yes`,
+                          );
                         }}
                       >
                         {link.label}
