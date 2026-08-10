@@ -3113,22 +3113,6 @@ export function AuctionDetailModal({
                 <p className="mt-3 text-[0.62rem] leading-relaxed text-muted-foreground/75">수집된 인근 실거래 신고 건수 기준이며, 동일 조건 매물 수와는 다를 수 있습니다.</p>
               </div>
             </div>
-            {referenceLinks.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-secondary/10 px-4 py-3">
-                <span className="text-[0.68rem] font-bold text-muted-foreground">외부 참고링크</span>
-                {referenceLinks.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-border bg-card px-3 py-1 text-[0.68rem] font-semibold text-foreground hover:bg-secondary"
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-            )}
             </div>
           </div>
 
@@ -3492,6 +3476,25 @@ export function AuctionDetailModal({
                 </div>
               ))}
             </div>
+
+            {referenceLinks.length > 0 && (
+              <div className="rounded-xl bg-card border border-border p-4 space-y-2">
+                <p className="text-[0.68rem] font-bold text-muted-foreground">외부 참고링크</p>
+                <div className="flex flex-wrap gap-2">
+                  {referenceLinks.map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-full border border-border bg-secondary/20 px-3 py-1 text-[0.68rem] font-semibold text-foreground hover:bg-secondary"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </aside>
         )}
         </div>
