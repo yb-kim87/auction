@@ -26,7 +26,7 @@ import {
 } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
-import { NaverComplexLink } from "@/components/NaverComplexLink";
+import { NaverComplexLink, naverComplexUrl } from "@/components/NaverComplexLink";
 import { hasNaverPrice } from "@/lib/naver-price";
 import { AuctionAnalysisPanel } from "@/components/AuctionAnalysisPanel";
 import { TenantStatusPanel } from "@/components/TenantStatusPanel";
@@ -3489,24 +3489,36 @@ export function AuctionDetailModal({
               ))}
             </div>
 
-            {referenceLinks.length > 0 && (
-              <div className="rounded-xl bg-card border border-border p-4 space-y-2">
-                <p className="text-[0.68rem] font-bold text-muted-foreground">외부 참고링크</p>
-                <div className="flex flex-wrap gap-2">
-                  {referenceLinks.map((link) => (
-                    <a
-                      key={link.label}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-full border border-border bg-secondary/20 px-3 py-1 text-[0.68rem] font-semibold text-foreground hover:bg-secondary"
-                    >
-                      {link.label}
-                    </a>
-                  ))}
+            {(() => {
+              // 아파트/오피스텔은 N단지정보(naverId/djNo 기반 단지
+              // 상세페이지)도 함께 보여준다(사용자 요청, 2026-08-10).
+              // naverId는 지오코딩 없이 이미 물건 데이터에 있어 좌표
+              // 캐싱 여부와 무관하게 항상 즉시 표시 가능.
+              const isApartOrOfficetel = /아파트|오피스텔/.test(preview.usage ?? "");
+              const complexUrl = isApartOrOfficetel ? naverComplexUrl(naverId) : null;
+              const allLinks = complexUrl
+                ? [{ label: "N단지정보", url: complexUrl }, ...referenceLinks]
+                : referenceLinks;
+              if (allLinks.length === 0) return null;
+              return (
+                <div className="rounded-xl bg-card border border-border p-4 space-y-2">
+                  <p className="text-[0.68rem] font-bold text-muted-foreground">외부 참고링크</p>
+                  <div className="flex flex-wrap gap-2">
+                    {allLinks.map((link) => (
+                      <a
+                        key={link.label}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full border border-border bg-secondary/20 px-3 py-1 text-[0.68rem] font-semibold text-foreground hover:bg-secondary"
+                      >
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </aside>
         )}
         </div>
