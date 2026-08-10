@@ -19,6 +19,8 @@ import {
   fetchAuctionsByIds,
   crawlerStart,
   fetchCrawlerStatus,
+  fetchAuctionReferenceLinks,
+  type AuctionReferenceLink,
 } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
 import { CaseStateBadge } from "@/components/CaseStateBadge";
@@ -1824,6 +1826,7 @@ export function AuctionDetailModal({
   const [error, setError] = useState("");
   const [naverRefreshBusy, setNaverRefreshBusy] = useState(false);
   const [naverRefreshMessage, setNaverRefreshMessage] = useState("");
+  const [referenceLinks, setReferenceLinks] = useState<AuctionReferenceLink[]>([]);
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
   const [showMemo, setShowMemo] = useState(false);
@@ -1863,8 +1866,30 @@ export function AuctionDetailModal({
     setShowMemo(false);
     setActiveTab(initialTab);
     setCachedAnalysis(null);
+    setNaverRefreshMessage("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
+
+  // 물건 상세 우측 "외부 참고링크"(부동산플래닛 등, 사용자 요청
+  // 2026-08-10: "탱크옥션처럼 우측에 배치해서 물건별로"). 좌표가 없으면
+  // 서버가 지오코딩해서 캐싱하므로 실패해도 조용히 빈 목록으로 둔다.
+  useEffect(() => {
+    if (!item?.id) {
+      setReferenceLinks([]);
+      return;
+    }
+    let cancelled = false;
+    fetchAuctionReferenceLinks(item.id)
+      .then((links) => {
+        if (!cancelled) setReferenceLinks(links);
+      })
+      .catch(() => {
+        if (!cancelled) setReferenceLinks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item?.id]);
 
   // Push a history entry when the modal opens so mobile "back" closes the
   // modal instead of navigating past the list page that opened it.
@@ -3064,6 +3089,22 @@ export function AuctionDetailModal({
                 <p className="mt-3 text-[0.62rem] leading-relaxed text-muted-foreground/75">수집된 인근 실거래 신고 건수 기준이며, 동일 조건 매물 수와는 다를 수 있습니다.</p>
               </div>
             </div>
+            {referenceLinks.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-secondary/10 px-4 py-3">
+                <span className="text-[0.68rem] font-bold text-muted-foreground">외부 참고링크</span>
+                {referenceLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-border bg-card px-3 py-1 text-[0.68rem] font-semibold text-foreground hover:bg-secondary"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            )}
             </div>
           </div>
 

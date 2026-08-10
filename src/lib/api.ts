@@ -138,6 +138,25 @@ export async function fetchAuctions(): Promise<AuctionItem[]> {
   return readJsonResponse(res);
 }
 
+export type AuctionReferenceLink = {
+  label: string;
+  url: string;
+};
+
+/** 물건 상세 우측 "외부 참고링크"(부동산플래닛 등, 탱크옥션 사이드 메뉴를
+ * 분석해 동일하게 구성). 좌표가 없으면 서버가 주소로 지오코딩 후
+ * 캐싱하므로 첫 호출만 약간 느릴 수 있다. */
+export async function fetchAuctionReferenceLinks(id: string): Promise<AuctionReferenceLink[]> {
+  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(id)}/reference-links`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "참고링크를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
 /** 전체 물건 목록을 다 받지 않고 지정한 id들만 조회한다(관심물건 페이지
  * 등 소수 건만 필요할 때 사용). */
 export async function fetchAuctionsByIds(ids: string[]): Promise<AuctionItem[]> {
