@@ -1466,6 +1466,11 @@ export type RecommendationFilters = {
   /** 전용면적(㎡) 범위 필터. */
   minArea?: number;
   maxArea?: number;
+  /** "N개년 실거래 개수" 필터(사용자 요청, 2026-08-10) — 예: 1개년+10
+   * 이면 올해 실거래 건수가 10건 이상인 물건만. 항상 올해를 포함해
+   * 직전 연도까지 합산한다(1~3). 하나만 지정하면 무시됨. */
+  tradingYears?: number;
+  tradingMinCount?: number;
 };
 
 /** 추천 물건 화면의 라벨 필터 드롭박스를 채울 전략 라벨 전체 목록. */
@@ -1527,6 +1532,8 @@ export async function fetchRecommendations(
     query.set("strategyLabel", filters.strategyLabel.join(","));
   if (filters?.minArea != null) query.set("minArea", String(filters.minArea));
   if (filters?.maxArea != null) query.set("maxArea", String(filters.maxArea));
+  if (filters?.tradingYears != null) query.set("tradingYears", String(filters.tradingYears));
+  if (filters?.tradingMinCount != null) query.set("tradingMinCount", String(filters.tradingMinCount));
   const qs = query.toString();
   const res = await fetch(`${API_BASE}/recommendations${qs ? `?${qs}` : ""}`, {
     cache: "no-store",
@@ -5017,3 +5024,55 @@ export const fetchCoachAssignmentByAuction = (username: string, auctionId: strin
   );
 export const fetchServiceReports = () => learningBoardFetch<ServiceReport[]>("/learning-board/reports");
 export const createServiceReport = (body: Partial<ServiceReport>) => learningBoardFetch<ServiceReport>("/learning-board/reports", { method: "POST", body: JSON.stringify(body) });
+
+// ── 강의실 메인(/courses) 소개 페이지 이미지 슬롯 ──────────────────────────
+export interface LandingImage {
+  key: string;
+  label: string;
+  recommendedSize: string;
+  imageUrl: string;
+  isCustom: boolean;
+}
+
+/** 소개 페이지 렌더링용 — 로그인 여부와 무관하게 조회 가능. */
+export async function fetchLandingImages(): Promise<LandingImage[]> {
+  const res = await fetch(`${API_BASE}/landing-images`, { credentials: FETCH_CREDENTIALS, cache: "no-store" });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "이미지를 불러오지 못했습니다.");
+  return readJsonResponse<LandingImage[]>(res);
+}
+
+/** 관리자 페이지에서 URL을 직접 입력해 슬롯 이미지를 바꿀 때 사용. */
+export async function updateLandingImage(key: string, imageUrl: string): Promise<LandingImage> {
+  const res = await fetch(`${API_BASE}/landing-images/${encodeURIComponent(key)}`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ imageUrl }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "이미지 변경에 실패했습니다.");
+  return readJsonResponse<LandingImage>(res);
+}
+
+/** 커스텀 이미지를 지우고 기본(참고) 이미지로 되돌린다. */
+export async function resetLandingImage(key: string): Promise<LandingImage> {
+  const res = await fetch(`${API_BASE}/landing-images/${encodeURIComponent(key)}`, {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "초기화에 실패했습니다.");
+  return readJsonResponse<LandingImage>(res);
+}
+
+/** 관리자 페이지에서 파일을 직접 업로드할 때 사용 — 업로드된 파일의 URL을
+ * 반환하며, 이 URL을 updateLandingImage에 넘겨 슬롯에 반영해야 한다. */
+export async function uploadLandingImageFile(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/landing-images/upload-image`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    body: formData,
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "이미지 업로드에 실패했습니다.");
+  return readJsonResponse<{ url: string }>(res);
+}

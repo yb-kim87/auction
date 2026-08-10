@@ -112,6 +112,10 @@ type RecommendFilters = {
   strategyLabel: string[];
   minArea: string;
   maxArea: string;
+  /** "N개년 실거래 개수" 필터(사용자 요청, 2026-08-10) — 예: 1개년+10
+   * 이면 올해 실거래 건수가 10건 이상인 물건만. */
+  tradingYears: string;
+  tradingMinCount: string;
 };
 
 const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
@@ -123,6 +127,8 @@ const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
   strategyLabel: [],
   minArea: "",
   maxArea: "",
+  tradingYears: "",
+  tradingMinCount: "",
 };
 
 // favoritesOnly도 서버에 그대로 보낸다(백엔드는 이미 지원) — 예전엔
@@ -145,6 +151,8 @@ function toApiFilters(
   strategyLabel?: string[];
   minArea?: number;
   maxArea?: number;
+  tradingYears?: number;
+  tradingMinCount?: number;
 } {
   // 관심물건 보기는 상세 필터·검색과 독립된 목록 모드다. 켜져 있을 때는
   // 이전에 선택한 조건을 API로 보내지 않아 관심 등록한 전체 물건을 보여준다.
@@ -162,6 +170,16 @@ function toApiFilters(
     strategyLabel: filters.strategyLabel.length > 0 ? filters.strategyLabel : undefined,
     minArea: filters.minArea ? Number(filters.minArea) || undefined : undefined,
     maxArea: filters.maxArea ? Number(filters.maxArea) || undefined : undefined,
+    // 두 값이 모두 있어야 서버가 실제로 필터링한다(둘 중 하나만 있으면
+    // 무시) — 연도만 고르고 개수를 안 넣은 상태로 걸리지 않게.
+    tradingYears:
+      filters.tradingYears && filters.tradingMinCount
+        ? Number(filters.tradingYears) || undefined
+        : undefined,
+    tradingMinCount:
+      filters.tradingYears && filters.tradingMinCount
+        ? Number(filters.tradingMinCount) || undefined
+        : undefined,
   };
 }
 
@@ -251,6 +269,8 @@ function RecommendFilterModal({
   const [strategyLabel, setStrategyLabel] = useState(filters.strategyLabel);
   const [minArea, setMinArea] = useState(filters.minArea);
   const [maxArea, setMaxArea] = useState(filters.maxArea);
+  const [tradingYears, setTradingYears] = useState(filters.tradingYears);
+  const [tradingMinCount, setTradingMinCount] = useState(filters.tradingMinCount);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
@@ -348,6 +368,33 @@ function RecommendFilterModal({
             </div>
           )}
 
+          <div className="space-y-1.5">
+            <span className="text-muted-foreground text-[13px]">주변 실거래 개수</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={tradingYears}
+                onChange={(e) => setTradingYears(e.target.value)}
+                className="w-28 h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">전체</option>
+                <option value="1">1개년</option>
+                <option value="2">2개년</option>
+                <option value="3">3개년</option>
+              </select>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={tradingMinCount}
+                onChange={(e) => setTradingMinCount(e.target.value)}
+                placeholder="예: 10"
+                disabled={!tradingYears}
+                className="flex-1 h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:bg-secondary/40"
+              />
+              <span className="text-muted-foreground text-sm shrink-0">건 이상</span>
+            </div>
+          </div>
+
         </div>
 
         <div className="flex justify-between gap-2 mt-6">
@@ -361,6 +408,8 @@ function RecommendFilterModal({
               setStrategyLabel([]);
               setMinArea("");
               setMaxArea("");
+              setTradingYears("");
+              setTradingMinCount("");
             }}
             className="px-4 py-2 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
           >
@@ -378,6 +427,8 @@ function RecommendFilterModal({
                 strategyLabel,
                 minArea,
                 maxArea,
+                tradingYears,
+                tradingMinCount,
               })
             }
             className="px-5 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
@@ -1107,7 +1158,8 @@ export default function HomePage() {
     (filters.maxFailureRate ? 1 : 0) +
     (filters.progressStatus !== PROGRESS_STATUS_LABELS.active ? 1 : 0) +
     (filters.strategyLabel.length > 0 ? 1 : 0) +
-    (filters.minArea || filters.maxArea ? 1 : 0);
+    (filters.minArea || filters.maxArea ? 1 : 0) +
+    (filters.tradingYears && filters.tradingMinCount ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -1132,7 +1184,7 @@ export default function HomePage() {
               </Link>
               <div className={HEADER_NAV_TRAILING}>
                 <Link
-                  href="/courses"
+                  href="/courses/my"
                   className={`${HEADER_BTN} border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}
                 >
                   강의실
