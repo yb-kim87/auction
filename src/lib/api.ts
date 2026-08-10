@@ -3845,6 +3845,8 @@ export async function saveVatBuildingInfo(
     vatGroundFloors?: number | null;
     housingLedgerPk?: string | null;
     housingLedgerDongNm?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   },
 ): Promise<void> {
   try {

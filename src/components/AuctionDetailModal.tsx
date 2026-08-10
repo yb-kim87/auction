@@ -20,6 +20,8 @@ import {
   crawlerStart,
   fetchCrawlerStatus,
   fetchAuctionReferenceLinks,
+  fetchVatAddressCoord,
+  saveVatBuildingInfo,
   type AuctionReferenceLink,
 } from "@/lib/api";
 import { UpdatedBadge } from "@/components/UpdatedBadge";
@@ -1871,8 +1873,11 @@ export function AuctionDetailModal({
   }, [item]);
 
   // 물건 상세 우측 "외부 참고링크"(부동산플래닛 등, 사용자 요청
-  // 2026-08-10: "탱크옥션처럼 우측에 배치해서 물건별로"). 좌표가 없으면
-  // 서버가 지오코딩해서 캐싱하므로 실패해도 조용히 빈 목록으로 둔다.
+  // 2026-08-10: "탱크옥션처럼 우측에 배치해서 물건별로"). 백엔드
+  // (Railway, 해외 리전)는 VWorld API에 직접 연결하지 못해(기존
+  // 부가세계산기/매도분석 지도와 동일 이슈) 좌표가 캐싱돼 있지 않으면
+  // 빈 배열을 준다 — 그 경우 프론트가 Vercel(서울 리전) 라우트로
+  // 직접 지오코딩한 뒤 결과를 캐싱해준다.
   useEffect(() => {
     if (!item?.id) {
       setReferenceLinks([]);
@@ -1880,8 +1885,27 @@ export function AuctionDetailModal({
     }
     let cancelled = false;
     fetchAuctionReferenceLinks(item.id)
-      .then((links) => {
-        if (!cancelled) setReferenceLinks(links);
+      .then(async (links) => {
+        if (cancelled) return;
+        if (links.length > 0 || !item.address?.trim()) {
+          setReferenceLinks(links);
+          return;
+        }
+        const coord = await fetchVatAddressCoord(item.address).catch(() => null);
+        if (cancelled) return;
+        if (!coord) {
+          setReferenceLinks([]);
+          return;
+        }
+        const lat = Number(coord.y);
+        const lng = Number(coord.x);
+        setReferenceLinks([
+          {
+            label: "부동산플래닛",
+            url: `https://www.bdsplanet.com/map/realprice_map.ytp?s_area_lat=${lat}&s_area_lng=${lng}&s_area_zoom=19&use=true&utm_campaign=share`,
+          },
+        ]);
+        void saveVatBuildingInfo(item.id, { latitude: lat, longitude: lng });
       })
       .catch(() => {
         if (!cancelled) setReferenceLinks([]);
@@ -1889,7 +1913,7 @@ export function AuctionDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [item?.id]);
+  }, [item?.id, item?.address]);
 
   // Push a history entry when the modal opens so mobile "back" closes the
   // modal instead of navigating past the list page that opened it.
