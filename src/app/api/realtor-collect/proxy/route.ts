@@ -10,6 +10,13 @@ import { NextRequest, NextResponse } from "next/server";
  * 헤더로 인증한다. */
 export const preferredRegion = "icn1";
 export const runtime = "nodejs";
+export const maxDuration = 30;
+
+/** 실측(2026-08-11): 동시 요청이 몇 개만 겹쳐도 응답이 느려지는
+ * 현상이 있어, 무한정 기다리는 대신 12초에서 끊고 백엔드가 재시도
+ * 하도록 한다(끝없이 매달리다 Vercel 함수 자체가 죽는 것보다, 짧게
+ * 실패시켜 백엔드의 재시도 로직이 더 빨리 판단하게 하는 게 낫다). */
+const FETCH_TIMEOUT_MS = 12_000;
 
 const ALLOWED_HOST = "www.karhanbang.com";
 const USER_AGENT =
@@ -45,7 +52,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(parsed.toString(), { headers });
+    const res = await fetch(parsed.toString(), { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     const text = await res.text();
     return new NextResponse(text, {
       status: res.status,
