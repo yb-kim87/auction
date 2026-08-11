@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, CalendarDays, FileText, Heart, ClipboardCheck } from "lucide-react";
-import { AppHeader, HEADER_BTN } from "@/components/AppHeader";
+import { ChevronLeft, ChevronRight, CalendarDays, FileText, Heart, ClipboardCheck, LogOut } from "lucide-react";
+import { AppHeader, HEADER_BTN, HEADER_NAV_TRAILING, HEADER_TAB_ACTIVE } from "@/components/AppHeader";
+import { AccountNavLink } from "@/components/AccountNavLink";
+import { clearAuthCookie } from "@/lib/auth";
 import {
   fetchAuctionsByIds,
   fetchFavorites,
   fetchMyBidPlans,
   fetchAssignments,
+  fetchMyProfile,
+  logoutUser,
   type BidPlanWithAuction,
   type FavoriteItem,
   type AuctionAssignment,
 } from "@/lib/api";
-import type { AuctionItem } from "@/types/auction";
+import type { AuctionItem, UserProfile } from "@/types/auction";
 
 type Filter = "all" | "favorite" | "plan" | "assignment";
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -21,6 +26,8 @@ const keyOf = (value?: string | null) => value ? value.trim().slice(0, 10).repla
 const dday = (value: string) => Math.ceil((new Date(`${value}T00:00:00`).getTime() - new Date(new Date().toDateString()).getTime()) / 86400000);
 
 export default function BidCalendarPage() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [plans, setPlans] = useState<BidPlanWithAuction[]>([]);
@@ -29,6 +36,25 @@ export default function BidCalendarPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const isAdmin = profile?.role === "admin";
+  const isConsultant = profile?.role === "consultant";
+
+  useEffect(() => {
+    fetchMyProfile()
+      .then(setProfile)
+      .catch(() => setProfile(null));
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
+    clearAuthCookie();
+    router.replace("/login");
+  };
 
   useEffect(() => {
     Promise.allSettled([fetchFavorites(), fetchMyBidPlans(), fetchAssignments()]).then(async ([f, p, a]) => {
@@ -60,7 +86,43 @@ export default function BidCalendarPage() {
 
   return (
     <>
-      <AppHeader nav={<><Link className={HEADER_BTN} href="/">추천 물건</Link><Link className={HEADER_BTN} href="/favorites">내 물건</Link></>} />
+      <AppHeader
+        maxWidth="1400"
+        nav={
+          <>
+            <Link href="/" className={HEADER_BTN}>
+              추천 물건
+            </Link>
+            <Link href="/search" className={HEADER_BTN}>
+              전체 검색
+            </Link>
+            {isConsultant && (
+              <Link href="/consultant" className={HEADER_BTN}>
+                컨설턴트
+              </Link>
+            )}
+            <span className={HEADER_TAB_ACTIVE}>내 물건</span>
+            <div className={HEADER_NAV_TRAILING}>
+              <Link
+                href="/courses/my"
+                className={`${HEADER_BTN} border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}
+              >
+                강의실
+              </Link>
+              {isAdmin && (
+                <Link href="/admin" className={HEADER_BTN}>
+                  관리자
+                </Link>
+              )}
+              <AccountNavLink name={profile?.name} />
+              <button type="button" onClick={handleLogout} className={HEADER_BTN}>
+                <LogOut size={16} />
+                로그아웃
+              </button>
+            </div>
+          </>
+        }
+      />
       <main className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
