@@ -7,6 +7,7 @@ import {
   fetchRealtorCollectStatus,
   startRealtorCollect,
   stopRealtorCollect,
+  confirmRealtorCollect,
   fetchRealtorOffices,
   realtorExportExcelUrl,
   type RealtorRegionOption,
@@ -169,6 +170,16 @@ export function RealtorCollectTab() {
     }
   }
 
+  async function handleConfirm() {
+    try {
+      await confirmRealtorCollect();
+      if (!pollRef.current) pollRef.current = setInterval(pollStatus, 1500);
+      pollStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "확인 요청에 실패했습니다.");
+    }
+  }
+
   async function handleStop() {
     try {
       await stopRealtorCollect();
@@ -270,7 +281,11 @@ export function RealtorCollectTab() {
             disabled={starting || status?.running || !collect.sidoCode}
             className="h-9 px-4 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors disabled:opacity-50"
           >
-            {status?.running ? "수집 중..." : "실행"}
+            {status?.phase === "listing"
+              ? "목록 확인 중..."
+              : status?.phase === "collecting"
+                ? "수집 중..."
+                : "실행"}
           </button>
           {status?.running && (
             <button
@@ -285,6 +300,31 @@ export function RealtorCollectTab() {
 
         {error && <p className="text-xs text-destructive">{error}</p>}
 
+        {status?.phase === "awaiting_confirmation" && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-primary/30 bg-primary/5 px-3 py-2.5">
+            <p className="text-sm text-foreground">
+              <span className="font-bold text-primary">{status.sidoName} {status.gugunName} {status.dongName}</span>
+              {" "}목록 확인 완료 — 총 <span className="font-bold">{status.total.toLocaleString()}건</span>. 상세정보(전화번호)를 수집할까요?
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => void handleStop()}
+                className="h-9 px-4 text-sm font-medium border border-border rounded-sm hover:bg-secondary transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirm()}
+                className="h-9 px-4 text-sm font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
+              >
+                상세정보 수집 시작
+              </button>
+            </div>
+          </div>
+        )}
+
         {status && (status.running || status.logs.length > 0) && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -292,7 +332,8 @@ export function RealtorCollectTab() {
                 {status.sidoName} {status.gugunName} {status.dongName}
                 {status.total > 0 && ` · 진행 ${status.done}/${status.total} (저장 ${status.saved}건)`}
               </span>
-              {status.running && <span className="text-primary font-semibold">진행 중...</span>}
+              {status.phase === "listing" && <span className="text-primary font-semibold">목록 확인 중...</span>}
+              {status.phase === "collecting" && <span className="text-primary font-semibold">상세 수집 중...</span>}
               {!status.running && status.finishedAt && !status.error && (
                 <span className="text-emerald-600 font-semibold">완료</span>
               )}

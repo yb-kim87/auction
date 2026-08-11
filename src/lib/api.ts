@@ -5103,6 +5103,7 @@ export type RealtorOffice = {
 
 export type RealtorCollectStatus = {
   running: boolean;
+  phase: "idle" | "listing" | "awaiting_confirmation" | "collecting";
   logs: string[];
   total: number;
   done: number;
@@ -5163,6 +5164,12 @@ export function startRealtorCollect(input: {
 
 export function stopRealtorCollect(): Promise<{ ok: boolean }> {
   return lectureReplayFetch(`/realtor-collect/stop`, { method: "POST" }, "중단 요청에 실패했습니다.");
+}
+
+/** 목록 건수 확인 후 상세(전화번호) 수집을 진행하기로 확정한다
+ * (사용자 요청, 2026-08-11). */
+export function confirmRealtorCollect(): Promise<{ ok: boolean }> {
+  return lectureReplayFetch(`/realtor-collect/confirm`, { method: "POST" }, "확인 요청에 실패했습니다.");
 }
 
 export function fetchRealtorOffices(filters: {
