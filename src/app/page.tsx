@@ -382,7 +382,7 @@ function RecommendFilterModal({
           )}
 
           <div className="space-y-1.5">
-            <span className="text-muted-foreground text-[13px]">주변 실거래 개수</span>
+            <span className="text-muted-foreground text-[13px]">최근 주변 실거래</span>
             <div className="flex items-center gap-2">
               <select
                 value={tradingYears}
