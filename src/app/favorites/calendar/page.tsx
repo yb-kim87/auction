@@ -9,7 +9,7 @@ import type { AuctionItem } from "@/types/auction";
 
 type Filter = "all" | "favorite" | "plan";
 const pad = (n: number) => String(n).padStart(2, "0");
-const keyOf = (value?: string | null) => value ? value.slice(0, 10).replaceAll("/", "-") : "";
+const keyOf = (value?: string | null) => value ? value.trim().slice(0, 10).replaceAll("/", "-").replaceAll(".", "-") : "";
 const dday = (value: string) => Math.ceil((new Date(`${value}T00:00:00`).getTime() - new Date(new Date().toDateString()).getTime()) / 86400000);
 
 export default function BidCalendarPage() {
