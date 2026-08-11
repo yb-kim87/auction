@@ -271,12 +271,25 @@ function RecommendFilterModal({
   const [maxArea, setMaxArea] = useState(filters.maxArea);
   const [tradingYears, setTradingYears] = useState(filters.tradingYears);
   const [tradingMinCount, setTradingMinCount] = useState(filters.tradingMinCount);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const backdropMouseDownRef = useRef(false);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45"
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = !contentRef.current?.contains(e.target as Node);
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && !contentRef.current?.contains(e.target as Node)) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
+    >
       <div
+        ref={contentRef}
         className="relative w-full max-w-md sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl p-5 sm:p-6"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-base font-bold text-foreground">상세 필터</h2>
@@ -442,11 +455,25 @@ function RecommendFilterModal({
 }
 
 function WelcomeGuideModal({ onClose }: { onClose: () => void }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const backdropMouseDownRef = useRef(false);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45"
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = !contentRef.current?.contains(e.target as Node);
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && !contentRef.current?.contains(e.target as Node)) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
+    >
       <div
+        ref={contentRef}
         className="relative w-full max-w-sm bg-card border border-border rounded-sm shadow-xl p-5 sm:p-6"
-        onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-base font-bold text-foreground mb-3">
           회원님의 투자정보를 바탕으로 추천된 물건입니다.
@@ -487,6 +514,8 @@ function InvestmentInfoModal({
   const [error, setError] = useState("");
   // 목표 수익은 선택 항목이라 제외 — 비워두지 못하게 막을 필수 필드만 담는다.
   const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
+  const contentRef = useRef<HTMLDivElement>(null);
+  const backdropMouseDownRef = useRef(false);
 
   async function handleSave() {
     const trimmedInvestableFunds = investableFunds.trim();
@@ -540,10 +569,21 @@ function InvestmentInfoModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto bg-black/45"
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = !contentRef.current?.contains(e.target as Node);
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && !contentRef.current?.contains(e.target as Node)) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
+    >
       <div
+        ref={contentRef}
         className="relative w-full max-w-lg sm:my-4 min-h-screen sm:min-h-0 bg-card border-0 sm:border border-border rounded-none sm:rounded-sm shadow-xl p-5 sm:p-6"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-base font-bold text-foreground">투자정보 수정</h2>
