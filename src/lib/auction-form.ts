@@ -47,11 +47,11 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "appraisedValue", label: "감정가", type: "number" },
       { key: "minPrice", label: "현재 최저 입찰가", type: "number" },
-      { key: "naverPrice", label: "주변 매물 호가", type: "number" },
+      { key: "naverPrice", label: "동일 아파트 호가", type: "number" },
       { key: "officialLandPrice", label: "공시가격", type: "number" },
       { key: "salePrice", label: "실제 낙찰가", type: "number" },
       { key: "tradingCount", label: "최근 실거래 건수" },
-      { key: "priceDetail", label: "주변 매물 상세", full: true },
+      { key: "priceDetail", label: "동일 아파트 상세", full: true },
       { key: "tradingDetail", label: "최근 실거래 상세", full: true },
     ],
   },

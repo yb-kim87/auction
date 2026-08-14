@@ -3020,7 +3020,7 @@ export function AuctionDetailModal({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[0.72rem] font-bold text-primary/70">주변 매물 호가</p>
+                      <p className="text-[0.72rem] font-bold text-primary/70">동일 아파트 호가</p>
                       <NaverComplexLink naverId={naverId} inLabelRow />
                       {isAdmin && (
                         <button
