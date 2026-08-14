@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TextareaHTMLAttributes } from "react";
 import type { AuctionAnalysisResult, AuctionItem } from "@/types/auction";
 import { formatWonShort } from "@/lib/investment-money";
 import {
@@ -44,6 +44,42 @@ function digitsOnly(value: string): string {
 function formatDigits(value: string): string {
   const n = Number(digitsOnly(value) || 0);
   return n.toLocaleString("ko-KR");
+}
+
+/** 내용 길이에 맞춰 세로로 늘어나는 textarea — 과제 메모/피드백처럼 길이가
+ * 들쭉날쭉한 텍스트가 고정 높이에 잘려 보이지 않도록 한다(사용자 요청,
+ * 2026-08-14: 과제 확인 화면에서 긴 메모가 스크롤에 잘려 보인다는 지적). */
+function AutoGrowTextarea({
+  value,
+  minRows = 2,
+  className,
+  ...rest
+}: {
+  value: string;
+  minRows?: number;
+} & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "rows">) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const resize = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
+  useEffect(() => {
+    resize(ref.current);
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={minRows}
+      value={value}
+      onInput={(e) => resize(e.currentTarget)}
+      className={`${className ?? ""} overflow-hidden`}
+      {...rest}
+    />
+  );
 }
 
 function parseAreaNumber(value: string | null | undefined): number | null {
@@ -877,13 +913,12 @@ export function ProfitCalculatorPanel({
               최종수익 {result.finalProfit.toLocaleString("ko-KR")}원)과 함께 아래 내용을 제출합니다.
             </p>
           )}
-          <textarea
-            rows={2}
+          <AutoGrowTextarea
             placeholder="메모"
             value={assignmentMemo}
             onChange={(e) => setAssignmentMemo(e.target.value)}
             readOnly={isCoachView}
-            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card resize-y read-only:bg-secondary/10"
+            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card read-only:bg-secondary/10"
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-border bg-card p-3">
@@ -935,12 +970,12 @@ export function ProfitCalculatorPanel({
           {isCoachView ? (
             <div className="space-y-2 border-t border-amber-400/20 pt-3">
               <p className="text-xs font-semibold text-foreground">코치 피드백</p>
-              <textarea
-                rows={3}
+              <AutoGrowTextarea
+                minRows={3}
                 value={coachFeedbackDraft}
                 onChange={(e) => setCoachFeedbackDraft(e.target.value)}
                 placeholder="이 과제에 대한 피드백을 남겨 주세요."
-                className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card resize-y"
+                className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card"
               />
               <div className="flex items-center gap-2">
                 <button
@@ -993,13 +1028,12 @@ export function ProfitCalculatorPanel({
             )}
           </p>
         </div>
-        <textarea
-          rows={2}
+        <AutoGrowTextarea
           placeholder="메모(예: 이 가격 이하로만 입찰, 전세가 확인 후 결정 등)"
           value={bidPlanMemo}
           onChange={(e) => setBidPlanMemo(e.target.value)}
           readOnly={isCoachView}
-          className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-secondary/10 resize-y"
+          className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-secondary/10"
         />
         {!isCoachView && (
           <div className="flex items-center gap-2">
