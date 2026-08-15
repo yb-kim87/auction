@@ -997,6 +997,14 @@ export function ProfitCalculatorPanel({
             </div>
           ) : (
             <>
+              {savedAssignment?.coachFeedback && (
+                <div className="space-y-1.5 border-t border-amber-400/20 pt-3">
+                  <p className="text-xs font-semibold text-foreground">코치 피드백</p>
+                  <p className="whitespace-pre-wrap rounded-sm border border-border bg-card px-3 py-2 text-xs text-foreground">
+                    {savedAssignment.coachFeedback}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
