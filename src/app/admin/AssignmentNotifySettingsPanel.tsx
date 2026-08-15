@@ -67,21 +67,30 @@ export function AssignmentNotifySettingsPanel() {
         </p>
       </div>
 
-      <label className="flex items-center justify-between gap-4 rounded-sm border border-border bg-card p-4 cursor-pointer">
+      <div className="flex items-center justify-between gap-4 rounded-sm border border-border bg-card p-4">
         <span className="text-sm">
           <span className="font-medium text-foreground">과제 알림톡 사용</span>
           <span className="block text-xs text-muted-foreground mt-0.5">
             꺼져 있으면 과제 등록/코치 피드백 시 아무 알림도 발송되지 않습니다.
           </span>
         </span>
-        <input
-          type="checkbox"
-          checked={settings.assignmentNotifyEnabled}
-          onChange={(e) => void save({ assignmentNotifyEnabled: e.target.checked })}
+        <button
+          type="button"
+          onClick={() => void save({ assignmentNotifyEnabled: !settings.assignmentNotifyEnabled })}
           disabled={saving}
-          className="w-9 h-5 accent-primary shrink-0"
-        />
-      </label>
+          role="switch"
+          aria-checked={settings.assignmentNotifyEnabled}
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+            settings.assignmentNotifyEnabled ? "bg-emerald-500" : "bg-secondary border border-border"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              settings.assignmentNotifyEnabled ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </button>
+      </div>
 
       <div className="rounded-sm border border-border bg-card p-4 space-y-3">
         <div>
