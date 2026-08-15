@@ -393,6 +393,11 @@ export function ProfitCalculatorPanel({
   const [safetyResearch2, setSafetyResearch2] = useState("");
   const [safetyResearch3, setSafetyResearch3] = useState("");
   const [finalSafetyMargin, setFinalSafetyMargin] = useState("");
+  /** 제출 시도했을 때 비어 있던 필수 항목 — 어떤 입력칸이 문제인지 바로
+   * 보이도록 해당 입력칸 테두리를 빨갛게 표시한다(사용자 요청,
+   * 2026-08-15: "우측에 조사1 조사2 표기도 해주지면 조사1 조사2 써야하는
+   * 곳에다가도 표시를 해주면"). */
+  const [assignmentMissingFields, setAssignmentMissingFields] = useState<Set<string>>(new Set());
 
   // 코치 보기 모드 전용 — 이 화면에서 바로 피드백을 남길 수 있게 한다.
   const [coachFeedbackDraft, setCoachFeedbackDraft] = useState("");
@@ -580,9 +585,11 @@ export function ProfitCalculatorPanel({
       .filter(([, value]) => !value.trim())
       .map(([label]) => label);
     if (missing.length > 0) {
+      setAssignmentMissingFields(new Set(missing));
       setAssignmentMessage(`다음 항목을 입력해야 제출할 수 있습니다: ${missing.join(", ")}`);
       return;
     }
+    setAssignmentMissingFields(new Set());
     setAssignmentSaving(true);
     try {
       // 과제제출은 현재 입찰계획 값도 함께 저장한다(사용자 요청: "입찰계획
@@ -959,13 +966,26 @@ export function ProfitCalculatorPanel({
                 ] as const
               ).map(([label, value, setValue]) => (
                 <label key={label} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
-                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+                  <span className={`w-16 shrink-0 ${assignmentMissingFields.has(label) ? "font-semibold text-red-600" : "text-muted-foreground"}`}>
+                    {label}
+                  </span>
                   <input
                     inputMode="numeric"
                     value={value ? formatDigits(value) : ""}
-                    onChange={(e) => setValue(digitsOnly(e.target.value))}
+                    onChange={(e) => {
+                      setValue(digitsOnly(e.target.value));
+                      if (assignmentMissingFields.has(label)) {
+                        setAssignmentMissingFields((prev) => {
+                          const next = new Set(prev);
+                          next.delete(label);
+                          return next;
+                        });
+                      }
+                    }}
                     readOnly={isCoachView}
-                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
+                    className={`flex-1 px-2 py-1.5 border rounded-sm bg-secondary/10 text-right ${
+                      assignmentMissingFields.has(label) ? "border-red-400" : "border-border"
+                    }`}
                   />
                 </label>
               ))}
@@ -981,13 +1001,26 @@ export function ProfitCalculatorPanel({
                 ] as const
               ).map(([label, value, setValue]) => (
                 <label key={label} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
-                  <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+                  <span className={`w-16 shrink-0 ${assignmentMissingFields.has(label) ? "font-semibold text-red-600" : "text-muted-foreground"}`}>
+                    {label}
+                  </span>
                   <input
                     inputMode="numeric"
                     value={value ? formatDigits(value) : ""}
-                    onChange={(e) => setValue(digitsOnly(e.target.value))}
+                    onChange={(e) => {
+                      setValue(digitsOnly(e.target.value));
+                      if (assignmentMissingFields.has(label)) {
+                        setAssignmentMissingFields((prev) => {
+                          const next = new Set(prev);
+                          next.delete(label);
+                          return next;
+                        });
+                      }
+                    }}
                     readOnly={isCoachView}
-                    className="flex-1 px-2 py-1.5 border border-border rounded-sm bg-secondary/10 text-right"
+                    className={`flex-1 px-2 py-1.5 border rounded-sm bg-secondary/10 text-right ${
+                      assignmentMissingFields.has(label) ? "border-red-400" : "border-border"
+                    }`}
                   />
                 </label>
               ))}
