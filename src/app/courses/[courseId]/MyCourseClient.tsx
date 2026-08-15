@@ -458,6 +458,10 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const selectedRow = selectedVideo
     ? expandVideoRows(selectedVideo).find((r) => r.startSeconds === selectedStartSeconds) ?? null
     : null;
+  // "강의자료" 탭이 현재 재생 중인 주차와 무관하게 등록된 자료를 전부
+  // 보여주고 있던 버그 수정(사용자 요청, 2026-08-15) — 지금 보고 있는
+  // 영상이 속한 주차(섹션)의 자료만 보여준다.
+  const currentSection = info?.sections.find((s) => s.videos.some((v) => v.id === selectedVideoId)) ?? null;
   const progressByRow = useMemo(() => {
     const byRow = new Map<string, LectureCourseProgress>();
     for (const row of publishedRows) {
@@ -566,7 +570,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           <p className="text-lg font-semibold text-foreground">
             {error ?? "수강 권한이 없는 강의입니다."}
           </p>
-          <Link href="/courses" className="inline-block text-sm text-primary hover:underline">
+          <Link href="/courses/my" className="inline-block text-sm text-primary hover:underline">
             내 강의로 돌아가기
           </Link>
         </div>
@@ -591,7 +595,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
           className="flex items-center gap-2 sm:gap-3.5 px-3 sm:px-5"
           style={{ maxWidth: 1400, margin: "0 auto", height: 56 }}
         >
-          <Link href="/courses" aria-label="내 강의실" className="flex items-center shrink-0" style={{ textDecoration: "none" }}>
+          <Link href="/courses/my" aria-label="내 강의실" className="flex items-center shrink-0" style={{ textDecoration: "none" }}>
             <div
               style={{
                 height: 30,
@@ -640,7 +644,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               </Link>
             )}
             <Link
-              href="/courses"
+              href="/courses/my"
               className="px-2.5 py-1.5 sm:px-4 sm:py-2 whitespace-nowrap"
               style={{
                 background: C.accent,
@@ -848,10 +852,9 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
               )}
               {activeTab === "강의자료" && (
                 <div>
-                  {info.sections.map((section) => (
-                    <SectionMaterialsBlock key={section.id} courseId={courseId} section={section} />
-                  ))}
-                  {info.sections.length === 0 && (
+                  {currentSection ? (
+                    <SectionMaterialsBlock key={currentSection.id} courseId={courseId} section={currentSection} />
+                  ) : (
                     <p style={{ margin: 0, textAlign: "center", fontSize: 12, color: C.textDim }}>
                       등록된 주차가 없습니다.
                     </p>
