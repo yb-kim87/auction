@@ -271,6 +271,7 @@ export function ProfitCalculatorPanel({
   regulatedArea,
   annualNetIncomeWon,
   coachViewUsername,
+  initialShowAssignmentEditor = false,
 }: {
   item: AuctionItem;
   rightsAnalysis?: AuctionAnalysisResult | null;
@@ -290,6 +291,11 @@ export function ProfitCalculatorPanel({
    * 넘어가고 거기에 수강생이 과제로 제출한 정보가 보이게 하는건
    * 어떨까?"). */
   coachViewUsername?: string | null;
+  /** "내 물건 > 과제제출"에서 "물건 상세에서 수정"으로 들어온 경우, 진입
+   * 즉시 과제제출 편집 패널이 펼쳐진 상태로 보여준다(사용자 요청,
+   * 2026-08-15: 수정하려고 들어가면 한 번 더 "제출한 과제 수정"을
+   * 눌러야 하는 게 불편하다는 지적). */
+  initialShowAssignmentEditor?: boolean;
 }) {
   const isCoachView = Boolean(coachViewUsername);
   // 이미 낙찰된 물건은 예상 최저가가 아니라 실제 낙찰가(item.salePrice,
@@ -375,7 +381,7 @@ export function ProfitCalculatorPanel({
   // 과제제출 탭에서 한다 — 여기서는 제출/재제출만 담당.
   const [assignmentEligible, setAssignmentEligible] = useState(false);
   const [savedAssignment, setSavedAssignment] = useState<AuctionAssignment | null>(null);
-  const [showAssignmentEditor, setShowAssignmentEditor] = useState(false);
+  const [showAssignmentEditor, setShowAssignmentEditor] = useState(initialShowAssignmentEditor);
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [assignmentMessage, setAssignmentMessage] = useState("");
   const [assignmentMemo, setAssignmentMemo] = useState("");

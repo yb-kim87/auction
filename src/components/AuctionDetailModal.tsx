@@ -1743,6 +1743,7 @@ export function AuctionDetailModal({
   onAiAnalysisUsed,
   coachViewUsername = null,
   viewerRole = null,
+  initialShowAssignmentEditor = false,
 }: {
   item: AuctionItem | null;
   onClose: () => void;
@@ -1790,6 +1791,10 @@ export function AuctionDetailModal({
   /** 보고 있는 회원의 등급 — 수강생(student) 이하는 "등기·임차인 정보"
    * 섹션을 볼 수 없다(사용자 요청, 2026-08-08). */
   viewerRole?: UserRole | null;
+  /** "내 물건 > 과제제출"의 "물건 상세에서 수정"으로 들어온 경우 true —
+   * ProfitCalculatorPanel의 과제제출 편집 패널을 진입 즉시 펼쳐 보여준다
+   * (사용자 요청, 2026-08-15). */
+  initialShowAssignmentEditor?: boolean;
 }) {
   // "등기·임차인 정보" 섹션을 수강생 이하 등급에게 숨길지는 관리자가
   // 토글로 켜고 끌 수 있다(사용자 요청, 2026-08-08). 기본값(true)은
@@ -2779,6 +2784,7 @@ export function AuctionDetailModal({
                 regulatedArea={regulatedArea}
                 annualNetIncomeWon={parseIncomeToWon(annualNetIncome ?? undefined) ?? undefined}
                 coachViewUsername={coachViewUsername}
+                initialShowAssignmentEditor={initialShowAssignmentEditor}
               />
             )}
           </div>

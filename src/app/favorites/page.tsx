@@ -133,6 +133,7 @@ export default function FavoritesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
   const [selectedItemModalTab, setSelectedItemModalTab] = useState<"info" | "profit">("info");
+  const [openAssignmentEditor, setOpenAssignmentEditor] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<"favorites" | "plans" | "assignments">("favorites");
@@ -313,7 +314,7 @@ export default function FavoritesPage() {
             <span className={HEADER_TAB_ACTIVE}>내 물건</span>
             <div className={HEADER_NAV_TRAILING}>
               <Link
-                href="/courses"
+                href="/courses/my"
                 className={`${HEADER_BTN} border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}
               >
                 강의실
@@ -431,6 +432,7 @@ export default function FavoritesPage() {
                       onToggleFavorite={() => void handleToggleFavorite(item.id, !favoriteIds.has(item.id))}
                       onOpen={() => {
                         setSelectedItemModalTab("info");
+                        setOpenAssignmentEditor(false);
                         setSelectedItem(item);
                       }}
                     />
@@ -472,6 +474,7 @@ export default function FavoritesPage() {
                     onClick={() => {
                       if (!item) return;
                       setSelectedItemModalTab("profit");
+                      setOpenAssignmentEditor(false);
                       setSelectedItem(item);
                     }}
                     disabled={!item}
@@ -520,6 +523,7 @@ export default function FavoritesPage() {
                   const item = itemById.get(auctionId);
                   if (!item) return;
                   setSelectedItemModalTab("profit");
+                  setOpenAssignmentEditor(true);
                   setSelectedItem(item);
                 }}
               />
@@ -535,6 +539,7 @@ export default function FavoritesPage() {
         isAdmin={isAdmin}
         viewerRole={profile?.role ?? null}
         initialTab={selectedItemModalTab}
+        initialShowAssignmentEditor={openAssignmentEditor}
         hasBidPlan={selectedItem ? bidPlans.some((p) => p.auctionId === selectedItem.id) : null}
         isFavorite={selectedItem ? favoriteIds.has(selectedItem.id) : false}
         favoriteBusy={favoriteBusy}
