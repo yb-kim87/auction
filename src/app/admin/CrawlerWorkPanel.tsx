@@ -320,13 +320,13 @@ export function CrawlerWorkPanel() {
 
   return (
     <div className="space-y-0">
-      <div className="flex border-b border-border px-6 pt-4">
+      <div className="flex overflow-x-auto border-b border-border px-6 pt-4">
         {SUB_TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setSubTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors ${
               subTab === tab.id
                 ? "text-primary border-b-2 border-primary -mb-px"
                 : "text-muted-foreground hover:text-foreground"
