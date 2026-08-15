@@ -146,13 +146,13 @@ function AdminTabs({
   pendingCount: number;
 }) {
   return (
-    <div className="flex border-b border-border">
+    <div className="flex overflow-x-auto border-b border-border">
       {ADMIN_TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
-          className={`relative px-5 py-3 text-sm font-semibold transition-colors ${
+          className={`relative shrink-0 whitespace-nowrap px-5 py-3 text-sm font-semibold transition-colors ${
             active === tab.id
               ? "text-primary border-b-2 border-primary -mb-px"
               : "text-muted-foreground hover:text-foreground"
@@ -168,7 +168,7 @@ function AdminTabs({
       ))}
       <Link
         href="/admin/lecture-materials"
-        className="px-5 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        className="shrink-0 whitespace-nowrap px-5 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
       >
         강의자료
       </Link>
@@ -1053,13 +1053,13 @@ export default function AdminPage() {
 
           {activeTab === "aiOps" && (
             <div>
-              <div className="flex border-b border-border px-2">
+              <div className="flex overflow-x-auto border-b border-border px-2">
                 {AI_OPS_SUB_TABS.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setAiOpsSubTab(tab.id)}
-                    className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                    className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
                       aiOpsSubTab === tab.id
                         ? "text-primary border-b-2 border-primary -mb-px"
                         : "text-muted-foreground hover:text-foreground"
@@ -1074,13 +1074,13 @@ export default function AdminPage() {
               {aiOpsSubTab === "loanPolicy" && <LoanPolicyTab />}
               {aiOpsSubTab === "strategyTags" && (
                 <div>
-                  <div className="flex border-b border-border px-2">
+                  <div className="flex overflow-x-auto border-b border-border px-2">
                     {STRATEGY_TAGS_SUB_TABS.map((tab) => (
                       <button
                         key={tab.id}
                         type="button"
                         onClick={() => setStrategyTagsSubTab(tab.id)}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                        className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
                           strategyTagsSubTab === tab.id
                             ? "text-primary border-b-2 border-primary -mb-px"
                             : "text-muted-foreground hover:text-foreground"
@@ -1096,13 +1096,13 @@ export default function AdminPage() {
               )}
               {aiOpsSubTab === "aiPlatform" && (
                 <div>
-                  <div className="flex border-b border-border px-2">
+                  <div className="flex overflow-x-auto border-b border-border px-2">
                     {AI_PLATFORM_SUB_TABS.map((tab) => (
                       <button
                         key={tab.id}
                         type="button"
                         onClick={() => setAiPlatformSubTab(tab.id)}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                        className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
                           aiPlatformSubTab === tab.id
                             ? "text-primary border-b-2 border-primary -mb-px"
                             : "text-muted-foreground hover:text-foreground"
