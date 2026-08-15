@@ -565,15 +565,21 @@ export function ProfitCalculatorPanel({
         setPhoneSeller(a.phoneSeller ?? "");
         setPhoneBidder(a.phoneBidder ?? "");
         setPhoneFinal(a.phoneFinal ?? "");
+        // TypeORM bigint 컬럼은 API 응답에서 문자열 "0"으로 내려온다 —
+        // `a.x ? ... : ""` 식 truthy 체크는 "0"(비어있지 않은 문자열)을
+        // 참으로 오판해 "값이 실제로 입력됨"으로 잘못 판정하는 버그가
+        // 있었다(사용자 요청, 2026-08-15: "안전마진 조사 1 2 3 내용도
+        // 없어" — 기존 데이터의 안전마진 폴백 표시가 이 버그 때문에 계속
+        // 0으로 덮여 보였다). Number(...) > 0으로 실제 값 여부를 판정.
         setResearchCaseNo1(a.safetyResearch1CaseNo ?? "");
-        setResearchMarketPrice1(a.safetyResearch1MarketPrice ? String(a.safetyResearch1MarketPrice) : "");
-        setResearchBidPrice1(a.safetyResearch1BidPrice ? String(a.safetyResearch1BidPrice) : "");
+        setResearchMarketPrice1(Number(a.safetyResearch1MarketPrice) > 0 ? String(a.safetyResearch1MarketPrice) : "");
+        setResearchBidPrice1(Number(a.safetyResearch1BidPrice) > 0 ? String(a.safetyResearch1BidPrice) : "");
         setResearchCaseNo2(a.safetyResearch2CaseNo ?? "");
-        setResearchMarketPrice2(a.safetyResearch2MarketPrice ? String(a.safetyResearch2MarketPrice) : "");
-        setResearchBidPrice2(a.safetyResearch2BidPrice ? String(a.safetyResearch2BidPrice) : "");
+        setResearchMarketPrice2(Number(a.safetyResearch2MarketPrice) > 0 ? String(a.safetyResearch2MarketPrice) : "");
+        setResearchBidPrice2(Number(a.safetyResearch2BidPrice) > 0 ? String(a.safetyResearch2BidPrice) : "");
         setResearchCaseNo3(a.safetyResearch3CaseNo ?? "");
-        setResearchMarketPrice3(a.safetyResearch3MarketPrice ? String(a.safetyResearch3MarketPrice) : "");
-        setResearchBidPrice3(a.safetyResearch3BidPrice ? String(a.safetyResearch3BidPrice) : "");
+        setResearchMarketPrice3(Number(a.safetyResearch3MarketPrice) > 0 ? String(a.safetyResearch3MarketPrice) : "");
+        setResearchBidPrice3(Number(a.safetyResearch3BidPrice) > 0 ? String(a.safetyResearch3BidPrice) : "");
         setFinalSafetyMargin(a.finalSafetyMargin ?? "");
         if (isCoachView) setCoachFeedbackDraft(a.coachFeedback ?? "");
       })
