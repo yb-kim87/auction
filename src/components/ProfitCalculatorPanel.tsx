@@ -112,7 +112,7 @@ function AssignmentFieldRow({
 }) {
   return (
     <label className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
-      <span className={`${labelWidth} shrink-0 ${missing ? "font-semibold text-red-600" : "text-muted-foreground"}`}>{label}</span>
+      <span className={`${labelWidth} shrink-0 whitespace-nowrap ${missing ? "font-semibold text-red-600" : "text-muted-foreground"}`}>{label}</span>
       <input
         inputMode={numeric ? "numeric" : "text"}
         value={numeric ? (value ? formatDigits(value) : "") : value}
@@ -1125,6 +1125,7 @@ export function ProfitCalculatorPanel({
                 readOnly={isCoachView}
                 missing={assignmentMissingFields.has("최종 안전마진")}
                 onEdit={() => clearAssignmentMissing("최종 안전마진")}
+                labelWidth="w-20"
               />
             </div>
           </div>
