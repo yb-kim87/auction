@@ -472,7 +472,7 @@ export function ProfitCalculatorPanel({
 
   useEffect(() => {
     let cancelled = false;
-    setShowAssignmentEditor(isCoachView);
+    setShowAssignmentEditor(isCoachView || initialShowAssignmentEditor);
     setAssignmentMessage("");
     setSavedAssignment(null);
     setAssignmentMemo("");
@@ -508,7 +508,7 @@ export function ProfitCalculatorPanel({
     return () => {
       cancelled = true;
     };
-  }, [item.id, isCoachView, coachViewUsername]);
+  }, [item.id, isCoachView, coachViewUsername, initialShowAssignmentEditor]);
 
   async function handleSaveBidPlan() {
     setBidPlanSaving(true);
