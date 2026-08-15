@@ -783,6 +783,10 @@ export async function deleteUser(id: string): Promise<{ ok: boolean }> {
 export interface SiteSettings {
   id: string;
   hideRegistryTenantForStudents: boolean;
+  assignmentNotifyEnabled: boolean;
+  assignmentNotifyCoachPhone: string;
+  assignmentCreatedTemplateCode: string;
+  coachFeedbackTemplateCode: string;
   updatedAt: string;
 }
 
@@ -798,7 +802,16 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
 }
 
 export async function updateSiteSettings(
-  patch: Partial<Pick<SiteSettings, "hideRegistryTenantForStudents">>,
+  patch: Partial<
+    Pick<
+      SiteSettings,
+      | "hideRegistryTenantForStudents"
+      | "assignmentNotifyEnabled"
+      | "assignmentNotifyCoachPhone"
+      | "assignmentCreatedTemplateCode"
+      | "coachFeedbackTemplateCode"
+    >
+  >,
 ): Promise<SiteSettings> {
   const res = await fetch(`${API_BASE}/settings`, {
     method: "PATCH",

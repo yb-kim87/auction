@@ -5,10 +5,17 @@ import { fetchAuctionsByIds, fetchCoachAssignments, type AuctionAssignment } fro
 import type { AuctionItem } from "@/types/auction";
 import { formatWonShort } from "@/lib/investment-money";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
+import { AssignmentNotifySettingsPanel } from "./AssignmentNotifySettingsPanel";
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "draft", label: "제출됨" },
   { value: "reviewed", label: "코치 확인됨" },
+];
+
+type AssignmentSubTab = "list" | "notify";
+const SUB_TABS: { id: AssignmentSubTab; label: string }[] = [
+  { id: "list", label: "제출 현황" },
+  { id: "notify", label: "알림톡 설정" },
 ];
 
 /** 코치(관리자)가 수강생이 제출한 과제(물건 상세의 "과제제출" 버튼으로
@@ -19,6 +26,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
  * 어떨까? 관리자는 해당 물건에 과제로 제출한 수강생 이력을 누르면
  * 그 정보로 보이게 하는거지"). */
 export function AssignmentReviewTab() {
+  const [subTab, setSubTab] = useState<AssignmentSubTab>("list");
   const [rows, setRows] = useState<AuctionAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -59,7 +67,28 @@ export function AssignmentReviewTab() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div>
+      <div className="flex overflow-x-auto border-b border-border px-6 pt-4">
+        {SUB_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setSubTab(tab.id)}
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors ${
+              subTab === tab.id
+                ? "text-primary border-b-2 border-primary -mb-px"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "notify" && <AssignmentNotifySettingsPanel />}
+
+      {subTab === "list" && (
+      <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-foreground">과제 검토</h2>
@@ -128,6 +157,8 @@ export function AssignmentReviewTab() {
             </button>
           ))}
         </div>
+      )}
+      </div>
       )}
 
       <AuctionDetailModal
