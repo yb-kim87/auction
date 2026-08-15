@@ -4992,7 +4992,7 @@ export function revokeLectureEnrollment(id: string): Promise<LectureEnrollmentAd
   );
 }
 
-export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; phoneFinal: string; safetyResearch1: string; safetyResearch2: string; safetyResearch3: string; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; finalProfit: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
+export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; phoneFinal: string; safetyResearch1: string; safetyResearch1CaseNo: string; safetyResearch1MarketPrice: number; safetyResearch1BidPrice: number; safetyResearch2: string; safetyResearch2CaseNo: string; safetyResearch2MarketPrice: number; safetyResearch2BidPrice: number; safetyResearch3: string; safetyResearch3CaseNo: string; safetyResearch3MarketPrice: number; safetyResearch3BidPrice: number; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; finalProfit: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
 export interface ServiceReport { id: string; username: string; type: string; title: string; description: string; reproduction: string; expectedResult: string; actualResult: string; pageUrl: string; status: string; adminReply: string; createdAt: string; updatedAt: string; }
 async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(init?.headers) });
@@ -5208,4 +5208,77 @@ export function realtorExportExcelUrl(filters: {
   if (filters.search) q.set("search", filters.search);
   const qs = q.toString();
   return `${API_BASE}/realtor-collect/export${qs ? `?${qs}` : ""}`;
+}
+
+// ── 무료 웨비나(카카오 로그인) 신청자 — 관리자 전용 조회 ─────────────────────
+export interface WebinarKakaoLead {
+  id: string;
+  kakaoId: string;
+  nickname: string;
+  email: string;
+  phone: string;
+  profileImageUrl: string;
+  createdAt: string;
+}
+
+export async function fetchWebinarLeads(): Promise<WebinarKakaoLead[]> {
+  const res = await fetch(`${API_BASE}/webinar-auth/kakao/leads`, {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "웨비나 신청자 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse<WebinarKakaoLead[]>(res);
+}
+
+// ── 무료 웨비나 ID/PW 회원가입 ────────────────────────────────────────────
+export interface WebinarEmailLead {
+  id: string;
+  email: string;
+  name: string;
+  gender: string;
+  phone: string;
+  homepage: string;
+  address: string;
+  addressDetail: string;
+  recommendCode: string;
+  createdAt: string;
+}
+
+export interface JoinWebinarEmailInput {
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  name: string;
+  gender?: string;
+  phone: string;
+  homepage?: string;
+  address?: string;
+  addressDetail?: string;
+  recommendCode?: string;
+}
+
+export async function joinWebinarByEmail(input: JoinWebinarEmailInput): Promise<{ name: string; email: string }> {
+  const res = await fetch(`${API_BASE}/webinar-auth/email/join`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "회원가입에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchWebinarEmailLeads(): Promise<WebinarEmailLead[]> {
+  const res = await fetch(`${API_BASE}/webinar-auth/email/leads`, {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "웨비나 신청자 목록을 불러오지 못했습니다.");
+  }
+  return readJsonResponse<WebinarEmailLead[]>(res);
 }

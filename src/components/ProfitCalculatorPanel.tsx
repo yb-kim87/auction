@@ -45,6 +45,10 @@ function formatDigits(value: string): string {
   const n = Number(digitsOnly(value) || 0);
   return n.toLocaleString("ko-KR");
 }
+/** 주변 안전마진 조사 항목의 안전마진 = 시세 - 낙찰가(자동 계산, 사용자 입력 불가). */
+function computeSafetyMargin(marketPrice: string, bidPrice: string): number {
+  return Number(digitsOnly(marketPrice) || 0) - Number(digitsOnly(bidPrice) || 0);
+}
 
 /** 내용 길이에 맞춰 세로로 늘어나는 textarea — 과제 메모/피드백처럼 길이가
  * 들쭉날쭉한 텍스트가 고정 높이에 잘려 보이지 않도록 한다(사용자 요청,
@@ -79,6 +83,50 @@ function AutoGrowTextarea({
       className={`${className ?? ""} overflow-hidden`}
       {...rest}
     />
+  );
+}
+
+/** 과제제출 폼의 라벨+입력칸 한 줄 — 필수 항목이 비어 있으면 라벨/테두리를
+ * 빨갛게 표시한다(사용자 요청, 2026-08-15). `computed`는 안전마진처럼
+ * 자동 계산돼 항상 읽기 전용인 값. */
+function AssignmentFieldRow({
+  label,
+  value,
+  onChange,
+  readOnly,
+  missing,
+  onEdit,
+  numeric = true,
+  computed = false,
+  labelWidth = "w-16",
+}: {
+  label: string;
+  value: string;
+  onChange?: (next: string) => void;
+  readOnly?: boolean;
+  missing?: boolean;
+  onEdit?: () => void;
+  numeric?: boolean;
+  computed?: boolean;
+  labelWidth?: string;
+}) {
+  return (
+    <label className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
+      <span className={`${labelWidth} shrink-0 ${missing ? "font-semibold text-red-600" : "text-muted-foreground"}`}>{label}</span>
+      <input
+        inputMode={numeric ? "numeric" : "text"}
+        value={numeric ? (value ? formatDigits(value) : "") : value}
+        onChange={(e) => {
+          if (!onChange) return;
+          onChange(numeric ? digitsOnly(e.target.value) : e.target.value);
+          onEdit?.();
+        }}
+        readOnly={readOnly || computed}
+        className={`flex-1 px-2 py-1.5 border rounded-sm ${numeric ? "text-right" : "text-left"} ${
+          computed ? "bg-secondary/30 text-muted-foreground" : "bg-secondary/10"
+        } ${missing ? "border-red-400" : "border-border"}`}
+      />
+    </label>
   );
 }
 
@@ -389,9 +437,19 @@ export function ProfitCalculatorPanel({
   const [phoneSeller, setPhoneSeller] = useState("");
   const [phoneBidder, setPhoneBidder] = useState("");
   const [phoneFinal, setPhoneFinal] = useState("");
-  const [safetyResearch1, setSafetyResearch1] = useState("");
-  const [safetyResearch2, setSafetyResearch2] = useState("");
-  const [safetyResearch3, setSafetyResearch3] = useState("");
+  // 주변 안전마진 조사 — 조사 1건당 "경매사건번호 → 시세 → 낙찰가"를
+  // 입력받고 안전마진(시세-낙찰가)은 자동 계산해 보여준다(사용자 요청,
+  // 2026-08-15: "조사1에 안전마진만 적게끔 되어있는데 조사 하나당 4개칸을
+  // 입력을 할껀데 순서는 경매사건번호 -> 시세 -> 낙찰가 -> 안전마진").
+  const [researchCaseNo1, setResearchCaseNo1] = useState("");
+  const [researchMarketPrice1, setResearchMarketPrice1] = useState("");
+  const [researchBidPrice1, setResearchBidPrice1] = useState("");
+  const [researchCaseNo2, setResearchCaseNo2] = useState("");
+  const [researchMarketPrice2, setResearchMarketPrice2] = useState("");
+  const [researchBidPrice2, setResearchBidPrice2] = useState("");
+  const [researchCaseNo3, setResearchCaseNo3] = useState("");
+  const [researchMarketPrice3, setResearchMarketPrice3] = useState("");
+  const [researchBidPrice3, setResearchBidPrice3] = useState("");
   const [finalSafetyMargin, setFinalSafetyMargin] = useState("");
   /** 제출 시도했을 때 비어 있던 필수 항목 — 어떤 입력칸이 문제인지 바로
    * 보이도록 해당 입력칸 테두리를 빨갛게 표시한다(사용자 요청,
@@ -485,9 +543,15 @@ export function ProfitCalculatorPanel({
     setPhoneSeller("");
     setPhoneBidder("");
     setPhoneFinal("");
-    setSafetyResearch1("");
-    setSafetyResearch2("");
-    setSafetyResearch3("");
+    setResearchCaseNo1("");
+    setResearchMarketPrice1("");
+    setResearchBidPrice1("");
+    setResearchCaseNo2("");
+    setResearchMarketPrice2("");
+    setResearchBidPrice2("");
+    setResearchCaseNo3("");
+    setResearchMarketPrice3("");
+    setResearchBidPrice3("");
     setFinalSafetyMargin("");
     const loadAssignment = isCoachView
       ? fetchCoachAssignmentByAuction(coachViewUsername as string, item.id)
@@ -501,9 +565,15 @@ export function ProfitCalculatorPanel({
         setPhoneSeller(a.phoneSeller ?? "");
         setPhoneBidder(a.phoneBidder ?? "");
         setPhoneFinal(a.phoneFinal ?? "");
-        setSafetyResearch1(a.safetyResearch1 ?? "");
-        setSafetyResearch2(a.safetyResearch2 ?? "");
-        setSafetyResearch3(a.safetyResearch3 ?? "");
+        setResearchCaseNo1(a.safetyResearch1CaseNo ?? "");
+        setResearchMarketPrice1(a.safetyResearch1MarketPrice ? String(a.safetyResearch1MarketPrice) : "");
+        setResearchBidPrice1(a.safetyResearch1BidPrice ? String(a.safetyResearch1BidPrice) : "");
+        setResearchCaseNo2(a.safetyResearch2CaseNo ?? "");
+        setResearchMarketPrice2(a.safetyResearch2MarketPrice ? String(a.safetyResearch2MarketPrice) : "");
+        setResearchBidPrice2(a.safetyResearch2BidPrice ? String(a.safetyResearch2BidPrice) : "");
+        setResearchCaseNo3(a.safetyResearch3CaseNo ?? "");
+        setResearchMarketPrice3(a.safetyResearch3MarketPrice ? String(a.safetyResearch3MarketPrice) : "");
+        setResearchBidPrice3(a.safetyResearch3BidPrice ? String(a.safetyResearch3BidPrice) : "");
         setFinalSafetyMargin(a.finalSafetyMargin ?? "");
         if (isCoachView) setCoachFeedbackDraft(a.coachFeedback ?? "");
       })
@@ -565,6 +635,15 @@ export function ProfitCalculatorPanel({
     }
   }
 
+  function clearAssignmentMissing(label: string) {
+    setAssignmentMissingFields((prev) => {
+      if (!prev.has(label)) return prev;
+      const next = new Set(prev);
+      next.delete(label);
+      return next;
+    });
+  }
+
   async function handleSubmitAssignment() {
     setAssignmentMessage("");
     // 전화 시세 결과·주변 안전마진 조사 항목을 비워둔 채 제출하는 사례가
@@ -576,9 +655,15 @@ export function ProfitCalculatorPanel({
         ["매도자", phoneSeller],
         ["입찰자", phoneBidder],
         ["최종 시세", phoneFinal],
-        ["조사 1", safetyResearch1],
-        ["조사 2", safetyResearch2],
-        ["조사 3", safetyResearch3],
+        ["조사1 사건번호", researchCaseNo1],
+        ["조사1 시세", researchMarketPrice1],
+        ["조사1 낙찰가", researchBidPrice1],
+        ["조사2 사건번호", researchCaseNo2],
+        ["조사2 시세", researchMarketPrice2],
+        ["조사2 낙찰가", researchBidPrice2],
+        ["조사3 사건번호", researchCaseNo3],
+        ["조사3 시세", researchMarketPrice3],
+        ["조사3 낙찰가", researchBidPrice3],
         ["최종 안전마진", finalSafetyMargin],
       ] as const
     )
@@ -630,9 +715,18 @@ export function ProfitCalculatorPanel({
         phoneSeller,
         phoneBidder,
         phoneFinal,
-        safetyResearch1,
-        safetyResearch2,
-        safetyResearch3,
+        safetyResearch1CaseNo: researchCaseNo1,
+        safetyResearch1MarketPrice: Number(digitsOnly(researchMarketPrice1) || 0),
+        safetyResearch1BidPrice: Number(digitsOnly(researchBidPrice1) || 0),
+        safetyResearch1: String(computeSafetyMargin(researchMarketPrice1, researchBidPrice1)),
+        safetyResearch2CaseNo: researchCaseNo2,
+        safetyResearch2MarketPrice: Number(digitsOnly(researchMarketPrice2) || 0),
+        safetyResearch2BidPrice: Number(digitsOnly(researchBidPrice2) || 0),
+        safetyResearch2: String(computeSafetyMargin(researchMarketPrice2, researchBidPrice2)),
+        safetyResearch3CaseNo: researchCaseNo3,
+        safetyResearch3MarketPrice: Number(digitsOnly(researchMarketPrice3) || 0),
+        safetyResearch3BidPrice: Number(digitsOnly(researchBidPrice3) || 0),
+        safetyResearch3: String(computeSafetyMargin(researchMarketPrice3, researchBidPrice3)),
         finalSafetyMargin,
         finalMarketPrice: salePrice,
         targetBidPrice: bidPrice,
@@ -965,65 +1059,73 @@ export function ProfitCalculatorPanel({
                   ["최종 시세", phoneFinal, setPhoneFinal],
                 ] as const
               ).map(([label, value, setValue]) => (
-                <label key={label} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
-                  <span className={`w-16 shrink-0 ${assignmentMissingFields.has(label) ? "font-semibold text-red-600" : "text-muted-foreground"}`}>
-                    {label}
-                  </span>
-                  <input
-                    inputMode="numeric"
-                    value={value ? formatDigits(value) : ""}
-                    onChange={(e) => {
-                      setValue(digitsOnly(e.target.value));
-                      if (assignmentMissingFields.has(label)) {
-                        setAssignmentMissingFields((prev) => {
-                          const next = new Set(prev);
-                          next.delete(label);
-                          return next;
-                        });
-                      }
-                    }}
-                    readOnly={isCoachView}
-                    className={`flex-1 px-2 py-1.5 border rounded-sm bg-secondary/10 text-right ${
-                      assignmentMissingFields.has(label) ? "border-red-400" : "border-border"
-                    }`}
-                  />
-                </label>
+                <AssignmentFieldRow
+                  key={label}
+                  label={label}
+                  value={value}
+                  onChange={setValue}
+                  readOnly={isCoachView}
+                  missing={assignmentMissingFields.has(label)}
+                  onEdit={() => clearAssignmentMissing(label)}
+                />
               ))}
             </div>
-            <div className="rounded-lg border border-border bg-card p-3">
-              <p className="text-xs font-semibold text-foreground mb-2">주변 안전마진 조사</p>
-              {(
-                [
-                  ["조사 1", safetyResearch1, setSafetyResearch1],
-                  ["조사 2", safetyResearch2, setSafetyResearch2],
-                  ["조사 3", safetyResearch3, setSafetyResearch3],
-                  ["최종 안전마진", finalSafetyMargin, setFinalSafetyMargin],
-                ] as const
-              ).map(([label, value, setValue]) => (
-                <label key={label} className="mt-1.5 flex items-center gap-2 text-xs first:mt-0">
-                  <span className={`w-16 shrink-0 ${assignmentMissingFields.has(label) ? "font-semibold text-red-600" : "text-muted-foreground"}`}>
-                    {label}
-                  </span>
-                  <input
-                    inputMode="numeric"
-                    value={value ? formatDigits(value) : ""}
-                    onChange={(e) => {
-                      setValue(digitsOnly(e.target.value));
-                      if (assignmentMissingFields.has(label)) {
-                        setAssignmentMissingFields((prev) => {
-                          const next = new Set(prev);
-                          next.delete(label);
-                          return next;
-                        });
-                      }
-                    }}
-                    readOnly={isCoachView}
-                    className={`flex-1 px-2 py-1.5 border rounded-sm bg-secondary/10 text-right ${
-                      assignmentMissingFields.has(label) ? "border-red-400" : "border-border"
-                    }`}
-                  />
-                </label>
-              ))}
+            <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-2">주변 안전마진 조사</p>
+                {(
+                  [
+                    ["조사1", researchCaseNo1, setResearchCaseNo1, researchMarketPrice1, setResearchMarketPrice1, researchBidPrice1, setResearchBidPrice1],
+                    ["조사2", researchCaseNo2, setResearchCaseNo2, researchMarketPrice2, setResearchMarketPrice2, researchBidPrice2, setResearchBidPrice2],
+                    ["조사3", researchCaseNo3, setResearchCaseNo3, researchMarketPrice3, setResearchMarketPrice3, researchBidPrice3, setResearchBidPrice3],
+                  ] as const
+                ).map(([prefix, caseNo, setCaseNo, marketPrice, setMarketPrice, bidPrice, setBidPrice]) => (
+                  <div key={prefix} className={prefix === "조사1" ? "" : "mt-3 border-t border-border/60 pt-3"}>
+                    <AssignmentFieldRow
+                      label={`${prefix} 사건번호`}
+                      value={caseNo}
+                      onChange={setCaseNo}
+                      numeric={false}
+                      readOnly={isCoachView}
+                      missing={assignmentMissingFields.has(`${prefix} 사건번호`)}
+                      onEdit={() => clearAssignmentMissing(`${prefix} 사건번호`)}
+                      labelWidth="w-20"
+                    />
+                    <AssignmentFieldRow
+                      label={`${prefix} 시세`}
+                      value={marketPrice}
+                      onChange={setMarketPrice}
+                      readOnly={isCoachView}
+                      missing={assignmentMissingFields.has(`${prefix} 시세`)}
+                      onEdit={() => clearAssignmentMissing(`${prefix} 시세`)}
+                      labelWidth="w-20"
+                    />
+                    <AssignmentFieldRow
+                      label={`${prefix} 낙찰가`}
+                      value={bidPrice}
+                      onChange={setBidPrice}
+                      readOnly={isCoachView}
+                      missing={assignmentMissingFields.has(`${prefix} 낙찰가`)}
+                      onEdit={() => clearAssignmentMissing(`${prefix} 낙찰가`)}
+                      labelWidth="w-20"
+                    />
+                    <AssignmentFieldRow
+                      label={`${prefix} 안전마진`}
+                      value={String(computeSafetyMargin(marketPrice, bidPrice))}
+                      computed
+                      labelWidth="w-20"
+                    />
+                  </div>
+                ))}
+              </div>
+              <AssignmentFieldRow
+                label="최종 안전마진"
+                value={finalSafetyMargin}
+                onChange={setFinalSafetyMargin}
+                readOnly={isCoachView}
+                missing={assignmentMissingFields.has("최종 안전마진")}
+                onEdit={() => clearAssignmentMissing("최종 안전마진")}
+              />
             </div>
           </div>
 
