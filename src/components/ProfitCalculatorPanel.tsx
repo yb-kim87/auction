@@ -1075,11 +1075,11 @@ export function ProfitCalculatorPanel({
                 <p className="text-xs font-semibold text-foreground mb-2">주변 안전마진 조사</p>
                 {(
                   [
-                    ["조사1", researchCaseNo1, setResearchCaseNo1, researchMarketPrice1, setResearchMarketPrice1, researchBidPrice1, setResearchBidPrice1],
-                    ["조사2", researchCaseNo2, setResearchCaseNo2, researchMarketPrice2, setResearchMarketPrice2, researchBidPrice2, setResearchBidPrice2],
-                    ["조사3", researchCaseNo3, setResearchCaseNo3, researchMarketPrice3, setResearchMarketPrice3, researchBidPrice3, setResearchBidPrice3],
+                    ["조사1", researchCaseNo1, setResearchCaseNo1, researchMarketPrice1, setResearchMarketPrice1, researchBidPrice1, setResearchBidPrice1, savedAssignment?.safetyResearch1],
+                    ["조사2", researchCaseNo2, setResearchCaseNo2, researchMarketPrice2, setResearchMarketPrice2, researchBidPrice2, setResearchBidPrice2, savedAssignment?.safetyResearch2],
+                    ["조사3", researchCaseNo3, setResearchCaseNo3, researchMarketPrice3, setResearchMarketPrice3, researchBidPrice3, setResearchBidPrice3, savedAssignment?.safetyResearch3],
                   ] as const
-                ).map(([prefix, caseNo, setCaseNo, marketPrice, setMarketPrice, bidPrice, setBidPrice]) => (
+                ).map(([prefix, caseNo, setCaseNo, marketPrice, setMarketPrice, bidPrice, setBidPrice, legacyMargin]) => (
                   <div key={prefix} className={prefix === "조사1" ? "" : "mt-3 border-t border-border/60 pt-3"}>
                     <AssignmentFieldRow
                       label={`${prefix} 사건번호`}
@@ -1111,7 +1111,19 @@ export function ProfitCalculatorPanel({
                     />
                     <AssignmentFieldRow
                       label={`${prefix} 안전마진`}
-                      value={String(computeSafetyMargin(marketPrice, bidPrice))}
+                      // 사건번호/시세/낙찰가 4칸 방식으로 바뀌기 전에 제출된
+                      // 기존 과제는 시세/낙찰가 없이 안전마진 숫자만 저장돼
+                      // 있다(사용자 요청, 2026-08-15: "기존에 제출됐던
+                      // 데이터들이 사라졌는데 복구 안되는거야?" — 실제로는
+                      // DB에 그대로 남아 있었고, 새 필드가 비어 있을 때
+                      // 옛 값을 그대로 보여주도록 폴백만 추가하면 되는
+                      // 문제였다). 시세/낙찰가를 새로 입력하면 그 계산값이
+                      // 우선한다.
+                      value={
+                        marketPrice.trim() || bidPrice.trim()
+                          ? String(computeSafetyMargin(marketPrice, bidPrice))
+                          : legacyMargin || "0"
+                      }
                       computed
                       labelWidth="w-20"
                     />
