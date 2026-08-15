@@ -561,8 +561,29 @@ export function ProfitCalculatorPanel({
   }
 
   async function handleSubmitAssignment() {
-    setAssignmentSaving(true);
     setAssignmentMessage("");
+    // 전화 시세 결과·주변 안전마진 조사 항목을 비워둔 채 제출하는 사례가
+    // 있어(사용자 요청, 2026-08-15) 필수 항목으로 바꾸고, 어떤 항목이
+    // 비었는지 안내한 뒤 제출을 막는다.
+    const missing = (
+      [
+        ["매수자", phoneBuyer],
+        ["매도자", phoneSeller],
+        ["입찰자", phoneBidder],
+        ["최종 시세", phoneFinal],
+        ["조사 1", safetyResearch1],
+        ["조사 2", safetyResearch2],
+        ["조사 3", safetyResearch3],
+        ["최종 안전마진", finalSafetyMargin],
+      ] as const
+    )
+      .filter(([, value]) => !value.trim())
+      .map(([label]) => label);
+    if (missing.length > 0) {
+      setAssignmentMessage(`다음 항목을 입력해야 제출할 수 있습니다: ${missing.join(", ")}`);
+      return;
+    }
+    setAssignmentSaving(true);
     try {
       // 과제제출은 현재 입찰계획 값도 함께 저장한다(사용자 요청: "입찰계획
       // 내용이 같이 저장돼서 과제제출이 되면") — 계획을 아직 저장 안 한
@@ -1014,7 +1035,15 @@ export function ProfitCalculatorPanel({
                 >
                   {assignmentSaving ? "제출 중..." : savedAssignment ? "다시 제출하기" : "과제 제출하기"}
                 </button>
-                {assignmentMessage && <span className="text-xs text-muted-foreground">{assignmentMessage}</span>}
+                {assignmentMessage && (
+                  <span
+                    className={`text-xs ${
+                      assignmentMessage.startsWith("다음 항목") ? "font-semibold text-red-600" : "text-muted-foreground"
+                    }`}
+                  >
+                    {assignmentMessage}
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-muted-foreground">
                 제출한 과제는 상단 메뉴의 내 물건 &gt; 과제제출에서 모아보고 수정할 수 있습니다.
