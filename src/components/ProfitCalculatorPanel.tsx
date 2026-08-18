@@ -657,6 +657,7 @@ export function ProfitCalculatorPanel({
     // 비었는지 안내한 뒤 제출을 막는다.
     const missing = (
       [
+        ["메모", assignmentMemo],
         ["매수자", phoneBuyer],
         ["매도자", phoneSeller],
         ["입찰자", phoneBidder],
@@ -1047,13 +1048,23 @@ export function ProfitCalculatorPanel({
               최종수익 {result.finalProfit.toLocaleString("ko-KR")}원)과 함께 아래 내용을 제출합니다.
             </p>
           )}
-          <AutoGrowTextarea
-            placeholder="메모"
-            value={assignmentMemo}
-            onChange={(e) => setAssignmentMemo(e.target.value)}
-            readOnly={isCoachView}
-            className="w-full px-3 py-2 text-xs border border-border rounded-sm bg-card read-only:bg-secondary/10"
-          />
+          <div>
+            <p className={`mb-1 text-xs font-semibold ${assignmentMissingFields.has("메모") ? "text-red-600" : "text-foreground"}`}>
+              메모(과제 제출 관련 문의사항)
+            </p>
+            <AutoGrowTextarea
+              placeholder="이 과제와 관련해 코치에게 궁금한 점이나 문의사항을 적어주세요."
+              value={assignmentMemo}
+              onChange={(e) => {
+                setAssignmentMemo(e.target.value);
+                clearAssignmentMissing("메모");
+              }}
+              readOnly={isCoachView}
+              className={`w-full px-3 py-2 text-xs border rounded-sm bg-card read-only:bg-secondary/10 ${
+                assignmentMissingFields.has("메모") ? "border-red-400" : "border-border"
+              }`}
+            />
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-border bg-card p-3">
               <p className="text-xs font-semibold text-foreground mb-2">전화 시세 결과</p>
