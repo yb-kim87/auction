@@ -199,9 +199,9 @@ export default function MyCoursesPage() {
         >
           <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", margin: "0 0 8px" }}>안내사항</p>
           <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
-            <li style={{ fontSize: 13, color: "#92400e", lineHeight: 1.6 }}>본 강의실은 수강생 전용 페이지입니다.</li>
+            <li style={{ fontSize: 13, color: "#92400e", lineHeight: 1.6 }}>이 강의실은 결제하신 수강생만 이용하실 수 있는 공간입니다.</li>
             <li style={{ fontSize: 13, color: "#92400e", lineHeight: 1.6 }}>
-              콘텐츠의 무단 복제, 녹화, 외부 유포 시 수강 자격이 즉시 해지됩니다.
+              강의 영상을 허락 없이 복사, 캡처·녹화하거나 외부로 퍼가실 경우 별도 안내 없이 수강권이 즉시 회수될 수 있습니다.
             </li>
           </ul>
         </section>
