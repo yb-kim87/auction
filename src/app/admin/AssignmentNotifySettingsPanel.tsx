@@ -62,17 +62,19 @@ export function AssignmentNotifySettingsPanel() {
       <div>
         <h2 className="text-lg font-bold text-foreground">과제 알림 설정</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          과제가 새로 제출되면 코치(관리자)에게 텔레그램으로 바로 알림이 갑니다(기존 보안 알림과 같은 텔레그램
-          봇 사용 — 별도 설정 없이 바로 동작). 아래 코치 폰번호를 추가로 등록하면 과제 등록 알림이 알림톡/문자로도
-          함께 가고, 코치 피드백을 남기면 제출한 수강생의 등록 폰번호로도 알림이 갑니다.
+          과제가 새로 제출되면 코치(관리자)에게 <b>텔레그램으로는 항상</b> 알림이 갑니다(기존 보안 알림과 같은
+          텔레그램 봇 사용 — 별도 설정·토글 없이 바로 동작). 아래 토글은 수강생 대상 알림(코치 피드백 → 수강생
+          폰번호)과, 코치 폰번호를 등록했을 때의 추가 알림톡/문자 발송만 켜고 끕니다 — 수강생 쪽은 아직 적용
+          전이라 기본 꺼짐 상태로 두는 것을 권장합니다.
         </p>
       </div>
 
       <div className="flex items-center justify-between gap-4 rounded-sm border border-border bg-card p-4">
         <span className="text-sm">
-          <span className="font-medium text-foreground">과제 알림 사용</span>
+          <span className="font-medium text-foreground">수강생 대상 알림(카카오 알림톡/문자) 사용</span>
           <span className="block text-xs text-muted-foreground mt-0.5">
-            꺼져 있으면 과제 등록(텔레그램 포함)/코치 피드백 시 아무 알림도 발송되지 않습니다.
+            코치용 텔레그램 알림에는 영향 없음(항상 켜짐). 이 토글은 코치 피드백 → 수강생 알림과, 코치 폰번호
+            등록 시 과제 등록 알림톡/문자 발송만 켜고 끕니다.
           </span>
         </span>
         <button
