@@ -374,11 +374,23 @@ export default function MyCoursesPage() {
           </div>
         </section>
 
-        {/* ── 안내사항 (눈에 덜 띄게 하단 배치, 사용자 요청 2026-08-19) ── */}
-        <p style={{ fontSize: 11, color: C.textDim, lineHeight: 1.7, margin: "0 0 8px", textAlign: "center" }}>
-          이 강의실은 결제하신 수강생만 이용하실 수 있는 공간입니다. 강의 영상을 허락 없이 복사, 캡처·녹화하거나
-          외부로 퍼가실 경우 별도 안내 없이 수강권이 즉시 회수될 수 있습니다.
-        </p>
+        {/* ── 안내사항 (질문하기 아래, 강조색 없이, 사용자 요청 2026-08-19) ── */}
+        <section
+          style={{
+            background: C.white,
+            border: `1px solid ${C.border}`,
+            borderRadius: 16,
+            padding: "18px 22px",
+          }}
+        >
+          <p style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, margin: "0 0 8px" }}>안내사항</p>
+          <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+            <li style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>이 강의실은 결제하신 수강생만 이용하실 수 있는 공간입니다.</li>
+            <li style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>
+              강의 영상을 허락 없이 복사, 캡처·녹화하거나 외부로 퍼가실 경우 별도 안내 없이 수강권이 즉시 회수될 수 있습니다.
+            </li>
+          </ul>
+        </section>
       </main>
     </div>
   );
