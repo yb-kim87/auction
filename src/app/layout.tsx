@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthInit } from "@/components/AuthInit";
+import { Providers } from "./providers";
 
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <AuthInit />
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

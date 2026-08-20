@@ -10,6 +10,7 @@ import type {
   UserProfile,
   UserRole,
 } from "@/types/auction";
+import { http, apiFetch, extractApiErrorMessage } from "@/lib/http";
 
 /** 브라우저는 항상 같은 출처(/api)로 호출 — JWT HttpOnly 쿠키 전달 */
 const API_BASE = "/api";
@@ -61,7 +62,7 @@ async function parseErrorMessage(res: Response) {
 }
 
 export async function loginUser(username: string, password: string) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await apiFetch(`${API_BASE}/auth/login`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: { "Content-Type": "application/json" },
@@ -77,7 +78,7 @@ export async function loginUser(username: string, password: string) {
 
 /** access 토큰(30분) 만료 시 refresh 토큰(30일)으로 새 토큰 쌍을 발급받는다. */
 export async function refreshAuthToken(): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
+  const res = await apiFetch(`${API_BASE}/auth/refresh`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -85,7 +86,7 @@ export async function refreshAuthToken(): Promise<boolean> {
 }
 
 export async function logoutUser() {
-  const res = await fetch(`${API_BASE}/auth/logout`, {
+  const res = await apiFetch(`${API_BASE}/auth/logout`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -114,7 +115,7 @@ export async function signupUser(input: {
   targetReturn: string;
   firstTimeBuyer: boolean;
 }) {
-  const res = await fetch(`${API_BASE}/auth/signup`, {
+  const res = await apiFetch(`${API_BASE}/auth/signup`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: { "Content-Type": "application/json" },
@@ -129,7 +130,7 @@ export async function signupUser(input: {
 }
 
 export async function fetchAuctions(): Promise<AuctionItem[]> {
-  const res = await fetch(`${API_BASE}/auctions`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/auctions`, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(
       (await parseErrorMessage(res)) ?? "물건 데이터를 불러오지 못했습니다.",
@@ -147,7 +148,7 @@ export type AuctionReferenceLink = {
  * 분석해 동일하게 구성). 좌표가 없으면 서버가 주소로 지오코딩 후
  * 캐싱하므로 첫 호출만 약간 느릴 수 있다. */
 export async function fetchAuctionReferenceLinks(id: string): Promise<AuctionReferenceLink[]> {
-  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(id)}/reference-links`, {
+  const res = await apiFetch(`${API_BASE}/auctions/${encodeURIComponent(id)}/reference-links`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -161,7 +162,7 @@ export async function fetchAuctionReferenceLinks(id: string): Promise<AuctionRef
  * 등 소수 건만 필요할 때 사용). */
 export async function fetchAuctionsByIds(ids: string[]): Promise<AuctionItem[]> {
   if (ids.length === 0) return [];
-  const res = await fetch(`${API_BASE}/auctions/by-ids?ids=${encodeURIComponent(ids.join(","))}`, {
+  const res = await apiFetch(`${API_BASE}/auctions/by-ids?ids=${encodeURIComponent(ids.join(","))}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -176,7 +177,7 @@ export async function fetchAuctionsByIds(ids: string[]): Promise<AuctionItem[]> 
 export type FavoriteItem = { auctionId: string; category: string | null; memo: string | null };
 
 export async function fetchFavoriteIds(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/favorites`, {
+  const res = await apiFetch(`${API_BASE}/favorites`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -190,7 +191,7 @@ export async function fetchFavoriteIds(): Promise<string[]> {
 }
 
 export async function fetchFavoriteCategories(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/favorites/categories`, {
+  const res = await apiFetch(`${API_BASE}/favorites/categories`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -204,7 +205,7 @@ export async function fetchFavoriteCategories(): Promise<string[]> {
 }
 
 export async function createFavoriteCategory(name: string): Promise<string> {
-  const res = await fetch(`${API_BASE}/favorites/categories`, {
+  const res = await apiFetch(`${API_BASE}/favorites/categories`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -220,19 +221,13 @@ export async function createFavoriteCategory(name: string): Promise<string> {
 }
 
 export async function fetchFavorites(): Promise<FavoriteItem[]> {
-  const res = await fetch(`${API_BASE}/favorites`, {
-    cache: "no-store",
-    credentials: FETCH_CREDENTIALS,
-  });
-  if (!res.ok) {
-    throw new Error(
-      (await parseErrorMessage(res)) ?? "관심물건 목록을 불러오지 못했습니다.",
-    );
+  let data: { items?: FavoriteItem[]; auctionIds?: string[] };
+  try {
+    const res = await http.get<{ items?: FavoriteItem[]; auctionIds?: string[] }>("/favorites");
+    data = res.data;
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "관심물건 목록을 불러오지 못했습니다."));
   }
-  const data = await readJsonResponse<{
-    items?: FavoriteItem[];
-    auctionIds?: string[];
-  }>(res);
 
   // 신규 API는 카테고리를 포함한 items를 반환하지만, 배포 전/구버전 API는
   // auctionIds만 반환한다. 운영 API 전환 시점과 무관하게 내 물건 목록이
@@ -242,28 +237,21 @@ export async function fetchFavorites(): Promise<FavoriteItem[]> {
 }
 
 export async function addFavorite(auctionId: string, category?: string | null, memo?: string | null): Promise<void> {
-  const res = await fetch(`${API_BASE}/favorites/${auctionId}`, {
-    method: "POST",
-    credentials: FETCH_CREDENTIALS,
-    headers: withJsonHeaders(),
-    body: JSON.stringify({ category: category?.trim() || null, memo: memo?.trim() || null }),
-  });
-  if (!res.ok) {
-    throw new Error(
-      (await parseErrorMessage(res)) ?? "관심물건 등록에 실패했습니다.",
-    );
+  try {
+    await http.post(`/favorites/${auctionId}`, {
+      category: category?.trim() || null,
+      memo: memo?.trim() || null,
+    });
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "관심물건 등록에 실패했습니다."));
   }
 }
 
 export async function removeFavorite(auctionId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/favorites/${auctionId}`, {
-    method: "DELETE",
-    credentials: FETCH_CREDENTIALS,
-  });
-  if (!res.ok) {
-    throw new Error(
-      (await parseErrorMessage(res)) ?? "관심물건 해제에 실패했습니다.",
-    );
+  try {
+    await http.delete(`/favorites/${auctionId}`);
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "관심물건 해제에 실패했습니다."));
   }
 }
 
@@ -293,7 +281,7 @@ export interface BidPlanWithAuction extends BidPlan {
 }
 
 export async function fetchBidPlan(auctionId: string): Promise<BidPlan | null> {
-  const res = await fetch(`${API_BASE}/bid-plans/${auctionId}`, {
+  const res = await apiFetch(`${API_BASE}/bid-plans/${auctionId}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -304,7 +292,7 @@ export async function fetchBidPlan(auctionId: string): Promise<BidPlan | null> {
 }
 
 export async function fetchMyBidPlans(): Promise<BidPlanWithAuction[]> {
-  const res = await fetch(`${API_BASE}/bid-plans`, {
+  const res = await apiFetch(`${API_BASE}/bid-plans`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -317,7 +305,7 @@ export async function fetchMyBidPlans(): Promise<BidPlanWithAuction[]> {
 /** 코치(관리자) 전용 — 과제 검토 화면에서 제출자의 저장된 입찰계획
  * 상세(계산기 전체 입력값 포함)를 조회한다(사용자 요청, 2026-08-07). */
 export async function fetchCoachBidPlan(username: string, auctionId: string): Promise<BidPlan | null> {
-  const res = await fetch(`${API_BASE}/bid-plans/coach/${encodeURIComponent(username)}/${encodeURIComponent(auctionId)}`, {
+  const res = await apiFetch(`${API_BASE}/bid-plans/coach/${encodeURIComponent(username)}/${encodeURIComponent(auctionId)}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -338,7 +326,7 @@ export async function saveBidPlan(
     inputs: Record<string, unknown>;
   },
 ): Promise<BidPlan> {
-  const res = await fetch(`${API_BASE}/bid-plans/${auctionId}`, {
+  const res = await apiFetch(`${API_BASE}/bid-plans/${auctionId}`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -351,7 +339,7 @@ export async function saveBidPlan(
 }
 
 export async function deleteBidPlan(auctionId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/bid-plans/${auctionId}`, {
+  const res = await apiFetch(`${API_BASE}/bid-plans/${auctionId}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -378,7 +366,7 @@ export type LogActionInput = {
 
 /** 사용자 행동 로그 — 향후 개인화 추천용 수집. 실패해도 화면 동작을 막지 않음. */
 export function logUserAction(input: LogActionInput): void {
-  fetch(`${API_BASE}/actions`, {
+  apiFetch(`${API_BASE}/actions`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -390,7 +378,7 @@ export function logUserAction(input: LogActionInput): void {
 
 export function logUserActionsBatch(items: LogActionInput[]): void {
   if (items.length === 0) return;
-  fetch(`${API_BASE}/actions/batch`, {
+  apiFetch(`${API_BASE}/actions/batch`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -419,7 +407,7 @@ export async function fetchAdminAuctions(options: {
   });
   if (options.search?.trim()) params.set("search", options.search.trim());
 
-  const res = await fetch(`${API_BASE}/auctions/manage?${params.toString()}`, {
+  const res = await apiFetch(`${API_BASE}/auctions/manage?${params.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -452,7 +440,7 @@ export type RightsAnalysisRule = {
 };
 
 export async function fetchRightsAnalysisRules(): Promise<RightsAnalysisRule[]> {
-  const res = await fetch(`${API_BASE}/ai/rights-rules`, {
+  const res = await apiFetch(`${API_BASE}/ai/rights-rules`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -466,7 +454,7 @@ export async function updateRightsAnalysisRule(
   code: string,
   value: string,
 ): Promise<RightsAnalysisRule> {
-  const res = await fetch(`${API_BASE}/ai/rights-rules/${encodeURIComponent(code)}`, {
+  const res = await apiFetch(`${API_BASE}/ai/rights-rules/${encodeURIComponent(code)}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -492,7 +480,7 @@ export async function fetchAllAdminAuctions(): Promise<AuctionItem[]> {
 }
 
 export async function fetchPendingAuctions(): Promise<AuctionItem[]> {
-  const res = await fetch(`${API_BASE}/auctions/pending`, {
+  const res = await apiFetch(`${API_BASE}/auctions/pending`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -505,7 +493,7 @@ export async function fetchPendingAuctions(): Promise<AuctionItem[]> {
 }
 
 export async function fetchMyAuctions(): Promise<AuctionItem[]> {
-  const res = await fetch(`${API_BASE}/auctions/my`, {
+  const res = await apiFetch(`${API_BASE}/auctions/my`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -518,7 +506,7 @@ export async function fetchMyAuctions(): Promise<AuctionItem[]> {
 }
 
 export async function fetchAuctionCount(): Promise<{ total: number; pending: number }> {
-  const res = await fetch(`${API_BASE}/auctions/count`, {
+  const res = await apiFetch(`${API_BASE}/auctions/count`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -530,7 +518,7 @@ export async function uploadAuctionExcel(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${API_BASE}/auctions/upload`, {
+  const res = await apiFetch(`${API_BASE}/auctions/upload`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     body: formData,
@@ -552,7 +540,7 @@ export async function uploadAuctionExcel(file: File) {
 }
 
 export async function createAuction(data: UpdateAuctionPayload) {
-  const res = await fetch(`${API_BASE}/auctions`, {
+  const res = await apiFetch(`${API_BASE}/auctions`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -571,7 +559,7 @@ export function getTemplateDownloadUrl() {
 }
 
 export async function updateMyAuction(id: string, data: UpdateAuctionPayload) {
-  const res = await fetch(`${API_BASE}/auctions/my/${id}`, {
+  const res = await apiFetch(`${API_BASE}/auctions/my/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -586,7 +574,7 @@ export async function updateMyAuction(id: string, data: UpdateAuctionPayload) {
 }
 
 export async function deleteMyAuction(id: string) {
-  const res = await fetch(`${API_BASE}/auctions/my/${id}`, {
+  const res = await apiFetch(`${API_BASE}/auctions/my/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -599,7 +587,7 @@ export async function deleteMyAuction(id: string) {
 }
 
 export async function deleteAuction(id: string) {
-  const res = await fetch(`${API_BASE}/auctions/${id}`, {
+  const res = await apiFetch(`${API_BASE}/auctions/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -612,7 +600,7 @@ export async function deleteAuction(id: string) {
 }
 
 export async function deleteAuctions(ids: string[]) {
-  const res = await fetch(`${API_BASE}/auctions/delete-many`, {
+  const res = await apiFetch(`${API_BASE}/auctions/delete-many`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -627,7 +615,7 @@ export async function deleteAuctions(ids: string[]) {
 }
 
 export async function deleteAllAuctions() {
-  const res = await fetch(`${API_BASE}/auctions/all`, {
+  const res = await apiFetch(`${API_BASE}/auctions/all`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -640,7 +628,7 @@ export async function deleteAllAuctions() {
 }
 
 export async function fetchAuctionChangeHistory(auctionId: string) {
-  const res = await fetch(`${API_BASE}/auctions/${auctionId}/changes`, {
+  const res = await apiFetch(`${API_BASE}/auctions/${auctionId}/changes`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -653,7 +641,7 @@ export async function fetchAuctionChangeHistory(auctionId: string) {
 }
 
 export async function updateAuction(id: string, data: UpdateAuctionPayload) {
-  const res = await fetch(`${API_BASE}/auctions/${id}`, {
+  const res = await apiFetch(`${API_BASE}/auctions/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -668,7 +656,7 @@ export async function updateAuction(id: string, data: UpdateAuctionPayload) {
 }
 
 export async function approveAuction(id: string) {
-  const res = await fetch(`${API_BASE}/auctions/${id}/approve`, {
+  const res = await apiFetch(`${API_BASE}/auctions/${id}/approve`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
   });
@@ -681,7 +669,7 @@ export async function approveAuction(id: string) {
 }
 
 export async function rejectAuction(id: string) {
-  const res = await fetch(`${API_BASE}/auctions/${id}/reject`, {
+  const res = await apiFetch(`${API_BASE}/auctions/${id}/reject`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
   });
@@ -694,7 +682,7 @@ export async function rejectAuction(id: string) {
 }
 
 export async function approveAuctions(ids: string[]) {
-  const res = await fetch(`${API_BASE}/auctions/approve-many`, {
+  const res = await apiFetch(`${API_BASE}/auctions/approve-many`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -709,7 +697,7 @@ export async function approveAuctions(ids: string[]) {
 }
 
 export async function rejectAuctions(ids: string[]) {
-  const res = await fetch(`${API_BASE}/auctions/reject-many`, {
+  const res = await apiFetch(`${API_BASE}/auctions/reject-many`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -724,7 +712,7 @@ export async function rejectAuctions(ids: string[]) {
 }
 
 export async function fetchUsers(): Promise<UserProfile[]> {
-  const res = await fetch(`${API_BASE}/users`, {
+  const res = await apiFetch(`${API_BASE}/users`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -737,7 +725,7 @@ export async function fetchUsers(): Promise<UserProfile[]> {
 }
 
 export async function updateUserRole(id: string, role: UserRole) {
-  const res = await fetch(`${API_BASE}/users/${id}/role`, {
+  const res = await apiFetch(`${API_BASE}/users/${id}/role`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -752,7 +740,7 @@ export async function updateUserRole(id: string, role: UserRole) {
 }
 
 export async function updateUserAiAnalysisLimit(id: string, limit: number) {
-  const res = await fetch(`${API_BASE}/users/${id}/ai-limit`, {
+  const res = await apiFetch(`${API_BASE}/users/${id}/ai-limit`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -767,7 +755,7 @@ export async function updateUserAiAnalysisLimit(id: string, limit: number) {
 }
 
 export async function deleteUser(id: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/users/${id}`, {
+  const res = await apiFetch(`${API_BASE}/users/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -791,7 +779,7 @@ export interface SiteSettings {
 }
 
 export async function fetchSiteSettings(): Promise<SiteSettings> {
-  const res = await fetch(`${API_BASE}/settings`, {
+  const res = await apiFetch(`${API_BASE}/settings`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -813,7 +801,7 @@ export async function updateSiteSettings(
     >
   >,
 ): Promise<SiteSettings> {
-  const res = await fetch(`${API_BASE}/settings`, {
+  const res = await apiFetch(`${API_BASE}/settings`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -826,7 +814,7 @@ export async function updateSiteSettings(
 }
 
 export async function fetchMyProfile(): Promise<UserProfile> {
-  const res = await fetch(`${API_BASE}/users/me`, {
+  const res = await apiFetch(`${API_BASE}/users/me`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -851,7 +839,7 @@ export async function updateMyProfile(input: {
   investmentGoal?: string;
   firstTimeBuyer?: boolean;
 }): Promise<UserProfile> {
-  const res = await fetch(`${API_BASE}/users/me`, {
+  const res = await apiFetch(`${API_BASE}/users/me`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -883,7 +871,7 @@ export type LoanPolicy = {
 };
 
 export async function fetchLoanPolicies(): Promise<LoanPolicy[]> {
-  const res = await fetch(`${API_BASE}/loan-policies`, {
+  const res = await apiFetch(`${API_BASE}/loan-policies`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -904,7 +892,7 @@ export async function updateLoanPolicy(
     roomDeductionTarget: "none" | "appraisal" | "bid" | "both";
   },
 ): Promise<LoanPolicy> {
-  const res = await fetch(`${API_BASE}/loan-policies/${id}`, {
+  const res = await apiFetch(`${API_BASE}/loan-policies/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -919,7 +907,7 @@ export async function updateLoanPolicy(
 }
 
 export async function fetchIncomeLoanMultiplier(): Promise<number> {
-  const res = await fetch(`${API_BASE}/loan-policies/income-multiplier`, {
+  const res = await apiFetch(`${API_BASE}/loan-policies/income-multiplier`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -931,7 +919,7 @@ export async function fetchIncomeLoanMultiplier(): Promise<number> {
 }
 
 export async function updateIncomeLoanMultiplier(value: number): Promise<number> {
-  const res = await fetch(`${API_BASE}/loan-policies/income-multiplier`, {
+  const res = await apiFetch(`${API_BASE}/loan-policies/income-multiplier`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -982,7 +970,7 @@ export type TagRuleFieldDef = {
 export type TagRuleOperatorDef = { key: string; label: string; types: string[] };
 
 export async function fetchTagRules(): Promise<TagRule[]> {
-  const res = await fetch(`${API_BASE}/tag-rules`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -998,7 +986,7 @@ export type TagRuleMatchCounts = {
 };
 
 export async function fetchTagRuleMatchCounts(): Promise<TagRuleMatchCounts> {
-  const res = await fetch(`${API_BASE}/tag-rules/match-counts`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/match-counts`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1012,7 +1000,7 @@ export async function fetchTagRuleFields(): Promise<{
   fields: TagRuleFieldDef[];
   operators: TagRuleOperatorDef[];
 }> {
-  const res = await fetch(`${API_BASE}/tag-rules/fields`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/fields`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1023,7 +1011,7 @@ export async function fetchTagRuleFields(): Promise<{
 }
 
 export async function fetchTagRuleFieldValueOptions(fieldKey: string): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/tag-rules/fields/${encodeURIComponent(fieldKey)}/value-options`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/fields/${encodeURIComponent(fieldKey)}/value-options`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1041,7 +1029,7 @@ export async function createTagRule(input: {
   active?: boolean;
   sortOrder?: number;
 }): Promise<TagRule> {
-  const res = await fetch(`${API_BASE}/tag-rules`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1064,7 +1052,7 @@ export async function updateTagRule(
     sortOrder: number;
   }>,
 ): Promise<TagRule> {
-  const res = await fetch(`${API_BASE}/tag-rules/${id}`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1077,7 +1065,7 @@ export async function updateTagRule(
 }
 
 export async function removeTagRule(id: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/tag-rules/${id}`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1088,7 +1076,7 @@ export async function removeTagRule(id: string): Promise<{ ok: boolean }> {
 }
 
 export async function backfillTagRules(): Promise<{ total: number; updated: number }> {
-  const res = await fetch(`${API_BASE}/tag-rules/backfill`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/backfill`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1099,7 +1087,7 @@ export async function backfillTagRules(): Promise<{ total: number; updated: numb
 }
 
 export async function analyzeSecurityLogNow(): Promise<{ ran: boolean; reason?: string }> {
-  const res = await fetch(`${API_BASE}/security-log/analyze-now`, {
+  const res = await apiFetch(`${API_BASE}/security-log/analyze-now`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1110,7 +1098,7 @@ export async function analyzeSecurityLogNow(): Promise<{ ran: boolean; reason?: 
 }
 
 export async function fetchRecentSecurityLog(): Promise<{ lines: string[] }> {
-  const res = await fetch(`${API_BASE}/security-log/recent`, {
+  const res = await apiFetch(`${API_BASE}/security-log/recent`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1128,7 +1116,7 @@ export type SecurityLogIpExclusion = {
 };
 
 export async function fetchSecurityLogIpExclusions(): Promise<SecurityLogIpExclusion[]> {
-  const res = await fetch(`${API_BASE}/security-log/ip-exclusions`, {
+  const res = await apiFetch(`${API_BASE}/security-log/ip-exclusions`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1142,7 +1130,7 @@ export async function addSecurityLogIpExclusion(
   ip: string,
   note: string,
 ): Promise<SecurityLogIpExclusion> {
-  const res = await fetch(`${API_BASE}/security-log/ip-exclusions`, {
+  const res = await apiFetch(`${API_BASE}/security-log/ip-exclusions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: FETCH_CREDENTIALS,
@@ -1155,7 +1143,7 @@ export async function addSecurityLogIpExclusion(
 }
 
 export async function removeSecurityLogIpExclusion(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/security-log/ip-exclusions/${id}`, {
+  const res = await apiFetch(`${API_BASE}/security-log/ip-exclusions/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1165,7 +1153,7 @@ export async function removeSecurityLogIpExclusion(id: string): Promise<void> {
 }
 
 export async function fetchStrategyRules(): Promise<StrategyRule[]> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-rules`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1183,7 +1171,7 @@ export async function createStrategyRule(input: {
   active?: boolean;
   sortOrder?: number;
 }): Promise<StrategyRule> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-rules`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1206,7 +1194,7 @@ export async function updateStrategyRule(
     sortOrder: number;
   }>,
 ): Promise<StrategyRule> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules/${id}`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-rules/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1219,7 +1207,7 @@ export async function updateStrategyRule(
 }
 
 export async function removeStrategyRule(id: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-rules/${id}`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-rules/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1230,7 +1218,7 @@ export async function removeStrategyRule(id: string): Promise<{ ok: boolean }> {
 }
 
 export async function fetchStrategyLabels(): Promise<StrategyLabel[]> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-labels`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1244,7 +1232,7 @@ export async function createStrategyLabel(input: {
   label: string;
   icon?: string;
 }): Promise<StrategyLabel> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-labels`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1260,7 +1248,7 @@ export async function updateStrategyLabel(
   id: string,
   input: Partial<{ label: string; icon: string }>,
 ): Promise<StrategyLabel> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels/${id}`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-labels/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1273,7 +1261,7 @@ export async function updateStrategyLabel(
 }
 
 export async function removeStrategyLabel(id: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/tag-rules/strategy-labels/${id}`, {
+  const res = await apiFetch(`${API_BASE}/tag-rules/strategy-labels/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1290,7 +1278,7 @@ export type RegulatedRegion = {
 };
 
 export async function fetchRegulatedRegions(): Promise<RegulatedRegion[]> {
-  const res = await fetch(`${API_BASE}/regulated-regions`, {
+  const res = await apiFetch(`${API_BASE}/regulated-regions`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1301,7 +1289,7 @@ export async function fetchRegulatedRegions(): Promise<RegulatedRegion[]> {
 }
 
 export async function addRegulatedRegion(name: string): Promise<RegulatedRegion> {
-  const res = await fetch(`${API_BASE}/regulated-regions`, {
+  const res = await apiFetch(`${API_BASE}/regulated-regions`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1314,7 +1302,7 @@ export async function addRegulatedRegion(name: string): Promise<RegulatedRegion>
 }
 
 export async function removeRegulatedRegion(id: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/regulated-regions/${id}`, {
+  const res = await apiFetch(`${API_BASE}/regulated-regions/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1372,7 +1360,7 @@ export type AiTagRow = {
 };
 
 async function aiPlatformGet<T>(path: string, fallbackError: string): Promise<T> {
-  const res = await fetch(`${API_BASE}/ai-platform/${path}`, {
+  const res = await apiFetch(`${API_BASE}/ai-platform/${path}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1384,7 +1372,7 @@ async function aiPlatformRegenerate(
   engine: "normalizer" | "features" | "tags",
   itemIds: string[] | undefined,
 ): Promise<{ count: number }> {
-  const res = await fetch(`${API_BASE}/ai-platform/${engine}/regenerate`, {
+  const res = await apiFetch(`${API_BASE}/ai-platform/${engine}/regenerate`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1409,7 +1397,7 @@ export async function updateNormalizedData(
   itemId: string,
   data: Record<string, unknown>,
 ): Promise<NormalizedDataRow> {
-  const res = await fetch(`${API_BASE}/ai-platform/normalizer/${itemId}`, {
+  const res = await apiFetch(`${API_BASE}/ai-platform/normalizer/${itemId}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1432,7 +1420,7 @@ export async function updateAiFeature(
   itemId: string,
   data: Record<string, unknown>,
 ): Promise<AiFeatureRow> {
-  const res = await fetch(`${API_BASE}/ai-platform/features/${itemId}`, {
+  const res = await apiFetch(`${API_BASE}/ai-platform/features/${itemId}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1455,7 +1443,7 @@ export async function updateAiManualTags(
   itemId: string,
   manualTags: string[] | null,
 ): Promise<AiTagRow> {
-  const res = await fetch(`${API_BASE}/ai-platform/tags/${itemId}/manual-tags`, {
+  const res = await apiFetch(`${API_BASE}/ai-platform/tags/${itemId}/manual-tags`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1490,14 +1478,12 @@ export type RecommendationFilters = {
 export async function fetchStrategyLabelOptions(): Promise<
   Array<{ id: string; label: string }>
 > {
-  const res = await fetch(`${API_BASE}/recommendations/strategy-labels`, {
-    cache: "no-store",
-    credentials: FETCH_CREDENTIALS,
-  });
-  if (!res.ok) {
-    throw new Error((await parseErrorMessage(res)) ?? "라벨 목록을 불러오지 못했습니다.");
+  try {
+    const res = await http.get<Array<{ id: string; label: string }>>("/recommendations/strategy-labels");
+    return res.data;
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "라벨 목록을 불러오지 못했습니다."));
   }
-  return readJsonResponse(res);
 }
 
 export async function fetchRecommendations(
@@ -1547,22 +1533,19 @@ export async function fetchRecommendations(
   if (filters?.maxArea != null) query.set("maxArea", String(filters.maxArea));
   if (filters?.tradingYears != null) query.set("tradingYears", String(filters.tradingYears));
   if (filters?.tradingMinCount != null) query.set("tradingMinCount", String(filters.tradingMinCount));
-  const qs = query.toString();
-  const res = await fetch(`${API_BASE}/recommendations${qs ? `?${qs}` : ""}`, {
-    cache: "no-store",
-    credentials: FETCH_CREDENTIALS,
-  });
-  if (!res.ok) {
-    throw new Error((await parseErrorMessage(res)) ?? "추천 물건을 불러오지 못했습니다.");
+  try {
+    const res = await http.get("/recommendations", { params: query });
+    return res.data;
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "추천 물건을 불러오지 못했습니다."));
   }
-  return readJsonResponse(res);
 }
 
 export async function askAi(input: {
   question: string;
   auctionId?: string;
 }): Promise<{ answer: string; matchedCount?: number; criteriaApplied?: boolean }> {
-  const res = await fetch(`${API_BASE}/ai/ask`, {
+  const res = await apiFetch(`${API_BASE}/ai/ask`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1594,7 +1577,7 @@ export async function compareAuctions(
   table: { a: AuctionCompareRow; b: AuctionCompareRow };
   ai: { summary: string; betterChoice: string; reasons: string[] } | null;
 }> {
-  const res = await fetch(`${API_BASE}/ai/compare`, {
+  const res = await apiFetch(`${API_BASE}/ai/compare`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1763,7 +1746,7 @@ export type CrawlerLogEntry = {
 };
 
 export async function fetchCrawlerStatus(): Promise<CrawlerStatus> {
-  const res = await fetch(`${API_BASE}/crawler/status`, {
+  const res = await apiFetch(`${API_BASE}/crawler/status`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1796,7 +1779,7 @@ export type CrawlerResaleRunSummary = {
  * (요청한 전체 건수 기준, 크롤링 필요/불필요 물건 모두 포함). 실행
  * 중이 아니면 null. */
 export async function fetchCrawlerResaleRunSummary(): Promise<CrawlerResaleRunSummary | null> {
-  const res = await fetch(`${API_BASE}/crawler/resale-run-summary`, {
+  const res = await apiFetch(`${API_BASE}/crawler/resale-run-summary`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1809,7 +1792,7 @@ export async function fetchCrawlerResaleRunSummary(): Promise<CrawlerResaleRunSu
 }
 
 export async function fetchCrawlerLogs(limit = 200): Promise<CrawlerLogEntry[]> {
-  const res = await fetch(`${API_BASE}/crawler/logs?limit=${limit}`, {
+  const res = await apiFetch(`${API_BASE}/crawler/logs?limit=${limit}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1825,7 +1808,7 @@ export async function crawlerLogin(credentials?: {
   userId?: string;
   password?: string;
 }) {
-  const res = await fetch(`${API_BASE}/crawler/login`, {
+  const res = await apiFetch(`${API_BASE}/crawler/login`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1840,7 +1823,7 @@ export async function crawlerLogin(credentials?: {
 }
 
 export async function fetchCrawlerConfig(): Promise<CrawlerConfig> {
-  const res = await fetch(`${API_BASE}/crawler/config`, {
+  const res = await apiFetch(`${API_BASE}/crawler/config`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1855,7 +1838,7 @@ export async function fetchCrawlerConfig(): Promise<CrawlerConfig> {
 export async function updateCrawlerConfig(
   config: Partial<CrawlerConfig>,
 ): Promise<CrawlerConfig> {
-  const res = await fetch(`${API_BASE}/crawler/config`, {
+  const res = await apiFetch(`${API_BASE}/crawler/config`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1870,7 +1853,7 @@ export async function updateCrawlerConfig(
 }
 
 export async function checkTankLoginV3(): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/crawler/tank-login-check`, {
+  const res = await apiFetch(`${API_BASE}/crawler/tank-login-check`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -1935,7 +1918,7 @@ export type NiceCrawlerLogEntry = {
 };
 
 export async function fetchNiceCrawlerStatus(): Promise<NiceCrawlerStatus> {
-  const res = await fetch(`${API_BASE}/nice-crawler/status`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/status`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1946,7 +1929,7 @@ export async function fetchNiceCrawlerStatus(): Promise<NiceCrawlerStatus> {
 }
 
 export async function fetchNiceCrawlerLogs(limit = 200): Promise<NiceCrawlerLogEntry[]> {
-  const res = await fetch(`${API_BASE}/nice-crawler/logs?limit=${limit}`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/logs?limit=${limit}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -1957,7 +1940,7 @@ export async function fetchNiceCrawlerLogs(limit = 200): Promise<NiceCrawlerLogE
 }
 
 export async function niceCrawlerClearLogs(): Promise<void> {
-  await fetch(`${API_BASE}/nice-crawler/logs/clear`, {
+  await apiFetch(`${API_BASE}/nice-crawler/logs/clear`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2025,7 +2008,7 @@ export async function niceCrawlerCollect(search: NiceSearchConfig): Promise<{
   excluded: number;
   total: number;
 }> {
-  const res = await fetch(`${API_BASE}/nice-crawler/collect`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/collect`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2045,7 +2028,7 @@ export async function niceCrawlerManageUrls(body: {
   label?: string;
   indices?: number[];
 }): Promise<{ urls: NiceCrawlerUrlEntry[] }> {
-  const res = await fetch(`${API_BASE}/nice-crawler/manage-urls`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/manage-urls`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2062,7 +2045,7 @@ export async function niceCrawlerManageUrls(body: {
 export async function niceCrawlerStart(options: {
   resaleAnalysisEnabled?: boolean;
 } = {}): Promise<NiceCrawlerStatus> {
-  const res = await fetch(`${API_BASE}/nice-crawler/start`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/start`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2075,7 +2058,7 @@ export async function niceCrawlerStart(options: {
 }
 
 export async function fetchNiceCrawlerResaleRunSummary(): Promise<NiceCrawlerResaleRunSummary | null> {
-  const res = await fetch(`${API_BASE}/nice-crawler/resale-run-summary`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/resale-run-summary`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2086,7 +2069,7 @@ export async function fetchNiceCrawlerResaleRunSummary(): Promise<NiceCrawlerRes
 }
 
 export async function fetchNiceSavedSearches(): Promise<NiceSavedSearch[]> {
-  const res = await fetch(`${API_BASE}/nice-crawler/saved-searches`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/saved-searches`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2101,7 +2084,7 @@ export async function saveNiceSavedSearch(input: {
   name: string;
   search: NiceSearchConfig;
 }): Promise<NiceSavedSearch> {
-  const res = await fetch(`${API_BASE}/nice-crawler/saved-searches`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/saved-searches`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2114,7 +2097,7 @@ export async function saveNiceSavedSearch(input: {
 }
 
 export async function deleteNiceSavedSearch(id: string): Promise<void> {
-  await fetch(`${API_BASE}/nice-crawler/saved-searches/delete`, {
+  await apiFetch(`${API_BASE}/nice-crawler/saved-searches/delete`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2123,7 +2106,7 @@ export async function deleteNiceSavedSearch(id: string): Promise<void> {
 }
 
 export async function niceCrawlerStop(): Promise<NiceCrawlerStatus> {
-  const res = await fetch(`${API_BASE}/nice-crawler/stop`, {
+  const res = await apiFetch(`${API_BASE}/nice-crawler/stop`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2138,7 +2121,7 @@ export async function fetchTankFavoriteSearches(): Promise<{
   ok: boolean;
   items: TankFavoriteSearch[];
 }> {
-  const res = await fetch(`${API_BASE}/crawler/tank-favorite-searches`, {
+  const res = await apiFetch(`${API_BASE}/crawler/tank-favorite-searches`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2151,7 +2134,7 @@ export async function fetchTankFavoriteSearches(): Promise<{
 }
 
 export async function fetchSavedSearches(): Promise<SavedSearchPreset[]> {
-  const res = await fetch(`${API_BASE}/crawler/saved-searches`, {
+  const res = await apiFetch(`${API_BASE}/crawler/saved-searches`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2168,7 +2151,7 @@ export async function saveSavedSearch(body: {
   name: string;
   search: CrawlerSearchConfig;
 }): Promise<SavedSearchPreset> {
-  const res = await fetch(`${API_BASE}/crawler/saved-searches`, {
+  const res = await apiFetch(`${API_BASE}/crawler/saved-searches`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2183,7 +2166,7 @@ export async function saveSavedSearch(body: {
 }
 
 export async function deleteSavedSearch(id: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/crawler/saved-searches/delete`, {
+  const res = await apiFetch(`${API_BASE}/crawler/saved-searches/delete`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2200,7 +2183,7 @@ export async function deleteSavedSearch(id: string): Promise<{ ok: boolean }> {
 export async function countSearchResultsV3(
   search: CrawlerSearchConfig,
 ): Promise<{ ok: boolean; total: number }> {
-  const res = await fetch(`${API_BASE}/crawler/count-search-v3`, {
+  const res = await apiFetch(`${API_BASE}/crawler/count-search-v3`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2222,7 +2205,7 @@ export async function crawlerCollectUrls(
     crawlerVersion?: CrawlerVersion;
   },
 ) {
-  const res = await fetch(`${API_BASE}/crawler/collect-urls`, {
+  const res = await apiFetch(`${API_BASE}/crawler/collect-urls`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2252,7 +2235,7 @@ export async function crawlerCollectUrls(
 export async function crawlerLoadExcel(file: File) {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_BASE}/crawler/load-excel`, {
+  const res = await apiFetch(`${API_BASE}/crawler/load-excel`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     body: form,
@@ -2270,7 +2253,7 @@ export async function crawlerManageUrls(body: {
   url?: string;
   indices?: number[];
 }) {
-  const res = await fetch(`${API_BASE}/crawler/urls`, {
+  const res = await apiFetch(`${API_BASE}/crawler/urls`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2290,7 +2273,7 @@ export async function crawlerStart(options?: {
   crawlerVersion?: CrawlerVersion;
   runResaleAnalysisForExisting?: boolean;
 }) {
-  const res = await fetch(`${API_BASE}/crawler/start`, {
+  const res = await apiFetch(`${API_BASE}/crawler/start`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2305,7 +2288,7 @@ export async function crawlerStart(options?: {
 }
 
 export async function crawlerStop() {
-  const res = await fetch(`${API_BASE}/crawler/stop`, {
+  const res = await apiFetch(`${API_BASE}/crawler/stop`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2318,7 +2301,7 @@ export async function crawlerStop() {
 }
 
 export async function crawlerRestartWorker() {
-  const res = await fetch(`${API_BASE}/crawler/restart-worker`, {
+  const res = await apiFetch(`${API_BASE}/crawler/restart-worker`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2331,7 +2314,7 @@ export async function crawlerRestartWorker() {
 }
 
 export async function crawlerBackfillNaverIds() {
-  const res = await fetch(`${API_BASE}/crawler/backfill-naver-id`, {
+  const res = await apiFetch(`${API_BASE}/crawler/backfill-naver-id`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2344,7 +2327,7 @@ export async function crawlerBackfillNaverIds() {
 }
 
 export async function crawlerClearLogs() {
-  const res = await fetch(`${API_BASE}/crawler/logs/clear`, {
+  const res = await apiFetch(`${API_BASE}/crawler/logs/clear`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2359,7 +2342,7 @@ export async function crawlerClearLogs() {
 export async function fetchAuctionAnalysis(
   auctionId: string,
 ): Promise<AuctionAnalysisResult | null> {
-  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/analysis`, {
+  const res = await apiFetch(`${API_BASE}/ai/auctions/${auctionId}/analysis`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2378,7 +2361,7 @@ export async function analyzeAuction(
   auctionId: string,
   refresh = false,
 ): Promise<AuctionAnalysisResult> {
-  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/analyze`, {
+  const res = await apiFetch(`${API_BASE}/ai/auctions/${auctionId}/analyze`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2399,7 +2382,7 @@ export async function analyzeAuction(
 export async function fetchAuctionRightsReview(
   auctionId: string,
 ): Promise<AuctionRightsReview | null> {
-  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/rights-review`, {
+  const res = await apiFetch(`${API_BASE}/ai/auctions/${auctionId}/rights-review`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2415,7 +2398,7 @@ export async function saveAuctionRightsReview(
   auctionId: string,
   review: Partial<AuctionRightsReview>,
 ): Promise<AuctionRightsReview> {
-  const res = await fetch(`${API_BASE}/ai/auctions/${auctionId}/rights-review`, {
+  const res = await apiFetch(`${API_BASE}/ai/auctions/${auctionId}/rights-review`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2432,7 +2415,7 @@ export async function saveAuctionRightsReview(
 }
 
 export async function fetchKnowledgeItems(): Promise<AuctionKnowledgeItem[]> {
-  const res = await fetch(`${API_BASE}/ai/knowledge`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2451,7 +2434,7 @@ export async function createKnowledgeItem(input: {
   content: string;
   active?: boolean;
 }): Promise<AuctionKnowledgeItem> {
-  const res = await fetch(`${API_BASE}/ai/knowledge`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2469,7 +2452,7 @@ export async function structureKnowledgeInput(input: {
   category: string;
   rawText: string;
 }): Promise<{ title: string; tags: string; content: string }> {
-  const res = await fetch(`${API_BASE}/ai/knowledge/structure`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge/structure`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2485,7 +2468,7 @@ export async function refineStrategyDescription(input: {
   label: string;
   rawText: string;
 }): Promise<{ description: string }> {
-  const res = await fetch(`${API_BASE}/ai/strategy/refine-description`, {
+  const res = await apiFetch(`${API_BASE}/ai/strategy/refine-description`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2507,7 +2490,7 @@ export async function updateKnowledgeItem(
     active: boolean;
   }>,
 ): Promise<AuctionKnowledgeItem> {
-  const res = await fetch(`${API_BASE}/ai/knowledge/${id}`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2522,7 +2505,7 @@ export async function updateKnowledgeItem(
 }
 
 export async function deleteKnowledgeItem(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/ai/knowledge/${id}`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2541,7 +2524,7 @@ export interface KnowledgeCategory {
 }
 
 export async function fetchKnowledgeCategories(): Promise<KnowledgeCategory[]> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-categories`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-categories`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2552,7 +2535,7 @@ export async function fetchKnowledgeCategories(): Promise<KnowledgeCategory[]> {
 }
 
 export async function createKnowledgeCategory(name: string): Promise<KnowledgeCategory> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-categories`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-categories`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2565,7 +2548,7 @@ export async function createKnowledgeCategory(name: string): Promise<KnowledgeCa
 }
 
 export async function deleteKnowledgeCategory(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-categories/${id}`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-categories/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2578,7 +2561,7 @@ export async function fetchKnowledgeDrafts(
   status?: KnowledgeDraftStatus,
 ): Promise<KnowledgeDraftItem[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-  const res = await fetch(`${API_BASE}/ai/knowledge-drafts${qs}`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-drafts${qs}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2600,7 +2583,7 @@ export async function updateKnowledgeDraft(
     status: KnowledgeDraftStatus;
   }>,
 ): Promise<KnowledgeDraftItem> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2617,7 +2600,7 @@ export async function updateKnowledgeDraft(
 export async function structureKnowledgeDraft(
   id: string,
 ): Promise<KnowledgeDraftItem> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/structure`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-drafts/${id}/structure`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2632,7 +2615,7 @@ export async function structureKnowledgeDraft(
 export async function structureKnowledgeDraftBatch(
   limit = 20,
 ): Promise<{ total: number; structured: number; skipped: number; failed: number }> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/structure-batch`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-drafts/structure-batch`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2647,7 +2630,7 @@ export async function structureKnowledgeDraftBatch(
 }
 
 export async function approveKnowledgeDraft(id: string): Promise<unknown> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/approve`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-drafts/${id}/approve`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2662,7 +2645,7 @@ export async function approveKnowledgeDraft(id: string): Promise<unknown> {
 export async function rejectKnowledgeDraft(
   id: string,
 ): Promise<KnowledgeDraftItem> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}/reject`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-drafts/${id}/reject`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2675,7 +2658,7 @@ export async function rejectKnowledgeDraft(
 }
 
 export async function deleteKnowledgeDraft(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
+  const res = await apiFetch(`${API_BASE}/ai/knowledge-drafts/${id}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2687,7 +2670,7 @@ export async function deleteKnowledgeDraft(id: string): Promise<void> {
 }
 
 export async function fetchCafeCrawlStatus(): Promise<CafeCrawlStatus> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/status`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/status`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2708,7 +2691,7 @@ export async function cafeLogin(credentials: {
   naverLoggedIn?: boolean;
   needsManualAuth?: boolean;
 }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/login`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/login`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2731,7 +2714,7 @@ export async function cafeRestartBrowser(navigate?: string): Promise<{
   naverLoggedIn?: boolean;
   currentUrl?: string;
 }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/browser/restart`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/browser/restart`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2751,7 +2734,7 @@ export async function cafeOpenLogin(): Promise<{
   naverLoggedIn?: boolean;
   profileDir?: string;
 }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/open-login`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/open-login`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2766,7 +2749,7 @@ export async function cafeOpenLogin(): Promise<{
 export async function cafeOpen(
   cafeUrl: string,
 ): Promise<{ ok: boolean; message?: string; naverLoggedIn?: boolean }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/open`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/open`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2785,7 +2768,7 @@ export async function cafeCheckLogin(): Promise<{
   naverLoggedIn?: boolean;
   message?: string;
 }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/check-login`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/check-login`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2804,7 +2787,7 @@ export async function fetchCafeCollectedUrls(): Promise<{
   total?: number;
   urls?: Array<{ url: string; title?: string; articleId?: string }>;
 }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/collected-urls`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/collected-urls`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2823,7 +2806,7 @@ export async function cafeCollectUrls(options?: {
   userId?: string;
   password?: string;
 }): Promise<{ ok: boolean; message?: string }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/collect-urls`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/collect-urls`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2844,7 +2827,7 @@ export async function cafeCrawlStart(options?: {
   userId?: string;
   password?: string;
 }): Promise<{ ok: boolean; message?: string }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/start`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/start`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2859,7 +2842,7 @@ export async function cafeCrawlStart(options?: {
 }
 
 export async function cafeCrawlStop(): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/stop`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/stop`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -2877,7 +2860,7 @@ export async function cafeImportArticle(options: {
   userId?: string;
   password?: string;
 }): Promise<{ ok: boolean; message?: string }> {
-  const res = await fetch(`${API_BASE}/crawler/cafe/import-article`, {
+  const res = await apiFetch(`${API_BASE}/crawler/cafe/import-article`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -2991,7 +2974,7 @@ export async function fetchKakaoLeads(params: {
   query.set("page", String(params.page ?? 1));
   query.set("pageSize", String(params.pageSize ?? 20));
 
-  const res = await fetch(`${API_BASE}/kakao-notify/leads?${query.toString()}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads?${query.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3022,7 +3005,7 @@ export async function fetchKakaoLeadIds(params: {
   if (params.joinedTo) query.set("joinedTo", params.joinedTo);
   if (params.duplicateOnly) query.set("duplicateOnly", "true");
 
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/ids?${query.toString()}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/ids?${query.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3033,7 +3016,7 @@ export async function fetchKakaoLeadIds(params: {
 }
 
 export async function fetchKakaoGroupLabels(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/groups`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/groups`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3044,7 +3027,7 @@ export async function fetchKakaoGroupLabels(): Promise<string[]> {
 }
 
 export async function fetchKakaoChannels(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/channels`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/channels`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3055,7 +3038,7 @@ export async function fetchKakaoChannels(): Promise<string[]> {
 }
 
 export async function setKakaoLeadGroup(id: string, groupLabel: string): Promise<KakaoLead> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}/group`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/${id}/group`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3071,7 +3054,7 @@ export async function setKakaoLeadGroupBulk(
   ids: string[],
   groupLabel: string,
 ): Promise<{ updated: number }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/group-bulk`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/group-bulk`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3091,7 +3074,7 @@ export async function fetchKakaoLeadDetail(
   otherApplications: KakaoLead[];
   landingVisit: { landingUrl: string; referrer: string } | null;
 }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/${id}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3102,7 +3085,7 @@ export async function fetchKakaoLeadDetail(
 }
 
 export async function resendKakaoLead(id: string): Promise<KakaoDispatchLog> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}/resend`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/${id}/resend`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3124,7 +3107,7 @@ export async function sendKakaoTestMessage(input: {
   source?: KakaoLeadSource;
   scheduledAt?: string;
 }): Promise<KakaoDispatchLog | KakaoScheduledDispatch> {
-  const res = await fetch(`${API_BASE}/kakao-notify/test-send`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/test-send`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3146,7 +3129,7 @@ export async function fetchKakaoDispatchLogs(params: {
   query.set("page", String(params.page ?? 1));
   query.set("pageSize", String(params.pageSize ?? 20));
 
-  const res = await fetch(`${API_BASE}/kakao-notify/dispatch-logs?${query.toString()}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/dispatch-logs?${query.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3157,7 +3140,7 @@ export async function fetchKakaoDispatchLogs(params: {
 }
 
 export async function fetchKakaoSyncState(): Promise<KakaoSyncState[]> {
-  const res = await fetch(`${API_BASE}/kakao-notify/sync-state`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/sync-state`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3179,7 +3162,7 @@ export interface KakaoSyncRunAllResult {
 
 /** 알림톡 자동발송(아임웹+인스타 신규 리드 수집 및 발송)을 동시에 실행한다. */
 export async function runKakaoAutoSend(): Promise<KakaoSyncRunAllResult> {
-  const res = await fetch(`${API_BASE}/kakao-notify/sync/run-now`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/sync/run-now`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3191,7 +3174,7 @@ export async function runKakaoAutoSend(): Promise<KakaoSyncRunAllResult> {
 }
 
 export async function cancelKakaoAutoSend(): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/sync/cancel`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/sync/cancel`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3206,7 +3189,7 @@ export async function cancelKakaoAutoSend(): Promise<{ ok: boolean }> {
 export async function runKakaoAutoSendOne(
   source: KakaoLeadSource,
 ): Promise<KakaoSyncRunResult> {
-  const res = await fetch(`${API_BASE}/kakao-notify/sync/run-now/${source}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/sync/run-now/${source}`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3220,7 +3203,7 @@ export async function runKakaoAutoSendOne(
 export async function cancelKakaoAutoSendOne(
   source: KakaoLeadSource,
 ): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/sync/cancel/${source}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/sync/cancel/${source}`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3235,7 +3218,7 @@ export async function fetchKakaoSchedulerStatus(): Promise<{
   enabled: boolean;
   intervalMinutes: number;
 }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/scheduler/status`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/scheduler/status`, {
     credentials: FETCH_CREDENTIALS,
     cache: "no-store",
   });
@@ -3246,7 +3229,7 @@ export async function fetchKakaoSchedulerStatus(): Promise<{
 }
 
 export async function toggleKakaoScheduler(enabled: boolean): Promise<{ enabled: boolean }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/scheduler/toggle`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/scheduler/toggle`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3261,7 +3244,7 @@ export async function toggleKakaoScheduler(enabled: boolean): Promise<{ enabled:
 export async function updateKakaoSchedulerInterval(
   intervalMinutes: number,
 ): Promise<{ intervalMinutes: number }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/scheduler/interval`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/scheduler/interval`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3284,7 +3267,7 @@ export async function fetchKakaoAutoSendStatus(): Promise<{
   imweb: KakaoSyncRunState;
   instagram: KakaoSyncRunState;
 }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/sync/status`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/sync/status`, {
     credentials: FETCH_CREDENTIALS,
     cache: "no-store",
   });
@@ -3298,7 +3281,7 @@ export async function backfillImwebExistingMembers(): Promise<{
   processed: number;
   created: number;
 }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/imweb/backfill-existing`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/imweb/backfill-existing`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3313,7 +3296,7 @@ export async function backfillInstagramExistingRows(): Promise<{
   processed: number;
   created: number;
 }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/instagram/backfill-existing`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/instagram/backfill-existing`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3327,7 +3310,7 @@ export async function backfillInstagramExistingRows(): Promise<{
 export async function deleteKakaoLeadsBySource(
   source: KakaoLeadSource,
 ): Promise<{ deleted: number }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/delete-by-source/${source}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/delete-by-source/${source}`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3339,7 +3322,7 @@ export async function deleteKakaoLeadsBySource(
 }
 
 export async function deleteKakaoLeadsByIds(ids: string[]): Promise<{ deleted: number }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/delete`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/delete`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3402,7 +3385,7 @@ export async function bulkSendKakaoLeads(input: {
   templateNameVar?: string;
   scheduledAt?: string;
 }): Promise<KakaoBulkSendResult | KakaoScheduledDispatch> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/bulk-send`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/bulk-send`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3424,7 +3407,7 @@ export async function fetchKakaoScheduledDispatches(params: {
   query.set("page", String(params.page ?? 1));
   query.set("pageSize", String(params.pageSize ?? 20));
 
-  const res = await fetch(`${API_BASE}/kakao-notify/scheduled-dispatches?${query.toString()}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/scheduled-dispatches?${query.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3437,7 +3420,7 @@ export async function fetchKakaoScheduledDispatches(params: {
 export async function cancelKakaoScheduledDispatch(
   id: string,
 ): Promise<KakaoScheduledDispatch> {
-  const res = await fetch(`${API_BASE}/kakao-notify/scheduled-dispatches/${id}/cancel`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/scheduled-dispatches/${id}/cancel`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3454,7 +3437,7 @@ export interface InstagramSheetConfig {
 }
 
 export async function fetchInstagramSheetConfig(): Promise<InstagramSheetConfig> {
-  const res = await fetch(`${API_BASE}/kakao-notify/instagram/sheet-config`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/instagram/sheet-config`, {
     credentials: FETCH_CREDENTIALS,
     cache: "no-store",
   });
@@ -3467,7 +3450,7 @@ export async function fetchInstagramSheetConfig(): Promise<InstagramSheetConfig>
 export async function updateInstagramSheetConfig(
   input: InstagramSheetConfig,
 ): Promise<InstagramSheetConfig> {
-  const res = await fetch(`${API_BASE}/kakao-notify/instagram/sheet-config`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/instagram/sheet-config`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3485,7 +3468,7 @@ export interface ManualSheetConfig {
 }
 
 export async function fetchManualSheetConfig(): Promise<ManualSheetConfig> {
-  const res = await fetch(`${API_BASE}/kakao-notify/manual-sheet/config`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/manual-sheet/config`, {
     credentials: FETCH_CREDENTIALS,
     cache: "no-store",
   });
@@ -3498,7 +3481,7 @@ export async function fetchManualSheetConfig(): Promise<ManualSheetConfig> {
 export async function updateManualSheetConfig(
   input: ManualSheetConfig,
 ): Promise<ManualSheetConfig> {
-  const res = await fetch(`${API_BASE}/kakao-notify/manual-sheet/config`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/manual-sheet/config`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3516,7 +3499,7 @@ export async function applyManualSheet(): Promise<{
   duplicate: number;
   invalidPhone: number;
 }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/manual-sheet/apply`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/manual-sheet/apply`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3548,7 +3531,7 @@ export interface SolapiTemplate {
 }
 
 export async function fetchKakaoTemplates(): Promise<SolapiTemplate[]> {
-  const res = await fetch(`${API_BASE}/kakao-notify/templates`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/templates`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3569,7 +3552,7 @@ export interface KakaoNotifySetting {
 }
 
 export async function fetchKakaoSettings(): Promise<KakaoNotifySetting> {
-  const res = await fetch(`${API_BASE}/kakao-notify/settings`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/settings`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3587,7 +3570,7 @@ export async function updateKakaoSetting(input: {
   channel?: KakaoDispatchChannel;
   smsText?: string;
 }): Promise<KakaoNotifySetting> {
-  const res = await fetch(`${API_BASE}/kakao-notify/settings`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/settings`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3605,7 +3588,7 @@ export interface KakaoLeadFieldOption {
 }
 
 export async function fetchKakaoLeadFields(): Promise<KakaoLeadFieldOption[]> {
-  const res = await fetch(`${API_BASE}/kakao-notify/lead-fields`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/lead-fields`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3632,7 +3615,7 @@ export async function fetchKakaoDailyStats(
   } else {
     query.set("days", String(params.days));
   }
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/daily-stats?${query.toString()}`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/daily-stats?${query.toString()}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3646,7 +3629,7 @@ export async function setKakaoLeadBulkExclusion(
   id: string,
   excluded: boolean,
 ): Promise<KakaoLead> {
-  const res = await fetch(`${API_BASE}/kakao-notify/leads/${id}/bulk-exclusion`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/leads/${id}/bulk-exclusion`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3668,7 +3651,7 @@ export interface KakaoAdCreative {
 }
 
 export async function fetchKakaoAdCreatives(): Promise<KakaoAdCreative[]> {
-  const res = await fetch(`${API_BASE}/kakao-notify/ad-creatives`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/ad-creatives`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -3684,7 +3667,7 @@ export async function upsertKakaoAdCreative(input: {
   mediaUrl: string;
   mediaType: "image" | "video";
 }): Promise<KakaoAdCreative> {
-  const res = await fetch(`${API_BASE}/kakao-notify/ad-creatives`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/ad-creatives`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3697,7 +3680,7 @@ export async function upsertKakaoAdCreative(input: {
 }
 
 export async function deleteKakaoAdCreative(id: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_BASE}/kakao-notify/ad-creatives/${id}/delete`, {
+  const res = await apiFetch(`${API_BASE}/kakao-notify/ad-creatives/${id}/delete`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3722,7 +3705,7 @@ export type VatAddressCoord = {
 export async function fetchVatAddressCoord(
   address: string,
 ): Promise<VatAddressCoord | null> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/vat/address-to-coord?address=${encodeURIComponent(address)}`,
     { credentials: FETCH_CREDENTIALS, headers: withJsonHeaders() },
   );
@@ -3760,7 +3743,7 @@ export async function fetchVatLandPrice(
   x: string,
   y: string,
 ): Promise<VatLandPrice | null> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/vat/land-price?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`,
     { credentials: FETCH_CREDENTIALS, headers: withJsonHeaders() },
   );
@@ -3818,7 +3801,7 @@ export async function fetchVatBuildingRegister(
   const params = new URLSearchParams({ pnu });
   if (dong?.trim()) params.set("dong", dong.trim());
   if (ho?.trim()) params.set("ho", ho.trim());
-  const res = await fetch(`${API_BASE}/vat/building-register?${params.toString()}`, {
+  const res = await apiFetch(`${API_BASE}/vat/building-register?${params.toString()}`, {
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
   });
@@ -3870,7 +3853,7 @@ export async function saveVatBuildingInfo(
   },
 ): Promise<void> {
   try {
-    await fetch(`${API_BASE}/auctions/${itemId}/vat-building-info`, {
+    await apiFetch(`${API_BASE}/auctions/${itemId}/vat-building-info`, {
       method: "PATCH",
       credentials: FETCH_CREDENTIALS,
       headers: withJsonHeaders(),
@@ -3906,7 +3889,7 @@ export async function fetchVatCalc(params: {
   mainPurposeName?: string | null;
   groundFloors?: number | null;
 }): Promise<VatCalcResult> {
-  const res = await fetch(`${API_BASE}/vat/calc`, {
+  const res = await apiFetch(`${API_BASE}/vat/calc`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3950,7 +3933,7 @@ export type LectureSlide = {
 };
 
 export async function fetchLectureSlides(deckId: string): Promise<LectureSlide[]> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/lecture-materials/slides?deckId=${encodeURIComponent(deckId)}`,
     { cache: "no-store", credentials: FETCH_CREDENTIALS },
   );
@@ -3968,7 +3951,7 @@ export async function updateLectureSlide(
     images?: LectureImagePlacement[];
   },
 ): Promise<LectureSlide> {
-  const res = await fetch(`${API_BASE}/lecture-materials/slides/${id}`, {
+  const res = await apiFetch(`${API_BASE}/lecture-materials/slides/${id}`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -3985,7 +3968,7 @@ export async function updateLectureSlide(
 export async function uploadLectureImage(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${API_BASE}/lecture-materials/upload-image`, {
+  const res = await apiFetch(`${API_BASE}/lecture-materials/upload-image`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     body: formData,
@@ -4037,7 +4020,7 @@ export type ResaleMatchQaItem = {
 };
 
 export async function fetchResaleMatches(): Promise<ResaleMatchQaItem[]> {
-  const res = await fetch(`${API_BASE}/resale-match/matches`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/matches`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -4069,7 +4052,7 @@ export type ResaleMatchMapItem = {
 };
 
 export async function fetchResaleMatchesForMap(): Promise<{ items: ResaleMatchMapItem[] }> {
-  const res = await fetch(`${API_BASE}/resale-match/matches/map`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/matches/map`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
   });
@@ -4086,7 +4069,7 @@ export async function fetchResaleMatchesForMap(): Promise<{ items: ResaleMatchMa
 export async function geocodeAddress(
   address: string,
 ): Promise<{ latitude: number | null; longitude: number | null }> {
-  const res = await fetch(`${API_BASE}/resale-match/geocode?address=${encodeURIComponent(address)}`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/geocode?address=${encodeURIComponent(address)}`, {
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
@@ -4098,7 +4081,7 @@ export async function geocodeAddress(
 export async function saveResaleMatchCoords(
   items: Array<{ auctionId: string; latitude: number; longitude: number }>,
 ): Promise<{ ok: boolean; saved: number }> {
-  const res = await fetch(`${API_BASE}/resale-match/matches/coords`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/matches/coords`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -4156,7 +4139,7 @@ async function redevelopmentFetch<T>(
   init?: RequestInit,
   fallbackError = "요청을 처리하지 못했습니다.",
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}/redevelopment${path}`, {
+  const res = await apiFetch(`${API_BASE}/redevelopment${path}`, {
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(init?.headers),
@@ -4305,7 +4288,7 @@ export async function fetchSeoulUpisPage(
   start: number,
   end: number,
 ): Promise<{ totalCount: number; rows: SeoulUpisRow[] }> {
-  const res = await fetch(`${API_BASE}/redevelopment/seoul-upis?start=${start}&end=${end}`, {
+  const res = await apiFetch(`${API_BASE}/redevelopment/seoul-upis?start=${start}&end=${end}`, {
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
@@ -4356,7 +4339,7 @@ export type EunpyeongDetail = {
 /** 은평구청 홈페이지 "재개발/재건축 구역현황" 스크레이핑(Vercel 프록시
  * 경유, 2026-08-04 — 설계 문서 NOTICE_PDF 소스). */
 export async function fetchEunpyeongList(): Promise<EunpyeongListItem[]> {
-  const res = await fetch(`${API_BASE}/redevelopment/eunpyeong?mode=list`, {
+  const res = await apiFetch(`${API_BASE}/redevelopment/eunpyeong?mode=list`, {
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
@@ -4367,7 +4350,7 @@ export async function fetchEunpyeongList(): Promise<EunpyeongListItem[]> {
 }
 
 export async function fetchEunpyeongDetail(key: string): Promise<EunpyeongDetail> {
-  const res = await fetch(`${API_BASE}/redevelopment/eunpyeong?mode=detail&key=${encodeURIComponent(key)}`, {
+  const res = await apiFetch(`${API_BASE}/redevelopment/eunpyeong?mode=detail&key=${encodeURIComponent(key)}`, {
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
@@ -4388,7 +4371,7 @@ export async function reviewResaleMatch(
   matchId: string,
   status: "CONFIRMED" | "REJECTED",
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/resale-match/matches/${matchId}/review`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/matches/${matchId}/review`, {
     method: "PATCH",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -4400,7 +4383,7 @@ export async function reviewResaleMatch(
 }
 
 export async function deleteResaleMatch(matchId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/resale-match/matches/${matchId}`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/matches/${matchId}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -4410,7 +4393,7 @@ export async function deleteResaleMatch(matchId: string): Promise<void> {
 }
 
 export async function runResaleMatchNow(): Promise<{ ok: boolean; message: string }> {
-  const res = await fetch(`${API_BASE}/resale-match/run-now`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/run-now`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
@@ -4445,7 +4428,7 @@ export type ResaleSoldStats = {
  * 넘겨, 그중 낙찰된 물건들이 실제로 매도분석상 매도로 연결됐는지
  * 통계를 낸다. */
 export async function fetchResaleSoldStats(auctionIds: string[]): Promise<ResaleSoldStats> {
-  const res = await fetch(`${API_BASE}/resale-match/sold-stats`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/sold-stats`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -4460,7 +4443,7 @@ export async function fetchResaleSoldStats(auctionIds: string[]): Promise<Resale
 /** 물건작업창(CrawlerWorkPanel)에서 "주소 추가"로 가져온 사건번호
  * 목록을 그대로 넘겨 매도분석한다(아직 auctionId를 모르는 시점). */
 export async function fetchResaleSoldStatsByCaseNo(auctionNos: string[]): Promise<ResaleSoldStats> {
-  const res = await fetch(`${API_BASE}/resale-match/sold-stats-by-case-no`, {
+  const res = await apiFetch(`${API_BASE}/resale-match/sold-stats-by-case-no`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -4590,7 +4573,7 @@ async function lectureReplayFetch<T>(
   init?: RequestInit,
   fallbackError = "요청을 처리하지 못했습니다.",
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await apiFetch(`${API_BASE}${path}`, {
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(init?.headers),
     ...init,
@@ -5008,7 +4991,7 @@ export function revokeLectureEnrollment(id: string): Promise<LectureEnrollmentAd
 export interface AuctionAssignment { id: string; username: string; auctionId: string; auctionNo: string; address: string; marketResearch: string; phoneResearch: string; phoneBuyer: string; phoneSeller: string; phoneBidder: string; phoneFinal: string; safetyResearch1: string; safetyResearch1CaseNo: string; safetyResearch1MarketPrice: number; safetyResearch1BidPrice: number; safetyResearch2: string; safetyResearch2CaseNo: string; safetyResearch2MarketPrice: number; safetyResearch2BidPrice: number; safetyResearch3: string; safetyResearch3CaseNo: string; safetyResearch3MarketPrice: number; safetyResearch3BidPrice: number; finalSafetyMargin: string; finalMarketPrice: number; targetBidPrice: number; requiredEquity: number; finalProfit: number; memo: string; status: string; coachFeedback: string; createdAt: string; updatedAt: string; }
 export interface ServiceReport { id: string; username: string; type: string; title: string; description: string; reproduction: string; expectedResult: string; actualResult: string; pageUrl: string; status: string; adminReply: string; createdAt: string; updatedAt: string; }
 async function learningBoardFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(init?.headers) });
+  const res = await apiFetch(`${API_BASE}${path}`, { ...init, credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(init?.headers) });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? `요청에 실패했습니다. (${res.status})`);
   return readJsonResponse<T>(res);
 }
@@ -5049,14 +5032,14 @@ export interface LandingImage {
 
 /** 소개 페이지 렌더링용 — 로그인 여부와 무관하게 조회 가능. */
 export async function fetchLandingImages(): Promise<LandingImage[]> {
-  const res = await fetch(`${API_BASE}/landing-images`, { credentials: FETCH_CREDENTIALS, cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/landing-images`, { credentials: FETCH_CREDENTIALS, cache: "no-store" });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "이미지를 불러오지 못했습니다.");
   return readJsonResponse<LandingImage[]>(res);
 }
 
 /** 관리자 페이지에서 URL을 직접 입력해 슬롯 이미지를 바꿀 때 사용. */
 export async function updateLandingImage(key: string, imageUrl: string): Promise<LandingImage> {
-  const res = await fetch(`${API_BASE}/landing-images/${encodeURIComponent(key)}`, {
+  const res = await apiFetch(`${API_BASE}/landing-images/${encodeURIComponent(key)}`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -5068,7 +5051,7 @@ export async function updateLandingImage(key: string, imageUrl: string): Promise
 
 /** 커스텀 이미지를 지우고 기본(참고) 이미지로 되돌린다. */
 export async function resetLandingImage(key: string): Promise<LandingImage> {
-  const res = await fetch(`${API_BASE}/landing-images/${encodeURIComponent(key)}`, {
+  const res = await apiFetch(`${API_BASE}/landing-images/${encodeURIComponent(key)}`, {
     method: "DELETE",
     credentials: FETCH_CREDENTIALS,
   });
@@ -5081,7 +5064,7 @@ export async function resetLandingImage(key: string): Promise<LandingImage> {
 export async function uploadLandingImageFile(file: File): Promise<{ url: string }> {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${API_BASE}/landing-images/upload-image`, {
+  const res = await apiFetch(`${API_BASE}/landing-images/upload-image`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     body: formData,
@@ -5235,7 +5218,7 @@ export interface WebinarKakaoLead {
 }
 
 export async function fetchWebinarLeads(): Promise<WebinarKakaoLead[]> {
-  const res = await fetch(`${API_BASE}/webinar-auth/kakao/leads`, {
+  const res = await apiFetch(`${API_BASE}/webinar-auth/kakao/leads`, {
     credentials: FETCH_CREDENTIALS,
     cache: "no-store",
   });
@@ -5243,6 +5226,20 @@ export async function fetchWebinarLeads(): Promise<WebinarKakaoLead[]> {
     throw new Error((await parseErrorMessage(res)) ?? "웨비나 신청자 목록을 불러오지 못했습니다.");
   }
   return readJsonResponse<WebinarKakaoLead[]>(res);
+}
+
+/** 카카오 OAuth 콜백에서 받은 인가 코드를 서버로 넘겨 무료 웨비나 신청을 완료한다. */
+export async function submitKakaoWebinarLogin(code: string): Promise<{ nickname?: string }> {
+  const res = await apiFetch(`${API_BASE}/webinar-auth/kakao/callback`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "신청 처리에 실패했습니다.");
+  }
+  return readJsonResponse(res);
 }
 
 // ── 무료 웨비나 ID/PW 회원가입 ────────────────────────────────────────────
@@ -5273,7 +5270,7 @@ export interface JoinWebinarEmailInput {
 }
 
 export async function joinWebinarByEmail(input: JoinWebinarEmailInput): Promise<{ name: string; email: string }> {
-  const res = await fetch(`${API_BASE}/webinar-auth/email/join`, {
+  const res = await apiFetch(`${API_BASE}/webinar-auth/email/join`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
@@ -5286,7 +5283,7 @@ export async function joinWebinarByEmail(input: JoinWebinarEmailInput): Promise<
 }
 
 export async function fetchWebinarEmailLeads(): Promise<WebinarEmailLead[]> {
-  const res = await fetch(`${API_BASE}/webinar-auth/email/leads`, {
+  const res = await apiFetch(`${API_BASE}/webinar-auth/email/leads`, {
     credentials: FETCH_CREDENTIALS,
     cache: "no-store",
   });

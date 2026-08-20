@@ -11,6 +11,7 @@ import {
   type ProfitCalculatorInput,
 } from "@/lib/profit-calculator";
 import { parseAuctionAddress } from "@/lib/address-parse";
+import { useProfileStore } from "@/store/useProfileStore";
 import {
   fetchVatAddressCoord,
   fetchVatBuildingRegister,
@@ -20,7 +21,6 @@ import {
   fetchBidPlan,
   saveBidPlan,
   deleteBidPlan,
-  fetchMyProfile,
   fetchAssignmentByAuction,
   createAssignment,
   fetchCoachBidPlan,
@@ -427,6 +427,7 @@ export function ProfitCalculatorPanel({
   // 안전마진 조사 부분을 입력하게 하고 그거랑 같이 입찰계획 내용이
   // 같이 저장돼서 과제제출이 되면"). 제출 현황·수정은 내 물건 >
   // 과제제출 탭에서 한다 — 여기서는 제출/재제출만 담당.
+  const fetchProfile = useProfileStore((s) => s.fetchProfile);
   const [assignmentEligible, setAssignmentEligible] = useState(false);
   const [savedAssignment, setSavedAssignment] = useState<AuctionAssignment | null>(null);
   const [showAssignmentEditor, setShowAssignmentEditor] = useState(initialShowAssignmentEditor);
@@ -528,10 +529,10 @@ export function ProfitCalculatorPanel({
       setAssignmentEligible(false);
       return;
     }
-    fetchMyProfile()
+    fetchProfile()
       .then((profile) => setAssignmentEligible(ASSIGNMENT_ELIGIBLE_ROLES.has(profile.role)))
       .catch(() => setAssignmentEligible(false));
-  }, [isCoachView]);
+  }, [isCoachView, fetchProfile]);
 
   useEffect(() => {
     let cancelled = false;

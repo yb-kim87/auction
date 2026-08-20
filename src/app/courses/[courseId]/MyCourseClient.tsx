@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearAuthCookie } from "@/lib/auth";
 import { canAccessSearch } from "@/lib/roles";
 import {
   fetchMyCourseAccessInfo,
-  fetchMyProfile,
   fetchMyCourseNotes,
   fetchMyCourseQuestions,
   fetchMyCoursePlayUrl,
@@ -26,6 +26,7 @@ import {
   type LectureSectionMaterial,
 } from "@/lib/api";
 import { attachLearningProgress } from "@/lib/bunny-playerjs";
+import { useProfileStore } from "@/store/useProfileStore";
 
 const PLAYER_IFRAME_ID = "bunny-player-my-course";
 const COURSE_TABS = ["강의정보", "강의자료", "Q&A", "노트", "수강후기"] as const;
@@ -150,28 +151,13 @@ function expandVideoRows(v: LecturePublicVideo): Array<{
  * 부분에 탭을 추가해서 만들어주면 될꺼같아" → 이후 서버 부하 우려로
  * OneDrive 링크 등록 방식으로 전환, 파일은 OneDrive에서 직접 받는다). */
 function SectionMaterialsBlock({ courseId, section }: { courseId: string; section: LecturePublicSection }) {
-  const [materials, setMaterials] = useState<LectureSectionMaterial[]>([]);
-  const [loading, setLoading] = useState(true);
+  const materialsQuery = useQuery({
+    queryKey: ["my-course-materials", courseId, section.id],
+    queryFn: () => fetchMyCourseMaterials(courseId, section.id),
+  });
+  const materials = materialsQuery.data ?? [];
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchMyCourseMaterials(courseId, section.id)
-      .then((data) => {
-        if (!cancelled) setMaterials(data);
-      })
-      .catch(() => {
-        if (!cancelled) setMaterials([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [courseId, section.id]);
-
-  if (loading || materials.length === 0) return null;
+  if (materialsQuery.isPending || materials.length === 0) return null;
 
   return (
     <div style={{ marginBottom: 14 }}>
@@ -317,6 +303,8 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canOpenAuction, setCanOpenAuction] = useState(false);
+  const fetchProfile = useProfileStore((s) => s.fetchProfile);
+  const clearProfile = useProfileStore((s) => s.clearProfile);
 
   const handleLogout = async () => {
     try {
@@ -325,6 +313,7 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
       // ignore
     }
     clearAuthCookie();
+    clearProfile();
     router.replace("/login");
   };
 
@@ -337,65 +326,79 @@ export function MyCourseClient({ courseId }: { courseId: string }) {
   const lastSavedSecond = useRef(0);
   const [activeTab, setActiveTab] = useState<CourseTab>("강의정보");
   const [noteText, setNoteText] = useState("");
-  const [notes, setNotes] = useState<LectureCourseNote[]>([]);
   const [questionText, setQuestionText] = useState("");
-  const [questions, setQuestions] = useState<LectureCourseQuestion[]>([]);
   const [activityError, setActivityError] = useState<string | null>(null);
-  const [activitySaving, setActivitySaving] = useState(false);
+  const queryClient = useQueryClient();
+
+  const notesQuery = useQuery({ queryKey: ["my-course-notes", courseId], queryFn: () => fetchMyCourseNotes(courseId) });
+  const questionsQuery = useQuery({ queryKey: ["my-course-questions", courseId], queryFn: () => fetchMyCourseQuestions(courseId) });
+  const notes = notesQuery.data ?? [];
+  const questions = questionsQuery.data ?? [];
 
   useEffect(() => {
-    fetchMyProfile()
+    if (notesQuery.isError || questionsQuery.isError) {
+      setActivityError("학습 기록을 불러오지 못했습니다.");
+    }
+  }, [notesQuery.isError, questionsQuery.isError]);
+
+  useEffect(() => {
+    fetchProfile()
       .then((profile) => setCanOpenAuction(canAccessSearch(profile.role)))
       .catch(() => setCanOpenAuction(false));
-  }, []);
+  }, [fetchProfile]);
 
-  useEffect(() => {
-    Promise.all([fetchMyCourseNotes(courseId), fetchMyCourseQuestions(courseId)])
-      .then(([savedNotes, savedQuestions]) => {
-        setNotes(savedNotes);
-        setQuestions(savedQuestions);
-      })
-      .catch((err) => setActivityError(err instanceof Error ? err.message : "학습 기록을 불러오지 못했습니다."));
-  }, [courseId]);
+  const saveNoteMutation = useMutation({
+    mutationFn: (input: { videoId: string; chapterStartSeconds: number; positionSeconds: number; content: string }) =>
+      createMyCourseNote(courseId, input),
+    onSuccess: (saved) => {
+      queryClient.setQueryData<LectureCourseNote[]>(["my-course-notes", courseId], (prev = []) => [saved, ...prev]);
+      setNoteText("");
+    },
+    onError: (err) => setActivityError(err instanceof Error ? err.message : "노트를 저장하지 못했습니다."),
+  });
 
-  const saveNote = async () => {
+  const saveNote = () => {
     const text = noteText.trim();
     if (!text || !selectedVideo) return;
-    setActivitySaving(true); setActivityError(null);
-    try {
-      const saved = await createMyCourseNote(courseId, {
-        videoId: selectedVideo.id,
-        chapterStartSeconds: selectedStartSeconds ?? 0,
-        positionSeconds: lastSavedSecond.current,
-        content: text,
-      });
-      setNotes((items) => [saved, ...items]); setNoteText("");
-    } catch (err) {
-      setActivityError(err instanceof Error ? err.message : "노트를 저장하지 못했습니다.");
-    } finally { setActivitySaving(false); }
+    setActivityError(null);
+    saveNoteMutation.mutate({
+      videoId: selectedVideo.id,
+      chapterStartSeconds: selectedStartSeconds ?? 0,
+      positionSeconds: lastSavedSecond.current,
+      content: text,
+    });
   };
 
-  const submitQuestion = async () => {
+  const submitQuestionMutation = useMutation({
+    mutationFn: (input: { videoId: string; chapterStartSeconds: number; positionSeconds: number; question: string }) =>
+      createMyCourseQuestion(courseId, input),
+    onSuccess: (saved) => {
+      queryClient.setQueryData<LectureCourseQuestion[]>(["my-course-questions", courseId], (prev = []) => [saved, ...prev]);
+      setQuestionText("");
+    },
+    onError: (err) => setActivityError(err instanceof Error ? err.message : "질문을 등록하지 못했습니다."),
+  });
+
+  const activitySaving = saveNoteMutation.isPending || submitQuestionMutation.isPending;
+
+  const submitQuestion = () => {
     const text = questionText.trim();
     if (!text || !selectedVideo) return;
-    setActivitySaving(true); setActivityError(null);
-    try {
-      const saved = await createMyCourseQuestion(courseId, {
-        videoId: selectedVideo.id,
-        chapterStartSeconds: selectedStartSeconds ?? 0,
-        positionSeconds: lastSavedSecond.current,
-        question: text,
-      });
-      setQuestions((items) => [saved, ...items]); setQuestionText("");
-    } catch (err) {
-      setActivityError(err instanceof Error ? err.message : "질문을 등록하지 못했습니다.");
-    } finally { setActivitySaving(false); }
+    setActivityError(null);
+    submitQuestionMutation.mutate({
+      videoId: selectedVideo.id,
+      chapterStartSeconds: selectedStartSeconds ?? 0,
+      positionSeconds: lastSavedSecond.current,
+      question: text,
+    });
   };
 
   const removeNote = async (noteId: string) => {
     try {
       await deleteMyCourseNote(courseId, noteId);
-      setNotes((items) => items.filter((item) => item.id !== noteId));
+      queryClient.setQueryData<LectureCourseNote[]>(["my-course-notes", courseId], (prev = []) =>
+        prev.filter((item) => item.id !== noteId),
+      );
     } catch (err) {
       setActivityError(err instanceof Error ? err.message : "노트를 삭제하지 못했습니다.");
     }

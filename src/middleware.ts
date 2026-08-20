@@ -133,7 +133,8 @@ export async function middleware(request: NextRequest) {
     if (role && !canAccessSearch(role)) {
       // OT수강생은 물건 검색 권한이 없지만 로그인 목적이 강의 시청이므로
       // 승인대기(/pending) 대신 내 강의로 보낸다(2026-08-02).
-      const fallback = role === "ot_student" ? "/courses" : "/pending";
+      // /courses는 강의실 소개 페이지가 되었으므로 실제 수강 목록인 /courses/my로 보낸다.
+      const fallback = role === "ot_student" ? "/courses/my" : "/pending";
       return finish(NextResponse.redirect(new URL(fallback, request.url)));
     }
     return finish(NextResponse.next());
@@ -143,6 +144,12 @@ export async function middleware(request: NextRequest) {
     if (!loggedIn) {
       return finish(NextResponse.redirect(new URL("/login", request.url)));
     }
+    return finish(NextResponse.next());
+  }
+
+  // 무료 웨비나 신청(/courses/webinar 계열)은 비로그인 방문자가 카카오/이메일로
+  // 처음 가입하는 유입 페이지라 로그인 요구에서 제외한다(2026-08-11).
+  if (pathname.startsWith("/courses/webinar")) {
     return finish(NextResponse.next());
   }
 
