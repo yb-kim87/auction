@@ -970,7 +970,10 @@ function ListPriceMetric({ label, value, primary = false, muted = false }: { lab
   );
 }
 
-const PAGE_SIZE = 30;
+// 첫 로딩 속도를 위해 한 번에 가져오는 개수를 줄이고, 나머지는 스크롤 시
+// 추가로 불러온다(사용자 피드백: "30개씩 로드되니까 로드 시간이 오래 걸리는
+// 것 같다", 2026-08-20).
+const PAGE_SIZE = 12;
 
 const SORT_OPTIONS = ["최신순", "실투자금낮은순", "입찰기일순", "최저가낮은순", "감정가높은순"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
@@ -1091,6 +1094,10 @@ export function HomePageClient() {
     return merged;
   }, [recommendationsQuery.data]);
   const creditScoreWarning = recommendationsQuery.data?.pages[0]?.creditScoreWarning ?? false;
+  // 서버가 알려주는 조건에 맞는 물건의 실제 전체 개수 — 지금까지 로드된
+  // 개수(30건 단위 페이지네이션)가 아니라 이 값을 보여줘야 "총 30건"처럼
+  // 실제보다 적어 보이는 착시가 없다(사용자 피드백, 2026-08-20).
+  const totalCount = recommendationsQuery.data?.pages[0]?.total ?? 0;
   const loading = recommendationsQuery.isPending;
   const loadingMore = recommendationsQuery.isFetchingNextPage;
   const hasMore = recommendationsQuery.hasNextPage ?? false;
@@ -1206,6 +1213,11 @@ export function HomePageClient() {
     const category = favoriteById.get(item.id)?.category?.trim() || FAVORITE_UNCATEGORIZED;
     return category === favoriteCategoryFilter;
   });
+  // 관심물건 카테고리 세부 필터는 서버 total에 반영되지 않는(클라이언트 전용)
+  // 필터라 이때만 실제로 로드·필터된 개수를 보여준다. 그 외에는 서버가 알려준
+  // 전체 개수를 보여준다.
+  const displayedTotalCount =
+    filters.favoritesOnly && favoriteCategoryFilter ? filteredItems.length : totalCount;
   const availableCapital = parseMoneyToWon(currentBudget ?? profile?.investableFunds ?? "");
 
   const activeFilterCount =
@@ -1367,7 +1379,7 @@ export function HomePageClient() {
 
             <div className="hidden sm:flex items-center gap-2">
               <span className="text-xs text-muted-foreground shrink-0">
-                총 <span className="font-semibold text-foreground">{filteredItems.length}</span>건
+                총 <span className="font-semibold text-foreground">{displayedTotalCount}</span>건
               </span>
               <div className="relative shrink-0">
                 <select
