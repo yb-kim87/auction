@@ -49,6 +49,7 @@ import { AssignmentReviewTab } from "@/app/admin/AssignmentReviewTab";
 import { SiteSettingsPanel } from "@/app/admin/SiteSettingsPanel";
 import { LectureReplayTab } from "@/app/admin/LectureReplayTab";
 import { WebinarLeadsPanel } from "@/app/admin/WebinarLeadsPanel";
+import { LandingImagesPanel } from "@/app/admin/LandingImagesPanel";
 
 function formatRegisteredAt(value: string | null | undefined): string {
   if (!value) return "-";
@@ -101,6 +102,7 @@ type AdminTab =
   | "assignments"
   | "realtorCollect"
   | "webinarLeads"
+  | "landingImages"
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
   | "coupangSourcing";
 type AiOpsSubTab = "rightsRules" | "knowledge" | "loanPolicy" | "strategyTags" | "aiPlatform";
@@ -118,6 +120,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "assignments", label: "과제 검토" },
   { id: "realtorCollect", label: "부동산수집" },
   { id: "webinarLeads", label: "웨비나 신청자" },
+  { id: "landingImages", label: "강의실 이미지" },
   // 탭 목록에서는 제거됐지만 코드/컴포넌트는 그대로 유지(요청 시 다시 노출 가능).
 ];
 
@@ -1034,6 +1037,8 @@ export function AdminPageClient() {
           {activeTab === "realtorCollect" && <RealtorCollectTab />}
 
           {activeTab === "webinarLeads" && <WebinarLeadsPanel />}
+
+          {activeTab === "landingImages" && <LandingImagesPanel />}
 
           {activeTab === "swimApply" && <SwimApplyTab />}
 
