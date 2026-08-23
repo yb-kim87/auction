@@ -4918,6 +4918,33 @@ export function deleteLectureMaterial(id: string): Promise<{ ok: boolean }> {
   );
 }
 
+// ---------- 강의 Q&A(수강생 질문) 관리자 화면 — 사용자 요청, 2026-08-23 ----------
+
+export type LectureQuestionAdminView = {
+  id: string;
+  username: string;
+  courseId: string;
+  courseTitle: string;
+  videoId: string;
+  videoTitle: string;
+  question: string;
+  answer: string | null;
+  answeredAt: string | null;
+  createdAt: string;
+};
+
+export function fetchAllLectureQuestions(): Promise<LectureQuestionAdminView[]> {
+  return lectureReplayFetch(`/lecture-replay/questions`, undefined, "질문 목록을 불러오지 못했습니다.");
+}
+
+export function answerLectureQuestion(id: string, answer: string): Promise<LectureQuestionAdminView> {
+  return lectureReplayFetch(
+    `/lecture-replay/questions/${encodeURIComponent(id)}/answer`,
+    { method: "PATCH", body: JSON.stringify({ answer }) },
+    "답변 등록에 실패했습니다.",
+  );
+}
+
 // 회원(수강생)
 export function fetchMyCourseMaterials(courseId: string, sectionId: string): Promise<LectureSectionMaterial[]> {
   return lectureReplayFetch(
