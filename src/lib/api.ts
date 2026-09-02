@@ -1086,13 +1086,45 @@ export async function backfillTagRules(): Promise<{ total: number; updated: numb
   return readJsonResponse(res);
 }
 
-export async function analyzeSecurityLogNow(): Promise<{ ran: boolean; reason?: string }> {
+export async function analyzeSecurityLogNow(): Promise<{
+  ran: boolean;
+  reason?: string;
+  candidates?: number;
+  alerts?: number;
+  suppressed?: number;
+  aiUsed?: boolean;
+}> {
   const res = await apiFetch(`${API_BASE}/security-log/analyze-now`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "보안 로그 분석 실행에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export type SecurityLogAlert = {
+  id: string;
+  ip: string;
+  ruleCode: string;
+  severity: "warning" | "critical";
+  summary: string;
+  source: "rules" | "rules_ai";
+  telegramSent: boolean;
+  suppressed: boolean;
+  requestCount: number;
+  pathsJson: string;
+  createdAt: string;
+};
+
+export async function fetchSecurityLogAlerts(): Promise<SecurityLogAlert[]> {
+  const res = await apiFetch(`${API_BASE}/security-log/alerts`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "보안 판정 이력을 불러오지 못했습니다.");
   }
   return readJsonResponse(res);
 }

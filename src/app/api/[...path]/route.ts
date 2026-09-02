@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac } from "crypto";
 
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://127.0.0.1:3001";
+export const runtime = "nodejs";
+
+function firstForwardedIp(value: string | null): string {
+  return value?.split(",")[0]?.trim() ?? "";
+}
 
 function forwardSetCookieHeaders(source: Response, target: Headers) {
   const getSetCookie = (
@@ -34,6 +40,24 @@ async function proxyRequest(request: NextRequest, path: string[]) {
   const cookie = request.headers.get("cookie");
   if (cookie) {
     headers.set("cookie", cookie);
+  }
+
+  const userAgent = request.headers.get("user-agent") ?? "";
+  if (userAgent) headers.set("user-agent", userAgent);
+
+  const proxySecret = process.env.SECURITY_PROXY_SECRET?.trim() ?? "";
+  const clientIp = firstForwardedIp(
+    request.headers.get("x-vercel-forwarded-for") ?? request.headers.get("x-forwarded-for"),
+  );
+  if (proxySecret && clientIp) {
+    const timestamp = String(Date.now());
+    const signature = createHmac("sha256", proxySecret)
+      .update(`${timestamp}.${clientIp}.${userAgent}`)
+      .digest("hex");
+    headers.set("x-auction-client-ip", clientIp);
+    headers.set("x-auction-client-ua", userAgent);
+    headers.set("x-auction-proxy-ts", timestamp);
+    headers.set("x-auction-proxy-signature", signature);
   }
 
   const init: RequestInit = {

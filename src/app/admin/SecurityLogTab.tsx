@@ -7,6 +7,8 @@ import {
   fetchSecurityLogIpExclusions,
   addSecurityLogIpExclusion,
   removeSecurityLogIpExclusion,
+  fetchSecurityLogAlerts,
+  type SecurityLogAlert,
   type SecurityLogIpExclusion,
 } from "@/lib/api";
 
@@ -41,6 +43,7 @@ export function SecurityLogTab() {
   const [newNote, setNewNote] = useState("");
   const [addingIp, setAddingIp] = useState(false);
   const [exclusionMessage, setExclusionMessage] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<SecurityLogAlert[]>([]);
 
   function load() {
     setLoading(true);
@@ -62,6 +65,9 @@ export function SecurityLogTab() {
 
   useEffect(load, []);
   useEffect(loadExclusions, []);
+  useEffect(() => {
+    fetchSecurityLogAlerts().then(setAlerts).catch(() => setAlerts([]));
+  }, []);
 
   async function handleAddExclusion() {
     if (!newIp.trim()) {
@@ -98,9 +104,10 @@ export function SecurityLogTab() {
       const result = await analyzeSecurityLogNow();
       setMessage(
         result.ran
-          ? "분석을 실행했습니다. 의심 패턴이 있으면 텔레그램으로 알림이 전송됩니다."
+          ? `분석 완료: 후보 ${result.candidates ?? 0}건 · 전송 ${result.alerts ?? 0}건 · 중복 생략 ${result.suppressed ?? 0}건${result.aiUsed ? " · AI 보조 사용" : " · 규칙만 사용"}`
           : `분석을 실행할 수 없습니다: ${result.reason}`,
       );
+      setAlerts(await fetchSecurityLogAlerts());
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "분석 실행 실패");
     } finally {
@@ -115,11 +122,45 @@ export function SecurityLogTab() {
       <div>
         <h2 className="text-lg font-bold text-foreground">로그 감지 시스템 (이상행위 알림)</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          모든 API 요청을 DB(request_logs, 30일 보관)에 기록하고, 10분마다 AI가 대량요청·
-          크롤링·자동화 스크립트로 의심되는 패턴이 있는지 분석합니다. 의심되면 텔레그램으로
-          관리자에게 자동 알림이 전송됩니다. OPENAI_API_KEY, TELEGRAM_BOT_TOKEN,
-          TELEGRAM_CHAT_ID 환경변수가 설정되어 있어야 동작합니다.
+          모든 API 요청을 DB(request_logs, 30일 보관)에 기록하고, 30분마다 코드 규칙으로
+          로그인 공격·경로 스캔·고속 대량 요청을 분석합니다. 애매한 후보에만 AI를 보조로
+          사용하며, 동일 패턴은 6시간 동안 중복 알림을 생략합니다.
         </p>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-2">최근 보안 판정·발송 이력</h3>
+        <div className="border border-border rounded-sm overflow-x-auto max-h-72 overflow-y-auto">
+          {alerts.length === 0 ? (
+            <p className="text-sm text-muted-foreground p-4">아직 저장된 판정 이력이 없습니다.</p>
+          ) : (
+            <table className="w-full text-xs border-collapse">
+              <thead className="sticky top-0 bg-secondary/50">
+                <tr className="text-left">
+                  <th className="px-3 py-2">시각</th><th className="px-3 py-2">위험</th>
+                  <th className="px-3 py-2">규칙/IP</th><th className="px-3 py-2">결과</th>
+                  <th className="px-3 py-2">판정 내용</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.map((alert) => (
+                  <tr key={alert.id} className="border-t border-border align-top">
+                    <td className="px-3 py-2 whitespace-nowrap">{new Date(alert.createdAt).toLocaleString("ko-KR")}</td>
+                    <td className={`px-3 py-2 whitespace-nowrap font-semibold ${alert.severity === "critical" ? "text-destructive" : "text-amber-600"}`}>
+                      {alert.severity === "critical" ? "긴급" : "확인"}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap"><div>{alert.ruleCode}</div><div className="font-mono text-muted-foreground">{alert.ip}</div></td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {alert.suppressed ? "중복 생략" : alert.telegramSent ? "텔레그램 전송" : "전송 실패"}
+                      <div className="text-muted-foreground">{alert.source === "rules_ai" ? "규칙+AI" : "규칙"}</div>
+                    </td>
+                    <td className="px-3 py-2 min-w-72">{alert.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {message && (
