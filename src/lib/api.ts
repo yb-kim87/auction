@@ -5351,3 +5351,201 @@ export async function fetchWebinarEmailLeads(): Promise<WebinarEmailLead[]> {
   }
   return readJsonResponse<WebinarEmailLead[]>(res);
 }
+
+// ── 대법원 법원경매정보 작업창(courtauction-crawler) — 사용자 요청, 2026-09-03 ──
+// 탱크옥션/나이스 작업창과 완전히 독립된 병렬 시스템. 목록 API 한 번으로
+// 핵심 필드 대부분을 이미 받아오므로(2026-09-03 실측) "조회 시작" 단계에
+// 별도 상세조회가 없다 — nice-crawler의 objId 목록과 달리 raw 전체를
+// 작업목록에 담아 보관한다.
+
+export type CourtAuctionCrawlerPhase = "idle" | "importing" | "stopped" | "error";
+
+export type CourtAuctionUrlEntry = { docid: string; label: string; raw: Record<string, unknown> };
+
+export type CourtAuctionCrawlerStatus = {
+  id: string;
+  running: boolean;
+  phase: CourtAuctionCrawlerPhase;
+  matched: number;
+  completed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  lastMessage: string | null;
+  error: string | null;
+  urls: string | null;
+  updatedAt: string;
+};
+
+/** status.urls(JSON 문자열)를 파싱한다 — 비어있거나 파싱 실패 시 []. */
+export function parseCourtAuctionUrls(status: CourtAuctionCrawlerStatus | null): CourtAuctionUrlEntry[] {
+  if (!status?.urls) return [];
+  try {
+    const parsed = JSON.parse(status.urls);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export type CourtAuctionCrawlerLogEntry = {
+  id: string;
+  at: string;
+  level: "info" | "warn" | "error";
+  message: string;
+};
+
+export async function fetchCourtAuctionCrawlerStatus(): Promise<CourtAuctionCrawlerStatus> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/status`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "대법원 작업창 상태를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchCourtAuctionCrawlerLogs(limit = 200): Promise<CourtAuctionCrawlerLogEntry[]> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/logs?limit=${limit}`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "대법원 작업창 로그를 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function courtAuctionCrawlerClearLogs(): Promise<void> {
+  await apiFetch(`${API_BASE}/courtauction-crawler/logs/clear`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+}
+
+export type CourtAuctionSearchConfig = {
+  cortOfcCd: string;
+  bidBgngYmd: string;
+  bidEndYmd: string;
+  lclDspslGdsLstUsgCd?: string;
+  mclDspslGdsLstUsgCd?: string;
+  sclDspslGdsLstUsgCd?: string;
+  maxItems: number;
+};
+
+export const DEFAULT_COURTAUCTION_SEARCH_CONFIG: CourtAuctionSearchConfig = {
+  cortOfcCd: "",
+  bidBgngYmd: "",
+  bidEndYmd: "",
+  lclDspslGdsLstUsgCd: "",
+  mclDspslGdsLstUsgCd: "",
+  sclDspslGdsLstUsgCd: "",
+  maxItems: 40,
+};
+
+export type CourtAuctionSavedSearch = {
+  id: string;
+  name: string;
+  search: CourtAuctionSearchConfig;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 탱크옥션 "주소 추가"에 대응 — 검색조건으로 작업목록을 수집한다(목록
+ * API 전체 필드를 그대로 담아옴). 기존 작업목록은 교체된다. */
+export async function courtAuctionCrawlerCollect(
+  search: CourtAuctionSearchConfig,
+): Promise<{ items: CourtAuctionUrlEntry[]; total: number }> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/collect`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ search }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "대법원 수집에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+/** 작업목록 편집(선택 삭제/모두 삭제). */
+export async function courtAuctionCrawlerManageUrls(body: {
+  action: "remove" | "clear";
+  indices?: number[];
+}): Promise<{ urls: CourtAuctionUrlEntry[] }> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/manage-urls`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "작업목록 편집에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+/** 탱크옥션 "조회 시작"에 대응 — 스테이징된 작업목록을 저장한다(추가
+ * 사이트 요청 없이 서버에서 바로 처리, 2026-09-03 참고). */
+export async function courtAuctionCrawlerStart(): Promise<CourtAuctionCrawlerStatus> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/start`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "대법원 작업창 시작에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function courtAuctionCrawlerStop(): Promise<CourtAuctionCrawlerStatus> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/stop`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "대법원 작업창 중지에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function fetchCourtAuctionSavedSearches(): Promise<CourtAuctionSavedSearch[]> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/saved-searches`, {
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "저장된 검색조건을 불러오지 못했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function saveCourtAuctionSavedSearch(input: {
+  id?: string;
+  name: string;
+  search: CourtAuctionSearchConfig;
+}): Promise<CourtAuctionSavedSearch> {
+  const res = await apiFetch(`${API_BASE}/courtauction-crawler/saved-searches`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "검색조건 저장에 실패했습니다.");
+  }
+  return readJsonResponse(res);
+}
+
+export async function deleteCourtAuctionSavedSearch(id: string): Promise<void> {
+  await apiFetch(`${API_BASE}/courtauction-crawler/saved-searches/delete`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ id }),
+  });
+}
