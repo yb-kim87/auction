@@ -420,11 +420,11 @@ export function RealtorCollectTab() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
+                <th className="text-left py-2 px-2">주소</th>
                 <th className="text-left py-2 px-2">상호</th>
                 <th className="text-left py-2 px-2">담당자</th>
                 <th className="text-left py-2 px-2">모바일</th>
                 <th className="text-left py-2 px-2">전화</th>
-                <th className="text-left py-2 px-2">주소</th>
                 <th className="text-left py-2 px-2">수집일</th>
               </tr>
             </thead>
@@ -436,11 +436,11 @@ export function RealtorCollectTab() {
               ) : (
                 offices.map((o) => (
                   <tr key={o.id} className="border-b border-border/60 hover:bg-secondary/20">
+                    <td className="py-1.5 px-2 text-muted-foreground">{o.address}</td>
                     <td className="py-1.5 px-2 font-medium text-foreground">{o.name}</td>
                     <td className="py-1.5 px-2">{o.managerName}</td>
                     <td className="py-1.5 px-2 font-mono">{o.mobilePrimary}</td>
                     <td className="py-1.5 px-2 font-mono">{o.landline}</td>
-                    <td className="py-1.5 px-2 text-muted-foreground">{o.address}</td>
                     <td className="py-1.5 px-2 text-muted-foreground">{o.updatedAt.slice(0, 10)}</td>
                   </tr>
                 ))
