@@ -92,12 +92,166 @@ function useRegionCascade() {
   };
 }
 
+/** "수집된 중개업소" 조회 필터용 — 여러 지역을 한 번에 골라 볼 수 있게 시/도·시/군/구·
+ * 읍/면/동을 각각 다중 선택으로 둔다(사용자 요청, 2026-09-27: "여러 지역을 선택할 수
+ * 있게 해줘"). 아무것도 안 고르면 그 단계는 "전체"로 취급 — 기본값도 전체가 된다
+ * (같은 요청의 "기본 필터를 전체로" 부분도 이걸로 같이 해결됨). 하위 단계 옵션은
+ * 선택된 상위 코드들 각각에 대해 조회해 합친 목록(코드 기준 중복 제거)이다. */
+function useRegionMultiCascade() {
+  const [sidoList, setSidoList] = useState<RealtorRegionOption[]>([]);
+  const [sidoCodes, setSidoCodes] = useState<string[]>([]);
+  const [gugunOptions, setGugunOptions] = useState<RealtorRegionOption[]>([]);
+  const [gugunCodes, setGugunCodes] = useState<string[]>([]);
+  const [dongOptions, setDongOptions] = useState<RealtorRegionOption[]>([]);
+  const [dongCodes, setDongCodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchRealtorSidoList()
+      .then(setSidoList)
+      .catch(() => setSidoList([]));
+  }, []);
+
+  useEffect(() => {
+    if (sidoCodes.length === 0) {
+      setGugunOptions([]);
+      setGugunCodes([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(sidoCodes.map((sc) => fetchRealtorSubOptions("S", sc)))
+      .then((lists) => {
+        if (cancelled) return;
+        const merged = new Map<string, RealtorRegionOption>();
+        for (const list of lists) for (const o of list) merged.set(o.code, o);
+        setGugunOptions([...merged.values()]);
+        setGugunCodes([]);
+      })
+      .catch(() => {
+        if (!cancelled) setGugunOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidoCodes.join(",")]);
+
+  useEffect(() => {
+    if (sidoCodes.length === 0 || gugunCodes.length === 0) {
+      setDongOptions([]);
+      setDongCodes([]);
+      return;
+    }
+    let cancelled = false;
+    const pairs: Array<[string, string]> = [];
+    for (const sc of sidoCodes) for (const gc of gugunCodes) pairs.push([sc, gc]);
+    Promise.all(pairs.map(([sc, gc]) => fetchRealtorSubOptions("G", sc, gc)))
+      .then((lists) => {
+        if (cancelled) return;
+        const merged = new Map<string, RealtorRegionOption>();
+        for (const list of lists) for (const o of list) merged.set(o.code, o);
+        setDongOptions([...merged.values()]);
+        setDongCodes([]);
+      })
+      .catch(() => {
+        if (!cancelled) setDongOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidoCodes.join(","), gugunCodes.join(",")]);
+
+  return {
+    sidoList, sidoCodes, setSidoCodes,
+    gugunOptions, gugunCodes, setGugunCodes,
+    dongOptions, dongCodes, setDongCodes,
+  };
+}
+
+function toggleInList(list: string[], code: string): string[] {
+  return list.includes(code) ? list.filter((c) => c !== code) : [...list, code];
+}
+
+/** 여러 개 고를 수 있는 체크박스 드롭다운 — 네이티브 <select multiple>은 Ctrl/⌘+클릭이
+ * 필요해 발견하기 어려워서, 클릭 한 번으로 토글되는 체크박스 목록으로 만들었다. */
+function MultiSelectDropdown({
+  label,
+  options,
+  selected,
+  onToggle,
+  disabled,
+}: {
+  label: string;
+  options: RealtorRegionOption[];
+  selected: string[];
+  onToggle: (code: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const summary = selected.length === 0 ? "전체" : selected.length === 1
+    ? (options.find((o) => o.code === selected[0])?.name ?? "1개 선택")
+    : `${selected.length}개 선택`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={`${SELECT_CLS} min-w-[130px] text-left flex items-center justify-between gap-2 disabled:opacity-50`}
+      >
+        <span className="truncate">{summary}</span>
+        <span className="text-muted-foreground text-[10px]">▾</span>
+      </button>
+      {open && !disabled && (
+        <div className="absolute z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-sm border border-border bg-card shadow-lg py-1">
+          <button
+            type="button"
+            onClick={() => selected.forEach((c) => onToggle(c))}
+            className="w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary/40"
+          >
+            전체 해제
+          </button>
+          {options.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">{label} 항목이 없습니다.</p>
+          ) : (
+            options.map((o) => (
+              <label
+                key={o.code}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-secondary/40 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(o.code)}
+                  onChange={() => onToggle(o.code)}
+                  className="accent-primary"
+                />
+                <span className="truncate">{o.name}</span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SELECT_CLS =
   "h-9 px-2 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 export function RealtorCollectTab() {
   const collect = useRegionCascade();
-  const browse = useRegionCascade();
+  const browse = useRegionMultiCascade();
   const [search, setSearch] = useState("");
 
   const [status, setStatus] = useState<RealtorCollectStatus | null>(null);
@@ -193,9 +347,9 @@ export function RealtorCollectTab() {
     (targetPage: number) => {
       setLoadingList(true);
       fetchRealtorOffices({
-        sidoCode: browse.sidoCode || undefined,
-        gugunCode: browse.gugunCode || undefined,
-        dongCode: browse.dongCode || undefined,
+        sidoCodes: browse.sidoCodes,
+        gugunCodes: browse.gugunCodes,
+        dongCodes: browse.dongCodes,
         search: search.trim() || undefined,
         page: targetPage,
         pageSize: PAGE_SIZE,
@@ -211,7 +365,7 @@ export function RealtorCollectTab() {
         })
         .finally(() => setLoadingList(false));
     },
-    [browse.sidoCode, browse.gugunCode, browse.dongCode, search],
+    [browse.sidoCodes, browse.gugunCodes, browse.dongCodes, search],
   );
 
   useEffect(() => {
@@ -354,9 +508,9 @@ export function RealtorCollectTab() {
           <h3 className="text-sm font-bold text-foreground">수집된 중개업소 ({total.toLocaleString()}건)</h3>
           <a
             href={realtorExportExcelUrl({
-              sidoCode: browse.sidoCode || undefined,
-              gugunCode: browse.gugunCode || undefined,
-              dongCode: browse.dongCode || undefined,
+              sidoCodes: browse.sidoCodes,
+              gugunCodes: browse.gugunCodes,
+              dongCodes: browse.dongCodes,
               search: search.trim() || undefined,
             })}
             className="h-9 px-4 inline-flex items-center text-sm font-semibold border border-border rounded-sm hover:bg-secondary transition-colors"
@@ -365,45 +519,36 @@ export function RealtorCollectTab() {
           </a>
         </div>
 
+        <p className="text-[11px] text-muted-foreground">지역은 여러 개 선택할 수 있습니다. 아무것도 고르지 않으면 전체입니다.</p>
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">시/도</label>
-            <select
-              value={browse.sidoCode}
-              onChange={(e) => browse.setSidoCode(e.target.value)}
-              className={SELECT_CLS}
-            >
-              <option value="">전체</option>
-              {browse.sidoList.map((o) => (
-                <option key={o.code} value={o.code}>{o.name}</option>
-              ))}
-            </select>
+            <MultiSelectDropdown
+              label="시/도"
+              options={browse.sidoList}
+              selected={browse.sidoCodes}
+              onToggle={(code) => browse.setSidoCodes((prev) => toggleInList(prev, code))}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">시/군/구</label>
-            <select
-              value={browse.gugunCode}
-              onChange={(e) => browse.setGugunCode(e.target.value)}
-              className={SELECT_CLS}
-              disabled={!browse.sidoCode}
-            >
-              {browse.gugunList.map((o) => (
-                <option key={o.code || "all"} value={o.code}>{o.name}</option>
-              ))}
-            </select>
+            <MultiSelectDropdown
+              label="시/군/구"
+              options={browse.gugunOptions}
+              selected={browse.gugunCodes}
+              onToggle={(code) => browse.setGugunCodes((prev) => toggleInList(prev, code))}
+              disabled={browse.sidoCodes.length === 0}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">읍/면/동</label>
-            <select
-              value={browse.dongCode}
-              onChange={(e) => browse.setDongCode(e.target.value)}
-              className={SELECT_CLS}
-              disabled={!browse.gugunCode}
-            >
-              {browse.dongList.map((o) => (
-                <option key={o.code || "all"} value={o.code}>{o.name}</option>
-              ))}
-            </select>
+            <MultiSelectDropdown
+              label="읍/면/동"
+              options={browse.dongOptions}
+              selected={browse.dongCodes}
+              onToggle={(code) => browse.setDongCodes((prev) => toggleInList(prev, code))}
+              disabled={browse.gugunCodes.length === 0}
+            />
           </div>
           <div className="space-y-1 flex-1 min-w-[160px]">
             <label className="text-xs text-muted-foreground">검색(상호/담당자/번호/주소)</label>

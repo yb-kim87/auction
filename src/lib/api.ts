@@ -5228,17 +5228,17 @@ export function confirmRealtorCollect(): Promise<{ ok: boolean }> {
 }
 
 export function fetchRealtorOffices(filters: {
-  sidoCode?: string;
-  gugunCode?: string;
-  dongCode?: string;
+  sidoCodes?: string[];
+  gugunCodes?: string[];
+  dongCodes?: string[];
   search?: string;
   page?: number;
   pageSize?: number;
 }): Promise<{ items: RealtorOffice[]; total: number; page: number; pageSize: number }> {
   const q = new URLSearchParams();
-  if (filters.sidoCode) q.set("sidoCode", filters.sidoCode);
-  if (filters.gugunCode) q.set("gugunCode", filters.gugunCode);
-  if (filters.dongCode) q.set("dongCode", filters.dongCode);
+  if (filters.sidoCodes?.length) q.set("sidoCode", filters.sidoCodes.join(","));
+  if (filters.gugunCodes?.length) q.set("gugunCode", filters.gugunCodes.join(","));
+  if (filters.dongCodes?.length) q.set("dongCode", filters.dongCodes.join(","));
   if (filters.search) q.set("search", filters.search);
   if (filters.page) q.set("page", String(filters.page));
   if (filters.pageSize) q.set("pageSize", String(filters.pageSize));
@@ -5251,15 +5251,15 @@ export function fetchRealtorOffices(filters: {
 }
 
 export function realtorExportExcelUrl(filters: {
-  sidoCode?: string;
-  gugunCode?: string;
-  dongCode?: string;
+  sidoCodes?: string[];
+  gugunCodes?: string[];
+  dongCodes?: string[];
   search?: string;
 }): string {
   const q = new URLSearchParams();
-  if (filters.sidoCode) q.set("sidoCode", filters.sidoCode);
-  if (filters.gugunCode) q.set("gugunCode", filters.gugunCode);
-  if (filters.dongCode) q.set("dongCode", filters.dongCode);
+  if (filters.sidoCodes?.length) q.set("sidoCode", filters.sidoCodes.join(","));
+  if (filters.gugunCodes?.length) q.set("gugunCode", filters.gugunCodes.join(","));
+  if (filters.dongCodes?.length) q.set("dongCode", filters.dongCodes.join(","));
   if (filters.search) q.set("search", filters.search);
   const qs = q.toString();
   return `${API_BASE}/realtor-collect/export${qs ? `?${qs}` : ""}`;
