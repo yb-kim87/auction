@@ -118,10 +118,14 @@ function useRegionMultiCascade() {
     dongs: { sidoCode: string; gugunCode: string; code: string; name: string }[];
   }>({ sidos: [], guguns: [], dongs: [] });
 
-  useEffect(() => {
+  const reloadRegions = useCallback(() => {
     fetchRealtorAvailableRegions()
       .then(setRegions)
       .catch(() => setRegions({ sidos: [], guguns: [], dongs: [] }));
+  }, []);
+  useEffect(() => {
+    reloadRegions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 상위 선택이 바뀌면 이제 안 맞을 수 있는 하위 선택을 정리한다.
@@ -156,6 +160,7 @@ function useRegionMultiCascade() {
     sidoList: regions.sidos, sidoCodes, setSidoCodes,
     gugunOptions, gugunCodes, setGugunCodes,
     dongOptions, dongCodes, setDongCodes,
+    reloadRegions,
   };
 }
 
@@ -363,10 +368,14 @@ export function RealtorCollectTab() {
     loadOffices(1);
   }, [loadOffices]);
 
-  // 수집이 막 끝나면 방금 저장된 결과가 바로 보이도록 목록을 새로고침.
+  // 수집이 막 끝나면 방금 저장된 결과가 바로 보이도록 목록과 지역 드롭박스를 새로고침
+  // (사용자 질문, 2026-09-28: "나중에 데이터가 쌓이면 드롭박스가 자동으로 업데이트 되나?"
+  // — 이전엔 목록만 새로고침하고 지역 옵션은 최초 진입 시에만 불러와서, 새 지역이
+  // 수집돼도 드롭박스엔 안 나타났었다).
   useEffect(() => {
     if (status && !status.running && status.finishedAt) {
       loadOffices(1);
+      browse.reloadRegions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status?.finishedAt]);
