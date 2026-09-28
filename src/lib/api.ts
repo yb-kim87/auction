@@ -5193,6 +5193,21 @@ export function fetchRealtorSubOptions(
   );
 }
 
+/** "수집된 중개업소 보기" 필터용 — DB에 이미 저장된 지역만 반환한다(karhanbang.com 호출 없음,
+ * 사용자 지적, 2026-09-28: "우리가 가져왔던 데이터를 보는건데 왜 한방 API를 접속하지?"). */
+export type RealtorAvailableRegions = {
+  sidos: RealtorRegionOption[];
+  guguns: { sidoCode: string; code: string; name: string }[];
+  dongs: { sidoCode: string; gugunCode: string; code: string; name: string }[];
+};
+export function fetchRealtorAvailableRegions(): Promise<RealtorAvailableRegions> {
+  return lectureReplayFetch(
+    `/realtor-collect/regions`,
+    undefined,
+    "저장된 지역 목록을 불러오지 못했습니다.",
+  );
+}
+
 export function fetchRealtorCollectStatus(): Promise<RealtorCollectStatus> {
   return lectureReplayFetch(
     `/realtor-collect/status`,

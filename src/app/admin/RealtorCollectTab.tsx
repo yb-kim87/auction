@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchRealtorSidoList,
   fetchRealtorSubOptions,
+  fetchRealtorAvailableRegions,
   fetchRealtorCollectStatus,
   startRealtorCollect,
   stopRealtorCollect,
@@ -94,75 +95,65 @@ function useRegionCascade() {
 
 /** "수집된 중개업소" 조회 필터용 — 여러 지역을 한 번에 골라 볼 수 있게 시/도·시/군/구·
  * 읍/면/동을 각각 다중 선택으로 둔다(사용자 요청, 2026-09-27: "여러 지역을 선택할 수
- * 있게 해줘"). 아무것도 안 고르면 그 단계는 "전체"로 취급 — 기본값도 전체가 된다
- * (같은 요청의 "기본 필터를 전체로" 부분도 이걸로 같이 해결됨). 하위 단계 옵션은
- * 선택된 상위 코드들 각각에 대해 조회해 합친 목록(코드 기준 중복 제거)이다. */
+ * 있게 해줘"). 아무것도 안 고르면 그 단계는 "전체"로 취급 — 기본값도 전체가 된다.
+ *
+ * "실행"(수집) 섹션의 useRegionCascade와 달리 **karhanbang.com을 전혀 호출하지 않는다**
+ * — 여긴 이미 우리 DB에 저장된 데이터를 걸러보는 화면이라, 지역 옵션도 DB에 실제로
+ * 저장돼 있는 값만 보여주면 된다(사용자 지적, 2026-09-28: "우리가 가져왔던 데이터를
+ * 보는건데 왜 한방 API를 접속하지?" — 처음엔 "실행" 섹션과 같은 로직을 그대로 재사용하며
+ * 매번 karhanbang에 되묻게 만들었던 버그. karhanbang 쪽 연결이 막히면 이 필터까지 같이
+ * 멎던 문제였음). `/realtor-collect/regions`에서 전체 지역 조합을 한 번만 받아, 하위
+ * 옵션은 상위 선택값 기준으로 그 자리에서(클라이언트에서) 걸러 보여준다 — 지역이
+ * 몇백 개 수준이라 매번 다시 조회할 필요가 없다.
+ *
+ * 읍/면/동은 시/군/구를 안 골라도(시/도만 골랐거나 아무것도 안 골라도) 그 안에서 존재하는
+ * 모든 동을 바로 고를 수 있다(사용자 요청, 2026-09-28: "읍/면/동으로도 선택할 수 있게"). */
 function useRegionMultiCascade() {
-  const [sidoList, setSidoList] = useState<RealtorRegionOption[]>([]);
   const [sidoCodes, setSidoCodes] = useState<string[]>([]);
-  const [gugunOptions, setGugunOptions] = useState<RealtorRegionOption[]>([]);
   const [gugunCodes, setGugunCodes] = useState<string[]>([]);
-  const [dongOptions, setDongOptions] = useState<RealtorRegionOption[]>([]);
   const [dongCodes, setDongCodes] = useState<string[]>([]);
+  const [regions, setRegions] = useState<{
+    sidos: RealtorRegionOption[];
+    guguns: { sidoCode: string; code: string; name: string }[];
+    dongs: { sidoCode: string; gugunCode: string; code: string; name: string }[];
+  }>({ sidos: [], guguns: [], dongs: [] });
 
   useEffect(() => {
-    fetchRealtorSidoList()
-      .then(setSidoList)
-      .catch(() => setSidoList([]));
+    fetchRealtorAvailableRegions()
+      .then(setRegions)
+      .catch(() => setRegions({ sidos: [], guguns: [], dongs: [] }));
   }, []);
 
+  // 상위 선택이 바뀌면 이제 안 맞을 수 있는 하위 선택을 정리한다.
   useEffect(() => {
-    if (sidoCodes.length === 0) {
-      setGugunOptions([]);
-      setGugunCodes([]);
-      return;
-    }
-    let cancelled = false;
-    Promise.all(sidoCodes.map((sc) => fetchRealtorSubOptions("S", sc)))
-      .then((lists) => {
-        if (cancelled) return;
-        const merged = new Map<string, RealtorRegionOption>();
-        for (const list of lists) for (const o of list) merged.set(o.code, o);
-        setGugunOptions([...merged.values()]);
-        setGugunCodes([]);
-      })
-      .catch(() => {
-        if (!cancelled) setGugunOptions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setGugunCodes((prev) =>
+      sidoCodes.length === 0 ? prev : prev.filter((gc) => regions.guguns.some((g) => g.code === gc && sidoCodes.includes(g.sidoCode))),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidoCodes.join(",")]);
+  }, [sidoCodes.join(","), regions.guguns]);
+  useEffect(() => {
+    setDongCodes((prev) =>
+      prev.filter((dc) => {
+        const d = regions.dongs.find((x) => x.code === dc);
+        if (!d) return false;
+        if (sidoCodes.length && !sidoCodes.includes(d.sidoCode)) return false;
+        if (gugunCodes.length && !gugunCodes.includes(d.gugunCode)) return false;
+        return true;
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidoCodes.join(","), gugunCodes.join(","), regions.dongs]);
 
-  useEffect(() => {
-    if (sidoCodes.length === 0 || gugunCodes.length === 0) {
-      setDongOptions([]);
-      setDongCodes([]);
-      return;
-    }
-    let cancelled = false;
-    const pairs: Array<[string, string]> = [];
-    for (const sc of sidoCodes) for (const gc of gugunCodes) pairs.push([sc, gc]);
-    Promise.all(pairs.map(([sc, gc]) => fetchRealtorSubOptions("G", sc, gc)))
-      .then((lists) => {
-        if (cancelled) return;
-        const merged = new Map<string, RealtorRegionOption>();
-        for (const list of lists) for (const o of list) merged.set(o.code, o);
-        setDongOptions([...merged.values()]);
-        setDongCodes([]);
-      })
-      .catch(() => {
-        if (!cancelled) setDongOptions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidoCodes.join(","), gugunCodes.join(",")]);
+  const gugunOptions = (sidoCodes.length ? regions.guguns.filter((g) => sidoCodes.includes(g.sidoCode)) : regions.guguns).map(
+    (g) => ({ code: g.code, name: g.name }),
+  );
+  const dongOptions = regions.dongs
+    .filter((d) => (sidoCodes.length ? sidoCodes.includes(d.sidoCode) : true))
+    .filter((d) => (gugunCodes.length ? gugunCodes.includes(d.gugunCode) : true))
+    .map((d) => ({ code: d.code, name: d.name }));
 
   return {
-    sidoList, sidoCodes, setSidoCodes,
+    sidoList: regions.sidos, sidoCodes, setSidoCodes,
     gugunOptions, gugunCodes, setGugunCodes,
     dongOptions, dongCodes, setDongCodes,
   };
@@ -537,7 +528,6 @@ export function RealtorCollectTab() {
               options={browse.gugunOptions}
               selected={browse.gugunCodes}
               onToggle={(code) => browse.setGugunCodes((prev) => toggleInList(prev, code))}
-              disabled={browse.sidoCodes.length === 0}
             />
           </div>
           <div className="space-y-1">
@@ -547,7 +537,6 @@ export function RealtorCollectTab() {
               options={browse.dongOptions}
               selected={browse.dongCodes}
               onToggle={(code) => browse.setDongCodes((prev) => toggleInList(prev, code))}
-              disabled={browse.gugunCodes.length === 0}
             />
           </div>
           <div className="space-y-1 flex-1 min-w-[160px]">
