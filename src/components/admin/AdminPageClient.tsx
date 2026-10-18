@@ -45,6 +45,7 @@ import { SecurityLogTab } from "@/app/admin/SecurityLogTab";
 import { SwimApplyTab } from "@/app/admin/SwimApplyTab";
 import { ResaleMatchTab } from "@/app/admin/ResaleMatchTab";
 import { RealtorCollectTab } from "@/app/admin/RealtorCollectTab";
+import { ContractGeneratorTab } from "@/app/admin/ContractGeneratorTab";
 import { AssignmentReviewTab } from "@/app/admin/AssignmentReviewTab";
 import { SiteSettingsPanel } from "@/app/admin/SiteSettingsPanel";
 import { LectureReplayTab } from "@/app/admin/LectureReplayTab";
@@ -102,6 +103,7 @@ type AdminTab =
   | "lectureReplay"
   | "assignments"
   | "realtorCollect"
+  | "contractGenerator"
   | "webinarLeads"
   | "landingImages"
   | "lectureQuestions"
@@ -121,6 +123,7 @@ const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "lectureReplay", label: "영상업로드" },
   { id: "assignments", label: "과제 검토" },
   { id: "realtorCollect", label: "부동산수집" },
+  { id: "contractGenerator", label: "계약서 생성" },
   { id: "webinarLeads", label: "웨비나 신청자" },
   { id: "landingImages", label: "강의실 이미지" },
   { id: "lectureQuestions", label: "강의 Q&A" },
@@ -1038,6 +1041,8 @@ export function AdminPageClient() {
           {activeTab === "lectureReplay" && <LectureReplayTab />}
 
           {activeTab === "realtorCollect" && <RealtorCollectTab />}
+
+          {activeTab === "contractGenerator" && <ContractGeneratorTab />}
 
           {activeTab === "webinarLeads" && <WebinarLeadsPanel />}
 

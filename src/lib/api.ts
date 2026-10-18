@@ -5280,6 +5280,33 @@ export function realtorExportExcelUrl(filters: {
   return `${API_BASE}/realtor-collect/export${qs ? `?${qs}` : ""}`;
 }
 
+// ── 경매 컨설팅 계약서 생성(PDF) — 관리자 전용 ───────────────────────────────
+export interface ConsultingContractFields {
+  clientName: string;
+  clientBirth: string;
+  clientAddress: string;
+  clientPhone: string;
+  contractDate: string;
+  retainerFee: string;
+  feeRate: string;
+  companyName: string;
+  companyCeo: string;
+  companyAddress: string;
+  companyPhone: string;
+  bankName: string;
+  bankAccount: string;
+  bankHolder: string;
+}
+
+export function contractConsultingPdfUrl(fields: Partial<ConsultingContractFields>): string {
+  const q = new URLSearchParams();
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value) q.set(key, value);
+  });
+  const qs = q.toString();
+  return `${API_BASE}/contract/consulting-pdf${qs ? `?${qs}` : ""}`;
+}
+
 // ── 무료 웨비나(카카오 로그인) 신청자 — 관리자 전용 조회 ─────────────────────
 export interface WebinarKakaoLead {
   id: string;
