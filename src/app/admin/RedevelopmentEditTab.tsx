@@ -31,6 +31,7 @@ import { RedevelopmentEditSelectedZone } from "./RedevelopmentEditSelectedZone";
 import { readFastResearch } from "./RedevelopmentEditResearchPanel";
 
 const SHOW_ZONE_DRAWING_BUTTONS = false;
+const SHOW_REFRESH_BUTTON = false;
 import { RedevelopmentEditZoneFilters } from "./RedevelopmentEditZoneFilters";
 import { buildZoneBoxes, DEFAULT_BOUNDARY_TOLERANCE_M, findZoneIds, NEAR_BOUNDARY_MAX_M } from "@/lib/zone-geometry";
 
@@ -717,9 +718,12 @@ export function RedevelopmentEditTab() {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={load} disabled={loading} className="text-xs text-primary hover:underline disabled:opacity-50">
-          {loading ? "불러오는 중..." : "새로고침"}
-        </button>
+        {/* 새로고침 버튼은 숨김 — 탭을 열 때 자동으로 불러오고, 데이터를 바꾸는 작업(그리기·경매물건 업데이트)이 화면에서 빠졌다(2026-10-28). 필요하면 브라우저 새로고침. */}
+        {SHOW_REFRESH_BUTTON && (
+          <button type="button" onClick={load} disabled={loading} className="text-xs text-primary hover:underline disabled:opacity-50">
+            {loading ? "불러오는 중..." : "새로고침"}
+          </button>
+        )}
         {/* 새 구역 그리기·이미지로 구역 그리기 버튼은 숨김(재개발닷컴 데이터로 구역을 관리하므로 현재 쓰지 않음, 2026-10-28). 코드는 보존. */}
         {SHOW_ZONE_DRAWING_BUTTONS && !drawing && !imageTracing && !pendingPoints && (
           <>
