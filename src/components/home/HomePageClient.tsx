@@ -111,6 +111,10 @@ type RecommendFilters = {
   favoritesOnly: boolean;
   progressStatus: string;
   strategyLabel: string[];
+  /** 권리분석 키워드 — 하나라도 들어 있는 물건만(사용자 요청, 2026-10-26). */
+  rightsKeyword: string[];
+  /** 키워드 검색 범위: 임차현황표(기본) / 메모 / 글 전체. */
+  rightsScope: "table" | "memo" | "all";
   minArea: string;
   maxArea: string;
   /** "N개년 실거래 개수" 필터(사용자 요청, 2026-08-10) — 예: 1개년+10
@@ -126,6 +130,8 @@ const EMPTY_RECOMMEND_FILTERS: RecommendFilters = {
   favoritesOnly: false,
   progressStatus: PROGRESS_STATUS_LABELS.active,
   strategyLabel: [],
+  rightsKeyword: [],
+  rightsScope: "table",
   minArea: "",
   maxArea: "",
   tradingYears: "",
@@ -150,6 +156,8 @@ function toApiFilters(
   progressStatus?: "all" | "active" | "ended";
   search?: string;
   strategyLabel?: string[];
+  rightsKeyword?: string[];
+  rightsScope?: "table" | "memo" | "all";
   minArea?: number;
   maxArea?: number;
   tradingYears?: number;
@@ -169,6 +177,8 @@ function toApiFilters(
     progressStatus: progressLabelToStatus(filters.progressStatus),
     search: searchText.trim() || undefined,
     strategyLabel: filters.strategyLabel.length > 0 ? filters.strategyLabel : undefined,
+    rightsKeyword: filters.rightsKeyword.length > 0 ? filters.rightsKeyword : undefined,
+    rightsScope: filters.rightsKeyword.length > 0 ? filters.rightsScope : undefined,
     minArea: filters.minArea ? Number(filters.minArea) || undefined : undefined,
     maxArea: filters.maxArea ? Number(filters.maxArea) || undefined : undefined,
     // 두 값이 모두 있어야 서버가 실제로 필터링한다(둘 중 하나만 있으면
@@ -252,14 +262,108 @@ function MultiSelectDropdown({
   );
 }
 
+/** 권리분석 키워드를 고르는 칩 목록. 기본 키워드("미상")에 직접 단어를 계속 추가할 수 있고, 추가한 단어는 이
+ * 브라우저에 저장된다. 칩을 눌러 선택/해제하며, 선택한 단어 중 하나라도 들어 있는 물건만 보인다. */
+const RIGHTS_KEYWORDS_KEY = "coachpick-rights-keywords";
+const DEFAULT_RIGHTS_KEYWORDS = ["미상"];
+
+function loadCustomRightsKeywords(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RIGHTS_KEYWORDS_KEY) ?? "[]") as unknown;
+    return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string" && v.trim() !== "") : [];
+  } catch {
+    return [];
+  }
+}
+
+function RightsKeywordPicker({ selected, onChange }: { selected: string[]; onChange: (next: string[]) => void }) {
+  const [custom, setCustom] = useState<string[]>([]);
+  const [draft, setDraft] = useState("");
+  useEffect(() => setCustom(loadCustomRightsKeywords()), []);
+  const all = [...DEFAULT_RIGHTS_KEYWORDS, ...custom.filter((k) => !DEFAULT_RIGHTS_KEYWORDS.includes(k))];
+
+  function saveCustom(next: string[]) {
+    setCustom(next);
+    try {
+      localStorage.setItem(RIGHTS_KEYWORDS_KEY, JSON.stringify(next));
+    } catch {
+      // 저장이 막힌 환경이면 이번 화면에서만 유지된다.
+    }
+  }
+  function add() {
+    // 서버가 쉼표로 값을 나누므로 쉼표는 공백으로 바꾼다.
+    const word = draft.replace(/,/g, " ").trim();
+    if (!word) return;
+    if (!all.includes(word)) saveCustom([...custom, word]);
+    if (!selected.includes(word)) onChange([...selected, word]);
+    setDraft("");
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {all.map((k) => {
+          const on = selected.includes(k);
+          const removable = !DEFAULT_RIGHTS_KEYWORDS.includes(k);
+          return (
+            <span
+              key={k}
+              className={`inline-flex items-center overflow-hidden rounded-full border text-[13px] ${
+                on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground"
+              }`}
+            >
+              <button type="button" onClick={() => onChange(on ? selected.filter((v) => v !== k) : [...selected, k])} className="px-3 py-1 font-medium">
+                {k}
+              </button>
+              {removable && (
+                <button
+                  type="button"
+                  title="이 키워드 삭제"
+                  onClick={() => {
+                    saveCustom(custom.filter((v) => v !== k));
+                    onChange(selected.filter((v) => v !== k));
+                  }}
+                  className="px-2 py-1 opacity-70 hover:opacity-100"
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="찾을 단어 추가 (예: 위반건축물)"
+          className="flex-1 h-10 px-3 border border-border rounded-sm bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        <button type="button" onClick={add} className="h-10 px-3 text-sm font-medium border border-border rounded-sm hover:bg-secondary">
+          추가
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RecommendFilterModal({
   filters,
   strategyLabelOptions,
+  canFilterRights,
   onClose,
   onApply,
 }: {
   filters: RecommendFilters;
   strategyLabelOptions: string[];
+  /** 임차인·등기 정보를 볼 수 있는 등급(컨설팅수강생 이상)만 권리분석 키워드 필터를 쓴다. */
+  canFilterRights: boolean;
   onClose: () => void;
   onApply: (next: RecommendFilters) => void;
 }) {
@@ -268,6 +372,8 @@ function RecommendFilterModal({
   const [maxFailureRate, setMaxFailureRate] = useState(filters.maxFailureRate);
   const [progressStatus, setProgressStatus] = useState(filters.progressStatus);
   const [strategyLabel, setStrategyLabel] = useState(filters.strategyLabel);
+  const [rightsKeyword, setRightsKeyword] = useState(filters.rightsKeyword);
+  const [rightsScope, setRightsScope] = useState(filters.rightsScope);
   const [minArea, setMinArea] = useState(filters.minArea);
   const [maxArea, setMaxArea] = useState(filters.maxArea);
   const [tradingYears, setTradingYears] = useState(filters.tradingYears);
@@ -382,6 +488,37 @@ function RecommendFilterModal({
             </div>
           )}
 
+          {canFilterRights && (
+            <div className="space-y-1.5">
+              <span className="text-muted-foreground text-[13px]">권리분석 키워드 (하나라도 포함)</span>
+              <div className="inline-flex overflow-hidden rounded-sm border border-border text-[13px] font-medium" role="group" aria-label="검색 범위">
+                {([
+                  ["table", "임차현황표"],
+                  ["memo", "메모"],
+                  ["all", "글 전체"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRightsScope(value)}
+                    aria-pressed={rightsScope === value}
+                    className={`px-3 py-1.5 ${rightsScope === value ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[12px] text-muted-foreground">
+                {rightsScope === "table"
+                  ? "임차현황표(임차인·점유·보증금 등 표)에서만 찾습니다. 하단 [기타사항] 메모는 제외합니다."
+                  : rightsScope === "memo"
+                    ? "표 아래 [기타사항] 메모 문장에서만 찾습니다."
+                    : "표와 메모, 등기 권리내역까지 글 전체에서 찾습니다."}
+              </p>
+              <RightsKeywordPicker selected={rightsKeyword} onChange={setRightsKeyword} />
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <span className="text-muted-foreground text-[13px]">최근 주변 실거래</span>
             <div className="flex items-center gap-2">
@@ -420,6 +557,8 @@ function RecommendFilterModal({
               setMaxFailureRate("");
               setProgressStatus(PROGRESS_STATUS_LABELS.active);
               setStrategyLabel([]);
+              setRightsKeyword([]);
+              setRightsScope("table");
               setMinArea("");
               setMaxArea("");
               setTradingYears("");
@@ -439,6 +578,8 @@ function RecommendFilterModal({
                 favoritesOnly: filters.favoritesOnly,
                 progressStatus,
                 strategyLabel,
+                rightsKeyword,
+                rightsScope,
                 minArea,
                 maxArea,
                 tradingYears,
@@ -1226,6 +1367,7 @@ export function HomePageClient() {
     (filters.maxFailureRate ? 1 : 0) +
     (filters.progressStatus !== PROGRESS_STATUS_LABELS.active ? 1 : 0) +
     (filters.strategyLabel.length > 0 ? 1 : 0) +
+    (filters.rightsKeyword.length > 0 ? 1 : 0) +
     (filters.minArea || filters.maxArea ? 1 : 0) +
     (filters.tradingYears && filters.tradingMinCount ? 1 : 0);
 
@@ -1603,6 +1745,7 @@ export function HomePageClient() {
         <RecommendFilterModal
           filters={filters}
           strategyLabelOptions={strategyLabelOptions}
+          canFilterRights={isAdmin || isConsultant || profile?.role === "consulting_student"}
           onClose={() => setShowFilterModal(false)}
           onApply={(next) => {
             setFilters(next);

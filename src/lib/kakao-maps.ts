@@ -10,6 +10,7 @@ export type KakaoMouseEvent = { latLng: { getLat: () => number; getLng: () => nu
 export type KakaoMap = {
   setBounds: (bounds: unknown) => void;
   setCenter: (latlng: unknown) => void;
+  getLevel: () => number;
   getCenter: () => { getLat: () => number; getLng: () => number };
   /** 지적편집도 등 오버레이 지도 타입 토글 — 구역도(지적도) 이미지와
    * 같은 필지 경계를 지도에도 띄워 대조하기 쉽게 하는 데 쓴다. */
@@ -54,6 +55,17 @@ declare global {
   interface Window {
     kakao?: {
       maps: {
+        /** services 라이브러리 — 좌표→행정구역 역지오코딩(구역 목록 구별 정리용). */
+        services: {
+          Geocoder: new () => {
+            coord2RegionCode: (
+              lng: number,
+              lat: number,
+              callback: (result: { region_type: string; region_2depth_name: string; region_3depth_name: string }[], status: string) => void,
+            ) => void;
+          };
+          Status: { OK: string };
+        };
         load: (cb: () => void) => void;
         LatLng: new (lat: number, lng: number) => KakaoLatLng;
         LatLngBounds: new () => { extend: (latlng: KakaoLatLng) => void };
@@ -83,7 +95,7 @@ declare global {
         }) => KakaoPolyline;
         CustomOverlay: new (options: {
           position: KakaoLatLng;
-          content: string;
+          content: string | HTMLElement;
           yAnchor?: number;
           xAnchor?: number;
           zIndex?: number;
@@ -106,7 +118,7 @@ export function loadKakaoMaps(appKey: string): Promise<void> {
   if (loadPromise) return loadPromise;
   loadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `${KAKAO_SDK_SRC}?appkey=${appKey}&autoload=false&libraries=clusterer`;
+    script.src = `${KAKAO_SDK_SRC}?appkey=${appKey}&autoload=false&libraries=clusterer,services`;
     script.async = true;
     script.onload = () => {
       window.kakao!.maps.load(() => resolve());

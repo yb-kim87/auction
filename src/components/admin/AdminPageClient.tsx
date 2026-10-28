@@ -22,6 +22,7 @@ import {
   getTemplateDownloadUrl,
   rejectAuction,
   updateUserRole,
+  updateUserRoleExpiry,
   updateUserAiAnalysisLimit,
   uploadAuctionExcel,
 } from "@/lib/api";
@@ -46,6 +47,7 @@ import { SwimApplyTab } from "@/app/admin/SwimApplyTab";
 import { ResaleMatchTab } from "@/app/admin/ResaleMatchTab";
 import { RealtorCollectTab } from "@/app/admin/RealtorCollectTab";
 import { ContractGeneratorTab } from "@/app/admin/ContractGeneratorTab";
+import { RedevelopmentEditTab } from "@/app/admin/RedevelopmentEditTab";
 import { AssignmentReviewTab } from "@/app/admin/AssignmentReviewTab";
 import { SiteSettingsPanel } from "@/app/admin/SiteSettingsPanel";
 import { LectureReplayTab } from "@/app/admin/LectureReplayTab";
@@ -94,6 +96,7 @@ function StatusBadge({ status }: { status: AuctionItem["status"] }) {
 type AdminTab =
   | "data"
   | "crawler"
+  | "redevelopment"
   | "kakaoNotify"
   | "users"
   | "aiOps"
@@ -116,6 +119,7 @@ type StrategyTagsSubTab = "tagRules" | "strategyRules";
 const ADMIN_TABS: { id: AdminTab; label: string }[] = [
   { id: "data", label: "물건/데이터 관리" },
   { id: "crawler", label: "물건 작업" },
+  { id: "redevelopment", label: "재개발물건" },
   { id: "kakaoNotify", label: "알림톡 관리" },
   { id: "aiOps", label: "AI운영" },
   { id: "users", label: "회원권한 관리" },
@@ -263,6 +267,11 @@ export function AdminPageClient() {
   const [aiPlatformSubTab, setAiPlatformSubTab] = useState<AiPlatformSubTab>("normalizer");
   const [strategyTagsSubTab, setStrategyTagsSubTab] = useState<StrategyTagsSubTab>("strategyRules");
   const [historyItem, setHistoryItem] = useState<AuctionItem | null>(null);
+
+  // 재개발 조사표의 비교 팝업은 관리자 기본 탭이 아니라 해당 경매 상세가 있는 재개발물건 탭으로 바로 연다.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("popup") === "auction-compare") setActiveTab("redevelopment");
+  }, []);
 
   // 목록이 새로 불러와지면(페이지 이동, 검색, 새로고침 등) 이전 화면 기준으로
   // 골라둔 체크박스 선택은 더 이상 유효하지 않으므로 비운다.
@@ -509,6 +518,38 @@ export function AdminPageClient() {
     } finally {
       setRoleUpdating(null);
     }
+  };
+
+  // 수강생 이용 기한 — 개월 수를 더하거나 날짜를 직접 정한다. 이미 기한이 남아 있으면 그 날짜부터, 없으면 오늘부터 더한다.
+  const [expiryUpdating, setExpiryUpdating] = useState<string | null>(null);
+  const ymd = (d: Date) => {
+    // 한국시간 기준 날짜(YYYY-MM-DD)
+    const k = new Date(d.getTime() + 9 * 3600_000);
+    return k.toISOString().slice(0, 10);
+  };
+  const handleExpiryChange = async (userId: string, expiresAt: string | null) => {
+    setExpiryUpdating(userId);
+    setMessage(null);
+    try {
+      await updateUserRoleExpiry(userId, expiresAt);
+      setMessage({ type: "success", text: expiresAt ? `이용 기한을 ${expiresAt}까지로 정했습니다.` : "이용 기한을 해제했습니다(기한 없음)." });
+      await reloadUsers();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "이용 기한 변경에 실패했습니다." });
+    } finally {
+      setExpiryUpdating(null);
+    }
+  };
+  const addMonthsToExpiry = (user: UserProfile, months: number) => {
+    const existing = user.roleExpiresAt ? new Date(user.roleExpiresAt) : null;
+    const base = existing && existing.getTime() > Date.now() ? existing : new Date();
+    const k = new Date(base.getTime() + 9 * 3600_000); // 한국시간 날짜로 계산
+    const day = k.getUTCDate();
+    k.setUTCDate(1);
+    k.setUTCMonth(k.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth() + 1, 0)).getUTCDate();
+    k.setUTCDate(Math.min(day, lastDay));
+    return k.toISOString().slice(0, 10);
   };
 
   const handleAiLimitChange = async (userId: string, limit: number) => {
@@ -1028,6 +1069,8 @@ export function AdminPageClient() {
 
           {activeTab === "crawler" && <CrawlerWorkPanel />}
 
+          {activeTab === "redevelopment" && <RedevelopmentEditTab />}
+
 
           {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}
 
@@ -1146,6 +1189,7 @@ export function AdminPageClient() {
                         <th className="px-3 py-2.5 text-left font-semibold">전화번호</th>
                         <th className="px-3 py-2.5 text-left font-semibold">현재 권한</th>
                         <th className="px-3 py-2.5 text-left font-semibold">권한 변경</th>
+                        <th className="px-3 py-2.5 text-left font-semibold">수강생 이용 기한</th>
                         <th className="px-3 py-2.5 text-left font-semibold">AI 분석 사용/제한</th>
                         <th className="px-3 py-2.5 text-left font-semibold">삭제</th>
                       </tr>
@@ -1173,6 +1217,59 @@ export function AdminPageClient() {
                                 <option value="consultant">컨설턴트</option>
                                 <option value="ot_student">OT수강생</option>
                               </select>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {user.role !== "student" ? (
+                              <span className="text-muted-foreground">-</span>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <div className="font-semibold">
+                                  {user.roleExpiresAt ? (
+                                    <>
+                                      ~{ymd(new Date(user.roleExpiresAt))}{" "}
+                                      <span className="font-normal text-muted-foreground">
+                                        (D-{Math.max(0, Math.ceil((new Date(user.roleExpiresAt).getTime() - Date.now()) / 86_400_000))})
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="font-normal text-muted-foreground">기한 없음</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {[1, 2, 3].map((m) => (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      disabled={expiryUpdating === user.id}
+                                      onClick={() => void handleExpiryChange(user.id, addMonthsToExpiry(user, m))}
+                                      className="px-2 py-1 text-xs rounded-sm border border-border bg-card hover:bg-secondary disabled:opacity-50"
+                                    >
+                                      +{m}개월
+                                    </button>
+                                  ))}
+                                  <input
+                                    type="date"
+                                    min={ymd(new Date(Date.now() + 86_400_000))}
+                                    value={user.roleExpiresAt ? ymd(new Date(user.roleExpiresAt)) : ""}
+                                    disabled={expiryUpdating === user.id}
+                                    onChange={(e) => {
+                                      if (e.target.value) void handleExpiryChange(user.id, e.target.value);
+                                    }}
+                                    className="px-2 py-1 text-xs border border-border rounded-sm bg-card disabled:opacity-50"
+                                  />
+                                  {user.roleExpiresAt && (
+                                    <button
+                                      type="button"
+                                      disabled={expiryUpdating === user.id}
+                                      onClick={() => void handleExpiryChange(user.id, null)}
+                                      className="px-2 py-1 text-xs rounded-sm text-muted-foreground hover:underline disabled:opacity-50"
+                                    >
+                                      해제
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </td>
                           <td className="px-3 py-2.5">

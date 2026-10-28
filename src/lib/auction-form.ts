@@ -12,12 +12,22 @@ export type FieldDef = {
 
 export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "경매 기본정보",
+    title: "입찰 및 진행 상태",
+    fields: [
+      { key: "bidDate", label: "다음 입찰일" },
+      { key: "bidInfo", label: "입찰 진행 내역", full: true },
+      { key: "recordTime", label: "정보 확인 시각" },
+    ],
+  },
+  {
+    title: "경매 중요정보",
     fields: [
       { key: "memo", label: "메모", type: "textarea" },
       { key: "auctionNo", label: "사건번호" },
+      { key: "builtYear", label: "사용승인 연도", type: "number" },
       { key: "owner", label: "현재 소유자" },
-      { key: "appraiser", label: "감정평가 기관" },
+      { key: "area", label: "전용면적" },
+      { key: "officialLandPrice", label: "공시가격", type: "number" },
       { key: "link", label: "원문 물건 페이지" },
       { key: "views", label: "조회수", type: "number" },
       { key: "address", label: "물건 소재지", full: true },
@@ -27,9 +37,8 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
     title: "건물·면적 정보",
     fields: [
       { key: "usage", label: "건물 용도" },
-      { key: "area", label: "전용면적" },
+      { key: "appraiser", label: "감정평가 기관" },
       { key: "landShare", label: "대지권·토지 지분" },
-      { key: "builtYear", label: "사용승인 연도", type: "number" },
       { key: "totalUnits", label: "단지 전체 세대수", type: "number" },
       { key: "elevator", label: "엘리베이터" },
       { key: "parking", label: "주차 정보" },
@@ -39,7 +48,6 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
         type: "checkbox",
         checkboxHint: "재개발 물건이면 체크",
       },
-      { key: "education", label: "주변 교육시설", type: "textarea", full: true },
     ],
   },
   {
@@ -48,7 +56,6 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
       { key: "appraisedValue", label: "감정가", type: "number" },
       { key: "minPrice", label: "현재 최저 입찰가", type: "number" },
       { key: "naverPrice", label: "동일 아파트 호가", type: "number" },
-      { key: "officialLandPrice", label: "공시가격", type: "number" },
       { key: "salePrice", label: "실제 낙찰가", type: "number" },
       { key: "tradingCount", label: "최근 실거래 건수" },
       { key: "priceDetail", label: "동일 아파트 상세", full: true },
@@ -56,22 +63,18 @@ export const AUCTION_FIELD_GROUPS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "등기·임차인 정보",
+    title: "임차인·등기 정보",
     fields: [
       { key: "tenantInfo", label: "임차인 요약" },
-      { key: "buildingRegistry", label: "건물 등기 권리내역", type: "textarea", full: true },
       { key: "tenantDetail", label: "임차인·점유 현황", full: true },
+      { key: "buildingRegistry", label: "건물 등기 권리내역", type: "textarea", full: true },
       { key: "unpaidFeeAmount", label: "미납 관리비", type: "number" },
       { key: "unpaidFeeNote", label: "미납 관리비 조사 내용" },
     ],
   },
   {
-    title: "입찰 및 진행 상태",
-    fields: [
-      { key: "bidDate", label: "다음 입찰일" },
-      { key: "bidInfo", label: "입찰 진행 내역", full: true },
-      { key: "recordTime", label: "정보 확인 시각" },
-    ],
+    title: "주변 교육시설",
+    fields: [{ key: "education", label: "주변 교육시설", type: "textarea", full: true }],
   },
 ];
 

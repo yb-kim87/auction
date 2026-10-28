@@ -8,6 +8,7 @@ import {
   fetchResaleMatchesForMap,
   geocodeAddress,
   reviewResaleMatch,
+  runResaleMatchNow,
   saveResaleMatchCoords,
   type ResaleMatchMapItem,
   type ResaleMatchQaItem,
@@ -338,6 +339,7 @@ export function ResaleMatchTab() {
     setCurrentPage(1);
   }, [filterCity, filterDistrict, filterWard, filterPropType, pageSize]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [runningNow, setRunningNow] = useState(false);
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS);
 
   const handleResize = useCallback((colKey: string, width: number) => {
@@ -386,16 +388,44 @@ export function ResaleMatchTab() {
     }
   }
 
+  async function handleRunNow() {
+    if (runningNow) return;
+    setRunningNow(true);
+    setMessage(null);
+    try {
+      const res = await runResaleMatchNow();
+      setMessage(res.message || "매도분석 배치를 실행했습니다.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "매도분석 실행에 실패했습니다.");
+    } finally {
+      setRunningNow(false);
+    }
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-[100rem]">
-      <div>
-        <h2 className="text-lg font-bold text-foreground">낙찰물건 매도분석</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          매각대금완납일 이후 국토부 실거래가와 대조해, 낙찰받은 그 물건이 실제로 되팔렸을
-          가능성이 있는 사례를 모아 보여줍니다. 55점(MEDIUM) 이상만 표시하며, 70점 이상이면서
-          1·2위 점수차가 8점 이상 벌어진 경우에만 사용자 화면 노출 대상(표시됨)입니다. 나머지는
-          참고용이니 검토 후 승인/반려해 주세요.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">낙찰물건 매도분석</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            매각대금완납일 이후 국토부 실거래가와 대조해, 낙찰받은 그 물건이 실제로 되팔렸을
+            가능성이 있는 사례를 모아 보여줍니다. 55점(MEDIUM) 이상만 표시하며, 70점 이상이면서
+            1·2위 점수차가 8점 이상 벌어진 경우에만 사용자 화면 노출 대상(표시됨)입니다. 나머지는
+            참고용이니 검토 후 승인/반려해 주세요.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            이 배치는 더 이상 자동으로 돌지 않습니다(국토부 실거래가 API 일일 쿼터 소진 문제로
+            2026-10-25 중단) — 필요할 때 아래 버튼으로 직접 실행해 주세요.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleRunNow()}
+          disabled={runningNow}
+          className="shrink-0 rounded-sm border border-border bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {runningNow ? "실행 중..." : "지금 실행"}
+        </button>
       </div>
 
       {message && (

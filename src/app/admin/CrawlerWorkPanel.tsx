@@ -42,7 +42,8 @@ const SUB_TABS: { id: CrawlerSubTab; label: string }[] = [
   { id: "profit", label: "수익계산" },
   { id: "vat", label: "부가세계산" },
   { id: "resale", label: "매도분석" },
-  { id: "redevelopment", label: "재개발물건" },
+  // 기존 "재개발물건"(id: redevelopment)은 탭 목록에서 숨김 — 컴포넌트·렌더는 그대로 유지(요청 시 다시 노출 가능).
+  // "재개발물건(수정용)"은 관리자 최상위 탭 "재개발물건"으로 옮겼다(AdminPageClient, 2026-10-25).
 ];
 
 const PHASE_LABELS: Record<CrawlerStatus["phase"], string> = {

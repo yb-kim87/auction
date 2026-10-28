@@ -63,6 +63,7 @@ async function proxyRequest(request: NextRequest, path: string[]) {
   const init: RequestInit = {
     method: request.method,
     headers,
+    ...(request.method === "GET" && targetPath === "redevelopment/map-data" ? { cache: "no-store" as const } : {}),
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {

@@ -739,6 +739,20 @@ export async function updateUserRole(id: string, role: UserRole) {
   return readJsonResponse<UserProfile>(res);
 }
 
+/** 수강생 이용 기한 설정 — expiresAt은 "YYYY-MM-DD"(그날 한국시간 끝까지) 또는 null(기한 없음). */
+export async function updateUserRoleExpiry(id: string, expiresAt: string | null) {
+  const res = await apiFetch(`${API_BASE}/users/${id}/role-expiry`, {
+    method: "PATCH",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ expiresAt }),
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "이용 기한 변경에 실패했습니다.");
+  }
+  return readJsonResponse<UserProfile>(res);
+}
+
 export async function updateUserAiAnalysisLimit(id: string, limit: number) {
   const res = await apiFetch(`${API_BASE}/users/${id}/ai-limit`, {
     method: "PATCH",
@@ -1496,6 +1510,10 @@ export type RecommendationFilters = {
   /** 사용자에게 노출되는 전략 라벨(예: "경쟁이 적은 투자")로 필터링,
    * 다중 선택 가능. */
   strategyLabel?: string[];
+  /** 권리분석(임차인·점유 + 등기 권리내역)에 이 단어 중 하나라도 들어 있는 물건만 — 컨설팅수강생 이상만 적용된다. */
+  rightsKeyword?: string[];
+  /** 키워드 검색 범위 — table(임차현황표, 기본) / memo([기타사항] 메모) / all(글 전체). */
+  rightsScope?: "table" | "memo" | "all";
   /** 전용면적(㎡) 범위 필터. */
   minArea?: number;
   maxArea?: number;
@@ -1561,6 +1579,9 @@ export async function fetchRecommendations(
   if (filters?.search) query.set("search", filters.search);
   if (filters?.strategyLabel && filters.strategyLabel.length > 0)
     query.set("strategyLabel", filters.strategyLabel.join(","));
+  if (filters?.rightsKeyword && filters.rightsKeyword.length > 0)
+    query.set("rightsKeyword", filters.rightsKeyword.join(","));
+  if (filters?.rightsScope) query.set("rightsScope", filters.rightsScope);
   if (filters?.minArea != null) query.set("minArea", String(filters.minArea));
   if (filters?.maxArea != null) query.set("maxArea", String(filters.maxArea));
   if (filters?.tradingYears != null) query.set("tradingYears", String(filters.tradingYears));
@@ -4146,6 +4167,8 @@ export type RedevelopmentZone = {
   lastAutoSyncedAt: string | null;
   referenceImageUrl: string | null;
   areaSqMeters: number | null;
+  /** 관리자가 "관심 구역"으로 표시했는지 — 구버전 서버 응답에는 없을 수 있다. */
+  isInterest?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -4162,6 +4185,19 @@ export type RedevelopmentMapAuction = {
   latitude: number;
   longitude: number;
   zoneIds: string[];
+  /** 경계 오차범위 밖이지만 구역 근처(≤100m)라 "구역일 가능성"으로 보여 주는 물건(화면에서 계산). */
+  near?: boolean;
+  /** 목록용 추가 항목(2026-10-24) — 구버전 서버 응답에는 없을 수 있다. */
+  court?: string;
+  caseState?: string;
+  /** 서버의 사건 종결 상태 판정 — 구역 내 진행 건수 집계용. */
+  isClosedCase?: boolean;
+  usage?: string;
+  area?: string;
+  builtYear?: number;
+  bidDate?: string;
+  appraisedValue?: number;
+  minPrice?: number;
 };
 
 export type RedevelopmentZoneAuction = RedevelopmentMapAuction & { court: string };
@@ -4221,6 +4257,15 @@ export function updateRedevelopmentZone(
     `/zones/${id}`,
     { method: "PATCH", body: JSON.stringify(body) },
     "재개발 구역 수정에 실패했습니다.",
+  );
+}
+
+/** 구역 관심 표시를 켜고 끈다(서버에서 updatedAt은 바뀌지 않음). */
+export function setRedevelopmentZoneInterest(id: string, isInterest: boolean): Promise<{ id: string; isInterest: boolean }> {
+  return redevelopmentFetch(
+    `/zones/${id}/interest`,
+    { method: "PATCH", body: JSON.stringify({ isInterest }) },
+    "관심 구역 표시를 바꾸지 못했습니다.",
   );
 }
 
@@ -4293,7 +4338,8 @@ export function fetchRedevelopmentMapData(): Promise<{
   zones: RedevelopmentZone[];
   auctions: RedevelopmentMapAuction[];
 }> {
-  return redevelopmentFetch("/map-data", undefined, "재개발 지도 데이터를 불러오지 못했습니다.");
+  // 브라우저·프록시 캐시가 예전 사건 상태를 재사용하지 않도록 매번 새로 조회한다.
+  return redevelopmentFetch(`/map-data?_=${Date.now()}`, undefined, "재개발 지도 데이터를 불러오지 못했습니다.");
 }
 
 export type SeoulUpisRow = {
@@ -4387,6 +4433,37 @@ export async function fetchEunpyeongDetail(key: string): Promise<EunpyeongDetail
   });
   if (!res.ok) {
     throw new Error((await parseErrorMessage(res)) ?? "은평구청 구역 상세를 불러오지 못했습니다.");
+  }
+  return res.json();
+}
+
+export type GeumcheonListItem = { id: string; title: string; category: string; location: string; status: string };
+
+export type GeumcheonDetail = {
+  id: string;
+  title: string;
+  category: string;
+  location: string | null;
+  areaSqMeters: number | null;
+  status: string;
+  history: string;
+};
+
+/** 금천구청 홈페이지 "정비사업 현황" 스크레이핑(Vercel 프록시 경유). */
+export async function fetchGeumcheonList(): Promise<GeumcheonListItem[]> {
+  const res = await apiFetch(`${API_BASE}/redevelopment/geumcheon?mode=list`, { credentials: FETCH_CREDENTIALS });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "금천구청 구역 목록을 불러오지 못했습니다.");
+  }
+  return ((await res.json()) as { items: GeumcheonListItem[] }).items;
+}
+
+export async function fetchGeumcheonDetail(id: string): Promise<GeumcheonDetail> {
+  const res = await apiFetch(`${API_BASE}/redevelopment/geumcheon?mode=detail&id=${encodeURIComponent(id)}`, {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!res.ok) {
+    throw new Error((await parseErrorMessage(res)) ?? "금천구청 구역 상세를 불러오지 못했습니다.");
   }
   return res.json();
 }
@@ -5590,4 +5667,300 @@ export async function deleteCourtAuctionSavedSearch(id: string): Promise<void> {
     headers: withJsonHeaders(),
     body: JSON.stringify({ id }),
   });
+}
+
+// ── 재개발 구역 매물 조사(네이버 매매 매물 + 국토부 실거래, 사용자 요청 2026-10-24) ──────────────────────
+
+export type ResearchRunStatus = "idle" | "running" | "done" | "error" | "interrupted";
+
+export type ResearchRun = {
+  zoneId: string;
+  status: ResearchRunStatus;
+  phase: string;
+  error: string | null;
+  naverFetched: number;
+  naverSaved: number;
+  naverDetailDone: number;
+  /** 상세를 아직 못 가져온 매물 수 — 0보다 크면 "이어서 수집"으로 다시 실행한다. */
+  naverDetailRemaining: number;
+  tradesFetched: number;
+  tradesSaved: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  updatedAt: string;
+};
+
+export type OfficialPriceRow = { ho: string; dong: string; area: number | null; manwon: number; floor: number | null; used: boolean };
+
+export type OfficialPriceEstimate = {
+  /** 만원. 공시가격 DB에서 지번·면적·층으로 추정(호수까지 맞으면 basis="ho"). */
+  manwon: number | null;
+  candidates: number;
+  basis: "ho" | "floor+area" | "band+area" | "near+area" | "area" | "none";
+  /** 이 건물의 공시가격 총 호수(면적 필터 전) — 0이면 건물 자체가 공시가격 DB에 없다. */
+  buildingRowCount?: number;
+  /** 추정 근거 후보(면적이 맞는 호, 최대 12개). used=true가 실제 추정에 쓰인 것. */
+  rows?: OfficialPriceRow[];
+};
+
+export type ResearchListing = {
+  id: string;
+  /** 최근 조사 목록에서 목록에서 안 보인 매물(내려갔거나 거래됨). */
+  gone?: boolean;
+  articleNo: string;
+  articleName: string | null;
+  typeName: string | null;
+  tradeType: string | null;
+  priceText: string | null;
+  priceManwon: number | null;
+  supplyArea: number | null;
+  exclusiveArea: number | null;
+  roomCount: number | null;
+  floorInfo: string | null;
+  floor: number | null;
+  direction: string | null;
+  confirmedAt: string | null;
+  feature: string | null;
+  realtor: string | null;
+  realtorPhone: string | null;
+  /** 중개사 소재지(네이버 매물 상세의 articleRealtor.address). */
+  realtorAddress: string | null;
+  lat: number | null;
+  lng: number | null;
+  distanceToZoneM: number | null;
+  address: string | null;
+  jibun: string | null;
+  buildingYear: number | null;
+  useApprovalDate: string | null;
+  ageTag: string | null;
+  adminCostManwon: number | null;
+  adminCostMemo: string | null;
+  moveInText: string | null;
+  featureDesc: string | null;
+  introText: string | null;
+  photoUrls: string[];
+  hasDetail: boolean;
+  /** 네이버 "단지정보" — 정확한 지번 주소·도로명·건물 정보(같은 단지는 한 번만 조회해 재사용). */
+  /** 대지지분 추정(㎡) — 같은 지번 실거래의 대지권면적÷전용면적 비율 × 전용면적. 같은 건물 실거래가 없으면 null(네이버는 대지지분을 주지 않음). */
+  landShareEstimate: number | null;
+  /** trade = 같은 지번 실거래 대지권면적 비율, ledger = 건축물대장 대지면적을 전용면적 비율로 나눈 값 */
+  landShareBasis: "trade" | "ledger" | null;
+  complexName: string | null;
+  complexNumber: number | null;
+  roadAddress: string | null;
+  totalHouseholdNumber: number | null;
+  constructionCompany: string | null;
+  floorAreaRatio: number | null;
+  buildingCoverageRatio: number | null;
+  elevatorCount: number | null;
+  totalParkingCount: number | null;
+  approvalElapsedYear: number | null;
+  pnu: string | null;
+  /** 현재 전세 보증금(만원) — 매매가 − 이 값 = 실제 갭. */
+  warrantPriceManwon: number | null;
+  bathroomCount: number | null;
+  householdCount: number | null;
+  parkingCount: number | null;
+  subwayWalkMin: number | null;
+  lawUsage: string | null;
+  heatMethod: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  officialPrice: OfficialPriceEstimate;
+};
+
+export type ResearchTrade = {
+  id: string;
+  umdNm: string;
+  jibun: string;
+  buildingName: string;
+  floor: number;
+  exclusiveArea: number;
+  landArea: number | null;
+  buildYear: number | null;
+  dealAmountManwon: number;
+  contractDate: string;
+  registeredAt: string | null;
+  dealingType: string | null;
+  buyerType: string | null;
+  sellerType: string | null;
+  houseType: string | null;
+  isCancelled: boolean;
+  cancelledAt: string | null;
+  distanceToZoneM: number | null;
+  officialPrice: OfficialPriceEstimate;
+};
+
+export type ResearchTarget = {
+  id: string;
+  auctionNo: string;
+  address: string;
+  propType: string;
+  exclusiveArea: number | null;
+  /** 경매코치에 저장된 대지권(㎡). */
+  landShare: number | null;
+  builtYear: number | null;
+  /** 경매 원본 상세에서 추출한 방 수. 없으면 비교군의 방 수는 조건에 쓰지 않는다. */
+  roomCount: number | null;
+  floor: number | null;
+  ho: string | null;
+  appraisedValue: number;
+  minPrice: number;
+  jibun: string | null;
+  officialPrice: OfficialPriceEstimate;
+};
+
+/** 구역 조사 때 재개발 블로그에서 찾은 정보 — 동의율(글 작성일 최신 우선)과 자치구 공문 타임라인. */
+export type ZoneBlogNote = {
+  id: string; blogId: string; logNo: string; postTitle: string; postedAt: string; url: string;
+  kind: "consent" | "timeline" | "article" | "insight"; text: string; yesPct: number | null; noPct: number | null; qualifier: string | null; docDate: string | null;
+};
+export type ZoneBlogInfo = { fetchedAt: string | null; consent: ZoneBlogNote | null; consentHistory: ZoneBlogNote[]; timeline: ZoneBlogNote[]; articles?: ZoneBlogNote[]; insights?: ZoneBlogNote[]; diagnostics?: { searched: number; attempted: number; opened: number; failed: number; consent: number; timeline: number } | null };
+
+export type AuctionResearch = {
+  blog?: ZoneBlogInfo;
+  target: ResearchTarget | null;
+  zone: { id: string; name: string; region: string; stage: string; projectType: string | null } | null;
+  message?: string;
+  run?: ResearchRun;
+  toleranceM?: number;
+  listings?: ResearchListing[];
+  trades?: ResearchTrade[];
+  otherZones?: Array<{ id: string; name: string; distanceM: number }>;
+};
+
+export type ResearchMapPoints = {
+  listings: Array<{
+    id: string; zoneId: string; lat: number; lng: number; priceManwon: number; area: number | null; distanceM: number | null; articleNo: string;
+    articleName?: string | null; floorInfo?: string | null; supplyArea?: number | null; roomCount?: number | null; direction?: string | null;
+    realtor?: string | null; realtorPhone?: string | null; confirmedAt?: string | null; address?: string | null; jibun?: string | null; buildingYear?: number | null;
+    officialManwon?: number | null; officialBasis?: string;
+  }>;
+  trades: Array<{
+    id: string; zoneId: string; lat: number; lng: number; priceManwon: number; area: number; date: string; distanceM: number | null;
+    floor?: number; buildingName?: string; umdNm?: string; jibun?: string; buildYear?: number | null; dealingType?: string | null; houseType?: string | null; landArea?: number | null;
+    officialManwon?: number | null; officialBasis?: string;
+  }>;
+};
+
+/** 조사로 저장된 호가·실거래 점 — 지도 가격 라벨용. */
+export async function fetchResearchMapPoints(): Promise<ResearchMapPoints> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/map-points`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "지도용 조사 데이터를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchAuctionResearch(auctionId: string, toleranceM: number): Promise<AuctionResearch> {
+  const res = await apiFetch(
+    `${API_BASE}/redevelopment-research/auctions/${encodeURIComponent(auctionId)}?toleranceM=${toleranceM}`,
+    { cache: "no-store", credentials: FETCH_CREDENTIALS },
+  );
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "조사 결과를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+/** 구역 라벨 클릭용 — 경매물건 기준 결과와 같은 모양(target=null). */
+export async function fetchZoneResearch(zoneId: string, toleranceM: number): Promise<AuctionResearch> {
+  const res = await apiFetch(
+    `${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/results?toleranceM=${toleranceM}`,
+    { cache: "no-store", credentials: FETCH_CREDENTIALS },
+  );
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 조사 결과를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export type AuctionOfficialPriceBatchItem = {
+  id: string;
+  exclusiveArea: number | null;
+  landShare: number | null;
+  floor: number | null;
+  ho: string | null;
+  officialPrice: OfficialPriceEstimate;
+};
+
+/** 구역 안 경매물건 여러 건의 공시가만 가볍게 일괄 조회(네이버/국토부 호출 없음, 사용자 요청 2026-10-25). */
+export async function fetchAuctionsOfficialPriceBatch(ids: string[]): Promise<AuctionOfficialPriceBatchItem[]> {
+  if (ids.length === 0) return [];
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/auctions/official-price-batch`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "경매물건 공시가를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+/** 블로그만 다시 조사(가벼움). */
+export async function refreshZoneBlog(zoneId: string): Promise<ZoneBlogInfo> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/blog-refresh`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "블로그 조사를 하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+/** 빠른 조사로 모은 매물 하나의 상세·단지 정보를 지금 가져와 채운다(네이버 최대 3회). */
+export async function fetchListingDetailNow(zoneId: string, articleNo: string): Promise<{ ok: boolean }> {
+  const res = await apiFetch(
+    `${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/listings/${encodeURIComponent(articleNo)}/detail`,
+    { method: "POST", credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(), body: JSON.stringify({}) },
+  );
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "상세 조사에 실패했습니다.");
+  return readJsonResponse(res);
+}
+
+export type ZoneRunSummary = {
+  zoneId: string;
+  status: ResearchRunStatus;
+  phase: string;
+  naverSaved: number;
+  tradesSaved: number;
+  finishedAt: string | null;
+  startedAt: string | null;
+};
+
+export type ZoneConsentSummary = { zoneId: string; yesPct: number | null; noPct: number | null; qualifier: string | null; postedAt: string };
+
+export async function fetchZoneConsentSummaries(): Promise<ZoneConsentSummary[]> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/zones-blog-consents`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 동의율을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+/** 조사 이력이 있는 구역들의 최근 조사 상태(구역 목록 배지용). */
+export async function fetchZoneRuns(): Promise<ZoneRunSummary[]> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/zones-runs`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 조사 상태를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function startZoneResearch(zoneId: string, tradeLimit?: number, fast?: boolean): Promise<{ zoneId: string; run: ResearchRun }> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/start`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ tradeLimit, fast }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 조사를 시작하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function startAuctionResearch(
+  auctionId: string,
+  toleranceM: number,
+  tradeLimit?: number,
+  fast?: boolean,
+): Promise<{ zoneId: string; zoneName: string; run: ResearchRun }> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/auctions/${encodeURIComponent(auctionId)}/start`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ toleranceM, tradeLimit, fast }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "조사를 시작하지 못했습니다.");
+  return readJsonResponse(res);
 }

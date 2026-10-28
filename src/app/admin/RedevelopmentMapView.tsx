@@ -82,8 +82,8 @@ export function RedevelopmentMapView({
         if (cancelled || !containerRef.current || !window.kakao) return;
         const kakao = window.kakao;
         mapRef.current = new kakao.maps.Map(containerRef.current, {
-          center: new kakao.maps.LatLng(36.5, 127.8),
-          level: 13,
+          center: new kakao.maps.LatLng(37.5665, 126.978),
+          level: 8,
         });
         setReady(true);
       })

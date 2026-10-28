@@ -43,9 +43,9 @@ export function SiteSettingsPanel() {
       <h3 className="text-sm font-bold text-foreground mb-3">사이트 노출 설정</h3>
       <label className="flex items-center justify-between gap-4 py-1.5 cursor-pointer">
         <span className="text-sm">
-          <span className="font-medium text-foreground">등기·임차인 정보 숨김(수강생 이하 등급)</span>
+          <span className="font-medium text-foreground">임차인·등기 정보 숨김(수강생 이하 등급)</span>
           <span className="block text-xs text-muted-foreground mt-0.5">
-            켜면 물건 상세의 &quot;등기·임차인 정보&quot; 섹션(건물 등기 권리내역/임차인·점유 현황/미납 관리비)이
+            켜면 물건 상세의 &quot;임차인·등기 정보&quot; 섹션(임차인·점유 현황/건물 등기 권리내역/미납 관리비)이
             수강생·회원·OT수강생 등급에게 보이지 않습니다. 컨설팅수강생 이상은 항상 볼 수 있습니다.
           </span>
         </span>

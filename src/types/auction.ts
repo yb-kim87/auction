@@ -190,6 +190,8 @@ export interface UserProfile {
   firstTimeBuyer?: boolean;
   aiAnalysisLimit?: number;
   aiAnalysisUsed?: number;
+  /** 수강생 이용 만료 시각(ISO). 없으면 기한 없음. 지나면 서버가 승인대기로 돌린다. */
+  roleExpiresAt?: string | null;
   createdAt: string;
 }
 

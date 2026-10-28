@@ -149,16 +149,16 @@ function InvestmentSummaryCard({
         ? "border-red-200 bg-red-50/80"
         : accent === "warning"
           ? "border-amber-200 bg-amber-50/70"
-          : "border-border bg-card";
+          : "border-slate-200 bg-slate-50/70";
   return (
-    <div className={`min-w-0 rounded-xl border px-3.5 py-3 ${cardClass}`}>
-      <div className="flex items-center gap-1.5 text-[0.68rem] font-medium text-muted-foreground">
+    <div className={`min-w-0 rounded-xl border px-4 py-3.5 ${cardClass}`}>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         {icon}
         <span>{label}</span>
       </div>
-      <p className={`mt-1.5 text-[0.95rem] font-bold leading-snug ${accentClass}`}>{value}</p>
+      <p className={`mt-2 text-base font-bold leading-snug ${accentClass}`}>{value}</p>
       {detail && (
-        <p className="mt-1 text-[0.68rem] leading-snug text-muted-foreground line-clamp-2" title={detail}>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground line-clamp-2" title={detail}>
           {detail}
         </p>
       )}
@@ -193,7 +193,7 @@ function detailVisibleFields(group: (typeof AUCTION_FIELD_GROUPS)[number]) {
  * 있는 등급 — 수강생(student)과 그 이하 등급(member/ot_student)은 못 보게
  * 해달라는 요청(사용자 요청, 2026-08-08). 컨설팅수강생 이상만 허용. */
 const REGISTRY_TENANT_VISIBLE_ROLES = new Set<UserRole>(["consulting_student", "consultant", "admin"]);
-const REGISTRY_TENANT_GROUP_TITLE = "등기·임차인 정보";
+const REGISTRY_TENANT_GROUP_TITLE = "임차인·등기 정보";
 
 function hasDisplayValue(value: unknown): boolean {
   if (value == null) return false;
@@ -602,6 +602,13 @@ function ExpandableDetailField({
 
 function BidHistoryTimeline({ value, nextBidDate }: { value: string; nextBidDate?: string | null }) {
   const rows = String(value ?? "").split(/\r?\n/).map((row) => row.trim()).filter(Boolean);
+  const dateKey = (text: string | null | undefined) => {
+    const match = String(text ?? "").match(/((?:19|20)\d{2})\D+(\d{1,2})\D+(\d{1,2})/);
+    return match ? `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}` : null;
+  };
+  const nextDate = dateKey(nextBidDate);
+  const matches = nextDate ? rows.map((row, index) => ({ row, index })).filter(({ row }) => dateKey(row) === nextDate && !/유찰|낙찰|매각|취하|취소|변경|정지/.test(row)) : [];
+  const currentIndex = matches.length === 1 ? matches[0].index : -1;
   if (rows.length === 0) {
     return <p className="text-[0.82rem] text-muted-foreground">입찰 진행 내역이 없습니다.</p>;
   }
@@ -610,15 +617,15 @@ function BidHistoryTimeline({ value, nextBidDate }: { value: string; nextBidDate
       <div className="relative space-y-0">
         {rows.map((row, index) => {
           const isLast = index === rows.length - 1;
-          const isUpcoming = Boolean(nextBidDate && row.includes(nextBidDate));
+          const isUpcoming = index === currentIndex;
           return (
             <div key={`${row}-${index}`} className="relative flex gap-3 pb-3 last:pb-0">
               {!isLast && <span className="absolute left-[7px] top-4 bottom-0 w-px bg-border" />}
-              <span className={`relative mt-1 h-[15px] w-[15px] shrink-0 rounded-full border-[3px] ${isUpcoming ? "border-primary bg-white" : "border-slate-300 bg-white"}`} />
-              <div className={`min-w-0 flex-1 rounded-lg px-3 py-2 ${isUpcoming ? "bg-primary/[0.06] text-primary" : "bg-secondary/35 text-foreground"}`}>
-                <div className="flex items-center gap-2">
-                  <span className="text-[0.78rem] font-semibold leading-relaxed">{row}</span>
-                  {isUpcoming && <span className="ml-auto shrink-0 rounded-full bg-primary px-2 py-0.5 text-[0.62rem] font-bold text-primary-foreground">예정</span>}
+              <span className={`relative mt-1 h-[15px] w-[15px] shrink-0 rounded-full border-[3px] ${isUpcoming ? "border-orange-600 bg-orange-100" : "border-slate-300 bg-white"}`} />
+              <div className={`min-w-0 flex-1 rounded-lg px-3 py-2 ${isUpcoming ? "border border-orange-300 bg-orange-50 text-orange-800" : "bg-secondary/35 text-foreground"}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`${isUpcoming ? "text-sm font-bold" : "text-[0.78rem] font-semibold"} leading-relaxed`}>{row}</span>
+                  {isUpcoming && <span className="ml-auto shrink-0 rounded-full bg-orange-600 px-2 py-0.5 text-[0.65rem] font-bold text-white">현재 차수</span>}
                 </div>
               </div>
             </div>
@@ -1383,6 +1390,16 @@ function parsePreviewNumber(value: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatAreaWithPyeong(value: string): string {
+  const text = value.trim();
+  if (!text) return "-";
+  const match = text.match(/^([\d,]+(?:\.\d+)?)\s*(?:㎡|m²|m2)?$/i);
+  if (!match) return text;
+  const squareMeters = Number(match[1].replace(/,/g, ""));
+  if (!Number.isFinite(squareMeters)) return text;
+  return `${match[1]}㎡ (${(squareMeters / 3.305785).toFixed(1)}평)`;
+}
+
 function formatFieldValue(
   key: keyof UpdateAuctionPayload,
   item: AuctionItem,
@@ -1400,20 +1417,21 @@ function formatFieldValue(
     const landShare = String(item.landShare ?? "").trim();
     if (!landShare) return "-";
     const sharedArea = isAdmin ? String(item.sharedArea ?? "").trim() : "";
-    return sharedArea ? `${landShare}㎡ (공용 ${sharedArea}㎡)` : `${landShare}㎡`;
+    const formatted = formatAreaWithPyeong(landShare);
+    return sharedArea ? `${formatted} (공용 ${sharedArea}㎡)` : formatted;
   }
 
   const value = item[key as keyof AuctionItem];
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "number") {
     if (key === "totalUnits") return `${fmt(value)}세대`;
-    if (key === "builtYear") return `${fmt(value)}년`;
+    if (key === "builtYear") return `${value}년`;
     if (key === "views") return fmt(value);
     return fmtEok(value);
   }
   if (key === "area") {
     const text = String(value).trim();
-    return /㎡|평/.test(text) ? text : `${text}㎡`;
+    return formatAreaWithPyeong(text);
   }
   return String(value);
 }
@@ -1744,7 +1762,13 @@ export function AuctionDetailModal({
   coachViewUsername = null,
   viewerRole = null,
   initialShowAssignmentEditor = false,
+  extraTab = null,
+  floating = false,
 }: {
+  /** 호출부가 추가로 끼워 넣는 탭(예: 관리자 "재개발물건"의 조사 패널). 있으면 탭 줄 맨 뒤에 나온다. */
+  extraTab?: { label: string; content: ReactNode } | null;
+  /** 비교 창도 일반 상세창과 같은 레이아웃 크기를 유지하되 더 앞에 표시한다. */
+  floating?: boolean;
   item: AuctionItem | null;
   onClose: () => void;
   onViewHistory?: (item: AuctionItem) => void;
@@ -1759,7 +1783,7 @@ export function AuctionDetailModal({
   favoriteCategory?: string | null;
   /** 모달을 열 때 기본으로 보여줄 탭(예: "내 물건"에서 입찰계획을
    * 클릭하면 바로 입찰계획 탭으로). */
-  initialTab?: "info" | "ai" | "profit";
+  initialTab?: "info" | "ai" | "profit" | "extra";
   onToggleFavorite?: (next: boolean, category?: string | null, memo?: string | null) => Promise<void>;
   onAiAnalysisClick?: (item: AuctionItem) => void;
   onDislike?: (item: AuctionItem) => void;
@@ -1844,12 +1868,14 @@ export function AuctionDetailModal({
   const [memoInlineEditing, setMemoInlineEditing] = useState(false);
   const [memoInlineSaving, setMemoInlineSaving] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<"info" | "ai" | "profit">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "ai" | "profit" | "extra">("info");
   const [cachedAnalysis, setCachedAnalysis] = useState<AuctionAnalysisResult | null>(null);
   const auctionNoInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLTextAreaElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const modalHistoryTokenRef = useRef(`auction-detail-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const historyCleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopEditingHeader = () => setEditingHeader(null);
   const stopEditingPrice = () => setEditingPrice(null);
@@ -1934,7 +1960,14 @@ export function AuctionDetailModal({
   // modal instead of navigating past the list page that opened it.
   useEffect(() => {
     if (!item) return;
-    window.history.pushState({ auctionDetailModal: true }, "");
+    if (historyCleanupTimerRef.current) {
+      clearTimeout(historyCleanupTimerRef.current);
+      historyCleanupTimerRef.current = null;
+    }
+    const token = modalHistoryTokenRef.current;
+    if (window.history.state?.auctionDetailModal !== token) {
+      window.history.pushState({ ...window.history.state, auctionDetailModal: token }, "");
+    }
 
     const onPopState = () => {
       onCloseRef.current();
@@ -1943,9 +1976,11 @@ export function AuctionDetailModal({
 
     return () => {
       window.removeEventListener("popstate", onPopState);
-      if (window.history.state?.auctionDetailModal) {
-        window.history.back();
-      }
+      // React 개발 모드의 effect 재실행에서는 정리를 취소해 뒤로 가기 이벤트가 새 팝업을 닫지 않게 한다.
+      historyCleanupTimerRef.current = setTimeout(() => {
+        if (window.history.state?.auctionDetailModal === token) window.history.back();
+        historyCleanupTimerRef.current = null;
+      }, 0);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id]);
@@ -2217,7 +2252,7 @@ export function AuctionDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center p-0 sm:p-6 overflow-y-auto sm:items-center sm:overflow-hidden"
+      className={floating ? "fixed inset-0 z-[120] flex items-start justify-center p-0 sm:p-6 overflow-y-auto sm:items-center sm:overflow-hidden" : "fixed inset-0 z-[100] flex items-start justify-center p-0 sm:p-6 overflow-y-auto sm:items-center sm:overflow-hidden"}
       onMouseDown={(e) => {
         backdropMouseDownRef.current = !contentRef.current?.contains(e.target as Node);
       }}
@@ -2228,7 +2263,7 @@ export function AuctionDetailModal({
         backdropMouseDownRef.current = false;
       }}
     >
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+      {!floating && <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />}
 
       <div
         ref={contentRef}
@@ -2312,29 +2347,23 @@ export function AuctionDetailModal({
           style={{ backgroundColor: "#f4f6f9" }}
         >
         <div className="flex-1 min-w-0">
-          <div className="sm:pt-5 sm:px-5">
-          <div className="relative h-40 sm:h-56 overflow-hidden bg-secondary rounded-none sm:rounded-xl">
-            <img
-              src={
-                preview.usage === "아파트"
-                  ? "/thumb-apartment.jpg"
-                  : "/thumb-villa.jpg"
-              }
-              alt={preview.usage || "물건"}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
-            <div className="absolute top-3 left-3 flex items-center gap-1.5">
-              <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-white/90 backdrop-blur text-primary border border-white/60">
+          <div className="hidden flex-col items-start gap-2 bg-card px-5 pt-5 sm:flex">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
                 {preview.usage || preview.propType}
               </span>
+              {!editable && preview.specialNote?.trim() && preview.specialNote.trim() !== "없음" && (
+                <span className="text-sm font-semibold text-red-600">{preview.specialNote.trim()}</span>
+              )}
               {isNewCase && (
-                <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-500/90 backdrop-blur text-white">
+                <span className="rounded-lg bg-blue-500 px-2 py-1 text-xs font-semibold text-white">
                   신건
                 </span>
               )}
             </div>
-          </div>
+            <span className="text-2xl font-bold leading-tight tracking-tight text-foreground">
+              {(editable ? form.auctionNo : preview.auctionNo) || "경매번호 없음"}
+            </span>
           </div>
 
           <div className="flex sm:hidden items-center justify-between gap-2 bg-primary text-primary-foreground px-4 py-3">
@@ -2342,6 +2371,7 @@ export function AuctionDetailModal({
               <span className={`${LABEL_TEXT} bg-white/15 px-2 py-0.5 rounded-sm shrink-0`}>
                 {preview.usage || preview.propType}
               </span>
+              {isNewCase && <span className={`${LABEL_TEXT} rounded-sm bg-blue-500 px-2 py-0.5 text-white`}>신건</span>}
               <span className={`font-mono font-bold ${SECTION_TEXT} truncate`}>
                 {(editable ? form.auctionNo : preview.auctionNo) || "경매번호 없음"}
               </span>
@@ -2387,6 +2417,184 @@ export function AuctionDetailModal({
                 <X size={16} />
               </button>
             </div>
+          </div>
+
+          {!editable && preview.specialNote?.trim() && preview.specialNote.trim() !== "없음" && (
+            <div className="bg-card px-4 pt-3 text-sm font-semibold text-red-600 sm:hidden">{preview.specialNote.trim()}</div>
+          )}
+
+          {!editable && preview.address && (
+            <div className="flex items-center gap-2 bg-card px-4 pb-3 pt-3 sm:px-5">
+              <a
+                href={`https://map.naver.com/p/search/${encodeURIComponent(preview.address)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-1 py-1 text-left transition-colors hover:text-primary"
+                title="네이버 지도에서 주소 보기"
+              >
+                <MapPin
+                  size={17}
+                  className="mt-0.5 shrink-0 text-primary"
+                  aria-hidden
+                />
+                <span className="min-w-0">
+                  <span className="block text-[0.68rem] font-semibold text-muted-foreground">
+                    물건 소재지
+                  </span>
+                  <span className="mt-0.5 block text-sm font-semibold leading-relaxed text-foreground group-hover:text-primary">
+                    {preview.address}
+                  </span>
+                </span>
+                <ExternalLink
+                  size={13}
+                  className="ml-auto mt-1 shrink-0 text-muted-foreground opacity-60"
+                  aria-hidden
+                />
+              </a>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(preview.address);
+                    setAddressCopied(true);
+                    window.setTimeout(() => setAddressCopied(false), 1800);
+                  } catch {
+                    setAddressCopied(false);
+                  }
+                }}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                  addressCopied
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-primary/[0.04] hover:text-primary"
+                }`}
+                aria-label="물건 소재지 복사"
+                title="주소 복사"
+              >
+                {addressCopied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+                <span>{addressCopied ? "복사됨" : "주소 복사"}</span>
+              </button>
+            </div>
+          )}
+
+          <div className={editable ? "hidden" : "bg-card px-4 pb-3 sm:px-5"}>
+          {!editable && (
+          <div>
+              <div>
+                {(() => {
+                  const unpaidFeeAmount = preview.unpaidFeeAmount ?? 0;
+                  const hasUnpaidFee = unpaidFeeAmount > 0;
+                  const hasUnpaidFeeCheck = hasDisplayValue(preview.unpaidFeeCheckedAt);
+                  const hasTenantData =
+                    hasDisplayValue(preview.tenantInfo) || hasDisplayValue(preview.tenantDetail);
+                  const hasRegistryData = hasDisplayValue(preview.buildingRegistry);
+                  return (
+                    <>
+                      {hasUnpaidFee && (
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 mb-3">
+                          <p className="text-[0.82rem] font-bold text-red-600">
+                            미납 관리비(체납금액) {unpaidFeeAmount.toLocaleString("ko-KR")}원
+                          </p>
+                          {preview.unpaidFeeNote && (
+                            <p className="text-[0.72rem] text-red-600/80 mt-0.5 whitespace-pre-wrap">
+                              {preview.unpaidFeeNote}
+                            </p>
+                          )}
+                          {preview.unpaidFeeCheckedAt && (
+                            <p className="text-[0.68rem] text-muted-foreground mt-1">
+                              조사일 {preview.unpaidFeeCheckedAt} 기준
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {!hasUnpaidFee && hasUnpaidFeeCheck && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 mb-3">
+                          <p className="text-[0.82rem] font-semibold text-emerald-700">
+                            조사된 미납 관리비 없음
+                          </p>
+                          <p className="text-[0.68rem] text-muted-foreground mt-1">
+                            조사일 {preview.unpaidFeeCheckedAt} 기준
+                          </p>
+                        </div>
+                      )}
+                      {(!hasTenantData || !hasRegistryData) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                          {!hasTenantData && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                              <p className="text-[0.72rem] font-semibold text-amber-800">임차인 정보 미확인</p>
+                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">입찰 전 점유·전입 확인 필요</p>
+                            </div>
+                          )}
+                          {!hasRegistryData && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                              <p className="text-[0.72rem] font-semibold text-amber-800">등기 자료 미확인</p>
+                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">권리분석 전 자료 확인 필요</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {preview.strategyTagsList && preview.strategyTagsList.length > 0 && (
+                        <div className="space-y-2">
+                          {dedupeStrategyTagsByLabel(preview.strategyTagsList).map((tag) => (
+                            <div
+                              key={tag.code}
+                              className="rounded-xl px-3.5 py-3"
+                              style={{
+                                background: "linear-gradient(135deg,#F5F0FF,#FBF6FF)",
+                                border: "1px solid rgba(147,51,234,0.15)",
+                              }}
+                            >
+                              <p className="text-[0.8rem] font-bold text-purple-700 flex items-center gap-1.5">
+                                <span aria-hidden>💎</span>
+                                {tag.label}
+                              </p>
+                              {tag.description && (
+                                <p className="text-[0.72rem] text-purple-900/60 mt-1 leading-relaxed whitespace-pre-wrap">
+                                  {tag.description}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {(onDislike || onReviewed || onViewHistory) && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {onDislike && (
+                    <button
+                      type="button"
+                      onClick={() => onDislike(item)}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
+                    >
+                      관심없음
+                    </button>
+                  )}
+                  {onReviewed && (
+                    <button
+                      type="button"
+                      onClick={() => onReviewed(item)}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
+                    >
+                      검토완료
+                    </button>
+                  )}
+                  {onViewHistory && (
+                    <button
+                      type="button"
+                      onClick={() => onViewHistory(item)}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
+                    >
+                      <History size={14} />
+                      변경 이력
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           </div>
 
           {editable && (
@@ -2574,16 +2782,8 @@ export function AuctionDetailModal({
           </div>
           )}
 
-          <section className="px-4 py-4 sm:px-5 sm:pt-5 sm:pb-4 bg-[#f4f6f9]">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-primary/60">
-                  {editable ? "사용자 화면 미리보기" : "투자 판단 요약"}
-                </p>
-                <h2 className="mt-0.5 text-base font-bold text-foreground">이 물건 한눈에 보기</h2>
-              </div>
-              {preview.caseState && <CaseStateBadge caseState={preview.caseState} />}
-            </div>
+          <section className="border-b border-border bg-card px-4 pb-5 pt-2 sm:px-5">
+            {preview.caseState && <div className="mb-2 flex justify-end"><CaseStateBadge caseState={preview.caseState} /></div>}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
               <InvestmentSummaryCard
                 label="최소 필요자금"
@@ -2652,59 +2852,6 @@ export function AuctionDetailModal({
             )}
           </section>
 
-          {!editable && preview.address && (
-            <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-3 sm:px-5">
-              <a
-                href={`https://map.naver.com/p/search/${encodeURIComponent(preview.address)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-1 py-1 text-left transition-colors hover:text-primary"
-                title="네이버 지도에서 주소 보기"
-              >
-                <MapPin
-                  size={17}
-                  className="mt-0.5 shrink-0 text-primary"
-                  aria-hidden
-                />
-                <span className="min-w-0">
-                  <span className="block text-[0.68rem] font-semibold text-muted-foreground">
-                    물건 소재지
-                  </span>
-                  <span className="mt-0.5 block text-sm font-semibold leading-relaxed text-foreground group-hover:text-primary">
-                    {preview.address}
-                  </span>
-                </span>
-                <ExternalLink
-                  size={13}
-                  className="ml-auto mt-1 shrink-0 text-muted-foreground opacity-60"
-                  aria-hidden
-                />
-              </a>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(preview.address);
-                    setAddressCopied(true);
-                    window.setTimeout(() => setAddressCopied(false), 1800);
-                  } catch {
-                    setAddressCopied(false);
-                  }
-                }}
-                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
-                  addressCopied
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-primary/[0.04] hover:text-primary"
-                }`}
-                aria-label="물건 소재지 복사"
-                title="주소 복사"
-              >
-                {addressCopied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-                <span>{addressCopied ? "복사됨" : "주소 복사"}</span>
-              </button>
-            </div>
-          )}
-
           <div className="sticky top-0 z-10 bg-card border-b border-border flex items-center sm:px-5">
             <button
               type="button"
@@ -2753,9 +2900,28 @@ export function AuctionDetailModal({
                 )}
               </button>
             )}
+            {extraTab && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("extra")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 text-sm font-semibold border-b-2 -mb-px transition-all ${
+                  activeTab === "extra"
+                    ? "border-primary text-primary bg-primary/[0.02]"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                }`}
+              >
+                <Home size={14} />
+                {extraTab.label}
+              </button>
+            )}
           </div>
 
           <div className="bg-card px-5 py-5 space-y-6">
+          {extraTab && (
+            <div className={activeTab === "extra" ? "block" : "hidden"} aria-hidden={activeTab !== "extra"}>
+              {activeTab === "extra" && extraTab.content}
+            </div>
+          )}
           <div className={activeTab === "ai" ? "block" : "hidden"} aria-hidden={activeTab !== "ai"}>
             {item && (
               <AuctionAnalysisPanel
@@ -2789,133 +2955,6 @@ export function AuctionDetailModal({
             )}
           </div>
           <div className={activeTab === "info" ? "block" : "hidden"} aria-hidden={activeTab !== "info"}>
-          {!editable && (
-            <div className="rounded-2xl bg-card border border-border overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
-                <Home size={16} className="text-muted-foreground" />
-                <h3 className="text-sm font-bold text-foreground">입찰 전 확인사항</h3>
-              </div>
-              <div className="px-5 py-4">
-                {(() => {
-                  const noteText = String(preview.specialNote ?? "").trim();
-                  const hasNote = noteText && noteText !== "없음";
-                  const unpaidFeeAmount = preview.unpaidFeeAmount ?? 0;
-                  const hasUnpaidFee = unpaidFeeAmount > 0;
-                  const hasUnpaidFeeCheck = hasDisplayValue(preview.unpaidFeeCheckedAt);
-                  const hasTenantData =
-                    hasDisplayValue(preview.tenantInfo) || hasDisplayValue(preview.tenantDetail);
-                  const hasRegistryData = hasDisplayValue(preview.buildingRegistry);
-                  return (
-                    <>
-                      {hasNote && (
-                        <p className="text-[0.82rem] font-semibold text-red-600 mb-3">{noteText}</p>
-                      )}
-                      {hasUnpaidFee && (
-                        <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 mb-3">
-                          <p className="text-[0.82rem] font-bold text-red-600">
-                            미납 관리비(체납금액) {unpaidFeeAmount.toLocaleString("ko-KR")}원
-                          </p>
-                          {preview.unpaidFeeNote && (
-                            <p className="text-[0.72rem] text-red-600/80 mt-0.5 whitespace-pre-wrap">
-                              {preview.unpaidFeeNote}
-                            </p>
-                          )}
-                          {preview.unpaidFeeCheckedAt && (
-                            <p className="text-[0.68rem] text-muted-foreground mt-1">
-                              조사일 {preview.unpaidFeeCheckedAt} 기준
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {!hasUnpaidFee && hasUnpaidFeeCheck && (
-                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 mb-3">
-                          <p className="text-[0.82rem] font-semibold text-emerald-700">
-                            조사된 미납 관리비 없음
-                          </p>
-                          <p className="text-[0.68rem] text-muted-foreground mt-1">
-                            조사일 {preview.unpaidFeeCheckedAt} 기준
-                          </p>
-                        </div>
-                      )}
-                      {(!hasTenantData || !hasRegistryData) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                          {!hasTenantData && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
-                              <p className="text-[0.72rem] font-semibold text-amber-800">임차인 정보 미확인</p>
-                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">입찰 전 점유·전입 확인 필요</p>
-                            </div>
-                          )}
-                          {!hasRegistryData && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
-                              <p className="text-[0.72rem] font-semibold text-amber-800">등기 자료 미확인</p>
-                              <p className="text-[0.65rem] text-amber-800/65 mt-0.5">권리분석 전 자료 확인 필요</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {preview.strategyTagsList && preview.strategyTagsList.length > 0 && (
-                        <div className="space-y-2 mb-4">
-                          {dedupeStrategyTagsByLabel(preview.strategyTagsList).map((tag) => (
-                            <div
-                              key={tag.code}
-                              className="rounded-xl px-3.5 py-3"
-                              style={{
-                                background: "linear-gradient(135deg,#F5F0FF,#FBF6FF)",
-                                border: "1px solid rgba(147,51,234,0.15)",
-                              }}
-                            >
-                              <p className="text-[0.8rem] font-bold text-purple-700 flex items-center gap-1.5">
-                                <span aria-hidden>💎</span>
-                                {tag.label}
-                              </p>
-                              {tag.description && (
-                                <p className="text-[0.72rem] text-purple-900/60 mt-1 leading-relaxed whitespace-pre-wrap">
-                                  {tag.description}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {(onDislike || onReviewed || onViewHistory) && (
-                <div className="flex items-center flex-wrap gap-2 px-5 py-4 border-t border-border/50">
-                  {onDislike && (
-                    <button
-                      type="button"
-                      onClick={() => onDislike(item)}
-                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
-                    >
-                      관심없음
-                    </button>
-                  )}
-                  {onReviewed && (
-                    <button
-                      type="button"
-                      onClick={() => onReviewed(item)}
-                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
-                    >
-                      검토완료
-                    </button>
-                  )}
-                  {onViewHistory && (
-                    <button
-                      type="button"
-                      onClick={() => onViewHistory(item)}
-                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs text-muted-foreground border border-border hover:bg-secondary transition-colors"
-                    >
-                      <History size={14} />
-                      변경 이력
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="rounded-2xl bg-card border border-border overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4 border-b border-border/50">
@@ -3060,10 +3099,10 @@ export function AuctionDetailModal({
                   <div className="rounded-lg border border-orange-200/80 bg-orange-50/70 px-3.5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[0.68rem] font-semibold text-orange-700">현재 최저 입찰가</span>
-                      {failureRate != null && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-bold text-orange-700">감정가의 {failureRate}%</span>}
                     </div>
                     <div className="mt-1 text-lg font-extrabold text-orange-600">
                       {editable ? renderPriceField("minPrice", minPrice ? fmtEok(minPrice) : "-", { accent: "orange", title: "클릭하여 최저가 수정" }) : minPrice ? fmtEok(minPrice) : "-"}
+                      {failureRate != null && <span className="ml-1.5 whitespace-nowrap" aria-label={`감정가 대비 ${failureRate}%`} title="감정가 대비 최저 입찰가 비율">({failureRate}%)</span>}
                     </div>
                     <p className="mt-1 text-[0.65rem] text-orange-700/70">{d2 ? `주변 호가보다 ${fmtEok(Math.abs(d2.amount))} ${d2.amount >= 0 ? "낮음" : "높음"}` : "주변 호가 비교 정보 없음"}</p>
                   </div>
@@ -3071,6 +3110,7 @@ export function AuctionDetailModal({
                     <span className="text-[0.68rem] font-semibold text-muted-foreground">감정가</span>
                     <div className="mt-1 text-lg font-bold text-foreground">
                       {editable ? renderPriceField("appraisedValue", appraisedValue ? fmtEok(appraisedValue) : "-", { title: "클릭하여 감정가 수정" }) : appraisedValue ? fmtEok(appraisedValue) : "-"}
+                      {!!appraisedValue && <span className="ml-1.5 whitespace-nowrap">(100%)</span>}
                     </div>
                     <p className="mt-1 text-[0.65rem] text-muted-foreground">감정가와 {d3 ? (d3.amount === 0 ? "동일" : `${fmtEok(Math.abs(d3.amount))} ${d3.amount > 0 ? "높음" : "낮음"}`) : "비교 정보 없음"}</p>
                   </div>
@@ -3211,14 +3251,14 @@ export function AuctionDetailModal({
                 return null;
               }
               const fields = detailVisibleFields(group).filter((field) => {
-                if (field.key === "owner" || field.key === "tenantInfo") return false;
+                if (field.key === "tenantInfo") return false;
                 if (field.key === "recordTime" && !isAdmin) return false;
                 return shouldShowUserDetailField(field.key, item);
               });
               if (fields.length === 0) return null;
 
               return (
-                <details key={group.title} open={group.title === "등기·임차인 정보" || group.title === "입찰 및 진행 상태"} className={`group rounded-2xl bg-card border border-border overflow-hidden ${groupIndex === 0 ? "mt-3" : ""}`}>
+                <details key={group.title} open={group.title === "경매 중요정보" || group.title === "건물·면적 정보" || group.title === REGISTRY_TENANT_GROUP_TITLE || group.title === "입찰 및 진행 상태"} className={`group rounded-2xl bg-card border border-border overflow-hidden ${groupIndex === 0 ? "mt-3" : ""}`}>
                   <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 border-b border-border/50 hover:bg-secondary/30 transition-colors [&::-webkit-details-marker]:hidden">
                     <FileText size={16} className="text-muted-foreground" />
                     <h3 className="text-sm font-bold text-foreground">{group.title}</h3>
@@ -3240,7 +3280,16 @@ export function AuctionDetailModal({
                               )}
                             </p>
                             <div className="text-[0.82rem] font-medium text-foreground break-words min-w-0">
-                              {field.key === "tenantInfo" ? (
+                              {field.key === "bidDate" ? (
+                                <>
+                                  {value}
+                                  {(/^\d+일 남음$/.test(bidSchedule.value) || bidSchedule.value === "오늘 입찰") && (
+                                    <span className="ml-2 inline-block rounded-md bg-orange-50 px-2 py-0.5 text-xs font-bold text-orange-700">
+                                      {bidSchedule.value === "오늘 입찰" ? "D-DAY" : `D-${bidSchedule.value.match(/^\d+/)?.[0]}`}
+                                    </span>
+                                  )}
+                                </>
+                              ) : field.key === "tenantInfo" ? (
                                 <TenantInfoField
                                   value={String(item.tenantInfo ?? "")}
                                   editable={false}
@@ -3482,6 +3531,8 @@ export function AuctionDetailModal({
               {[
                 { icon: <Building2 size={14} />, label: "소재지", value: `${preview.city} ${preview.district}` },
                 { icon: <Calendar size={14} />, label: "입찰기일", value: preview.bidDate || "-" },
+                { icon: <WalletCards size={14} />, label: "감정가", value: appraisedValue > 0 ? fmtEok(appraisedValue) : "-" },
+                { icon: <WalletCards size={14} />, label: "최저 입찰가", value: minPrice > 0 ? `${fmtEok(minPrice)}${failureRate != null ? ` (${failureRate}%)` : ""}` : "-" },
               ].map(({ icon, label, value }, i) => (
                 <div key={i} className="flex items-start gap-2.5">
                   <div className="w-4 h-4 flex items-center justify-center text-muted-foreground flex-shrink-0 mt-0.5">{icon}</div>

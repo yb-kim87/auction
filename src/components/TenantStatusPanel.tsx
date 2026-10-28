@@ -16,8 +16,8 @@ const toneClass: Record<string, string> = {
 };
 
 const headCellClass =
-  "px-3 py-2 text-left text-[0.68rem] font-medium text-muted-foreground whitespace-nowrap";
-const bodyCellClass = "px-3 py-2.5 text-[0.78rem] leading-relaxed text-foreground align-top";
+  "px-1.5 py-2 text-left text-[0.68rem] font-medium text-muted-foreground break-keep";
+const bodyCellClass = "px-1.5 py-2.5 text-[0.78rem] leading-relaxed text-foreground align-top [overflow-wrap:anywhere]";
 
 function extractSuccessorKey(tenantName: string): string | null {
   const match = tenantName.match(/\(([^)]*승계인[^)]*)\)/);
@@ -144,21 +144,21 @@ export function TenantStatusPanel({
         })}
       </div>
 
-      <div className="hidden overflow-x-auto max-h-72 overflow-y-auto 2xl:block">
-        <table className="w-full min-w-[1020px] table-fixed border-collapse">
+      <div className="hidden max-h-72 overflow-y-auto 2xl:block">
+        <table className="w-full table-fixed border-collapse">
           <colgroup>
-            <col className="w-[72px]" />
-            <col className="w-[105px]" />
-            <col className="w-[150px]" />
-            <col className="w-[155px]" />
-            <col className="w-[135px]" />
-            <col className="w-[90px]" />
-            <col className="w-[140px]" />
-            <col className="w-[173px]" />
+            <col className="w-[5%]" />
+            <col className="w-[14%]" />
+            <col className="w-[15%]" />
+            <col className="w-[16%]" />
+            <col className="w-[14%]" />
+            <col className="w-[8%]" />
+            <col className="w-[16%]" />
+            <col className="w-[12%]" />
           </colgroup>
           <thead className="sticky top-0 bg-card border-b border-border shadow-[0_1px_0_0_var(--border)]">
             <tr>
-              <th className={headCellClass}>점유목록</th>
+              <th className={headCellClass}>목록</th>
               <th className={headCellClass}>임차인</th>
               <th className={headCellClass}>점유부분/기간</th>
               <th className={headCellClass}>전입/확정/배당</th>
@@ -178,7 +178,7 @@ export function TenantStatusPanel({
                   <span className="break-words">{row.tenantName || "-"}</span>
                 </td>
                 <td className={`${bodyCellClass} whitespace-pre-line break-words`}>{row.occupancy || "-"}</td>
-                <td className={`${bodyCellClass} whitespace-nowrap`}>
+                <td className={bodyCellClass}>
                   {row.dates
                     ? row.dates.split(" / ").map((part, idx) => <div key={idx}>{part}</div>)
                     : "-"}
@@ -187,7 +187,7 @@ export function TenantStatusPanel({
                   {row.depositRent || "-"}
                 </td>
                 <td
-                  className={`${bodyCellClass} whitespace-nowrap ${
+                  className={`${bodyCellClass} ${
                     ownOpposability === "없음"
                       ? "text-emerald-700 font-bold"
                       : opposabilityTone(displayedOpposability) === "danger"
@@ -202,7 +202,7 @@ export function TenantStatusPanel({
                 >
                   {displayedOpposability}
                   {hasWaiver && (
-                    <span className="mt-1 block w-fit px-1.5 py-0.5 rounded text-[0.6rem] font-semibold bg-amber-100 text-amber-700 whitespace-nowrap">
+                    <span className="mt-1 block w-fit px-1.5 py-0.5 rounded text-[0.6rem] font-semibold bg-amber-100 text-amber-700">
                       임차권 포기
                     </span>
                   )}
