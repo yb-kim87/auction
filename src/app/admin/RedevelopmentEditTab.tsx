@@ -21,7 +21,6 @@ import { loadKakaoMaps } from "@/lib/kakao-maps";
 import { RedevelopmentEditMapView } from "./RedevelopmentEditMapView";
 import { RedevelopmentImageTraceTool } from "./RedevelopmentImageTraceTool";
 import { RedevelopmentTraceFailurePanel } from "./RedevelopmentTraceFailurePanel";
-import { RedevelopmentEditAuctionCoordFiller } from "./RedevelopmentEditAuctionCoordFiller";
 import { RedevelopmentEditSelectedAuction } from "./RedevelopmentEditSelectedAuction";
 
 import { RedevelopmentEditAuctionList } from "./RedevelopmentEditAuctionList";
@@ -749,14 +748,6 @@ export function RedevelopmentEditTab() {
         >
           구역도 업데이트
         </button>
-        <RedevelopmentEditAuctionCoordFiller
-          zones={allJaegebalZones}
-          knownAuctionIds={knownAuctionIds}
-          targetGu={allGu}
-          toleranceM={toleranceM}
-          autoRun={loadedOnce}
-          onDone={load}
-        />
         <div className="relative ml-auto">
           <form
             className="flex items-center gap-1.5 rounded-md border-2 border-primary bg-primary/5 p-1.5 shadow-sm"

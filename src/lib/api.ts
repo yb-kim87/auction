@@ -5913,34 +5913,6 @@ export async function fetchListingDetailNow(zoneId: string, articleNo: string): 
   return readJsonResponse(res);
 }
 
-export type AuctionCoordBackfillStatus = {
-  running: boolean;
-  total: number;
-  done: number;
-  saved: number;
-  startedAt: string | null;
-  finishedAt: string | null;
-  error: string | null;
-};
-
-/** 좌표 없는 기존 서울 빌라 경매물건의 좌표를 서버가 한 번에 채우는 작업(구역 근처만 저장) 상태. */
-export async function fetchAuctionCoordBackfillStatus(): Promise<AuctionCoordBackfillStatus> {
-  const res = await apiFetch(`${API_BASE}/redevelopment-research/auction-coords/status`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
-  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "좌표 채우기 상태를 불러오지 못했습니다.");
-  return readJsonResponse(res);
-}
-
-export async function startAuctionCoordBackfill(): Promise<AuctionCoordBackfillStatus> {
-  const res = await apiFetch(`${API_BASE}/redevelopment-research/auction-coords/backfill`, {
-    method: "POST",
-    credentials: FETCH_CREDENTIALS,
-    headers: withJsonHeaders(),
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "좌표 채우기를 시작하지 못했습니다.");
-  return readJsonResponse(res);
-}
-
 export type ZoneRunSummary = {
   zoneId: string;
   status: ResearchRunStatus;
