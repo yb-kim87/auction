@@ -755,6 +755,7 @@ export function RedevelopmentEditTab() {
         >
           구역도 업데이트
         </button>
+        <span className="text-xs text-muted-foreground">재개발닷컴의 구역 정보를 업데이트합니다</span>
         <div className="relative ml-auto">
           <form
             className="flex items-center gap-1.5 rounded-md border-2 border-primary bg-primary/5 p-1.5 shadow-sm"
@@ -837,7 +838,7 @@ export function RedevelopmentEditTab() {
 
       {showZoneUpdateInfo && (
         <div className="rounded-sm border border-border bg-card px-4 py-3 text-xs space-y-1.5">
-          <p className="font-semibold text-foreground">재개발닷컴 구역도 업데이트</p>
+          <p className="font-semibold text-foreground">재개발닷컴 구역도 업데이트 <span className="font-normal text-muted-foreground">— 재개발닷컴의 구역 경계·정보를 새로 수집해 반영합니다</span></p>
           <p className="text-muted-foreground">
             지금 반영된 재개발닷컴 구역 <b className="text-foreground">{allJaegebalZones.length.toLocaleString("ko-KR")}개</b>
             {jaegebalLastUpdatedAt ? ` · 마지막 반영 ${new Date(jaegebalLastUpdatedAt).toLocaleString("ko-KR")}` : ""}
