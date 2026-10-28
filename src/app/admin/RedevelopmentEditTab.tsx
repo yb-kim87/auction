@@ -29,6 +29,8 @@ import { PROGRESS_STEPS, stageDisplayLabel, stagePosition } from "@/lib/zone-pro
 import { countCurrentZoneAuctions } from "@/lib/zone-auction-counts";
 import { RedevelopmentEditSelectedZone } from "./RedevelopmentEditSelectedZone";
 import { readFastResearch } from "./RedevelopmentEditResearchPanel";
+
+const SHOW_ZONE_DRAWING_BUTTONS = false;
 import { RedevelopmentEditZoneFilters } from "./RedevelopmentEditZoneFilters";
 import { buildZoneBoxes, DEFAULT_BOUNDARY_TOLERANCE_M, findZoneIds, NEAR_BOUNDARY_MAX_M } from "@/lib/zone-geometry";
 
@@ -718,7 +720,8 @@ export function RedevelopmentEditTab() {
         <button type="button" onClick={load} disabled={loading} className="text-xs text-primary hover:underline disabled:opacity-50">
           {loading ? "불러오는 중..." : "새로고침"}
         </button>
-        {!drawing && !imageTracing && !pendingPoints && (
+        {/* 새 구역 그리기·이미지로 구역 그리기 버튼은 숨김(재개발닷컴 데이터로 구역을 관리하므로 현재 쓰지 않음, 2026-10-28). 코드는 보존. */}
+        {SHOW_ZONE_DRAWING_BUTTONS && !drawing && !imageTracing && !pendingPoints && (
           <>
             <button
               type="button"
