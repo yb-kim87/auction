@@ -849,7 +849,10 @@ export function RedevelopmentEditTab() {
           </p>
           <p className="text-muted-foreground">
             업데이트가 필요하면 Claude에게 <b className="text-foreground">&quot;재개발닷컴 구역도 업데이트해줘&quot;</b>라고 요청해 주세요.
-            수집이 끝나면 이 화면의 "새로고침"으로 반영된 구역을 확인할 수 있습니다.
+            수집이 끝나면 브라우저를 새로고침(F5)해 반영된 구역을 확인하세요.
+          </p>
+          <p className="text-muted-foreground">
+            마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인).
           </p>
         </div>
       )}
