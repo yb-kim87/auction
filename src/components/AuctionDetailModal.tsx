@@ -195,6 +195,35 @@ function detailVisibleFields(group: (typeof AUCTION_FIELD_GROUPS)[number]) {
 const REGISTRY_TENANT_VISIBLE_ROLES = new Set<UserRole>(["consulting_student", "consultant", "admin"]);
 const REGISTRY_TENANT_GROUP_TITLE = "임차인·등기 정보";
 
+const TENANT_AUTO_KEY = "tenant-auto-refresh-at";
+const TENANT_AUTO_TTL_MS = 6 * 60 * 60 * 1000;
+
+/** 관리자가 현황이 비어 있는 물건 상세를 열 때 자동 조회는 같은 물건에 대해 6시간에 한 번만(법원이 아직 안 올린 경우 탱크옥션을 계속 두드리지 않도록). */
+function readTenantAutoTried(): Record<string, number> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TENANT_AUTO_KEY) ?? "{}") as Record<string, number>;
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(raw).filter(([, at]) => now - at < TENANT_AUTO_TTL_MS));
+  } catch {
+    return {};
+  }
+}
+
+function shouldAutoRefreshTenant(id: string): boolean {
+  return readTenantAutoTried()[id] == null;
+}
+
+function markTenantAutoTried(id: string, on: boolean) {
+  try {
+    const m = readTenantAutoTried();
+    if (on) m[id] = Date.now();
+    else delete m[id];
+    localStorage.setItem(TENANT_AUTO_KEY, JSON.stringify(m));
+  } catch {
+    // 저장 불가 환경이면 그냥 넘어간다.
+  }
+}
+
 /** 임차인·점유 현황이 아직 안 올라온 상태(빈 값·"값없음"). "조사된 임차내역 없음"은 법원이 조사한 결과라 해당하지 않는다. */
 function isTenantDetailPending(value: unknown): boolean {
   const text = String(value ?? "").trim();
@@ -1833,6 +1862,15 @@ export function AuctionDetailModal({
     setItemOverride(null);
   }, [itemProp]);
   const item = itemOverride && itemProp && itemOverride.id === itemProp.id ? itemOverride : itemProp;
+  const tenantRefreshRef = useRef<((auto: boolean) => Promise<void>) | null>(null);
+  // 관리자가 임차인·점유 현황이 없는 물건 상세를 열면 자동으로 한 번 조회한다. 값이 올라와 있으면 채워지고, 없으면 그대로 둔다.
+  useEffect(() => {
+    if (!isAdmin || !item?.id || !isTenantDetailPending(item.tenantDetail) || !item.link?.trim()) return;
+    if (!shouldAutoRefreshTenant(item.id)) return;
+    const timer = setTimeout(() => void tenantRefreshRef.current?.(true), 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, item?.id]);
   // "등기·임차인 정보" 섹션을 수강생 이하 등급에게 숨길지는 관리자가
   // 토글로 켜고 끌 수 있다(사용자 요청, 2026-08-08). 기본값(true)은
   // 기존 하드코딩 동작과 동일 — 설정 조회가 끝나기 전까지는 안전한
@@ -2184,13 +2222,14 @@ export function AuctionDetailModal({
   };
 
   // 임차인·점유 현황이 아직 없는 물건을 이 물건만 다시 크롤링해 채운다(관리자 전용).
-  const handleRefreshTenant = async () => {
+  const handleRefreshTenant = async (auto = false) => {
     if (!preview.link?.trim()) {
-      setTenantRefreshMessage("이 물건에 원본 링크가 없어 재크롤링할 수 없습니다.");
+      if (!auto) setTenantRefreshMessage("이 물건에 원본 링크가 없어 재크롤링할 수 없습니다.");
       return;
     }
     setTenantRefreshBusy(true);
-    setTenantRefreshMessage("임차인·점유 현황 조회를 요청했습니다...");
+    setTenantRefreshMessage(auto ? "임차인·점유 현황 확인 중..." : "임차인·점유 현황 조회를 요청했습니다...");
+    if (auto) markTenantAutoTried(item.id, true);
     try {
       await crawlerStart({ urls: [preview.link], crawlerVersion: "v3" });
       let settled = false;
@@ -2213,19 +2252,31 @@ export function AuctionDetailModal({
         onSaved?.(updated);
       }
       const filled = updated ? !isTenantDetailPending(updated.tenantDetail) : false;
-      setTenantRefreshMessage(
-        filled
-          ? "완료: 임차인·점유 현황을 업데이트했습니다."
-          : settled
-            ? "조회는 끝났지만 아직 임차인·점유 현황이 올라오지 않았습니다."
-            : "완료까지 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요.",
-      );
+      if (auto) {
+        // 자동 조회: 값이 올라왔으면 화면이 바로 채워지고, 없으면 조용히 그대로 둔다.
+        setTenantRefreshMessage("");
+      } else {
+        setTenantRefreshMessage(
+          filled
+            ? "완료: 임차인·점유 현황을 업데이트했습니다."
+            : settled
+              ? "조회는 끝났지만 아직 임차인·점유 현황이 올라오지 않았습니다."
+              : "완료까지 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요.",
+        );
+      }
     } catch (err) {
-      setTenantRefreshMessage(err instanceof Error ? err.message : "임차인·점유 현황 업데이트에 실패했습니다.");
+      if (auto) {
+        // 다른 조회가 진행 중이거나 크롤러가 꺼져 있으면 조용히 포기하고, 다음에 열 때 다시 시도하도록 표시를 지운다.
+        markTenantAutoTried(item.id, false);
+        setTenantRefreshMessage("");
+      } else {
+        setTenantRefreshMessage(err instanceof Error ? err.message : "임차인·점유 현황 업데이트에 실패했습니다.");
+      }
     } finally {
       setTenantRefreshBusy(false);
     }
   };
+  tenantRefreshRef.current = handleRefreshTenant;
 
   const handleDelete = async () => {
     const label = item.auctionNo || item.address || "이 물건";
@@ -3343,7 +3394,7 @@ export function AuctionDetailModal({
                                   {tenantRefreshMessage && <span className="text-[0.68rem] text-muted-foreground">{tenantRefreshMessage}</span>}
                                   <button
                                     type="button"
-                                    onClick={() => void handleRefreshTenant()}
+                                    onClick={() => void handleRefreshTenant(false)}
                                     disabled={tenantRefreshBusy}
                                     className="rounded-md border border-border bg-card px-2.5 py-1 text-[0.7rem] font-semibold text-foreground hover:bg-secondary disabled:opacity-50"
                                   >
