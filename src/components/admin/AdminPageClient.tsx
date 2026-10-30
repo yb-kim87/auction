@@ -47,7 +47,7 @@ import { SwimApplyTab } from "@/app/admin/SwimApplyTab";
 import { ResaleMatchTab } from "@/app/admin/ResaleMatchTab";
 import { RealtorCollectTab } from "@/app/admin/RealtorCollectTab";
 import { ContractGeneratorTab } from "@/app/admin/ContractGeneratorTab";
-import { RedevelopmentEditTab } from "@/app/admin/RedevelopmentEditTab";
+import { RedevelopmentSection } from "@/app/admin/RedevelopmentSection";
 import { AssignmentReviewTab } from "@/app/admin/AssignmentReviewTab";
 import { SiteSettingsPanel } from "@/app/admin/SiteSettingsPanel";
 import { LectureReplayTab } from "@/app/admin/LectureReplayTab";
@@ -1069,7 +1069,7 @@ export function AdminPageClient() {
 
           {activeTab === "crawler" && <CrawlerWorkPanel />}
 
-          {activeTab === "redevelopment" && <RedevelopmentEditTab />}
+          {activeTab === "redevelopment" && <RedevelopmentSection />}
 
 
           {activeTab === "kakaoNotify" && <KakaoNotifyPanel />}

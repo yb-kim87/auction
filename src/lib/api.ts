@@ -5906,6 +5906,55 @@ export async function fetchJaegebalSyncStatus(): Promise<JaegebalSyncStatus> {
   return readJsonResponse(res);
 }
 
+export type ZoneChangeType = "new" | "stage" | "projectType" | "missing" | "restored";
+
+/** 재개발닷컴 구역 업데이트 1회 실행 기록(변경이 없던 실행 포함). */
+export type JaegebalSyncRun = {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  /** running | done | blocked(보안 확인으로 중단) | failed */
+  state: string;
+  codes: string[];
+  results: JaegebalSyncResult[];
+  blocked: string | null;
+  newCount: number;
+  stageCount: number;
+  typeCount: number;
+  missingCount: number;
+  restoredCount: number;
+};
+
+export type JaegebalZoneChange = {
+  id: string;
+  runId: string;
+  changedAt: string;
+  zoneKey: string;
+  zoneName: string;
+  region: string;
+  changeType: ZoneChangeType;
+  fromValue: string | null;
+  toValue: string | null;
+};
+
+export async function fetchJaegebalSyncRuns(limit = 100): Promise<JaegebalSyncRun[]> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/runs?limit=${limit}`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 업데이트 이력을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchJaegebalSyncRun(id: string): Promise<{ run: JaegebalSyncRun; changes: JaegebalZoneChange[] }> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/runs/${encodeURIComponent(id)}`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "업데이트 변경 내역을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchJaegebalZoneHistory(zoneKey: string): Promise<JaegebalZoneChange[]> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/zones/${encodeURIComponent(zoneKey)}/history`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 변경 이력을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export async function fetchZoneResearch(zoneId: string, toleranceM: number): Promise<AuctionResearch> {
   const res = await apiFetch(
     `${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/results?toleranceM=${toleranceM}`,

@@ -125,7 +125,7 @@ export function RedevelopmentJaegebalSync({ onFinished }: { onFinished: () => vo
           ))}
           {status.changes.length > 0 && (
             <details>
-              <summary className="cursor-pointer text-muted-foreground">변경 내역 {status.changes.length}건 보기</summary>
+              <summary className="cursor-pointer text-muted-foreground">변경 내역 {status.changes.length}건 보기 (누적 이력은 &quot;구역 업데이트 이력&quot; 탭에서)</summary>
               <ul className="mt-1 max-h-48 space-y-0.5 overflow-auto text-muted-foreground">
                 {status.changes.slice(0, MAX_CHANGES_SHOWN).map((c, i) => (
                   <li key={`${c.key}-${i}`}>
