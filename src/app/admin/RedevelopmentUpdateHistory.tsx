@@ -136,7 +136,7 @@ export function RedevelopmentUpdateHistory() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 px-4">
         <h2 className="text-lg font-bold text-foreground">구역 업데이트 이력</h2>
         <span className="text-xs text-muted-foreground">재개발닷컴 구역을 업데이트한 날짜별로, 그때 바뀐 구역을 모아 봅니다. 이력은 삭제되지 않고 계속 쌓입니다.</span>
         <button type="button" onClick={loadRuns} className="ml-auto rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted">

@@ -26,7 +26,7 @@ export function RedevelopmentUpdateTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-2 px-4">
         <h2 className="text-lg font-bold text-foreground">구역도 업데이트</h2>
         <span className="text-xs text-muted-foreground">재개발닷컴의 구역 경계·단계·사업유형을 새로 가져와 반영합니다. 업데이트가 끝나면 구역·지도 탭에 바로 보입니다.</span>
       </div>
