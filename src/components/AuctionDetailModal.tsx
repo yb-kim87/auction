@@ -195,6 +195,12 @@ function detailVisibleFields(group: (typeof AUCTION_FIELD_GROUPS)[number]) {
 const REGISTRY_TENANT_VISIBLE_ROLES = new Set<UserRole>(["consulting_student", "consultant", "admin"]);
 const REGISTRY_TENANT_GROUP_TITLE = "임차인·등기 정보";
 
+/** 임차인·점유 현황이 아직 안 올라온 상태(빈 값·"값없음"). "조사된 임차내역 없음"은 법원이 조사한 결과라 해당하지 않는다. */
+function isTenantDetailPending(value: unknown): boolean {
+  const text = String(value ?? "").trim();
+  return text === "" || text === "-" || text === "없음" || text === "값없음";
+}
+
 function hasDisplayValue(value: unknown): boolean {
   if (value == null) return false;
   if (typeof value === "number") return Number.isFinite(value) && value > 0;
@@ -1855,6 +1861,8 @@ export function AuctionDetailModal({
   const pickerMouseDownRef = useRef(false);
   const pickerContentRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
+  const [tenantRefreshBusy, setTenantRefreshBusy] = useState(false);
+  const [tenantRefreshMessage, setTenantRefreshMessage] = useState("");
   const [naverRefreshBusy, setNaverRefreshBusy] = useState(false);
   const [naverRefreshMessage, setNaverRefreshMessage] = useState("");
   const [referenceLinks, setReferenceLinks] = useState<AuctionReferenceLink[]>([]);
@@ -2164,6 +2172,49 @@ export function AuctionDetailModal({
       setNaverRefreshMessage(err instanceof Error ? err.message : "호가 업데이트에 실패했습니다.");
     } finally {
       setNaverRefreshBusy(false);
+    }
+  };
+
+  // 임차인·점유 현황이 아직 없는 물건을 이 물건만 다시 크롤링해 채운다(관리자 전용).
+  const handleRefreshTenant = async () => {
+    if (!preview.link?.trim()) {
+      setTenantRefreshMessage("이 물건에 원본 링크가 없어 재크롤링할 수 없습니다.");
+      return;
+    }
+    setTenantRefreshBusy(true);
+    setTenantRefreshMessage("임차인·점유 현황 조회를 요청했습니다...");
+    try {
+      await crawlerStart({ urls: [preview.link], crawlerVersion: "v3" });
+      let settled = false;
+      for (let i = 0; i < 30; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          const status = await fetchCrawlerStatus();
+          if (status.phase !== "crawling" && status.phase !== "starting" && status.phase !== "collecting") {
+            settled = true;
+            break;
+          }
+        } catch {
+          // 상태 조회 실패는 무시하고 계속 폴링
+        }
+      }
+      const [updated] = await fetchAuctionsByIds([item.id]);
+      if (updated) {
+        setForm(toFormState(updated));
+        onSaved?.(updated);
+      }
+      const filled = updated ? !isTenantDetailPending(updated.tenantDetail) : false;
+      setTenantRefreshMessage(
+        filled
+          ? "완료: 임차인·점유 현황을 업데이트했습니다."
+          : settled
+            ? "조회는 끝났지만 아직 임차인·점유 현황이 올라오지 않았습니다."
+            : "완료까지 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요.",
+      );
+    } catch (err) {
+      setTenantRefreshMessage(err instanceof Error ? err.message : "임차인·점유 현황 업데이트에 실패했습니다.");
+    } finally {
+      setTenantRefreshBusy(false);
     }
   };
 
@@ -3277,6 +3328,19 @@ export function AuctionDetailModal({
                               <span>{field.label}</span>
                               {field.key === "priceDetail" && (
                                 <NaverComplexLink naverId={naverId} compact />
+                              )}
+                              {field.key === "tenantDetail" && isAdmin && isTenantDetailPending(item.tenantDetail) && (
+                                <span className="ml-auto flex items-center gap-2">
+                                  {tenantRefreshMessage && <span className="text-[0.68rem] text-muted-foreground">{tenantRefreshMessage}</span>}
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRefreshTenant()}
+                                    disabled={tenantRefreshBusy}
+                                    className="rounded-md border border-border bg-card px-2.5 py-1 text-[0.7rem] font-semibold text-foreground hover:bg-secondary disabled:opacity-50"
+                                  >
+                                    {tenantRefreshBusy ? "업데이트 중..." : "임차현황 업데이트"}
+                                  </button>
+                                </span>
                               )}
                             </p>
                             <div className="text-[0.82rem] font-medium text-foreground break-words min-w-0">
