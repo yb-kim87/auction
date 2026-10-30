@@ -63,6 +63,29 @@ export function RedevelopmentJaegebalSync({ onFinished }: { onFinished: () => vo
     }
   }
 
+  /** 서울 25개 구 전체를 서버가 천천히 순차 수집(약 75분). 수동 실행만, 첫 보안 확인에서 전체 중단. */
+  async function startAll() {
+    const ok = window.confirm(
+      "서울 25개 구 전체를 천천히 순차 업데이트합니다.\n\n" +
+        "• 약 75분 걸립니다(요청 사이 60초, 구 사이 120초).\n" +
+        "• 사이트 보안 확인이 뜨면 즉시 전체를 멈추고, 구 오류가 2번 연속이면 멈춥니다.\n" +
+        "• 최근 6시간 안에 이미 수집한 구는 건너뜁니다.\n" +
+        "• 진행 중에는 서버를 배포·재시작하지 마세요(재시작되면 중단되고, 다시 실행하면 끝낸 구는 건너뛰고 이어서 합니다).\n" +
+        "• 이 화면을 닫아도 서버에서 계속 진행됩니다.\n\n" +
+        "시작할까요?",
+    );
+    if (!ok) return;
+    setError(null);
+    setStarting(true);
+    try {
+      setStatus(await startJaegebalSync([], true));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "업데이트를 시작하지 못했습니다.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
   const doneCount = status?.results.filter((r) => r.name || r.error || r.warning).length ?? 0;
 
   return (
@@ -96,9 +119,18 @@ export function RedevelopmentJaegebalSync({ onFinished }: { onFinished: () => vo
         >
           {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 업데이트`}
         </button>
+        <button
+          type="button"
+          disabled={running || starting}
+          onClick={startAll}
+          className="rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40"
+          title="서울 25개 구를 요청 사이 60초·구 사이 120초로 순차 업데이트(약 75분)"
+        >
+          전체 25개 구 천천히 업데이트 (약 75분)
+        </button>
         {running && status && (
           <span className="text-muted-foreground">
-            {doneCount}/{status.codes.length}개 구 진행 — 끝나면 지도가 자동으로 새로 불러와집니다
+            {doneCount}/{status.codes.length}개 구 진행{status.all ? " (전체 순차 — 약 75분, 화면을 닫아도 계속됩니다)" : ""} — 끝나면 지도가 자동으로 새로 불러와집니다
           </span>
         )}
       </div>

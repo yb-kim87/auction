@@ -25,7 +25,7 @@ const TYPE_BADGE: Record<ZoneChangeType, string> = {
   restored: "border-amber-200 bg-amber-50 text-amber-800",
   projectType: "border-purple-200 bg-purple-50 text-purple-700",
 };
-const STATE_LABEL: Record<string, string> = { running: "진행 중", done: "완료", blocked: "보안 확인으로 중단", failed: "일부 오류" };
+const STATE_LABEL: Record<string, string> = { running: "진행 중", done: "완료", blocked: "보안 확인으로 중단", failed: "일부 오류", interrupted: "서버 재시작으로 중단" };
 
 const dateKey = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric", weekday: "short" }).format(new Date(iso));

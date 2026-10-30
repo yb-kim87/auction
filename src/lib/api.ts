@@ -5884,17 +5884,19 @@ export type JaegebalSyncStatus = {
   results: JaegebalSyncResult[];
   /** 사이트 보안 확인에 걸려 중단됨 — 자동으로 다시 시도하지 않는다. */
   blocked: string | null;
+  /** 서울 25개 구 전체 순차 모드로 실행 중인지(구버전 서버 응답에는 없을 수 있다). */
+  all?: boolean;
   changes: Array<{ key: string; name: string; field: "stage" | "projectType" | "new" | "missing" | "restored"; from?: string | null; to?: string | null }>;
 };
 
 /** 재개발닷컴 구역을 지정한 구(최대 3개)만 가져와 반영하도록 서버에 요청한다(백그라운드, 관리자). */
-export async function startJaegebalSync(codes: string[]): Promise<JaegebalSyncStatus> {
+export async function startJaegebalSync(codes: string[], all = false): Promise<JaegebalSyncStatus> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync`, {
     method: "POST",
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
-    body: JSON.stringify({ codes }),
+    body: JSON.stringify(all ? { all: true } : { codes }),
   });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역도 업데이트를 시작하지 못했습니다.");
   return readJsonResponse(res);
