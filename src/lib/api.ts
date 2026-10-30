@@ -5884,21 +5884,51 @@ export type JaegebalSyncStatus = {
   results: JaegebalSyncResult[];
   /** 사이트 보안 확인에 걸려 중단됨 — 자동으로 다시 시도하지 않는다. */
   blocked: string | null;
-  /** 서울 25개 구 전체 순차 모드로 실행 중인지(구버전 서버 응답에는 없을 수 있다). */
+  /** 구 4개 이상/전체라 느린 순차 간격(요청 60초·구 사이 120초)으로 실행 중인지(구버전 서버 응답에는 없을 수 있다). */
   all?: boolean;
+  /** 실행 주체: 관리자가 지금 실행(manual) / 자동 업데이트 설정(auto) — 구버전 서버 응답에는 없을 수 있다. */
+  trigger?: "manual" | "auto";
   changes: Array<{ key: string; name: string; field: "stage" | "projectType" | "new" | "missing" | "restored"; from?: string | null; to?: string | null }>;
 };
 
 /** 재개발닷컴 구역을 지정한 구(최대 3개)만 가져와 반영하도록 서버에 요청한다(백그라운드, 관리자). */
-export async function startJaegebalSync(codes: string[], all = false): Promise<JaegebalSyncStatus> {
+export async function startJaegebalSync(codes: string[]): Promise<JaegebalSyncStatus> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync`, {
     method: "POST",
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
-    body: JSON.stringify(all ? { all: true } : { codes }),
+    body: JSON.stringify({ codes }),
   });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역도 업데이트를 시작하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+/** 자동 업데이트 설정 — 켜면 대상 구를 주기(일)마다 한국시간 새벽에 서버가 자동 업데이트한다(기본 꺼짐·14일). */
+export type JaegebalAutoSettings = {
+  enabled: boolean;
+  intervalDays: number;
+  codes: string[];
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+};
+
+export async function fetchJaegebalAutoSettings(): Promise<JaegebalAutoSettings> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/auto`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "자동 업데이트 설정을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+/** 일부만 보내도 된다(켜기/끄기, 주기, 대상 구). */
+export async function saveJaegebalAutoSettings(body: { enabled?: boolean; intervalDays?: number; codes?: string[] }): Promise<JaegebalAutoSettings> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/auto`, {
+    method: "PUT",
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "자동 업데이트 설정을 저장하지 못했습니다.");
   return readJsonResponse(res);
 }
 
@@ -5915,8 +5945,10 @@ export type JaegebalSyncRun = {
   id: string;
   startedAt: string;
   finishedAt: string | null;
-  /** running | done | blocked(보안 확인으로 중단) | failed */
+  /** running | done | blocked(보안 확인으로 중단) | failed | interrupted(서버 재시작으로 중단) */
   state: string;
+  /** manual(지금 실행) | auto(자동 업데이트) — 구버전 서버 응답에는 없을 수 있다. */
+  triggeredBy?: string;
   codes: string[];
   results: JaegebalSyncResult[];
   blocked: string | null;

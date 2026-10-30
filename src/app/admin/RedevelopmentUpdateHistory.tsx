@@ -167,7 +167,10 @@ export function RedevelopmentUpdateHistory() {
                         className={`w-full space-y-1 rounded-sm border px-3 py-2 text-left text-xs ${selectedId === r.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted"}`}
                       >
                         <span className="flex items-center justify-between gap-2">
-                          <b className="text-foreground">{timeText(r.startedAt)}</b>
+                          <b className="text-foreground">
+                            {timeText(r.startedAt)}
+                            {r.triggeredBy === "auto" && <span className="ml-1.5 rounded-sm border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-semibold text-emerald-700">자동</span>}
+                          </b>
                           <span className={r.state === "done" ? "text-muted-foreground" : "font-semibold text-amber-700"}>{STATE_LABEL[r.state] ?? r.state}</span>
                         </span>
                         <span className="block text-foreground">{runDistricts(r)}</span>
@@ -186,7 +189,7 @@ export function RedevelopmentUpdateHistory() {
               <div className="space-y-3">
                 <div>
                   <p className="text-sm font-bold text-foreground">
-                    {dateTimeText(detail.run.startedAt)} 업데이트 <span className="font-normal text-muted-foreground">— {runDistricts(detail.run)}</span>
+                    {dateTimeText(detail.run.startedAt)} {detail.run.triggeredBy === "auto" ? "자동 " : ""}업데이트 <span className="font-normal text-muted-foreground">— {runDistricts(detail.run)}</span>
                   </p>
                   <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                     {detail.run.results.map((r) => (
