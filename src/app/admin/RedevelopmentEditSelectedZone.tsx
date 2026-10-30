@@ -75,16 +75,77 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
-/** 재개발 블로그(후니동산)에서 찾은 동의율·공문 타임라인 — 구역 조사 때 함께 갱신된다. 글 작성일이 최신인 값을 대표로, 원문 링크를 단다. */
-function ZoneBlogSection({ blog, busy, onRefresh, error }: { blog: ZoneBlogInfo | undefined; busy: boolean; onRefresh: () => void; error?: string | null }) {
+/** 재개발 블로그(후니동산)에서 찾은 구역 주요정보(동의율·공문 타임라인·사업 관련 내용) — 구역 조사 때 함께 갱신된다. 글 작성일이 최신인 값을 대표로, 원문 링크를 단다.
+ * 대상지 선정 단계 이후 구역은 동의율에 맞춰 이미 대상지가 정해졌으므로 동의율을 강조하지 않고(있으면 참고로만, 없으면 조용히 표시) 다른 정보를 먼저 보여 준다. */
+function ZoneBlogSection({ blog, busy, onRefresh, error, afterSelection }: { blog: ZoneBlogInfo | undefined; busy: boolean; onRefresh: () => void; error?: string | null; afterSelection: boolean }) {
   const c = blog?.consent;
   const fmt = (n: { yesPct: number | null; noPct: number | null; qualifier: string | null }) =>
     [n.yesPct != null ? `찬성 ${n.yesPct}%${n.qualifier ?? ""}` : "", n.noPct != null ? `반대 ${n.noPct}%${n.qualifier ?? ""}` : ""].filter(Boolean).join(" · ");
+  const consentBlock = c ? (
+    afterSelection ? (
+      <div className="mt-3 rounded border border-border px-3 py-2 text-xs">
+        <p className="font-semibold text-foreground">
+          동의율 <span className="font-normal text-muted-foreground">(참고 · 대상지 선정 이후 단계)</span>
+        </p>
+        <p className="mt-0.5 text-foreground">
+          {fmt(c)} <span className="text-muted-foreground">· {c.postedAt} 글 기준</span>
+        </p>
+        <p className="mt-0.5 text-muted-foreground">{c.text}</p>
+        <a href={c.url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-blue-600 hover:underline">
+          블로그 원문 열기 — {c.postTitle}
+        </a>
+        {(blog?.consentHistory ?? []).length > 0 && (
+          <ul className="mt-1.5 space-y-0.5 text-muted-foreground">
+            {(blog?.consentHistory ?? []).map((h) => (
+              <li key={h.id}>
+                이전 {h.postedAt}: {fmt(h)} ·{" "}
+                <a href={h.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                  원문
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    ) : (
+      <div className="mt-2 rounded border border-blue-300 bg-blue-50 px-3 py-2 text-xs">
+        <span className="text-base font-bold text-blue-700">{fmt(c)}</span>
+        <span className="ml-2 text-muted-foreground">{c.postedAt} 글 기준</span>
+        <p className="mt-1 text-muted-foreground">{c.text}</p>
+        <a href={c.url} target="_blank" rel="noreferrer" className="mt-1 inline-block font-semibold text-blue-600 hover:underline">
+          블로그 원문 열기 — {c.postTitle}
+        </a>
+        {(blog?.consentHistory ?? []).length > 0 && (
+          <ul className="mt-1.5 space-y-0.5 text-muted-foreground">
+            {(blog?.consentHistory ?? []).map((h) => (
+              <li key={h.id}>
+                이전 {h.postedAt}: {fmt(h)} ·{" "}
+                <a href={h.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                  원문
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  ) : blog?.fetchedAt ? (
+    afterSelection ? (
+      <p className="mt-3 text-xs text-muted-foreground">동의율: 확인된 데이터 없음 (대상지 선정 이후 단계라 참고 정보입니다)</p>
+    ) : (
+      <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2" role="status">
+        <p className="text-sm font-bold text-amber-900">동의율 미확인</p>
+        <p className="mt-0.5 text-xs text-amber-800">블로그 조사에서 이 구역의 동의율을 찾지 못했습니다.</p>
+      </div>
+    )
+  ) : (
+    <p className="mt-1 text-xs text-muted-foreground">{error ? "블로그 조사 결과를 확인하지 못했습니다." : "블로그 정보를 불러오는 중..."}</p>
+  );
   return (
     <section className="border-b border-border px-4 py-3 sm:px-5">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-bold text-foreground">
-          동의율·공문 <span className="text-[11px] font-normal text-muted-foreground">(재개발 블로그 추정 · 공식 수치 아님)</span>
+          블로그 구역 주요정보 <span className="text-[11px] font-normal text-muted-foreground">(재개발 블로그 추정 · 공식 수치 아님)</span>
         </h3>
         <button type="button" disabled={busy} onClick={onRefresh} className="rounded-sm border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50">
           {busy ? "블로그 조사 중..." : "블로그 다시 조사"}
@@ -92,35 +153,7 @@ function ZoneBlogSection({ blog, busy, onRefresh, error }: { blog: ZoneBlogInfo 
         {blog?.fetchedAt && <span className="text-[11px] text-muted-foreground">조사 {new Date(blog.fetchedAt).toLocaleString("ko-KR")}</span>}
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-      {c ? (
-        <div className="mt-2 rounded border border-blue-300 bg-blue-50 px-3 py-2 text-xs">
-          <span className="text-base font-bold text-blue-700">{fmt(c)}</span>
-          <span className="ml-2 text-muted-foreground">{c.postedAt} 글 기준</span>
-          <p className="mt-1 text-muted-foreground">{c.text}</p>
-          <a href={c.url} target="_blank" rel="noreferrer" className="mt-1 inline-block font-semibold text-blue-600 hover:underline">
-            블로그 원문 열기 — {c.postTitle}
-          </a>
-          {(blog?.consentHistory ?? []).length > 0 && (
-            <ul className="mt-1.5 space-y-0.5 text-muted-foreground">
-              {(blog?.consentHistory ?? []).map((h) => (
-                <li key={h.id}>
-                  이전 {h.postedAt}: {fmt(h)} ·{" "}
-                  <a href={h.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                    원문
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : blog?.fetchedAt ? (
-        <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2" role="status">
-          <p className="text-sm font-bold text-amber-900">동의율 미확인</p>
-          <p className="mt-0.5 text-xs text-amber-800">블로그 조사에서 이 구역의 동의율을 찾지 못했습니다.</p>
-        </div>
-      ) : (
-        <p className="mt-1 text-xs text-muted-foreground">{error ? "블로그 조사 결과를 확인하지 못했습니다." : "블로그 정보를 불러오는 중..."}</p>
-      )}
+      {!afterSelection && consentBlock}
       {blog && blog.timeline.length > 0 && (
         <div className="mt-2">
           <p className="text-xs font-semibold text-foreground">자치구 공문 타임라인 (최신순)</p>
@@ -154,6 +187,7 @@ function ZoneBlogSection({ blog, busy, onRefresh, error }: { blog: ZoneBlogInfo 
       {(blog?.articles?.length ?? 0) > 0 && (
         <div className="mt-3 text-xs"><p className="font-bold text-foreground">관련 블로그 글</p><ul className="mt-1 space-y-1">{blog!.articles!.map((item) => <li key={item.id}><a href={item.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{item.postTitle}</a> <span className="text-muted-foreground">· {item.postedAt}</span></li>)}</ul></div>
       )}
+      {afterSelection && consentBlock}
       {blog?.diagnostics && <p className="mt-2 text-xs text-muted-foreground">검색 {blog.diagnostics.searched}건 · 확인 {blog.diagnostics.opened}/{blog.diagnostics.attempted}건 · 읽기 실패 {blog.diagnostics.failed}건 · 관련 글 {blog.articles?.length ?? 0}건 · 내용 {blog.insights?.length ?? 0}건</p>}
     </section>
   );
@@ -333,7 +367,7 @@ export function RedevelopmentEditSelectedZone({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ZoneProgress zone={zone} />
           {stats && <ZoneStatsSection stats={stats} />}
-          <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} />
+          <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />
           <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} />
         </div>
       </div>
