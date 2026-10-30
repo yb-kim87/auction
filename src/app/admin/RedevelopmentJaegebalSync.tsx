@@ -28,9 +28,27 @@ const FIELD_LABEL: Record<string, string> = { stage: "단계 변경", projectTyp
 
 const namesOf = (codes: string[]) => codes.map((c) => DISTRICT_NAME.get(c) ?? c);
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((c) => b.includes(c));
-const kstDate = (iso: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "short" }).format(new Date(iso));
 const kstDateTime = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+
+const DEFAULT_RUN_TIME = "03:00";
+const pad2 = (n: number) => String(n).padStart(2, "0");
+/** 켜면 (오늘 + 주기일)의 한국시간 시:분에 실행된다 — 서버의 nextRunTime과 같은 계산. */
+function previewNextRun(intervalDays: number, time: string, from = new Date()): Date | null {
+  const m = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!m || !Number.isInteger(intervalDays) || intervalDays < 1) return null;
+  const kst = new Date(from.getTime() + 9 * 3600_000);
+  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate() + intervalDays, Number(m[1]), Number(m[2])) - 9 * 3600_000);
+}
+/** "11월 13일(금) 오전 3:00" */
+const kstWhen = (d: Date | string) =>
+  new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "short", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(d));
+/** 한국시간 달력 기준 며칠 뒤인지: 오늘 / 내일 / N일 후 */
+function daysLabel(d: Date | string, from = new Date()): string {
+  const day = (x: Date) => Math.floor((x.getTime() + 9 * 3600_000) / 86400_000);
+  const diff = day(new Date(d)) - day(from);
+  return diff <= 0 ? "오늘" : diff === 1 ? "내일" : `${diff}일 후`;
+}
 
 /** 예상 소요 시간(분) — 서버 간격과 같은 계산: 3개 이하 30초 간격, 4개 이상 요청 60초·구 사이 120초. */
 function estimateMinutes(n: number): number {
@@ -74,7 +92,7 @@ function DistrictPicker({ value, onChange, disabled }: { value: string[]; onChan
   );
 }
 
-/** 재개발닷컴 구역 업데이트 패널 — ① 자동 업데이트(대상 구·주기·켜기를 정하고 "설정 저장", 서버가 주기마다 새벽에 실행, 기본 꺼짐·14일)
+/** 재개발닷컴 구역 업데이트 패널 — ① 자동 업데이트(대상 구·주기·켜기를 정하고 "설정 저장", 서버가 설정한 주기·시각에 실행, 기본 꺼짐·14일·03:00)
  *  ② 수동 업데이트(구를 따로 골라 바로 실행). 두 구 선택은 서로 별개다. */
 export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished: () => void; summary?: ReactNode }) {
   // 수동 업데이트용 구 선택
@@ -86,6 +104,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   const [auto, setAuto] = useState<JaegebalAutoSettings | null>(null);
   const [draftCodes, setDraftCodes] = useState<string[]>([]);
   const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
+  const [timeInput, setTimeInput] = useState(DEFAULT_RUN_TIME); // 실행 시각(한국시간) HH:MM
   const [autoBusy, setAutoBusy] = useState(false);
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
   const wasRunning = useRef(false);
@@ -98,6 +117,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     setAuto(s);
     setDraftCodes(s.codes);
     setIntervalInput(String(s.intervalDays));
+    setTimeInput(`${pad2(s.runHour ?? 3)}:${pad2(s.runMinute ?? 0)}`);
   }
 
   // 열 때 서버의 현재 실행 상태와 자동 업데이트 설정을 한 번 확인한다.
@@ -121,7 +141,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     return () => clearInterval(timer);
   }, [running]);
 
-  // 새벽에 서버가 자동 실행을 시작한 경우도 화면이 알아채도록, 자동 업데이트가 켜져 있으면 가끔 상태를 확인한다.
+  // 서버가 정해진 시각에 자동 실행을 시작한 경우도 화면이 알아채도록, 자동 업데이트가 켜져 있으면 가끔 상태를 확인한다.
   useEffect(() => {
     if (!auto?.enabled || running) return;
     const timer = setInterval(() => {
@@ -164,17 +184,22 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
       setError("업데이트 주기는 1~365일의 정수여야 합니다.");
       return;
     }
+    const tm = /^(\d{2}):(\d{2})$/.exec(timeInput);
+    if (!tm) {
+      setError("실행 시각(한국시간)을 입력하세요.");
+      return;
+    }
     if (auto?.enabled && !draftCodes.length) {
       setError("자동 업데이트가 켜져 있어 대상 구를 하나 이상 선택해야 합니다. 끄려면 스위치를 끄세요.");
       return;
     }
     setAutoBusy(true);
     try {
-      const saved = await saveJaegebalAutoSettings({ intervalDays: days, codes: draftCodes });
+      const saved = await saveJaegebalAutoSettings({ intervalDays: days, runHour: Number(tm[1]), runMinute: Number(tm[2]), codes: draftCodes });
       applySaved(saved);
       setAutoMessage(
-        `설정을 저장했습니다 — ${saved.intervalDays}일마다 · 대상 ${saved.codes.length}개 구` +
-          (saved.enabled && saved.nextRunAt ? ` · 다음 실행 ${kstDate(saved.nextRunAt)} 이후 새벽` : saved.enabled ? "" : " (자동 업데이트는 꺼져 있습니다)"),
+        `설정을 저장했습니다 — ${saved.intervalDays}일마다 · 매 ${pad2(saved.runHour ?? 3)}:${pad2(saved.runMinute ?? 0)} · 대상 ${saved.codes.length}개 구` +
+          (saved.enabled && saved.nextRunAt ? ` · 다음 실행 ${daysLabel(saved.nextRunAt)}인 ${kstWhen(saved.nextRunAt)}` : saved.enabled ? "" : " (자동 업데이트는 꺼져 있습니다)"),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "자동 업데이트 설정을 저장하지 못했습니다.");
@@ -198,7 +223,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
       setAuto(saved);
       setAutoMessage(
         saved.enabled
-          ? `자동 업데이트를 켰습니다 — ${saved.intervalDays}일마다 · 대상 ${saved.codes.length}개 구${saved.nextRunAt ? ` · 첫 실행 ${kstDate(saved.nextRunAt)} 이후 새벽` : ""}`
+          ? `자동 업데이트를 켰습니다 — ${saved.nextRunAt ? `${daysLabel(saved.nextRunAt)}인 ${kstWhen(saved.nextRunAt)}에 처음 실행되고, ` : ""}이후 ${saved.intervalDays}일마다 같은 시각에 대상 ${saved.codes.length}개 구를 업데이트합니다.`
           : "자동 업데이트를 껐습니다. 저장된 설정은 그대로 남아 있습니다.",
       );
     } catch (e) {
@@ -211,13 +236,15 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   const doneCount = status?.results.filter((r) => r.name || r.error || r.warning).length ?? 0;
   const autoOn = !!auto?.enabled;
   const savedNames = auto ? namesOf(auto.codes) : [];
-  const dirty = !!auto && (Number(intervalInput) !== auto.intervalDays || !sameSet(draftCodes, auto.codes));
+  const savedTime = auto ? `${pad2(auto.runHour ?? 3)}:${pad2(auto.runMinute ?? 0)}` : DEFAULT_RUN_TIME;
+  const dirty = !!auto && (Number(intervalInput) !== auto.intervalDays || timeInput !== savedTime || !sameSet(draftCodes, auto.codes));
+  const preview = previewNextRun(Number(intervalInput), timeInput);
 
   return (
     <div className="space-y-2">
       {summary}
       <p className="text-muted-foreground">
-        <b className="text-foreground">자동 업데이트</b>는 스위치를 켜면 저장된 대상 구·주기대로 서버가 주기마다 새벽에 실행하고(대상·주기는 <b className="text-foreground">설정 저장</b>으로 저장), <b className="text-foreground">수동 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
+        <b className="text-foreground">자동 업데이트</b>는 스위치를 켜면 저장된 대상 구·주기대로 서버가 설정한 주기·시각에 실행하고(대상·주기·시각은 <b className="text-foreground">설정 저장</b>으로 저장), <b className="text-foreground">수동 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
         사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
       </p>
 
@@ -240,10 +267,12 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             <p className={`text-xs font-semibold ${autoOn ? "text-emerald-700" : "text-foreground"}`}>{autoOn ? "자동 업데이트 작동 중" : "자동 업데이트 꺼짐"}</p>
             <p className="text-[11px] text-muted-foreground">
               {autoOn && auto
-                ? `서버가 ${auto.intervalDays}일마다 새벽(한국시간 1~6시)에 ${auto.codes.length}개 구(${savedNames.slice(0, 5).join(", ")}${savedNames.length > 5 ? " 외" : ""})를 자동으로 업데이트합니다.${
-                    auto.nextRunAt ? ` 다음 예정: ${kstDate(auto.nextRunAt)} 이후 새벽.` : ""
+                ? `서버가 ${auto.intervalDays}일마다 ${savedTime}(한국시간)에 ${auto.codes.length}개 구(${savedNames.slice(0, 5).join(", ")}${savedNames.length > 5 ? " 외" : ""})를 자동으로 업데이트합니다.${
+                    auto.nextRunAt ? ` 다음 실행: ${kstWhen(auto.nextRunAt)} (${daysLabel(auto.nextRunAt)}).` : ""
                   }${auto.lastRunAt ? ` 마지막 자동 실행: ${kstDateTime(auto.lastRunAt)}.` : ""}`
-                : "켜두면 서버가 정해진 주기마다 새벽에 대상 구를 자동으로 업데이트합니다. 지금은 자동으로 실행되지 않습니다."}
+                : auto && auto.codes.length
+                  ? `켜면 ${preview ? `${daysLabel(preview)}인 ${kstWhen(preview)}에 처음 실행되고 ` : ""}이후 ${auto.intervalDays}일마다 같은 시각에 대상 ${auto.codes.length}개 구를 자동으로 업데이트합니다. 지금은 자동으로 실행되지 않습니다.`
+                  : "켜두면 서버가 정해진 주기·시각에 대상 구를 자동으로 업데이트합니다. 먼저 대상 구를 선택하고 설정 저장을 눌러 주세요. 지금은 자동으로 실행되지 않습니다."}
             </p>
           </div>
         </div>
@@ -272,7 +301,20 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             onChange={(e) => setIntervalInput(e.target.value)}
             className="w-20 px-2 py-1 text-xs border border-border rounded-sm bg-card"
           />
+          <span className="mx-1 hidden h-4 w-px bg-border sm:inline-block" />
+          <label className="text-xs text-muted-foreground shrink-0">실행 시각(한국시간)</label>
+          <input
+            type="time"
+            value={timeInput}
+            onChange={(e) => setTimeInput(e.target.value)}
+            className="px-2 py-1 text-xs border border-border rounded-sm bg-card"
+          />
         </div>
+        {preview && (
+          <p className="text-[11px] text-muted-foreground">
+            이 설정으로 켜면 <b className="text-foreground">{daysLabel(preview)}인 {kstWhen(preview)}</b>에 처음 실행되고, 이후 {Number(intervalInput)}일마다 같은 시각에 실행됩니다.
+          </p>
+        )}
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">
             자동 업데이트 대상 구 <span className="text-[11px]">(스위치가 꺼져 있어도 대상은 저장됩니다. 스위치는 저장된 설정대로 동작합니다)</span>
@@ -288,7 +330,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           >
             {autoBusy ? "저장 중…" : "설정 저장"}
           </button>
-          {dirty && <span className="text-[11px] text-amber-600">저장되지 않은 주기·대상 변경이 있습니다 — &quot;설정 저장&quot;을 눌러야 자동 업데이트에 적용됩니다</span>}
+          {dirty && <span className="text-[11px] text-amber-600">저장되지 않은 주기·시각·대상 변경이 있습니다 — &quot;설정 저장&quot;을 눌러야 자동 업데이트에 적용됩니다</span>}
         </div>
       </div>
       {autoMessage && <p className="text-emerald-700">{autoMessage}</p>}
@@ -324,7 +366,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
       {error && <p className="text-destructive">{error}</p>}
       {status?.blocked && (
         <p className="rounded-sm border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive">
-          재개발닷컴 보안 확인에 걸려 중단했습니다. 우회하지 않고 멈췄으니 잠시(몇 시간) 뒤에 다시 시도해 주세요. 자동 업데이트라면 하루 뒤 새벽에 한 번 다시 시도합니다. ({status.blocked})
+          재개발닷컴 보안 확인에 걸려 중단했습니다. 우회하지 않고 멈췄으니 잠시(몇 시간) 뒤에 다시 시도해 주세요. 자동 업데이트라면 하루 뒤 한 번 다시 시도합니다. ({status.blocked})
         </p>
       )}
       {status && status.startedAt && (

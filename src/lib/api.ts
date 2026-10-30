@@ -5908,6 +5908,9 @@ export async function startJaegebalSync(codes: string[]): Promise<JaegebalSyncSt
 export type JaegebalAutoSettings = {
   enabled: boolean;
   intervalDays: number;
+  /** 실행 시각(한국시간) 시·분 — 구버전 서버 응답에는 없을 수 있다(기본 03:00). */
+  runHour?: number;
+  runMinute?: number;
   codes: string[];
   lastRunAt: string | null;
   nextRunAt: string | null;
@@ -5919,8 +5922,8 @@ export async function fetchJaegebalAutoSettings(): Promise<JaegebalAutoSettings>
   return readJsonResponse(res);
 }
 
-/** 일부만 보내도 된다(켜기/끄기, 주기, 대상 구). */
-export async function saveJaegebalAutoSettings(body: { enabled?: boolean; intervalDays?: number; codes?: string[] }): Promise<JaegebalAutoSettings> {
+/** 일부만 보내도 된다(켜기/끄기, 주기, 실행 시각, 대상 구). */
+export async function saveJaegebalAutoSettings(body: { enabled?: boolean; intervalDays?: number; runHour?: number; runMinute?: number; codes?: string[] }): Promise<JaegebalAutoSettings> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/auto`, {
     method: "PATCH", // 서버 CORS가 PUT을 허용하지 않아(GET·POST·PATCH·DELETE만) PATCH를 쓴다
     cache: "no-store",
