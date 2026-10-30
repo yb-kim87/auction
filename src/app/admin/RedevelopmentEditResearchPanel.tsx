@@ -123,18 +123,21 @@ const areaFromText = (value: string | null | undefined) => {
 
 /** 같은 지번 · 같은 공시가 · 전용면적 ±1㎡ 이내인 호가를 같은 호(다른 중개사가 올린 중복)로 보고 한 행으로 묶는다. */
 function groupSameUnit(out: Row[]): Row[] {
-  type Bucket = { key: string; official: number; area: number | null; rows: Row[] };
+  type Bucket = { key: string; official: number | null; sig: string; area: number | null; rows: Row[] };
   const buckets: Bucket[] = [];
   const bucketOf = new Map<Row, Bucket>();
   for (const r of out) {
-    if (r.kind !== "호가" || !r.listing || r.official == null || r.gone) continue;
+    if (r.kind !== "호가" || !r.listing || r.gone) continue;
     const key = r.listing.jibun || r.address;
-    const b = buckets.find((x) => x.key === key && x.official === r.official && (x.area == null || r.area == null || Math.abs(x.area - r.area) <= 1));
+    // 공시가를 추정하지 못한 건물(신축 등)은 공시가로 같은 호를 가릴 수 없으므로, 같은 지번·같은 층·같은 방향·같은 호가·면적 ±1㎡이면 같은 호로 본다.
+    // (같은 중개사가 같은 호를 매물번호만 바꿔 여러 번 올리거나, 여러 중개사가 같은 호를 올린 경우)
+    const sig = r.official == null ? `${r.floor}|${r.listing.direction ?? ""}|${r.ask ?? ""}` : "";
+    const b = buckets.find((x) => x.key === key && x.official === r.official && x.sig === sig && (x.area == null || r.area == null || Math.abs(x.area - r.area) <= 1));
     if (b) {
       b.rows.push(r);
       bucketOf.set(r, b);
     } else {
-      const nb: Bucket = { key, official: r.official, area: r.area, rows: [r] };
+      const nb: Bucket = { key, official: r.official, sig, area: r.area, rows: [r] };
       buckets.push(nb);
       bucketOf.set(r, nb);
     }
