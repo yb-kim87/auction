@@ -38,7 +38,7 @@ function estimateMinutes(n: number): number {
   return n <= NORMAL_MAX_DISTRICTS ? Math.max(1, Math.round((n * 30 + (n - 1) * 30) / 60)) : Math.round((n * 60 + (n - 1) * 120) / 60);
 }
 
-/** 구 선택(전체 선택/해제 + 25개 구 버튼). 자동 업데이트 대상과 지금 업데이트 대상은 각각 따로 고른다. */
+/** 구 선택(전체 선택/해제 + 25개 구 버튼). 자동 업데이트 대상과 수동 업데이트 대상은 각각 따로 고른다. */
 function DistrictPicker({ value, onChange, disabled }: { value: string[]; onChange: (codes: string[]) => void; disabled?: boolean }) {
   const all = value.length === DISTRICTS.length;
   return (
@@ -75,9 +75,9 @@ function DistrictPicker({ value, onChange, disabled }: { value: string[]; onChan
 }
 
 /** 재개발닷컴 구역 업데이트 패널 — ① 자동 업데이트(대상 구·주기·켜기를 정하고 "설정 저장", 서버가 주기마다 새벽에 실행, 기본 꺼짐·14일)
- *  ② 지금 업데이트(구를 따로 골라 바로 실행). 두 구 선택은 서로 별개다. */
+ *  ② 수동 업데이트(구를 따로 골라 바로 실행). 두 구 선택은 서로 별개다. */
 export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished: () => void; summary?: ReactNode }) {
-  // 지금 업데이트용 구 선택
+  // 수동 업데이트용 구 선택
   const [selected, setSelected] = useState<string[]>([]);
   const [status, setStatus] = useState<JaegebalSyncStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +134,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   async function startNow() {
     if (selected.length > NORMAL_MAX_DISTRICTS) {
       const ok = window.confirm(
-        `선택한 ${selected.length}개 구를 지금 업데이트합니다.\n\n` +
+        `선택한 ${selected.length}개 구를 수동 업데이트합니다.\n\n` +
           `• 구가 ${NORMAL_MAX_DISTRICTS}개를 넘으면 사이트에 부담을 주지 않도록 느린 간격(요청 60초·구 사이 120초)으로 실행합니다.\n` +
           `• 약 ${estimateMinutes(selected.length)}분 걸립니다. 화면을 닫아도 서버에서 계속 진행됩니다.\n` +
           "• 사이트 보안 확인이 뜨면 즉시 전체를 멈추고, 구 오류가 2번 연속이면 멈춥니다.\n" +
@@ -217,7 +217,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     <div className="space-y-2">
       {summary}
       <p className="text-muted-foreground">
-        <b className="text-foreground">자동 업데이트</b>는 스위치를 켜면 저장된 대상 구·주기대로 서버가 주기마다 새벽에 실행하고(대상·주기는 <b className="text-foreground">설정 저장</b>으로 저장), <b className="text-foreground">지금 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
+        <b className="text-foreground">자동 업데이트</b>는 스위치를 켜면 저장된 대상 구·주기대로 서버가 주기마다 새벽에 실행하고(대상·주기는 <b className="text-foreground">설정 저장</b>으로 저장), <b className="text-foreground">수동 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
         사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
       </p>
 
@@ -272,7 +272,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             onChange={(e) => setIntervalInput(e.target.value)}
             className="w-20 px-2 py-1 text-xs border border-border rounded-sm bg-card"
           />
-          <span className="text-[11px] text-muted-foreground">기본 14일(2주)</span>
         </div>
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">
@@ -297,9 +296,9 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
         마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인). 자동 업데이트를 켜 두면 성공한 실행도 마지막 반영으로 봅니다.
       </p>
 
-      {/* 지금 업데이트 — 자동 업데이트와 별개로 구를 따로 골라 바로 실행 */}
+      {/* 수동 업데이트 — 자동 업데이트와 별개로 구를 따로 골라 바로 실행 */}
       <div className="space-y-2 rounded-sm border border-border px-3 py-2">
-        <p className="text-xs font-semibold text-foreground">지금 업데이트 <span className="font-normal text-muted-foreground">— 자동 업데이트 설정과 별개로, 고른 구를 바로 실행합니다</span></p>
+        <p className="text-xs font-semibold text-foreground">수동 업데이트 <span className="font-normal text-muted-foreground">— 자동 업데이트 설정과 별개로, 고른 구를 바로 실행합니다</span></p>
         <DistrictPicker value={selected} onChange={setSelected} disabled={running} />
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -308,7 +307,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             onClick={startNow}
             className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
           >
-            {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 지금 업데이트`}
+            {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 수동 업데이트`}
           </button>
           {selected.length > NORMAL_MAX_DISTRICTS && !running && (
             <span className="text-muted-foreground">약 {estimateMinutes(selected.length)}분 걸립니다(느린 간격으로 실행)</span>

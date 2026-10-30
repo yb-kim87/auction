@@ -7,7 +7,7 @@ import { RedevelopmentJaegebalSync } from "./RedevelopmentJaegebalSync";
 const dateTime = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 
-/** 재개발물건 → 구역도 업데이트 탭 — 재개발닷컴 구역을 지정한 구만 지금 업데이트하거나, 자동 업데이트(주기마다 새벽에 서버가 실행)를 설정한다.
+/** 재개발물건 → 구역도 업데이트 탭 — 재개발닷컴 구역을 지정한 구만 수동 업데이트하거나, 자동 업데이트(주기마다 새벽에 서버가 실행)를 설정한다.
  *  (구역·지도 탭에서 분리됨, 2026-10-30) 변경 이력은 "구역 업데이트 이력" 탭에서 날짜별로 본다. */
 export function RedevelopmentUpdateTab() {
   const [summary, setSummary] = useState<JaegebalZoneSummary | null>(null);

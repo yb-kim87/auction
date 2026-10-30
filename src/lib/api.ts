@@ -5922,7 +5922,7 @@ export async function fetchJaegebalAutoSettings(): Promise<JaegebalAutoSettings>
 /** 일부만 보내도 된다(켜기/끄기, 주기, 대상 구). */
 export async function saveJaegebalAutoSettings(body: { enabled?: boolean; intervalDays?: number; codes?: string[] }): Promise<JaegebalAutoSettings> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/auto`, {
-    method: "PUT",
+    method: "PATCH", // 서버 CORS가 PUT을 허용하지 않아(GET·POST·PATCH·DELETE만) PATCH를 쓴다
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
