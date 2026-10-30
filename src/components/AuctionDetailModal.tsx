@@ -1734,7 +1734,7 @@ function PriceColumn({
 }
 
 export function AuctionDetailModal({
-  item,
+  item: itemProp,
   onClose,
   onViewHistory,
   editable = false,
@@ -1826,6 +1826,13 @@ export function AuctionDetailModal({
    * (사용자 요청, 2026-08-15). */
   initialShowAssignmentEditor?: boolean;
 }) {
+  // 호스트가 onSaved로 새 item을 내려주지 않아도(예: 재개발물건 탭) 업데이트 버튼(호가·임차현황)의 결과가 바로 보이도록
+  // 방금 다시 불러온 최신 item을 따로 들고 있는다. 호스트가 새 item을 내려주면 그쪽을 따른다.
+  const [itemOverride, setItemOverride] = useState<AuctionItem | null>(null);
+  useEffect(() => {
+    setItemOverride(null);
+  }, [itemProp]);
+  const item = itemOverride && itemProp && itemOverride.id === itemProp.id ? itemOverride : itemProp;
   // "등기·임차인 정보" 섹션을 수강생 이하 등급에게 숨길지는 관리자가
   // 토글로 켜고 끌 수 있다(사용자 요청, 2026-08-08). 기본값(true)은
   // 기존 하드코딩 동작과 동일 — 설정 조회가 끝나기 전까지는 안전한
@@ -2165,6 +2172,7 @@ export function AuctionDetailModal({
       const [updated] = await fetchAuctionsByIds([item.id]);
       if (updated) {
         setForm(toFormState(updated));
+        setItemOverride(updated);
         onSaved?.(updated);
       }
       setNaverRefreshMessage(settled ? "완료: 최신 호가로 업데이트했습니다." : "완료까지 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요.");
@@ -2201,6 +2209,7 @@ export function AuctionDetailModal({
       const [updated] = await fetchAuctionsByIds([item.id]);
       if (updated) {
         setForm(toFormState(updated));
+        setItemOverride(updated);
         onSaved?.(updated);
       }
       const filled = updated ? !isTenantDetailPending(updated.tenantDetail) : false;
