@@ -146,12 +146,16 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
       await saveAuto({ enabled: false }, "자동 업데이트를 껐습니다.");
       return;
     }
-    const codes = auto.codes.length ? undefined : selected;
+    // 켤 때 지금 선택한 구를 대상으로 저장한다(선택이 없으면 이전에 저장된 대상을 그대로 쓴다).
     if (!auto.codes.length && !selected.length) {
       setError("자동 업데이트할 구를 먼저 선택하세요.");
       return;
     }
-    await saveAuto({ enabled: true, ...(codes ? { codes } : {}) }, `자동 업데이트를 켰습니다. 첫 실행은 ${auto.intervalDays}일 뒤 새벽입니다.`);
+    const targetCount = selected.length ? selected.length : auto.codes.length;
+    await saveAuto(
+      { enabled: true, ...(selected.length ? { codes: selected } : {}) },
+      `자동 업데이트를 켰습니다. 대상 ${targetCount}개 구, 첫 실행은 ${auto.intervalDays}일 뒤 새벽입니다.`,
+    );
   }
 
   async function applyInterval() {
@@ -248,6 +252,9 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
         >
           아래에서 선택한 구를 대상으로 저장
         </button>
+        {!!auto && !!selected.length && !sameAsSaved && (
+          <span className="text-[11px] text-amber-600">지금 선택이 저장된 대상과 다릅니다 — 저장해야 자동 업데이트에 반영됩니다(스위치를 새로 켤 때도 저장됩니다)</span>
+        )}
       </div>
       {autoMessage && <p className="text-emerald-700">{autoMessage}</p>}
 
