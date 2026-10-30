@@ -148,7 +148,7 @@ export function RedevelopmentUpdateHistory() {
       {runs == null && !error && <p className="text-sm text-muted-foreground">불러오는 중…</p>}
       {runs != null && runs.length === 0 && (
         <div className="rounded-sm border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-          아직 기록된 구역 업데이트가 없습니다. <b className="text-foreground">구역·지도</b> 탭에서 &quot;구역도 업데이트&quot;를 실행하면 이곳에 날짜별로 쌓입니다.
+          아직 기록된 구역 업데이트가 없습니다. <b className="text-foreground">구역도 업데이트</b> 탭에서 업데이트를 실행하면 이곳에 날짜별로 쌓입니다.
         </div>
       )}
 

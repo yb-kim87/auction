@@ -3,15 +3,17 @@
 import { useState } from "react";
 import { RedevelopmentEditTab } from "./RedevelopmentEditTab";
 import { RedevelopmentUpdateHistory } from "./RedevelopmentUpdateHistory";
+import { RedevelopmentUpdateTab } from "./RedevelopmentUpdateTab";
 
-type SubTab = "map" | "history";
+type SubTab = "map" | "update" | "history";
 
 const SUB_TABS: Array<{ id: SubTab; label: string }> = [
   { id: "map", label: "구역·지도" },
+  { id: "update", label: "구역도 업데이트" },
   { id: "history", label: "구역 업데이트 이력" },
 ];
 
-/** 재개발물건 탭 — 하위 탭: 구역·지도(기존 화면) / 구역 업데이트 이력(날짜별 변경 내역). */
+/** 재개발물건 탭 — 하위 탭: 구역·지도(기존 화면) / 구역도 업데이트(지금 업데이트·자동 업데이트) / 구역 업데이트 이력(날짜별 변경 내역). */
 export function RedevelopmentSection() {
   const [sub, setSub] = useState<SubTab>("map");
   return (
@@ -30,7 +32,9 @@ export function RedevelopmentSection() {
           </button>
         ))}
       </div>
-      {sub === "map" ? <RedevelopmentEditTab /> : <RedevelopmentUpdateHistory />}
+      {sub === "map" && <RedevelopmentEditTab />}
+      {sub === "update" && <RedevelopmentUpdateTab />}
+      {sub === "history" && <RedevelopmentUpdateHistory />}
     </div>
   );
 }

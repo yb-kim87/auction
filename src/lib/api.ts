@@ -5932,6 +5932,20 @@ export async function saveJaegebalAutoSettings(body: { enabled?: boolean; interv
   return readJsonResponse(res);
 }
 
+/** "구역도 업데이트" 탭 상단 요약(가벼운 집계). */
+export type JaegebalZoneSummary = {
+  zoneCount: number;
+  missingCount: number;
+  lastUpdatedAt: string | null;
+  lastRunAt: string | null;
+};
+
+export async function fetchJaegebalZoneSummary(): Promise<JaegebalZoneSummary> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/summary`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 요약을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export async function fetchJaegebalSyncStatus(): Promise<JaegebalSyncStatus> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/status`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역도 업데이트 상태를 불러오지 못했습니다.");
