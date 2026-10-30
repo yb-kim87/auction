@@ -6059,6 +6059,18 @@ export async function fetchListingDetailNow(zoneId: string, articleNo: string): 
   return readJsonResponse(res);
 }
 
+/** 임차인·점유 현황이 비어 있는 물건 상세를 열었을 때 그 물건만 자동 조회를 요청한다(컨설팅수강생 이상, 서버가 쿨다운·한도를 관리). */
+export async function requestTenantRefresh(auctionId: string): Promise<{ started: boolean; reason?: string }> {
+  const res = await apiFetch(`${API_BASE}/crawler/refresh-tenant`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ auctionId }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "임차현황 조회를 요청하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export type ZoneRunSummary = {
   zoneId: string;
   status: ResearchRunStatus;

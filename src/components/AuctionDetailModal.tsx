@@ -18,6 +18,7 @@ import {
   fetchSiteSettings,
   fetchAuctionsByIds,
   crawlerStart,
+  requestTenantRefresh,
   fetchCrawlerStatus,
   fetchAuctionReferenceLinks,
   fetchVatAddressCoord,
@@ -1863,14 +1864,14 @@ export function AuctionDetailModal({
   }, [itemProp]);
   const item = itemOverride && itemProp && itemOverride.id === itemProp.id ? itemOverride : itemProp;
   const tenantRefreshRef = useRef<((auto: boolean) => Promise<void>) | null>(null);
-  // 관리자가 임차인·점유 현황이 없는 물건 상세를 열면 자동으로 한 번 조회한다. 값이 올라와 있으면 채워지고, 없으면 그대로 둔다.
+  // 임차인·점유 현황이 없는 물건 상세를 열면(누구든, 서버가 컨설팅수강생 이상만 허용) 자동으로 한 번 조회한다. 값이 올라와 있으면 채워지고, 없으면 그대로 둔다.
   useEffect(() => {
-    if (!isAdmin || !item?.id || !isTenantDetailPending(item.tenantDetail) || !item.link?.trim()) return;
+    if (!item?.id || !isTenantDetailPending(item.tenantDetail) || !item.link?.trim()) return;
     if (!shouldAutoRefreshTenant(item.id)) return;
     const timer = setTimeout(() => void tenantRefreshRef.current?.(true), 600);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, item?.id]);
+  }, [item?.id]);
   // "등기·임차인 정보" 섹션을 수강생 이하 등급에게 숨길지는 관리자가
   // 토글로 켜고 끌 수 있다(사용자 요청, 2026-08-08). 기본값(true)은
   // 기존 하드코딩 동작과 동일 — 설정 조회가 끝나기 전까지는 안전한
@@ -2227,9 +2228,36 @@ export function AuctionDetailModal({
       if (!auto) setTenantRefreshMessage("이 물건에 원본 링크가 없어 재크롤링할 수 없습니다.");
       return;
     }
+    if (auto) {
+      // 자동 조회(누구나): 서버가 대신 크롤링을 시작하고, 여기서는 그 물건이 채워질 때까지만 지켜본다. 결과 문구는 관리자에게만 보인다.
+      markTenantAutoTried(item.id, true);
+      if (isAdmin) setTenantRefreshMessage("임차인·점유 현황 확인 중...");
+      try {
+        const res = await requestTenantRefresh(item.id);
+        if (!res.started) {
+          if (res.reason === "busy") markTenantAutoTried(item.id, false);
+          setTenantRefreshMessage("");
+          return;
+        }
+        for (let i = 0; i < 15; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+          const [updated] = await fetchAuctionsByIds([item.id]);
+          if (updated && !isTenantDetailPending(updated.tenantDetail)) {
+            setForm(toFormState(updated));
+            setItemOverride(updated);
+            onSaved?.(updated);
+            break;
+          }
+        }
+      } catch {
+        // 권한이 없거나 서버가 거절해도 조용히 넘어간다(같은 물건은 6시간 동안 다시 시도하지 않는다).
+      } finally {
+        setTenantRefreshMessage("");
+      }
+      return;
+    }
     setTenantRefreshBusy(true);
-    setTenantRefreshMessage(auto ? "임차인·점유 현황 확인 중..." : "임차인·점유 현황 조회를 요청했습니다...");
-    if (auto) markTenantAutoTried(item.id, true);
+    setTenantRefreshMessage("임차인·점유 현황 조회를 요청했습니다...");
     try {
       await crawlerStart({ urls: [preview.link], crawlerVersion: "v3" });
       let settled = false;
