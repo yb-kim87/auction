@@ -82,9 +82,8 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   const [status, setStatus] = useState<JaegebalSyncStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  // 자동 업데이트: 서버에 저장된 값과, 저장 전에 편집 중인 값(스위치·주기·대상 구)
+  // 자동 업데이트: 서버에 저장된 값과, 저장 전에 편집 중인 값(주기·대상 구). 켜짐/꺼짐은 스위치가 즉시 저장한다.
   const [auto, setAuto] = useState<JaegebalAutoSettings | null>(null);
-  const [draftEnabled, setDraftEnabled] = useState(false);
   const [draftCodes, setDraftCodes] = useState<string[]>([]);
   const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
   const [autoBusy, setAutoBusy] = useState(false);
@@ -97,7 +96,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
 
   function applySaved(s: JaegebalAutoSettings) {
     setAuto(s);
-    setDraftEnabled(s.enabled);
     setDraftCodes(s.codes);
     setIntervalInput(String(s.intervalDays));
   }
@@ -157,7 +155,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     }
   }
 
-  /** 설정 저장 — 스위치(켜짐/꺼짐)·주기·대상 구를 한 번에 저장한다. */
+  /** 설정 저장 — 업데이트 주기와 대상 구를 저장한다(켜짐/꺼짐은 스위치가 따로 즉시 저장). */
   async function saveSettings() {
     setAutoMessage(null);
     setError(null);
@@ -166,17 +164,17 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
       setError("업데이트 주기는 1~365일의 정수여야 합니다.");
       return;
     }
-    if (draftEnabled && !draftCodes.length) {
-      setError("자동 업데이트를 켜려면 대상 구를 하나 이상 선택하세요.");
+    if (auto?.enabled && !draftCodes.length) {
+      setError("자동 업데이트가 켜져 있어 대상 구를 하나 이상 선택해야 합니다. 끄려면 스위치를 끄세요.");
       return;
     }
     setAutoBusy(true);
     try {
-      const saved = await saveJaegebalAutoSettings({ enabled: draftEnabled, intervalDays: days, codes: draftCodes });
+      const saved = await saveJaegebalAutoSettings({ intervalDays: days, codes: draftCodes });
       applySaved(saved);
       setAutoMessage(
-        `설정을 저장했습니다 — 자동 업데이트 ${saved.enabled ? "켜짐" : "꺼짐"} · ${saved.intervalDays}일마다 · 대상 ${saved.codes.length}개 구` +
-          (saved.enabled && saved.nextRunAt ? ` · 첫/다음 실행 ${kstDate(saved.nextRunAt)} 이후 새벽` : ""),
+        `설정을 저장했습니다 — ${saved.intervalDays}일마다 · 대상 ${saved.codes.length}개 구` +
+          (saved.enabled && saved.nextRunAt ? ` · 다음 실행 ${kstDate(saved.nextRunAt)} 이후 새벽` : saved.enabled ? "" : " (자동 업데이트는 꺼져 있습니다)"),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "자동 업데이트 설정을 저장하지 못했습니다.");
@@ -185,20 +183,45 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     }
   }
 
+  /** 스위치 — 알림톡의 "자동 반복 발송"처럼 누르는 즉시 켜고 끈다. 이미 저장된 설정(주기·대상 구)대로 동작한다. */
+  async function toggleAuto() {
+    if (!auto) return;
+    setAutoMessage(null);
+    setError(null);
+    if (!auto.enabled && !auto.codes.length) {
+      setError("저장된 대상 구가 없습니다. 아래에서 대상 구를 선택하고 \"설정 저장\"을 먼저 눌러 주세요.");
+      return;
+    }
+    setAutoBusy(true);
+    try {
+      const saved = await saveJaegebalAutoSettings({ enabled: !auto.enabled });
+      setAuto(saved);
+      setAutoMessage(
+        saved.enabled
+          ? `자동 업데이트를 켰습니다 — ${saved.intervalDays}일마다 · 대상 ${saved.codes.length}개 구${saved.nextRunAt ? ` · 첫 실행 ${kstDate(saved.nextRunAt)} 이후 새벽` : ""}`
+          : "자동 업데이트를 껐습니다. 저장된 설정은 그대로 남아 있습니다.",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "자동 업데이트를 켜고 끄지 못했습니다.");
+    } finally {
+      setAutoBusy(false);
+    }
+  }
+
   const doneCount = status?.results.filter((r) => r.name || r.error || r.warning).length ?? 0;
   const autoOn = !!auto?.enabled;
   const savedNames = auto ? namesOf(auto.codes) : [];
-  const dirty = !!auto && (draftEnabled !== auto.enabled || Number(intervalInput) !== auto.intervalDays || !sameSet(draftCodes, auto.codes));
+  const dirty = !!auto && (Number(intervalInput) !== auto.intervalDays || !sameSet(draftCodes, auto.codes));
 
   return (
     <div className="space-y-2">
       {summary}
       <p className="text-muted-foreground">
-        <b className="text-foreground">자동 업데이트</b>는 대상 구·주기를 정해 <b className="text-foreground">설정 저장</b>을 누르면 서버가 주기마다 새벽에 실행하고, <b className="text-foreground">지금 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
+        <b className="text-foreground">자동 업데이트</b>는 스위치를 켜면 저장된 대상 구·주기대로 서버가 주기마다 새벽에 실행하고(대상·주기는 <b className="text-foreground">설정 저장</b>으로 저장), <b className="text-foreground">지금 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
         사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
       </p>
 
-      {/* 자동 업데이트 — 알림톡 탭의 "자동 반복 발송"과 같은 디자인(켜지면 초록색). 스위치·주기·대상 구는 "설정 저장"으로 한 번에 저장한다. */}
+      {/* 자동 업데이트 — 알림톡 탭의 "자동 반복 발송"과 같은 디자인(켜지면 초록색). 스위치는 즉시 켜고 끄며, 주기·대상 구는 "설정 저장"으로 저장한다. */}
       <div
         className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 transition-colors ${
           autoOn ? "border-emerald-300 bg-emerald-50" : "border-border bg-secondary/20"
@@ -226,16 +249,16 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
         </div>
         <button
           type="button"
-          onClick={() => setDraftEnabled((v) => !v)}
+          onClick={() => void toggleAuto()}
           disabled={!auto || autoBusy}
           role="switch"
-          aria-checked={draftEnabled}
+          aria-checked={autoOn}
           aria-label="자동 업데이트"
           className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-            draftEnabled ? "bg-emerald-500" : "bg-secondary border border-border"
+            autoOn ? "bg-emerald-500" : "bg-secondary border border-border"
           }`}
         >
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${draftEnabled ? "translate-x-6" : "translate-x-1"}`} />
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoOn ? "translate-x-6" : "translate-x-1"}`} />
         </button>
       </div>
       <div className="space-y-2 rounded-sm border border-border px-3 py-2">
@@ -253,7 +276,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
         </div>
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">
-            자동 업데이트 대상 구 <span className="text-[11px]">(스위치가 꺼져 있어도 대상은 저장됩니다)</span>
+            자동 업데이트 대상 구 <span className="text-[11px]">(스위치가 꺼져 있어도 대상은 저장됩니다. 스위치는 저장된 설정대로 동작합니다)</span>
           </p>
           <DistrictPicker value={draftCodes} onChange={setDraftCodes} disabled={!auto || autoBusy} />
         </div>
@@ -266,7 +289,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           >
             {autoBusy ? "저장 중…" : "설정 저장"}
           </button>
-          {dirty && <span className="text-[11px] text-amber-600">저장되지 않은 변경이 있습니다 — &quot;설정 저장&quot;을 눌러야 자동 업데이트에 적용됩니다</span>}
+          {dirty && <span className="text-[11px] text-amber-600">저장되지 않은 주기·대상 변경이 있습니다 — &quot;설정 저장&quot;을 눌러야 자동 업데이트에 적용됩니다</span>}
         </div>
       </div>
       {autoMessage && <p className="text-emerald-700">{autoMessage}</p>}
