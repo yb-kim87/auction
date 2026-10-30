@@ -170,6 +170,12 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
 
   return (
     <div className="space-y-2">
+      {summary}
+      <p className="text-muted-foreground">
+        아래에서 업데이트할 구를 고르세요. <b className="text-foreground">지금 업데이트</b>는 바로 실행하고, 아래 <b className="text-foreground">자동 업데이트</b>는 선택한 구를 주기마다 새벽에 서버가 실행합니다(서로 별개).
+        사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
+      </p>
+
       {/* 자동 업데이트 — 알림톡 탭의 "자동 반복 발송"과 같은 디자인(켜지면 초록색) */}
       <div
         className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 transition-colors ${
@@ -248,12 +254,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
       <p className="text-muted-foreground">
         마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인). 자동 업데이트를 켜 두면 성공한 실행도 마지막 반영으로 봅니다.
       </p>
-      {summary}
-      <p className="text-muted-foreground">
-        아래에서 업데이트할 구를 고르세요. <b className="text-foreground">지금 업데이트</b>는 바로 실행하고, 아래 <b className="text-foreground">자동 업데이트</b>는 선택한 구를 주기마다 새벽에 서버가 실행합니다(서로 별개).
-        사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
-      </p>
-
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           type="button"
