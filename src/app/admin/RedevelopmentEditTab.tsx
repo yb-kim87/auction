@@ -660,8 +660,10 @@ export function RedevelopmentEditTab() {
   };
   const focusAuctionOnMap = (auction: RedevelopmentMapAuction) => {
     setAuctionSearchMatches([]);
-    setAuctionSearchMessage(`${auction.auctionNo}${auction.court ? ` · ${auction.court}` : ""} 물건을 지도에서 표시했습니다.`);
-    setShowNear(true);
+    // "지도에서 찾기"는 지금 지도 설정(근처·경공매·낙찰 필터 등)을 바꾸지 않고 그 상태 그대로 위치만 이동한다.
+    // 경계 밖 근처 물건인데 근처 표시가 꺼져 있으면 지도에 점이 안 보이므로 안내만 덧붙인다.
+    const hiddenNear = auction.near && !showNear ? " (경계 밖 근처 물건이라 지도의 '근처'를 켜면 점이 보입니다.)" : "";
+    setAuctionSearchMessage(`${auction.auctionNo}${auction.court ? ` · ${auction.court}` : ""} 물건 위치로 이동했습니다.${hiddenNear}`);
     setSelectedAuctionId(auction.id);
     setFocusAuction({ id: auction.id, lat: auction.latitude, lng: auction.longitude, nonce: Date.now() });
     mapBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
