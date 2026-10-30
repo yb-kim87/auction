@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   fetchJaegebalAutoSettings,
   fetchJaegebalSyncStatus,
@@ -38,7 +38,7 @@ function estimateMinutes(n: number): number {
 }
 
 /** 재개발닷컴 구역 업데이트 패널 — 구를 고르고(전체 선택 가능) ① 지금 업데이트 ② 자동 업데이트(주기마다 새벽에 서버가 실행, 기본 꺼짐·14일)를 설정한다. 둘은 별개다. */
-export function RedevelopmentJaegebalSync({ onFinished }: { onFinished: () => void }) {
+export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished: () => void; summary?: ReactNode }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [status, setStatus] = useState<JaegebalSyncStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -170,59 +170,6 @@ export function RedevelopmentJaegebalSync({ onFinished }: { onFinished: () => vo
 
   return (
     <div className="space-y-2">
-      <p className="text-muted-foreground">
-        업데이트할 구를 고르세요. <b className="text-foreground">지금 업데이트</b>는 바로 실행하고, 아래 <b className="text-foreground">자동 업데이트</b>는 선택한 구를 주기마다 새벽에 서버가 실행합니다(서로 별개).
-        사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
-      </p>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          disabled={running}
-          onClick={() => setSelected(allSelected ? [] : DISTRICTS.map(([c]) => c))}
-          className="rounded-sm border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40"
-        >
-          {allSelected ? "전체 해제" : "전체 선택"}
-        </button>
-        <span className="text-muted-foreground">{selected.length}/{DISTRICTS.length}개 선택</span>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {DISTRICTS.map(([code, name]) => {
-          const on = selected.includes(code);
-          return (
-            <button
-              key={code}
-              type="button"
-              disabled={running}
-              onClick={() => toggle(code)}
-              className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border text-foreground hover:bg-muted"} disabled:opacity-40`}
-            >
-              {name}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={!selected.length || running || starting}
-          onClick={startNow}
-          className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
-        >
-          {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 지금 업데이트`}
-        </button>
-        {selected.length > NORMAL_MAX_DISTRICTS && !running && (
-          <span className="text-muted-foreground">약 {estimateMinutes(selected.length)}분 걸립니다(느린 간격으로 실행)</span>
-        )}
-        {running && status && (
-          <span className="text-muted-foreground">
-            {status.trigger === "auto" ? "[자동] " : ""}
-            {doneCount}/{status.codes.length}개 구 진행{status.all ? " (느린 순차 — 화면을 닫아도 계속됩니다)" : ""} — 끝나면 지도가 자동으로 새로 불러와집니다
-          </span>
-        )}
-      </div>
-
       {/* 자동 업데이트 — 알림톡 탭의 "자동 반복 발송"과 같은 디자인(켜지면 초록색) */}
       <div
         className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 transition-colors ${
@@ -291,12 +238,69 @@ export function RedevelopmentJaegebalSync({ onFinished }: { onFinished: () => vo
           onClick={() => void saveAuto({ codes: selected }, `자동 업데이트 대상을 ${selected.length}개 구로 저장했습니다.`)}
           disabled={!auto || autoBusy || !selected.length || sameAsSaved}
           className="px-2 py-1 text-[11px] font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
-          title="위에서 선택한 구를 자동 업데이트 대상으로 저장합니다"
+          title="아래에서 선택한 구를 자동 업데이트 대상으로 저장합니다"
         >
-          선택한 구를 대상으로 저장
+          아래에서 선택한 구를 대상으로 저장
         </button>
       </div>
       {autoMessage && <p className="text-emerald-700">{autoMessage}</p>}
+
+      <p className="text-muted-foreground">
+        마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인). 자동 업데이트를 켜 두면 성공한 실행도 마지막 반영으로 봅니다.
+      </p>
+      {summary}
+      <p className="text-muted-foreground">
+        아래에서 업데이트할 구를 고르세요. <b className="text-foreground">지금 업데이트</b>는 바로 실행하고, 아래 <b className="text-foreground">자동 업데이트</b>는 선택한 구를 주기마다 새벽에 서버가 실행합니다(서로 별개).
+        사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          disabled={running}
+          onClick={() => setSelected(allSelected ? [] : DISTRICTS.map(([c]) => c))}
+          className="rounded-sm border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40"
+        >
+          {allSelected ? "전체 해제" : "전체 선택"}
+        </button>
+        <span className="text-muted-foreground">{selected.length}/{DISTRICTS.length}개 선택</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {DISTRICTS.map(([code, name]) => {
+          const on = selected.includes(code);
+          return (
+            <button
+              key={code}
+              type="button"
+              disabled={running}
+              onClick={() => toggle(code)}
+              className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border text-foreground hover:bg-muted"} disabled:opacity-40`}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={!selected.length || running || starting}
+          onClick={startNow}
+          className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+        >
+          {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 지금 업데이트`}
+        </button>
+        {selected.length > NORMAL_MAX_DISTRICTS && !running && (
+          <span className="text-muted-foreground">약 {estimateMinutes(selected.length)}분 걸립니다(느린 간격으로 실행)</span>
+        )}
+        {running && status && (
+          <span className="text-muted-foreground">
+            {status.trigger === "auto" ? "[자동] " : ""}
+            {doneCount}/{status.codes.length}개 구 진행{status.all ? " (느린 순차 — 화면을 닫아도 계속됩니다)" : ""} — 끝나면 지도가 자동으로 새로 불러와집니다
+          </span>
+        )}
+      </div>
 
       {error && <p className="text-destructive">{error}</p>}
       {status?.blocked && (

@@ -33,20 +33,23 @@ export function RedevelopmentUpdateTab() {
 
       <div className="rounded-sm border border-border bg-card px-4 py-3 text-xs space-y-1.5">
         {error && <p className="text-destructive">{error}</p>}
-        <p className="text-muted-foreground">
-          지금 반영된 재개발닷컴 구역 <b className="text-foreground">{summary ? summary.zoneCount.toLocaleString("ko-KR") : "-"}개</b>
-          {summary?.lastUpdatedAt ? ` · 구역 마지막 변경 ${dateTime(summary.lastUpdatedAt)}` : ""}
-          {summary?.lastRunAt ? ` · 마지막 업데이트 실행 ${dateTime(summary.lastRunAt)}` : ""}
-        </p>
-        {!!summary?.missingCount && (
-          <p className="text-muted-foreground">
-            사라진 구역 <b className="text-foreground">{summary.missingCount.toLocaleString("ko-KR")}개</b> — 재개발닷컴 최신 수집에서 보이지 않아 지도에 회색 점선으로 표시 중입니다(삭제하지 않음).
-          </p>
-        )}
-        <RedevelopmentJaegebalSync onFinished={loadSummary} />
-        <p className="text-muted-foreground">
-          마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인). 자동 업데이트를 켜 두면 성공한 실행도 마지막 반영으로 봅니다.
-        </p>
+        <RedevelopmentJaegebalSync
+          onFinished={loadSummary}
+          summary={
+            <>
+              <p className="text-muted-foreground">
+                지금 반영된 재개발닷컴 구역 <b className="text-foreground">{summary ? summary.zoneCount.toLocaleString("ko-KR") : "-"}개</b>
+                {summary?.lastUpdatedAt ? ` · 구역 마지막 변경 ${dateTime(summary.lastUpdatedAt)}` : ""}
+                {summary?.lastRunAt ? ` · 마지막 업데이트 실행 ${dateTime(summary.lastRunAt)}` : ""}
+              </p>
+              {!!summary?.missingCount && (
+                <p className="text-muted-foreground">
+                  사라진 구역 <b className="text-foreground">{summary.missingCount.toLocaleString("ko-KR")}개</b> — 재개발닷컴 최신 수집에서 보이지 않아 지도에 회색 점선으로 표시 중입니다(삭제하지 않음).
+                </p>
+              )}
+            </>
+          }
+        />
       </div>
     </div>
   );
