@@ -27,6 +27,7 @@ const DEFAULT_INTERVAL_DAYS = 14;
 const FIELD_LABEL: Record<string, string> = { stage: "단계 변경", projectType: "사업유형 변경", new: "신규", missing: "사라짐 표시", restored: "복구" };
 
 const namesOf = (codes: string[]) => codes.map((c) => DISTRICT_NAME.get(c) ?? c);
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((c) => b.includes(c));
 const kstDate = (iso: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "short" }).format(new Date(iso));
 const kstDateTime = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
@@ -37,36 +38,74 @@ function estimateMinutes(n: number): number {
   return n <= NORMAL_MAX_DISTRICTS ? Math.max(1, Math.round((n * 30 + (n - 1) * 30) / 60)) : Math.round((n * 60 + (n - 1) * 120) / 60);
 }
 
-/** 재개발닷컴 구역 업데이트 패널 — 구를 고르고(전체 선택 가능) ① 지금 업데이트 ② 자동 업데이트(주기마다 새벽에 서버가 실행, 기본 꺼짐·14일)를 설정한다. 둘은 별개다. */
+/** 구 선택(전체 선택/해제 + 25개 구 버튼). 자동 업데이트 대상과 지금 업데이트 대상은 각각 따로 고른다. */
+function DistrictPicker({ value, onChange, disabled }: { value: string[]; onChange: (codes: string[]) => void; disabled?: boolean }) {
+  const all = value.length === DISTRICTS.length;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(all ? [] : DISTRICTS.map(([c]) => c))}
+          className="rounded-sm border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40"
+        >
+          {all ? "전체 해제" : "전체 선택"}
+        </button>
+        <span className="text-muted-foreground">{value.length}/{DISTRICTS.length}개 선택</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {DISTRICTS.map(([code, name]) => {
+          const on = value.includes(code);
+          return (
+            <button
+              key={code}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(on ? value.filter((c) => c !== code) : [...value, code])}
+              className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border text-foreground hover:bg-muted"} disabled:opacity-40`}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** 재개발닷컴 구역 업데이트 패널 — ① 자동 업데이트(대상 구·주기·켜기를 정하고 "설정 저장", 서버가 주기마다 새벽에 실행, 기본 꺼짐·14일)
+ *  ② 지금 업데이트(구를 따로 골라 바로 실행). 두 구 선택은 서로 별개다. */
 export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished: () => void; summary?: ReactNode }) {
+  // 지금 업데이트용 구 선택
   const [selected, setSelected] = useState<string[]>([]);
   const [status, setStatus] = useState<JaegebalSyncStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  // 자동 업데이트: 서버에 저장된 값과, 저장 전에 편집 중인 값(스위치·주기·대상 구)
   const [auto, setAuto] = useState<JaegebalAutoSettings | null>(null);
+  const [draftEnabled, setDraftEnabled] = useState(false);
+  const [draftCodes, setDraftCodes] = useState<string[]>([]);
+  const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
   const [autoBusy, setAutoBusy] = useState(false);
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
-  const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
   const wasRunning = useRef(false);
-  const initialSelectionDone = useRef(false);
   const onFinishedRef = useRef(onFinished);
   onFinishedRef.current = onFinished;
 
   const running = !!status?.running;
 
+  function applySaved(s: JaegebalAutoSettings) {
+    setAuto(s);
+    setDraftEnabled(s.enabled);
+    setDraftCodes(s.codes);
+    setIntervalInput(String(s.intervalDays));
+  }
+
   // 열 때 서버의 현재 실행 상태와 자동 업데이트 설정을 한 번 확인한다.
   useEffect(() => {
     fetchJaegebalSyncStatus().then(setStatus).catch(() => undefined);
-    fetchJaegebalAutoSettings()
-      .then((s) => {
-        setAuto(s);
-        setIntervalInput(String(s.intervalDays));
-        if (!initialSelectionDone.current && s.codes.length) {
-          initialSelectionDone.current = true;
-          setSelected(s.codes);
-        }
-      })
-      .catch(() => undefined);
+    fetchJaegebalAutoSettings().then(applySaved).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -74,7 +113,8 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     if (!running && wasRunning.current) {
       wasRunning.current = false;
       onFinishedRef.current();
-      fetchJaegebalAutoSettings().then(setAuto).catch(() => undefined); // 자동 실행이 끝났다면 다음 예정 시각이 바뀐다.
+      // 자동 실행이 끝났다면 다음 예정 시각이 바뀐다(편집 중인 값은 건드리지 않고 저장된 값만 갱신).
+      fetchJaegebalAutoSettings().then(setAuto).catch(() => undefined);
     }
     if (!running) return;
     const timer = setInterval(() => {
@@ -91,12 +131,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     }, 60_000);
     return () => clearInterval(timer);
   }, [auto?.enabled, running]);
-
-  const allSelected = selected.length === DISTRICTS.length;
-
-  function toggle(code: string) {
-    setSelected((cur) => (cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code]));
-  }
 
   /** 선택한 구를 지금 바로 업데이트(자동 업데이트 설정과 별개). 구가 많으면 서버가 느린 간격으로 실행한다. */
   async function startNow() {
@@ -123,15 +157,27 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     }
   }
 
-  async function saveAuto(body: { enabled?: boolean; intervalDays?: number; codes?: string[] }, okMessage: string) {
-    setAutoBusy(true);
+  /** 설정 저장 — 스위치(켜짐/꺼짐)·주기·대상 구를 한 번에 저장한다. */
+  async function saveSettings() {
     setAutoMessage(null);
     setError(null);
+    const days = Number(intervalInput);
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      setError("업데이트 주기는 1~365일의 정수여야 합니다.");
+      return;
+    }
+    if (draftEnabled && !draftCodes.length) {
+      setError("자동 업데이트를 켜려면 대상 구를 하나 이상 선택하세요.");
+      return;
+    }
+    setAutoBusy(true);
     try {
-      const saved = await saveJaegebalAutoSettings(body);
-      setAuto(saved);
-      setIntervalInput(String(saved.intervalDays));
-      setAutoMessage(okMessage);
+      const saved = await saveJaegebalAutoSettings({ enabled: draftEnabled, intervalDays: days, codes: draftCodes });
+      applySaved(saved);
+      setAutoMessage(
+        `설정을 저장했습니다 — 자동 업데이트 ${saved.enabled ? "켜짐" : "꺼짐"} · ${saved.intervalDays}일마다 · 대상 ${saved.codes.length}개 구` +
+          (saved.enabled && saved.nextRunAt ? ` · 첫/다음 실행 ${kstDate(saved.nextRunAt)} 이후 새벽` : ""),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "자동 업데이트 설정을 저장하지 못했습니다.");
     } finally {
@@ -139,48 +185,20 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     }
   }
 
-  /** 스위치: 켤 때 대상 구가 아직 없으면 지금 선택한 구를 대상으로 저장한다. */
-  async function toggleAuto() {
-    if (!auto) return;
-    if (auto.enabled) {
-      await saveAuto({ enabled: false }, "자동 업데이트를 껐습니다.");
-      return;
-    }
-    // 켤 때 지금 선택한 구를 대상으로 저장한다(선택이 없으면 이전에 저장된 대상을 그대로 쓴다).
-    if (!auto.codes.length && !selected.length) {
-      setError("자동 업데이트할 구를 먼저 선택하세요.");
-      return;
-    }
-    const targetCount = selected.length ? selected.length : auto.codes.length;
-    await saveAuto(
-      { enabled: true, ...(selected.length ? { codes: selected } : {}) },
-      `자동 업데이트를 켰습니다. 대상 ${targetCount}개 구, 첫 실행은 ${auto.intervalDays}일 뒤 새벽입니다.`,
-    );
-  }
-
-  async function applyInterval() {
-    const n = Number(intervalInput);
-    if (!Number.isInteger(n) || n < 1 || n > 365) {
-      setError("업데이트 주기는 1~365일의 정수여야 합니다.");
-      return;
-    }
-    await saveAuto({ intervalDays: n }, `업데이트 주기를 ${n}일로 적용했습니다.`);
-  }
-
   const doneCount = status?.results.filter((r) => r.name || r.error || r.warning).length ?? 0;
   const autoOn = !!auto?.enabled;
   const savedNames = auto ? namesOf(auto.codes) : [];
-  const sameAsSaved = !!auto && auto.codes.length === selected.length && auto.codes.every((c) => selected.includes(c));
+  const dirty = !!auto && (draftEnabled !== auto.enabled || Number(intervalInput) !== auto.intervalDays || !sameSet(draftCodes, auto.codes));
 
   return (
     <div className="space-y-2">
       {summary}
       <p className="text-muted-foreground">
-        아래에서 업데이트할 구를 고르세요. <b className="text-foreground">지금 업데이트</b>는 바로 실행하고, 아래 <b className="text-foreground">자동 업데이트</b>는 선택한 구를 주기마다 새벽에 서버가 실행합니다(서로 별개).
+        <b className="text-foreground">자동 업데이트</b>는 대상 구·주기를 정해 <b className="text-foreground">설정 저장</b>을 누르면 서버가 주기마다 새벽에 실행하고, <b className="text-foreground">지금 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
         사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
       </p>
 
-      {/* 자동 업데이트 — 알림톡 탭의 "자동 반복 발송"과 같은 디자인(켜지면 초록색) */}
+      {/* 자동 업데이트 — 알림톡 탭의 "자동 반복 발송"과 같은 디자인(켜지면 초록색). 스위치·주기·대상 구는 "설정 저장"으로 한 번에 저장한다. */}
       <div
         className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 transition-colors ${
           autoOn ? "border-emerald-300 bg-emerald-50" : "border-border bg-secondary/20"
@@ -202,111 +220,83 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
                 ? `서버가 ${auto.intervalDays}일마다 새벽(한국시간 1~6시)에 ${auto.codes.length}개 구(${savedNames.slice(0, 5).join(", ")}${savedNames.length > 5 ? " 외" : ""})를 자동으로 업데이트합니다.${
                     auto.nextRunAt ? ` 다음 예정: ${kstDate(auto.nextRunAt)} 이후 새벽.` : ""
                   }${auto.lastRunAt ? ` 마지막 자동 실행: ${kstDateTime(auto.lastRunAt)}.` : ""}`
-                : "켜두면 서버가 정해진 주기마다 새벽에 선택한 구를 자동으로 업데이트합니다. 지금은 자동으로 실행되지 않습니다."}
+                : "켜두면 서버가 정해진 주기마다 새벽에 대상 구를 자동으로 업데이트합니다. 지금은 자동으로 실행되지 않습니다."}
             </p>
           </div>
         </div>
         <button
           type="button"
-          onClick={() => void toggleAuto()}
+          onClick={() => setDraftEnabled((v) => !v)}
           disabled={!auto || autoBusy}
           role="switch"
-          aria-checked={autoOn}
+          aria-checked={draftEnabled}
           aria-label="자동 업데이트"
           className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-            autoOn ? "bg-emerald-500" : "bg-secondary border border-border"
+            draftEnabled ? "bg-emerald-500" : "bg-secondary border border-border"
           }`}
         >
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoOn ? "translate-x-6" : "translate-x-1"}`} />
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${draftEnabled ? "translate-x-6" : "translate-x-1"}`} />
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-2 rounded-sm border border-border px-3 py-2">
-        <label className="text-xs text-muted-foreground shrink-0">업데이트 주기(일)</label>
-        <input
-          type="number"
-          min={1}
-          max={365}
-          value={intervalInput}
-          onChange={(e) => setIntervalInput(e.target.value)}
-          className="w-20 px-2 py-1 text-xs border border-border rounded-sm bg-card"
-        />
-        <button
-          type="button"
-          onClick={() => void applyInterval()}
-          disabled={!auto || autoBusy}
-          className="px-2 py-1 text-[11px] font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
-        >
-          {autoBusy ? "적용 중..." : "적용"}
-        </button>
-        <span className="text-[11px] text-muted-foreground">기본 14일(2주)</span>
-        <span className="mx-1 hidden h-4 w-px bg-border sm:inline-block" />
-        <span className="text-xs text-muted-foreground">
-          자동 업데이트 대상: <b className="text-foreground">{auto && auto.codes.length ? `${auto.codes.length}개 구 (${savedNames.slice(0, 4).join(", ")}${savedNames.length > 4 ? " 외" : ""})` : "없음"}</b>
-        </span>
-        <button
-          type="button"
-          onClick={() => void saveAuto({ codes: selected }, `자동 업데이트 대상을 ${selected.length}개 구로 저장했습니다.`)}
-          disabled={!auto || autoBusy || !selected.length || sameAsSaved}
-          className="px-2 py-1 text-[11px] font-medium rounded-sm border border-border hover:bg-secondary disabled:opacity-50"
-          title="아래에서 선택한 구를 자동 업데이트 대상으로 저장합니다"
-        >
-          아래에서 선택한 구를 대상으로 저장
-        </button>
-        {!!auto && !!selected.length && !sameAsSaved && (
-          <span className="text-[11px] text-amber-600">지금 선택이 저장된 대상과 다릅니다 — 저장해야 자동 업데이트에 반영됩니다(스위치를 새로 켤 때도 저장됩니다)</span>
-        )}
+      <div className="space-y-2 rounded-sm border border-border px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs text-muted-foreground shrink-0">업데이트 주기(일)</label>
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={intervalInput}
+            onChange={(e) => setIntervalInput(e.target.value)}
+            className="w-20 px-2 py-1 text-xs border border-border rounded-sm bg-card"
+          />
+          <span className="text-[11px] text-muted-foreground">기본 14일(2주)</span>
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">
+            자동 업데이트 대상 구 <span className="text-[11px]">(스위치가 꺼져 있어도 대상은 저장됩니다)</span>
+          </p>
+          <DistrictPicker value={draftCodes} onChange={setDraftCodes} disabled={!auto || autoBusy} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void saveSettings()}
+            disabled={!auto || autoBusy}
+            className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+          >
+            {autoBusy ? "저장 중…" : "설정 저장"}
+          </button>
+          {dirty && <span className="text-[11px] text-amber-600">저장되지 않은 변경이 있습니다 — &quot;설정 저장&quot;을 눌러야 자동 업데이트에 적용됩니다</span>}
+        </div>
       </div>
       {autoMessage && <p className="text-emerald-700">{autoMessage}</p>}
-
       <p className="text-muted-foreground">
         마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인). 자동 업데이트를 켜 두면 성공한 실행도 마지막 반영으로 봅니다.
       </p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          disabled={running}
-          onClick={() => setSelected(allSelected ? [] : DISTRICTS.map(([c]) => c))}
-          className="rounded-sm border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40"
-        >
-          {allSelected ? "전체 해제" : "전체 선택"}
-        </button>
-        <span className="text-muted-foreground">{selected.length}/{DISTRICTS.length}개 선택</span>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {DISTRICTS.map(([code, name]) => {
-          const on = selected.includes(code);
-          return (
-            <button
-              key={code}
-              type="button"
-              disabled={running}
-              onClick={() => toggle(code)}
-              className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border text-foreground hover:bg-muted"} disabled:opacity-40`}
-            >
-              {name}
-            </button>
-          );
-        })}
-      </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={!selected.length || running || starting}
-          onClick={startNow}
-          className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
-        >
-          {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 지금 업데이트`}
-        </button>
-        {selected.length > NORMAL_MAX_DISTRICTS && !running && (
-          <span className="text-muted-foreground">약 {estimateMinutes(selected.length)}분 걸립니다(느린 간격으로 실행)</span>
-        )}
-        {running && status && (
-          <span className="text-muted-foreground">
-            {status.trigger === "auto" ? "[자동] " : ""}
-            {doneCount}/{status.codes.length}개 구 진행{status.all ? " (느린 순차 — 화면을 닫아도 계속됩니다)" : ""} — 끝나면 지도가 자동으로 새로 불러와집니다
-          </span>
-        )}
+      {/* 지금 업데이트 — 자동 업데이트와 별개로 구를 따로 골라 바로 실행 */}
+      <div className="space-y-2 rounded-sm border border-border px-3 py-2">
+        <p className="text-xs font-semibold text-foreground">지금 업데이트 <span className="font-normal text-muted-foreground">— 자동 업데이트 설정과 별개로, 고른 구를 바로 실행합니다</span></p>
+        <DistrictPicker value={selected} onChange={setSelected} disabled={running} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={!selected.length || running || starting}
+            onClick={startNow}
+            className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+          >
+            {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 지금 업데이트`}
+          </button>
+          {selected.length > NORMAL_MAX_DISTRICTS && !running && (
+            <span className="text-muted-foreground">약 {estimateMinutes(selected.length)}분 걸립니다(느린 간격으로 실행)</span>
+          )}
+          {running && status && (
+            <span className="text-muted-foreground">
+              {status.trigger === "auto" ? "[자동] " : ""}
+              {doneCount}/{status.codes.length}개 구 진행{status.all ? " (느린 순차 — 화면을 닫아도 계속됩니다)" : ""} — 끝나면 지도가 자동으로 새로 불러와집니다
+            </span>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-destructive">{error}</p>}
