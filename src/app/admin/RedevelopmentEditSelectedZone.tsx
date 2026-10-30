@@ -23,6 +23,12 @@ function ZoneProgress({ zone }: { zone: RedevelopmentZone }) {
   const cautions = zoneStageCautions(zoneBusinessTypeLabel(zone), stage);
   return (
     <section className="border-b border-border px-4 py-3 sm:px-5">
+      {zone.missingSince && (
+        <p className="mb-2 rounded-sm border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <b className="text-foreground">사라진 구역</b> — 재개발닷컴 최신 수집({new Date(zone.missingSince).toLocaleDateString("ko-KR")})에서 이 구역이 보이지 않았습니다.
+          사업이 무산·해제됐을 수 있습니다. 구역은 삭제하지 않고 회색 점선으로만 표시하며, 다시 나타나면 자동으로 해제됩니다.
+        </p>
+      )}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h3 className="text-sm font-bold text-foreground">사업 진행 단계</h3>
         <span className="text-sm font-bold" style={{ color, opacity: completed ? 0.65 : 1 }}>현재: {stageDisplayLabel(stage)}</span>

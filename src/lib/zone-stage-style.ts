@@ -31,22 +31,79 @@ const TYPE_COLOR: Record<string, string> = {
 
 const META = zoneMeta as unknown as Record<string, [string, "p" | "g" | "c", string]>;
 
-export type ZoneStyle = { color: string; dashed: boolean; completed: boolean; typeKey: string };
+/** 재개발닷컴에서 사라진 구역(서버가 `missingSince`로 표시, 삭제는 안 함) 표시 색 — 회색 점선. */
+export const MISSING_ZONE_COLOR = "#6b7280";
+/** 정적 meta 파일을 만든 시점. 이후 서버 수집으로 갱신된 구역은 meta 대신 현재 단계·사업유형으로 색·점선을 정한다. */
+const META_SNAPSHOT_UNTIL = "2026-10-29";
 
-export function zoneStyle(zone: Pick<RedevelopmentZone, "sourceKey" | "stage">): ZoneStyle {
-  const id = /(\d+)$/.exec(zone.sourceKey ?? "")?.[1];
-  const [typeKey, group] = (id && META[id]) || ["jaegebal", "g", ""];
+const PROJECT_TYPE_KEY: Record<string, string> = {
+  재개발: "jaegebal",
+  공공재개발: "public",
+  신속통합기획: "fast",
+  모아타운: "moatown",
+  가로주택정비: "garo",
+  가로주택: "garo",
+  소규모재개발: "small",
+  소규모: "small",
+  역세권활성화: "subwaytown",
+  도심공공복합: "dosimpublic",
+  민간도심복합: "dosimprivate",
+  재건축: "shared_jaegeunchook",
+  지역주택조합: "jjt",
+  장기전세: "long_jeonsae",
+  가상구역: "virtual",
+  시장정비: "market",
+  공공주택지구: "public_area",
+};
+
+type ZoneLike = Pick<RedevelopmentZone, "sourceKey" | "stage"> &
+  Partial<Pick<RedevelopmentZone, "projectType" | "lastAutoSyncedAt" | "missingSince">>;
+
+/** 재개발닷컴 구역 id — `jaegebal-123`, 하위 폴리곤 `jaegebal-123-2` 모두 123. */
+function zoneMetaId(sourceKey: string | null | undefined): string | undefined {
+  return /^jaegebal-(\d+)/.exec(sourceKey ?? "")?.[1] ?? /(\d+)$/.exec(sourceKey ?? "")?.[1];
+}
+
+/** 현재 단계 이름 → 단계 그룹(p 추진중 / g 진행중 / c 완료). 분류에 없으면 null. */
+function stageGroupKey(stage: string | null | undefined): "p" | "g" | "c" | null {
+  const child = zoneFilterStage(stage);
+  if (!child) return null;
+  const parent = STAGE_FILTER_TREE.find((g) => g.children.some((c) => c.value === child))?.value;
+  return parent === "planning" ? "p" : parent === "progress" ? "g" : parent === "completed" ? "c" : null;
+}
+
+/** 구역의 사업유형 키·단계 그룹. 저장된 meta가 기본이고, meta에 없거나 meta 이후 서버가 갱신한 구역은 현재 값에서 계산한다. */
+function resolveZoneMeta(zone: ZoneLike): { typeKey: string; group: "p" | "g" | "c"; known: boolean } {
+  const id = zoneMetaId(zone.sourceKey);
+  const meta = id ? META[id] : undefined;
+  const fresh = !!zone.lastAutoSyncedAt && zone.lastAutoSyncedAt > META_SNAPSHOT_UNTIL;
+  let typeKey = meta?.[0];
+  let group = meta?.[1];
+  if (!meta || fresh) {
+    const mapped = PROJECT_TYPE_KEY[(zone.projectType ?? "").trim()];
+    if (mapped) typeKey = mapped;
+    group = stageGroupKey(zone.stage) ?? group;
+  }
+  return { typeKey: typeKey ?? "jaegebal", group: group ?? "g", known: !!typeKey };
+}
+
+export type ZoneStyle = { color: string; dashed: boolean; completed: boolean; typeKey: string; missing: boolean };
+
+export function zoneStyle(zone: ZoneLike): ZoneStyle {
+  const { typeKey, group } = resolveZoneMeta(zone);
+  if (zone.missingSince) return { color: MISSING_ZONE_COLOR, dashed: true, completed: false, typeKey, missing: true };
   return {
     color: TYPE_COLOR[typeKey] ?? TYPE_COLOR.jaegebal,
     dashed: group === "p",
     completed: group === "c",
     typeKey,
+    missing: false,
   };
 }
 
 /** 구역의 법정동(예: 대림동, 문래동2가 → 문래동) — 재개발닷컴 원본 주소에서 뽑아 저장해 둔 값. 없으면 "". 좌표 역지오코딩보다 정확하고 빠르다. */
 export function zoneLegalDong(zone: Pick<RedevelopmentZone, "sourceKey">): string {
-  const id = /(\d+)$/.exec(zone.sourceKey ?? "")?.[1];
+  const id = zoneMetaId(zone.sourceKey);
   return (id && META[id]?.[2]) || "";
 }
 
@@ -59,6 +116,7 @@ export const ZONE_TYPE_LEGEND: Array<{ label: string; color: string }> = [
   { label: "도심공공", color: TYPE_COLOR.dosimpublic },
   { label: "재건축(아파트)", color: TYPE_COLOR.shared_jaegeunchook },
   { label: "지역주택조합", color: TYPE_COLOR.jjt },
+  { label: "사라진 구역", color: MISSING_ZONE_COLOR },
 ];
 
 // ── 사업종류·진행단계 필터(재개발닷컴 필터 분류 그대로) ─────────────────────────────────
@@ -143,16 +201,16 @@ const TYPE_ALIAS: Record<string, string> = {
 };
 
 /** 필터용 사업종류 키(별칭을 필터 분류로 합친다). */
-export function zoneFilterType(zone: Pick<RedevelopmentZone, "sourceKey" | "stage">): string {
+export function zoneFilterType(zone: ZoneLike): string {
   const k = zoneStyle(zone).typeKey;
   return TYPE_ALIAS[k] ?? k;
 }
 
 /** 목록 표시용 사업종류 — 저장된 메타가 없으면 기본 재개발로 추측하지 않는다. */
-export function zoneBusinessTypeLabel(zone: Pick<RedevelopmentZone, "sourceKey" | "sourceDatasetId">): string {
+export function zoneBusinessTypeLabel(zone: Pick<RedevelopmentZone, "sourceKey" | "sourceDatasetId" | "stage"> & Partial<Pick<RedevelopmentZone, "projectType" | "lastAutoSyncedAt">>): string {
   if (zone.sourceDatasetId !== "jaegebal") return "사업종류 미확인";
-  const id = /(\d+)$/.exec(zone.sourceKey ?? "")?.[1];
-  const typeKey = id ? META[id]?.[0] : undefined;
+  const resolved = resolveZoneMeta(zone);
+  const typeKey = resolved.known ? resolved.typeKey : undefined;
   if (!typeKey) return "사업종류 미확인";
   const normalized = TYPE_ALIAS[typeKey] ?? typeKey;
   return TYPE_FILTER_TREE.flatMap((group) => group.children).find((child) => child.value === normalized)?.label ?? "사업종류 미확인";
@@ -171,14 +229,13 @@ export function zoneFilterStage(stage: string | null | undefined): string | null
 }
 
 /** 선택된 사업종류·진행단계(비어 있으면 전체)에 구역이 해당하는지. */
-export function zonePassesFilters(zone: Pick<RedevelopmentZone, "sourceKey" | "stage">, types: string[], stages: string[]): boolean {
+export function zonePassesFilters(zone: ZoneLike, types: string[], stages: string[]): boolean {
   if (types.length > 0 && !types.includes(zoneFilterType(zone))) return false;
   if (stages.length > 0) {
     const child = zoneFilterStage(zone.stage);
     if (child) return stages.includes(child);
     // 단계 이름이 분류에 없으면 저장된 단계 그룹(추진중/진행중/완료)에 속한 하위 단계가 하나라도 선택됐을 때 통과.
-    const id = /(\d+)$/.exec(zone.sourceKey ?? "")?.[1];
-    const groupKey = ({ p: "planning", g: "progress", c: "completed" } as const)[(id && META[id]?.[1]) || "g"];
+    const groupKey = ({ p: "planning", g: "progress", c: "completed" } as const)[resolveZoneMeta(zone).group];
     const grp = STAGE_FILTER_TREE.find((g) => g.value === groupKey);
     return !!grp && grp.children.some((c) => stages.includes(c.value));
   }

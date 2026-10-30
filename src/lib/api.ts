@@ -4169,6 +4169,8 @@ export type RedevelopmentZone = {
   areaSqMeters: number | null;
   /** 관리자가 "관심 구역"으로 표시했는지 — 구버전 서버 응답에는 없을 수 있다. */
   isInterest?: boolean;
+  /** 재개발닷컴 최신 수집에서 사라진 구역으로 표시된 시각(삭제는 안 함) — 구버전 서버 응답에는 없을 수 있다. */
+  missingSince?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -5860,6 +5862,50 @@ export async function fetchAuctionResearch(auctionId: string, toleranceM: number
 }
 
 /** 구역 라벨 클릭용 — 경매물건 기준 결과와 같은 모양(target=null). */
+export type JaegebalSyncResult = {
+  code: string;
+  name?: string;
+  fetched?: number;
+  created?: number;
+  updated?: number;
+  unchanged?: number;
+  skippedManual?: number;
+  markedMissing?: number;
+  restored?: number;
+  warning?: string;
+  error?: string;
+};
+
+export type JaegebalSyncStatus = {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  codes: string[];
+  results: JaegebalSyncResult[];
+  /** 사이트 보안 확인에 걸려 중단됨 — 자동으로 다시 시도하지 않는다. */
+  blocked: string | null;
+  changes: Array<{ key: string; name: string; field: "stage" | "projectType" | "new" | "missing" | "restored"; from?: string | null; to?: string | null }>;
+};
+
+/** 재개발닷컴 구역을 지정한 구(최대 3개)만 가져와 반영하도록 서버에 요청한다(백그라운드, 관리자). */
+export async function startJaegebalSync(codes: string[]): Promise<JaegebalSyncStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ codes }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역도 업데이트를 시작하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchJaegebalSyncStatus(): Promise<JaegebalSyncStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/status`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역도 업데이트 상태를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export async function fetchZoneResearch(zoneId: string, toleranceM: number): Promise<AuctionResearch> {
   const res = await apiFetch(
     `${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/results?toleranceM=${toleranceM}`,

@@ -20,6 +20,7 @@ import {
 import { loadKakaoMaps } from "@/lib/kakao-maps";
 import { RedevelopmentEditMapView } from "./RedevelopmentEditMapView";
 import { RedevelopmentImageTraceTool } from "./RedevelopmentImageTraceTool";
+import { RedevelopmentJaegebalSync } from "./RedevelopmentJaegebalSync";
 import { RedevelopmentTraceFailurePanel } from "./RedevelopmentTraceFailurePanel";
 import { RedevelopmentEditSelectedAuction } from "./RedevelopmentEditSelectedAuction";
 
@@ -843,14 +844,13 @@ export function RedevelopmentEditTab() {
             지금 반영된 재개발닷컴 구역 <b className="text-foreground">{allJaegebalZones.length.toLocaleString("ko-KR")}개</b>
             {jaegebalLastUpdatedAt ? ` · 마지막 반영 ${new Date(jaegebalLastUpdatedAt).toLocaleString("ko-KR")}` : ""}
           </p>
-          <p className="text-muted-foreground">
-            재개발닷컴에 새로 생긴 구역은 이 화면에서 바로 가져올 수 없습니다. 재개발닷컴에 봇 확인 화면이 있고 서버에는
-            브라우저가 없어서, 관리자 PC에서 창을 띄워 보안 확인을 직접 풀고 수집해야 합니다.
-          </p>
-          <p className="text-muted-foreground">
-            업데이트가 필요하면 Claude에게 <b className="text-foreground">&quot;재개발닷컴 구역도 업데이트해줘&quot;</b>라고 요청해 주세요.
-            수집이 끝나면 브라우저를 새로고침(F5)해 반영된 구역을 확인하세요.
-          </p>
+          {allJaegebalZones.some((z) => z.missingSince) && (
+            <p className="text-muted-foreground">
+              사라진 구역 <b className="text-foreground">{allJaegebalZones.filter((z) => z.missingSince).length.toLocaleString("ko-KR")}개</b> — 재개발닷컴 최신 수집에서 보이지 않아
+              회색 점선으로 표시 중입니다(삭제하지 않음).
+            </p>
+          )}
+          <RedevelopmentJaegebalSync onFinished={load} />
           <p className="text-muted-foreground">
             마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인).
           </p>

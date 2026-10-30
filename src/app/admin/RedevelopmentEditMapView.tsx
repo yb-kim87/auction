@@ -336,7 +336,8 @@ export function RedevelopmentEditMapView({
       box.style.cssText = `cursor:pointer;border:${interest ? "2px solid #f59e0b" : `1px solid ${color}`};border-radius:3px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);overflow:hidden;text-align:center;font:600 11px/1.3 sans-serif;white-space:nowrap;${selected ? "outline:2px solid #111;" : ""}`;
       const title = document.createElement("div");
       title.style.cssText = `background:${color};color:#fff;padding:1px 6px`;
-      title.textContent = interest ? `★ ${zone.name}` : zone.name;
+      const missing = !!zone.missingSince;
+      title.textContent = missing ? `사라짐 · ${zone.name}` : interest ? `★ ${zone.name}` : zone.name;
       const stage = document.createElement("div");
       stage.style.cssText = "color:#111;padding:1px 6px";
       stage.textContent = zone.stage || "확인필요";
