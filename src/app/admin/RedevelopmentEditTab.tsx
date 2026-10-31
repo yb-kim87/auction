@@ -542,7 +542,7 @@ export function RedevelopmentEditTab() {
             [zoneId]: blog.consent ? { yesPct: blog.consent.yesPct, noPct: blog.consent.noPct, postedAt: blog.consent.postedAt } : null,
           }));
         } else {
-          await startZoneResearch(zoneId, undefined, readFastResearch());
+          await startZoneResearch(zoneId, undefined, readFastResearch(), toleranceM);
         }
       } catch (e) {
         setListStartError(e instanceof Error ? e.message : "조사를 시작하지 못했습니다.");
@@ -585,7 +585,7 @@ export function RedevelopmentEditTab() {
               [id]: blog.consent ? { yesPct: blog.consent.yesPct, noPct: blog.consent.noPct, postedAt: blog.consent.postedAt } : null,
             }));
           } else {
-            await startZoneResearch(id, undefined, readFastResearch());
+            await startZoneResearch(id, undefined, readFastResearch(), toleranceM);
           }
         } catch (e) {
           setListStartError(e instanceof Error ? e.message : "조사를 시작하지 못했습니다.");
@@ -631,6 +631,15 @@ export function RedevelopmentEditTab() {
     setSelectedAuctionId(auction.id);
     setFocusAuction({ id: auction.id, lat: auction.latitude, lng: auction.longitude, nonce: Date.now() });
   }, [auctions]);
+  // 비교용 별도 창(경매 상세)에서 구역 머리글을 누르면 `?zoneId=`로 이 화면을 열어 그 구역 상세 팝업을 바로 띄운다.
+  const zoneLinkOpened = useRef(false);
+  useEffect(() => {
+    if (zoneLinkOpened.current || zones.length === 0) return;
+    const linkedZoneId = new URLSearchParams(window.location.search).get("zoneId");
+    if (!linkedZoneId) return;
+    zoneLinkOpened.current = true;
+    if (zones.some((z) => z.id === linkedZoneId)) setZonePopupId(linkedZoneId);
+  }, [zones]);
   const mapAuctions = useMemo(
     // 구·동 필터는 지도를 그 지역으로 옮기는 용도라 지도 위 경매 라벨은 구와 상관없이 전부 둔다(지도를 움직이면 다른 지역도 보인다).
     () => {
@@ -1215,6 +1224,7 @@ export function RedevelopmentEditTab() {
           onClose={() => setZonePopupId(null)}
           onToggleInterest={toggleInterest}
           onRightDateSaved={applyRightDate}
+          showNear={showNear}
           onSaveInfo={handleSaveInfo}
           onDelete={async (zone) => {
             if (await handleDeleteZone(zone)) setZonePopupId(null);
@@ -1229,6 +1239,12 @@ export function RedevelopmentEditTab() {
           toleranceM={toleranceM}
           onClose={() => setSelectedAuctionId(null)}
           onNavigateAuction={openComparisonAuctionOnMap}
+          resolveZone={(id) => zones.find((z) => z.id === id)}
+          // 조사 탭의 구역 머리글을 누르면 이 경매 상세를 닫고 그 구역의 상세 팝업으로 넘어간다.
+          onOpenZone={(zoneId) => {
+            setSelectedAuctionId(null);
+            setZonePopupId(zoneId);
+          }}
         />
       )}
 

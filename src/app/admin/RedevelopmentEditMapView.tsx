@@ -458,7 +458,9 @@ export function RedevelopmentEditMapView({
     type Bounds = { getSouthWest: () => { getLat: () => number; getLng: () => number }; getNorthEast: () => { getLat: () => number; getLng: () => number } };
     type Item = { key: string; kind: "auction" | "ask" | "trade"; lat: number; lng: number; top: string; text: string; badge?: string; tone?: "near" | "out"; sold?: boolean; value: number; selected: boolean; ids?: string[]; row: MapPopupRow };
     const tol = toleranceM;
-    const within = (d: number | null) => d == null || d <= tol;
+    // 호가·실거래도 경매처럼 "근처"를 켜지 않으면 구역 경계 안(거리 0)만 보이고, 켜면 오차범위 안의 경계 밖(근처)까지 보인다.
+    const within = (d: number | null) => d == null || (showNear ? d <= tol : d <= 0);
+    const outside = (d: number | null) => d != null && d > 0;
     const items: Item[] = [];
     if (showAuctions) {
       for (const a of auctions) {
@@ -496,7 +498,7 @@ export function RedevelopmentEditMapView({
     if (showAsks) {
       for (const l of researchPoints?.listings ?? []) {
         if (!within(l.distanceM)) continue;
-        items.push({ key: `l:${l.id}`, kind: "ask", lat: l.lat, lng: l.lng, top: "호가", text: formatManwon(l.priceManwon), value: l.priceManwon, selected: false,
+        items.push({ key: `l:${l.id}`, kind: "ask", lat: l.lat, lng: l.lng, top: outside(l.distanceM) ? "호가·경계밖" : "호가", text: formatManwon(l.priceManwon), value: l.priceManwon, selected: false,
           row: {
             kind: "ask",
             title: `호가 ${formatManwon(l.priceManwon)}${l.area ? ` · 전용 ${l.area}㎡` : ""}`,
@@ -515,7 +517,7 @@ export function RedevelopmentEditMapView({
     if (showTrades) {
       for (const tr of researchPoints?.trades ?? []) {
         if (!within(tr.distanceM)) continue;
-        items.push({ key: `t:${tr.id}`, kind: "trade", lat: tr.lat, lng: tr.lng, top: "실거래", text: formatManwon(tr.priceManwon), value: tr.priceManwon, selected: false,
+        items.push({ key: `t:${tr.id}`, kind: "trade", lat: tr.lat, lng: tr.lng, top: outside(tr.distanceM) ? "실거래·경계밖" : "실거래", text: formatManwon(tr.priceManwon), value: tr.priceManwon, selected: false,
           row: {
             kind: "trade",
             title: `실거래 ${formatManwon(tr.priceManwon)} · 전용 ${tr.area}㎡`,
@@ -672,7 +674,7 @@ export function RedevelopmentEditMapView({
       kakao.maps.event.removeListener(map, "idle", onIdle);
       shown.forEach((o) => o.setMap(null));
     };
-  }, [ready, auctions, researchPoints, toleranceM, showAuctions, auctionScope, showAsks, showTrades, selectedAuctionId, focusAuction?.id, focusAuction?.nonce]);
+  }, [ready, auctions, researchPoints, toleranceM, showNear, showAuctions, auctionScope, showAsks, showTrades, selectedAuctionId, focusAuction?.id, focusAuction?.nonce]);
 
   // 목록에서 주소를 누르면 그 물건 위치로 지도를 옮기고(확대) 라벨을 강조한다.
   useEffect(() => {

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addFavorite, fetchAuctionsByIds, fetchFavorites, removeFavorite, type RedevelopmentMapAuction } from "@/lib/api";
+import { addFavorite, fetchAuctionsByIds, fetchFavorites, removeFavorite, type RedevelopmentMapAuction, type RedevelopmentZone } from "@/lib/api";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { RedevelopmentEditResearchPanel } from "./RedevelopmentEditResearchPanel";
 
@@ -15,6 +15,8 @@ export function RedevelopmentEditSelectedAuction({
   toleranceM,
   onClose,
   onNavigateAuction,
+  resolveZone,
+  onOpenZone,
   floating = false,
 }: {
   auction: RedevelopmentMapAuction;
@@ -22,6 +24,10 @@ export function RedevelopmentEditSelectedAuction({
   onClose: () => void;
   /** 조사표의 같은 구역 경매를 누를 때 지도 중심·상세 팝업을 함께 전환한다. */
   onNavigateAuction?: (auction: RedevelopmentMapAuction) => void;
+  /** 구역 id로 전체 구역 정보를 찾는다(구역 머리글의 색·사업종류용). */
+  resolveZone?: (zoneId: string) => RedevelopmentZone | undefined;
+  /** 구역 머리글을 눌렀을 때 구역 상세로 넘어가는 콜백. */
+  onOpenZone?: (zoneId: string) => void;
   floating?: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -68,6 +74,8 @@ export function RedevelopmentEditSelectedAuction({
             isFavorite={fav?.category === FAVORITE_CATEGORY}
             toleranceM={toleranceM}
             onNavigateAuction={onNavigateAuction}
+            resolveZone={resolveZone}
+            onOpenZone={onOpenZone}
           />
         ),
       }}

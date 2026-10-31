@@ -8,6 +8,7 @@ import {
   fetchAuctionsByIds,
   fetchListingDetailNow,
   fetchAuctionsOfficialPriceBatch,
+  fetchFavorites,
   fetchRedevelopmentZoneAuctions,
   fetchZoneResearch,
   startZoneResearch,
@@ -15,9 +16,11 @@ import {
   type AuctionOfficialPriceBatchItem,
   type OfficialPriceEstimate,
   type RedevelopmentMapAuction,
+  type RedevelopmentZone,
   type ResearchListing,
   type ResearchTrade,
 } from "@/lib/api";
+import { zoneBusinessTypeLabel, zoneStyle } from "@/lib/zone-stage-style";
 
 const PARAMS_KEY = "redev-research-params";
 const PYEONG = 3.3058;
@@ -241,7 +244,16 @@ export function RedevelopmentEditResearchPanel({
   toleranceM,
   onNavigateAuction,
   rightDate,
+  resolveZone,
+  onOpenZone,
+  showNear,
 }: {
+  /** false면 구역 경계 밖(근처)의 호가·실거래는 숨기고 경계 안(거리 0)만 보여 준다(경매물건 지도와 같은 규칙, 사용자 요청 2026-10-31). 생략하면 거르지 않는다. */
+  showNear?: boolean;
+  /** 구역 id로 전체 구역 정보를 찾는다(머리글 색·사업종류용). 없으면 조사 응답의 간단한 정보만 쓴다. */
+  resolveZone?: (zoneId: string) => RedevelopmentZone | undefined;
+  /** 있으면 구역 머리글을 눌러 구역 상세로 넘어갈 수 있다. */
+  onOpenZone?: (zoneId: string) => void;
   /** 이 구역의 권리산정기준일(YYYY-MM-DD). 있으면 연식이 그 연도보다 늦은 물건에 "권리산정 이후" 표시를 한다(사용자 요청, 2026-10-31). */
   rightDate?: string | null;
   /** 경매물건 기준 조사(그 물건이 속한 구역). */
@@ -301,7 +313,26 @@ export function RedevelopmentEditResearchPanel({
     // 조사가 도는 동안만 4초마다 상태를 다시 읽는다.
     refetchInterval: (q) => (q.state.data?.run?.status === "running" ? 4000 : false),
   });
-  const data = query.data;
+  const rawData = query.data;
+  // 근처를 켜지 않으면 경계 안(거리 0)의 호가·실거래만 남긴다. 아래 표·예상 매도가·내려받기가 모두 이 거른 데이터를 쓴다.
+  const hiddenNear = useMemo(() => {
+    if (!rawData || showNear !== false) return { listings: 0, trades: 0 };
+    return {
+      listings: (rawData.listings ?? []).filter((l) => (l.distanceToZoneM ?? 0) > 0).length,
+      trades: (rawData.trades ?? []).filter((t) => (t.distanceToZoneM ?? 0) > 0).length,
+    };
+  }, [rawData, showNear]);
+  const data = useMemo(
+    () =>
+      rawData && showNear === false
+        ? {
+            ...rawData,
+            listings: (rawData.listings ?? []).filter((l) => (l.distanceToZoneM ?? 0) <= 0),
+            trades: (rawData.trades ?? []).filter((t) => (t.distanceToZoneM ?? 0) <= 0),
+          }
+        : rawData,
+    [rawData, showNear],
+  );
   const run = data?.run;
   const running = run?.status === "running";
   // 대상 물건이 속한 구역의 낙찰 경매도 함께 읽어, 실제 낙찰률을 예상 입찰가에 반영한다.
@@ -329,7 +360,7 @@ export function RedevelopmentEditResearchPanel({
   const start = useMutation({
     mutationFn: () =>
       zoneId
-        ? startZoneResearch(zoneId, params.tradeLimit, params.fast)
+        ? startZoneResearch(zoneId, params.tradeLimit, params.fast, toleranceM)
         : startAuctionResearch(auctionId as string, toleranceM, params.tradeLimit, params.fast),
     onSuccess: () => {
       setError(null);
@@ -679,6 +710,10 @@ export function RedevelopmentEditResearchPanel({
     };
   }, [data, params.ratePct, relatedZoneAuctions, auctionPriceById, auctionItemById]);
 
+  // 경매물건 중 관심(★)으로 담아 둔 것은 이 표에서도 관심 표시를 한다(분류와 상관없이 관심목록에 있는 물건 전체).
+  const favoritesQuery = useQuery({ queryKey: ["redev-favorites"], queryFn: fetchFavorites, staleTime: 30_000 });
+  const favoriteIds = useMemo(() => new Set((favoritesQuery.data ?? []).map((f) => String(f.auctionId))), [favoritesQuery.data]);
+
   // 연식은 연도만 있어, 권리산정기준일 연도보다 늦은 경우만 확실한 "이후"로 본다(같은 해는 판단 불가라 표시하지 않음).
   const rightYear = rightDate && /^\d{4}/.test(rightDate) ? Number(rightDate.slice(0, 4)) : null;
   const afterRight = (r: Row) => rightYear != null && r.year != null && r.year > rightYear;
@@ -755,9 +790,42 @@ export function RedevelopmentEditResearchPanel({
 
   return (
     <div className="border-t border-border bg-card p-4 space-y-3 text-xs">
+      {!zoneId && data?.zone && (() => {
+        const z = data.zone;
+        const full = resolveZone?.(z.id);
+        const style = zoneStyle(full ?? { sourceKey: null, stage: z.stage, projectType: z.projectType } as Parameters<typeof zoneStyle>[0]);
+        const typeLabel = full ? zoneBusinessTypeLabel(full).replace(/^사업종류 /, "") : null;
+        const body = (
+          <>
+            <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: style.color }} />
+            <span className="min-w-0 flex-1 text-left">
+              <span className="text-base font-bold text-foreground">{z.name}</span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                {z.region}
+                {z.stage ? ` · ${z.stage}` : ""}
+                {z.projectType ? ` · ${z.projectType}` : ""}
+                {typeLabel ? ` · 사업종류: ${typeLabel}` : ""}
+              </span>
+            </span>
+            {onOpenZone && <span className="shrink-0 text-xs font-semibold text-primary">구역 상세 보기 ›</span>}
+          </>
+        );
+        return onOpenZone ? (
+          <button
+            type="button"
+            onClick={() => onOpenZone(z.id)}
+            title="구역 상세로 이동"
+            className="flex w-full items-center gap-2.5 rounded-md border border-border bg-muted/30 px-3.5 py-2.5 hover:bg-muted/60"
+          >
+            {body}
+          </button>
+        ) : (
+          <div className="flex w-full items-center gap-2.5 rounded-md border border-border bg-muted/30 px-3.5 py-2.5">{body}</div>
+        );
+      })()}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-bold text-foreground">{zoneId ? "재개발 구역 매물·실거래 조사" : "같은 재개발 구역 매물·실거래 조사"}</span>
-        {data?.zone && (
+        {data?.zone && !!zoneId && (
           <span className="rounded-full bg-primary/10 px-2.5 py-1 text-primary">
             {data.zone.name}
             {data.zone.stage ? ` · ${data.zone.stage}` : ""}
@@ -900,10 +968,15 @@ export function RedevelopmentEditResearchPanel({
               <span className="rounded bg-purple-700 px-1.5 py-0.5 font-bold text-white">✓ 권리산정 이후</span> 권리산정기준일 {rightDate} 이후 연식(준공 {rightYear}년 초과) 물건 {afterRightCount}건을 보라색으로 표시했습니다(입주권 대상이 아니라 참고용).
             </p>
           )}
+          {(hiddenNear.listings > 0 || hiddenNear.trades > 0) && (
+            <p className="mb-1.5 text-xs text-muted-foreground">
+              경계 밖 근처의 호가 {hiddenNear.listings}건 · 실거래 {hiddenNear.trades}건은 숨겼습니다(지도의 '근처'를 켜면 함께 표시).
+            </p>
+          )}
           <div ref={tableScrollRef} className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <table className="w-full min-w-[1520px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1534px] table-fixed border-separate border-spacing-0">
               <colgroup>
-                <col className="w-[64px]" />
+                <col className="w-[78px]" />
                 <col className="w-[190px]" />
                 <col className="w-[90px]" />
                 <col className="w-[64px]" />
@@ -922,7 +995,7 @@ export function RedevelopmentEditResearchPanel({
               <thead>
                 <tr className="bg-muted text-left text-muted-foreground">
                   {["분류", "주소", "거래일·확인일", "층·호", "전용(㎡)", "평", "대지지분(㎡)", "연식", "방", "공시가", "전세가", "최저가/호가/실매도", "구역갭", "현전세", "중개사 · 연락처"].map((h, i) => (
-                    <th key={h} className={`whitespace-nowrap px-2 py-2 font-semibold ${i >= 4 && i !== 7 && i !== 8 && i !== 14 ? "text-right" : ""}`}>
+                    <th key={h} className="whitespace-nowrap px-2 py-2 text-center font-semibold">
                       {h}
                     </th>
                   ))}
@@ -935,13 +1008,19 @@ export function RedevelopmentEditResearchPanel({
                   const clickable = !!r.listing || !!r.trade || isAuctionRow;
                   const gapTone = (v: number | null) => (v == null ? "" : v >= 0 ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400");
                   const late = afterRight(r);
+                  const isFav = isAuctionRow && favoriteIds.has(r.key.slice(2));
                   return (
                     <Fragment key={r.key}>
                       <tr
                         onClick={() => (isAuctionRow ? openAuctionFromRow(r.key.slice(2)) : clickable && setExpanded(open ? null : r.key))}
                         className={`border-b border-border align-top ${late ? "bg-purple-500/15 opacity-70" : ROW_TINT[r.kind]} ${clickable ? "cursor-pointer hover:brightness-95" : ""} ${r.cancelled ? "text-muted-foreground line-through" : r.gone ? "text-muted-foreground opacity-60" : "text-foreground"}`}
                       >
-                        <td className={`border-b border-border border-l-4 px-2 py-2 ${ROW_EDGE[r.kind]}`}>
+                        <td className={`whitespace-nowrap border-b border-border border-l-4 px-2 py-2 ${ROW_EDGE[r.kind]}`}>
+                          {isFav && (
+                            <span className="mr-1 text-base leading-none text-amber-500" title="관심목록에 담아 둔 경매물건">
+                              ★
+                            </span>
+                          )}
                           <span className={`whitespace-nowrap rounded px-1.5 py-0.5 font-semibold ${r.kind === "경매물건" && r.soldAuction ? "bg-red-700 text-white" : kindTone[r.kind]}`}>{r.kind === "경매물건" && r.soldAuction ? "낙찰" : kindLabel[r.kind]}</span>
                           {r.gone && (
                             <span className="mt-1 block whitespace-nowrap rounded bg-gray-500 px-1.5 py-0.5 text-[10px] font-semibold text-white" title={r.lastSeen ? `마지막 확인 ${r.lastSeen}` : undefined}>

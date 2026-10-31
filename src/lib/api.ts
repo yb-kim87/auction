@@ -6135,12 +6135,12 @@ export async function fetchZoneRuns(): Promise<ZoneRunSummary[]> {
   return readJsonResponse(res);
 }
 
-export async function startZoneResearch(zoneId: string, tradeLimit?: number, fast?: boolean): Promise<{ zoneId: string; run: ResearchRun }> {
+export async function startZoneResearch(zoneId: string, tradeLimit?: number, fast?: boolean, toleranceM?: number): Promise<{ zoneId: string; run: ResearchRun }> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/start`, {
     method: "POST",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
-    body: JSON.stringify({ tradeLimit, fast }),
+    body: JSON.stringify({ tradeLimit, fast, toleranceM }),
   });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역 조사를 시작하지 못했습니다.");
   return readJsonResponse(res);

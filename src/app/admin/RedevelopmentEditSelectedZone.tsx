@@ -362,6 +362,7 @@ export function RedevelopmentEditSelectedZone({
   onClose,
   onToggleInterest,
   onRightDateSaved,
+  showNear,
   onSaveInfo,
   onDelete,
 }: {
@@ -373,6 +374,8 @@ export function RedevelopmentEditSelectedZone({
   onClose: () => void;
   /** 관심 구역 표시 켜기/끄기. */
   onToggleInterest: (zone: RedevelopmentZone) => void | Promise<void>;
+  /** 지도의 "근처" 표시 여부 — 꺼져 있으면 조사 표도 경계 안 호가·실거래만 보여 준다. */
+  showNear: boolean;
   /** 권리산정기준일을 확인·저장했을 때 — 부모의 구역 목록에도 반영한다. */
   onRightDateSaved: (zoneId: string, rd: ZoneRightDate) => void;
   /** 구역 정보(이름·지역·단계·메모) 저장 — 실패하면 throw. */
@@ -502,7 +505,7 @@ export function RedevelopmentEditSelectedZone({
           {stats && <ZoneStatsSection stats={stats} />}
           {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} onSaved={onRightDateSaved} />}
           <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />
-          <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} rightDate={stats?.rb} />
+          <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} rightDate={stats?.rb} showNear={showNear} />
         </div>
       </div>
     </div>
