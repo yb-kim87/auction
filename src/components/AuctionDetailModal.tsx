@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, StickyNote, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, WalletCards, TrendingDown, ShieldCheck, CircleAlert, Copy, Check } from "lucide-react";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, WalletCards, TrendingDown, ShieldCheck, CircleAlert, Copy, Check } from "lucide-react";
 import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload, UserRole } from "@/types/auction";
 import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import {
@@ -1914,7 +1914,6 @@ export function AuctionDetailModal({
   const [referenceLinks, setReferenceLinks] = useState<AuctionReferenceLink[]>([]);
   const [editingHeader, setEditingHeader] = useState<HeaderEditKey | null>(null);
   const [editingPrice, setEditingPrice] = useState<PriceEditKey | null>(null);
-  const [showMemo, setShowMemo] = useState(false);
   // 전체 편집모드(editable)가 아닌 화면(예: 홈 "추천 물건" 미리보기)에서도
   // 관리자는 메모만큼은 바로 수정할 수 있어야 한다(사용자 요청,
   // 2026-08-01) — 전체 폼을 편집모드로 바꾸지 않고 메모 칸만 인라인으로
@@ -1950,7 +1949,6 @@ export function AuctionDetailModal({
     setError("");
     setEditingHeader(null);
     setEditingPrice(null);
-    setShowMemo(false);
     setActiveTab(initialTab);
     setCachedAnalysis(null);
     setNaverRefreshMessage("");
@@ -2486,6 +2484,91 @@ export function AuctionDetailModal({
           style={{ backgroundColor: "#f4f6f9" }}
         >
         <div className="flex-1 min-w-0">
+          {/* 메모·매도분석 신호는 물건 유형 줄 위쪽에 항상 보여 준다(사용자 요청 2026-10-31). */}
+          {!editable && (preview.memo?.trim() || isAdmin || preview.resaleMatchTier) && (
+            <div className="bg-card px-5 pt-4">
+            {(preview.memo?.trim() || isAdmin) && (
+              <div className="mb-3 rounded-sm border border-amber-200/80 bg-amber-50/50 px-4 py-3">
+                {editable ? (
+                  <textarea
+                    rows={3}
+                    value={String(form.memo ?? "")}
+                    onChange={(e) => setField("memo", e.target.value)}
+                    placeholder="메모 입력"
+                    className={`w-full ${LIST_TEXT} bg-input-background border border-border rounded-sm px-3 py-2 text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary/20`}
+                  />
+                ) : isAdmin && memoInlineEditing ? (
+                  <div className="space-y-2">
+                    <textarea
+                      rows={3}
+                      autoFocus
+                      value={String(form.memo ?? "")}
+                      onChange={(e) => setField("memo", e.target.value)}
+                      placeholder="메모 입력"
+                      className={`w-full ${LIST_TEXT} bg-input-background border border-border rounded-sm px-3 py-2 text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary/20`}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={memoInlineSaving}
+                        onClick={async () => {
+                          setMemoInlineSaving(true);
+                          try {
+                            await handleSave();
+                            setMemoInlineEditing(false);
+                          } finally {
+                            setMemoInlineSaving(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
+                      >
+                        {memoInlineSaving ? "저장 중..." : "저장"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={memoInlineSaving}
+                        onClick={() => {
+                          setField("memo", preview.memo ?? "");
+                          setMemoInlineEditing(false);
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-50"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`${LIST_TEXT} text-foreground whitespace-pre-wrap break-words`}>
+                      {preview.memo?.trim() ? preview.memo : "메모 없음"}
+                    </p>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setMemoInlineEditing(true)}
+                        className="shrink-0 text-xs font-medium text-primary hover:underline"
+                      >
+                        수정
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {preview.resaleMatchTier && (
+              <div className="mb-3 rounded-sm border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-xs font-bold text-emerald-800">
+                  매도분석: 매도(재판매) 추정됨 — 등급 {preview.resaleMatchTier}
+                  {preview.resaleMatchScore != null ? ` (점수 ${preview.resaleMatchScore})` : ""}
+                </p>
+                <p className="text-[0.68rem] text-emerald-800/70 mt-0.5">
+                  국토부 실거래가와 대조해 낙찰자가 이 물건을 되판 것으로 추정됩니다. 관리자에게만
+                  표시되는 내부 검증 중인 신호입니다.
+                </p>
+              </div>
+            )}
+            </div>
+          )}
           <div className="hidden flex-col items-start gap-2 bg-card px-5 pt-5 sm:flex">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
@@ -3095,110 +3178,16 @@ export function AuctionDetailModal({
           </div>
           <div className={activeTab === "info" ? "block" : "hidden"} aria-hidden={activeTab !== "info"}>
 
+          {/* 아파트·오피스텔이 아니면 동일 아파트 호가·주변 실거래 비교 정보가 없어 구역 전체를 숨긴다(메모는 상단에 따로 둔다, 사용자 요청 2026-10-31). */}
+          {/아파트|오피스텔/.test(`${preview.usage ?? ""} ${preview.propType ?? ""}`) && (
           <div className="rounded-2xl bg-card border border-border overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4 border-b border-border/50">
               <div className="flex items-center gap-2">
                 <Home size={16} className="text-muted-foreground" />
                 <h3 className="text-sm font-bold text-foreground">핵심 가격 요약</h3>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowMemo((prev) => !prev)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 ${LABEL_TEXT} font-medium rounded-sm border transition-colors ${
-                    showMemo
-                      ? "border-amber-300 bg-amber-50 text-amber-800"
-                      : preview.memo
-                        ? "border-amber-200/80 bg-amber-50/80 text-amber-700 hover:bg-amber-50"
-                        : "border-border bg-secondary/40 text-muted-foreground hover:bg-secondary/60"
-                  }`}
-                >
-                  <StickyNote size={14} />
-                  {showMemo ? "메모닫기" : "메모보기"}
-                </button>
-              </div>
             </div>
             <div className="px-5 py-4">
-            {showMemo && (
-              <div className="mb-3 rounded-sm border border-amber-200/80 bg-amber-50/50 px-4 py-3">
-                {editable ? (
-                  <textarea
-                    rows={3}
-                    value={String(form.memo ?? "")}
-                    onChange={(e) => setField("memo", e.target.value)}
-                    placeholder="메모 입력"
-                    className={`w-full ${LIST_TEXT} bg-input-background border border-border rounded-sm px-3 py-2 text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary/20`}
-                  />
-                ) : isAdmin && memoInlineEditing ? (
-                  <div className="space-y-2">
-                    <textarea
-                      rows={3}
-                      autoFocus
-                      value={String(form.memo ?? "")}
-                      onChange={(e) => setField("memo", e.target.value)}
-                      placeholder="메모 입력"
-                      className={`w-full ${LIST_TEXT} bg-input-background border border-border rounded-sm px-3 py-2 text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary/20`}
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={memoInlineSaving}
-                        onClick={async () => {
-                          setMemoInlineSaving(true);
-                          try {
-                            await handleSave();
-                            setMemoInlineEditing(false);
-                          } finally {
-                            setMemoInlineSaving(false);
-                          }
-                        }}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground disabled:opacity-50"
-                      >
-                        {memoInlineSaving ? "저장 중..." : "저장"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={memoInlineSaving}
-                        onClick={() => {
-                          setField("memo", preview.memo ?? "");
-                          setMemoInlineEditing(false);
-                        }}
-                        className="px-3 py-1.5 text-xs font-medium border border-border rounded-sm hover:bg-secondary disabled:opacity-50"
-                      >
-                        취소
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start justify-between gap-2">
-                    <p className={`${LIST_TEXT} text-foreground whitespace-pre-wrap break-words`}>
-                      {preview.memo?.trim() ? preview.memo : "메모 없음"}
-                    </p>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => setMemoInlineEditing(true)}
-                        className="shrink-0 text-xs font-medium text-primary hover:underline"
-                      >
-                        수정
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {preview.resaleMatchTier && (
-              <div className="mb-3 rounded-sm border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-xs font-bold text-emerald-800">
-                  매도분석: 매도(재판매) 추정됨 — 등급 {preview.resaleMatchTier}
-                  {preview.resaleMatchScore != null ? ` (점수 ${preview.resaleMatchScore})` : ""}
-                </p>
-                <p className="text-[0.68rem] text-emerald-800/70 mt-0.5">
-                  국토부 실거래가와 대조해 낙찰자가 이 물건을 되판 것으로 추정됩니다. 관리자에게만
-                  표시되는 내부 검증 중인 신호입니다.
-                </p>
-              </div>
-            )}
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
               <div className="rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.045] to-card px-5 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3310,6 +3299,7 @@ export function AuctionDetailModal({
             </div>
             </div>
           </div>
+          )}
 
           {editable ? (
             <>
