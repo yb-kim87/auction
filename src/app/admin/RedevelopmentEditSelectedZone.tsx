@@ -424,7 +424,7 @@ export function RedevelopmentEditSelectedZone({
           {stats && <ZoneStatsSection stats={stats} />}
           {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} onSaved={onRightDateSaved} />}
           <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />
-          <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} />
+          <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} rightDate={stats?.rb} />
         </div>
       </div>
     </div>

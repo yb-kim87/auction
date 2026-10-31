@@ -240,7 +240,10 @@ export function RedevelopmentEditResearchPanel({
   zoneAuctions,
   toleranceM,
   onNavigateAuction,
+  rightDate,
 }: {
+  /** 이 구역의 권리산정기준일(YYYY-MM-DD). 있으면 연식이 그 연도보다 늦은 물건에 "권리산정 이후" 표시를 한다(사용자 요청, 2026-10-31). */
+  rightDate?: string | null;
   /** 경매물건 기준 조사(그 물건이 속한 구역). */
   auctionId?: string;
   /** 구역 기준 조사(지도에서 구역 라벨을 눌렀을 때) — 호가·실거래와 같은 레이아웃으로 보여 준다. */
@@ -676,6 +679,11 @@ export function RedevelopmentEditResearchPanel({
     };
   }, [data, params.ratePct, relatedZoneAuctions, auctionPriceById, auctionItemById]);
 
+  // 연식은 연도만 있어, 권리산정기준일 연도보다 늦은 경우만 확실한 "이후"로 본다(같은 해는 판단 불가라 표시하지 않음).
+  const rightYear = rightDate && /^\d{4}/.test(rightDate) ? Number(rightDate.slice(0, 4)) : null;
+  const afterRight = (r: Row) => rightYear != null && r.year != null && r.year > rightYear;
+  const afterRightCount = rightYear != null ? rows.filter(afterRight).length : 0;
+
   function downloadCsv() {
     const head = ["분류", "주소", "거래일/확인일", "층·호", "전용면적(㎡)", "전용(평)", "대지지분(㎡)", "대지지분(평)", "연식", "방", "공시가(만원)", "공시가 근거", "전세가(만원)", "호가(만원)", "호가대비갭", "현전세보증금(만원)", "실매도(만원)", "매도대비갭", "중개사", "중개사 전화", "중개사 주소", "비고"];
     // 묶인 행(같은 호 추정)도 CSV에는 매물별로 풀어서 내보낸다.
@@ -724,7 +732,7 @@ export function RedevelopmentEditResearchPanel({
         r.listing?.realtor ?? "",
         r.listing?.realtorPhone ?? "",
         r.listing?.realtorAddress ?? "",
-        r.cancelled ? "해제(취소)된 거래" : "",
+        [r.cancelled ? "해제(취소)된 거래" : "", afterRight(r) ? "권리산정기준일 이후 연식" : ""].filter(Boolean).join(" / "),
       ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(","),
@@ -887,6 +895,11 @@ export function RedevelopmentEditResearchPanel({
             </div>
           )}
 
+          {rightYear != null && (
+            <p className="mb-1.5 text-xs text-muted-foreground">
+              <span className="rounded bg-purple-700 px-1.5 py-0.5 font-bold text-white">✓ 권리산정 이후</span> 권리산정기준일 {rightDate} 이후 연식(준공 {rightYear}년 초과) 물건 {afterRightCount}건을 보라색으로 표시했습니다(입주권 대상이 아니라 참고용).
+            </p>
+          )}
           <div ref={tableScrollRef} className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <table className="w-full min-w-[1520px] table-fixed border-separate border-spacing-0">
               <colgroup>
@@ -921,11 +934,12 @@ export function RedevelopmentEditResearchPanel({
                   const isAuctionRow = r.kind === "경매물건" && r.key.startsWith("a-");
                   const clickable = !!r.listing || !!r.trade || isAuctionRow;
                   const gapTone = (v: number | null) => (v == null ? "" : v >= 0 ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400");
+                  const late = afterRight(r);
                   return (
                     <Fragment key={r.key}>
                       <tr
                         onClick={() => (isAuctionRow ? openAuctionFromRow(r.key.slice(2)) : clickable && setExpanded(open ? null : r.key))}
-                        className={`border-b border-border align-top ${ROW_TINT[r.kind]} ${clickable ? "cursor-pointer hover:brightness-95" : ""} ${r.cancelled ? "text-muted-foreground line-through" : r.gone ? "text-muted-foreground opacity-60" : "text-foreground"}`}
+                        className={`border-b border-border align-top ${late ? "bg-purple-500/15 opacity-70" : ROW_TINT[r.kind]} ${clickable ? "cursor-pointer hover:brightness-95" : ""} ${r.cancelled ? "text-muted-foreground line-through" : r.gone ? "text-muted-foreground opacity-60" : "text-foreground"}`}
                       >
                         <td className={`border-b border-border border-l-4 px-2 py-2 ${ROW_EDGE[r.kind]}`}>
                           <span className={`whitespace-nowrap rounded px-1.5 py-0.5 font-semibold ${r.kind === "경매물건" && r.soldAuction ? "bg-red-700 text-white" : kindTone[r.kind]}`}>{r.kind === "경매물건" && r.soldAuction ? "낙찰" : kindLabel[r.kind]}</span>
@@ -976,7 +990,17 @@ export function RedevelopmentEditResearchPanel({
                           {r.land != null && r.land > 0 && <span className="block text-[11px] text-muted-foreground">{(r.land / PYEONG).toFixed(1)}평</span>}
                           {r.landEst && r.land != null && <span className="block text-[10px] text-muted-foreground">{r.landBasis === "ledger" ? "대장 비례 추정" : "실거래 기준 추정"}</span>}
                         </td>
-                        <td className="border-b border-border px-2 py-2">{r.year ?? r.listing?.ageTag ?? ""}</td>
+                        <td className="border-b border-border px-2 py-2">
+                          {r.year ?? r.listing?.ageTag ?? ""}
+                          {late && (
+                            <span
+                              className="mt-1 block whitespace-nowrap rounded bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                              title={`연식(${r.year}년)이 권리산정기준일(${rightDate})보다 늦어 입주권 대상이 아닌 물건입니다.`}
+                            >
+                              ✓ 권리산정 이후
+                            </span>
+                          )}
+                        </td>
                         <td className="border-b border-border px-2 py-2">{r.rooms ?? ""}</td>
                         <td className="border-b border-border px-2 py-2 text-right tabular-nums" title={r.officialBasis}>
                           {man(r.official)}
