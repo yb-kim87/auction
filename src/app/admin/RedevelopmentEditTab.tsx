@@ -16,6 +16,7 @@ import {
   type RedevelopmentMapAuction,
   type RedevelopmentPoint,
   type RedevelopmentZone,
+  type ZoneRightDate,
 } from "@/lib/api";
 import { loadKakaoMaps } from "@/lib/kakao-maps";
 import { RedevelopmentEditMapView } from "./RedevelopmentEditMapView";
@@ -182,6 +183,11 @@ export function RedevelopmentEditTab() {
     if (hadRunningResearch.current && !running) void queryClient.invalidateQueries({ queryKey: ["redev-zone-consents"] });
     hadRunningResearch.current = running;
   }, [zoneRuns, queryClient]);
+
+  /** 권리산정기준일을 확인·저장하면 구역 목록의 지표(`stats`)에도 바로 반영해, 팝업을 닫았다 열어도 값이 남게 한다. */
+  function applyRightDate(zoneId: string, rd: ZoneRightDate) {
+    setZones((prev) => prev.map((z) => (z.id === zoneId ? { ...z, stats: { ...(z.stats ?? {}), rb: rd.rb, rz: rd.rz, rf: rd.rf } } : z)));
+  }
 
   async function toggleInterest(zone: RedevelopmentZone) {
     const next = !zone.isInterest;
@@ -1208,6 +1214,7 @@ export function RedevelopmentEditTab() {
           onAuctionClick={setSelectedAuctionId}
           onClose={() => setZonePopupId(null)}
           onToggleInterest={toggleInterest}
+          onRightDateSaved={applyRightDate}
           onSaveInfo={handleSaveInfo}
           onDelete={async (zone) => {
             if (await handleDeleteZone(zone)) setZonePopupId(null);

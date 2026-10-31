@@ -224,7 +224,7 @@ function ZoneStatsSection({ stats }: { stats: ZoneStats }) {
 }
 
 /** 권리산정기준일 — 목록 데이터에는 없고 재개발닷컴 상세 페이지에만 있다. 버튼을 누르면 서버가 그 구역 상세 페이지를 직접 받아 값을 읽고 저장한다. */
-function ZoneRightDateSection({ zone, stats }: { zone: RedevelopmentZone; stats: ZoneStats | null }) {
+function ZoneRightDateSection({ zone, stats, onSaved }: { zone: RedevelopmentZone; stats: ZoneStats | null; onSaved: (zoneId: string, rd: ZoneRightDate) => void }) {
   const [saved, setSaved] = useState<ZoneRightDate | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -237,7 +237,10 @@ function ZoneRightDateSection({ zone, stats }: { zone: RedevelopmentZone; stats:
     setBusy(true);
     setError(null);
     fetchZoneRightDate(zone.id)
-      .then(setSaved)
+      .then((rd) => {
+        setSaved(rd);
+        onSaved(zone.id, rd);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "권리산정기준일을 확인하지 못했습니다."))
       .finally(() => setBusy(false));
   }
@@ -280,6 +283,7 @@ export function RedevelopmentEditSelectedZone({
   toleranceM,
   onClose,
   onToggleInterest,
+  onRightDateSaved,
   onSaveInfo,
   onDelete,
 }: {
@@ -291,6 +295,8 @@ export function RedevelopmentEditSelectedZone({
   onClose: () => void;
   /** 관심 구역 표시 켜기/끄기. */
   onToggleInterest: (zone: RedevelopmentZone) => void | Promise<void>;
+  /** 권리산정기준일을 확인·저장했을 때 — 부모의 구역 목록에도 반영한다. */
+  onRightDateSaved: (zoneId: string, rd: ZoneRightDate) => void;
   /** 구역 정보(이름·지역·단계·메모) 저장 — 실패하면 throw. */
   onSaveInfo: (zone: RedevelopmentZone, form: { name: string; region: string; stage: string; memo: string }) => Promise<void>;
   onDelete: (zone: RedevelopmentZone) => Promise<void>;
@@ -416,7 +422,7 @@ export function RedevelopmentEditSelectedZone({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ZoneProgress zone={zone} />
           {stats && <ZoneStatsSection stats={stats} />}
-          {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} />}
+          {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} onSaved={onRightDateSaved} />}
           <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />
           <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} />
         </div>
