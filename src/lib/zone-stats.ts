@@ -24,6 +24,34 @@ export type ZoneStats = {
   /** 권리산정기준일(상세 페이지에서 확인) */ rb?: string | null;
   /** 일부 구역 권리산정기준일 */ rz?: Array<{ d: string; n?: string | null }>;
   /** 권리산정기준일 확인 시각(ISO) */ rf?: string;
+  /** 진행 현황 — 단계별 완료 여부·완료일(재개발닷컴 상세 페이지) */ pg?: Array<{ n: string; done: boolean; d: string | null }>;
+  /** 현재 단계 경과일(cur)·같은 유형 구역 중앙값(med) */ ps?: { cur: number | null; med: number | null } | null;
+  /** 세부내용(재개발닷컴 상세 페이지, 값이 있는 항목만) */ dt?: ZoneDetails;
+  /** 최근 고시·공고(d 날짜, t 제목, s 재개발닷컴 주소 조각, k 종류) */ gn?: Array<{ d: string | null; t: string; s: string | null; k: string | null }>;
+};
+
+/** 재개발닷컴 상세 페이지의 세부내용(짧은 키). 값이 있는 항목만 들어 있다. */
+export type ZoneDetails = {
+  /** 투기과열지구 */ oh?: boolean;
+  /** 조정대상지역 */ rt?: boolean;
+  /** 토지거래허가구역(st 상태, s 시작, e 종료) */ lt?: { st?: string; s?: string; e?: string };
+  /** 전매·지위양도 구분 코드 */ tr?: string;
+  /** 추진위·조합 사무실 이름 */ on?: string;
+  /** 사무실 주소 */ oa?: string;
+  /** 사무실 전화 */ op?: string;
+  /** 시공사 */ cs?: string[];
+  /** 신축 아파트명 */ an?: string;
+  /** 총세대 */ hh?: number;
+  /** 분양세대 */ hs?: number;
+  /** 조합원분양 */ hm?: number;
+  /** 일반분양 */ hg?: number;
+  /** 임대 */ hr?: number;
+  /** 구역면적(㎡) */ ar?: number;
+  /** 토지등소유자 */ ow?: number;
+  /** 용적률(%) */ fa?: number;
+  /** 건폐율(%) */ bc?: number;
+  /** 최고층 */ mx?: number;
+  /** 평당 공사비(만원) */ cc?: number;
 };
 
 let cache: Promise<Record<string, ZoneStats>> | null = null;

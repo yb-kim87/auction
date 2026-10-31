@@ -6043,7 +6043,16 @@ export async function fetchAuctionsOfficialPriceBatch(ids: string[]): Promise<Au
 
 /** 블로그만 다시 조사(가벼움). */
 /** 재개발닷컴 상세 페이지에서 읽은 권리산정기준일(rb: 기준일, rz: 일부 구역 기준일, rf: 확인 시각). */
-export type ZoneRightDate = { rb: string | null; rz: Array<{ d: string; n?: string | null }>; rf: string };
+export type ZoneRightDate = {
+  rb: string | null;
+  rz: Array<{ d: string; n?: string | null }>;
+  rf: string;
+  /** 진행 현황(단계별 완료·경과일·최근 고시) — 구버전 서버 응답에는 없을 수 있다. */
+  pg?: Array<{ n: string; done: boolean; d: string | null }>;
+  ps?: { cur: number | null; med: number | null } | null;
+  gn?: Array<{ d: string | null; t: string; s: string | null; k: string | null }>;
+  dt?: Record<string, unknown>;
+};
 
 export async function saveZoneRightDate(zoneId: string, body: { developId: string; rb: string | null; rz: Array<{ d: string; n?: string | null }> }): Promise<ZoneRightDate> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/right-date`, {

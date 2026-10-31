@@ -186,7 +186,7 @@ export function RedevelopmentEditTab() {
 
   /** 권리산정기준일을 확인·저장하면 구역 목록의 지표(`stats`)에도 바로 반영해, 팝업을 닫았다 열어도 값이 남게 한다. */
   function applyRightDate(zoneId: string, rd: ZoneRightDate) {
-    setZones((prev) => prev.map((z) => (z.id === zoneId ? { ...z, stats: { ...(z.stats ?? {}), rb: rd.rb, rz: rd.rz, rf: rd.rf } } : z)));
+    setZones((prev) => prev.map((z) => (z.id === zoneId ? { ...z, stats: { ...(z.stats ?? {}), ...rd } } : z)));
   }
 
   async function toggleInterest(zone: RedevelopmentZone) {

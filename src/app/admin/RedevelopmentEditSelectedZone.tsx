@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchZoneResearch, fetchZoneRightDate, refreshZoneBlog, type RedevelopmentMapAuction, type RedevelopmentZone, type ZoneBlogInfo, type ZoneRightDate } from "@/lib/api";
-import { loadZoneStats, zoneStatsOf, type ZoneStats } from "@/lib/zone-stats";
+import { loadZoneStats, zoneStatsOf, type ZoneDetails, type ZoneStats } from "@/lib/zone-stats";
 import { zoneBusinessTypeLabel, zoneStyle } from "@/lib/zone-stage-style";
 import { PROGRESS_STEPS, stageDisplayLabel, stagePosition } from "@/lib/zone-progress";
 import { zoneStageCautions } from "@/lib/zone-stage-cautions";
@@ -232,6 +232,31 @@ function ZoneRightDateSection({ zone, stats, onSaved }: { zone: RedevelopmentZon
   const rz = saved ? saved.rz : (stats?.rz ?? []);
   const rf = saved?.rf ?? stats?.rf;
   const checked = rf != null;
+  const pg = saved?.pg ?? stats?.pg ?? [];
+  const ps = saved ? saved.ps : stats?.ps;
+  const gn = saved?.gn ?? stats?.gn ?? [];
+  const dt = (saved?.dt ?? stats?.dt ?? {}) as ZoneDetails;
+  const n = (v: number | undefined, unit: string) => (v != null ? `${v.toLocaleString("ko-KR")}${unit}` : null);
+  const regulation = [dt.oh ? "투기과열지구" : null, dt.rt ? "조정대상지역" : null].filter(Boolean).join(" · ");
+  const households = [n(dt.hh, "세대") && `총 ${n(dt.hh, "세대")}`, n(dt.hm, "세대") && `조합원 ${n(dt.hm, "세대")}`, n(dt.hg, "세대") && `일반 ${n(dt.hg, "세대")}`, n(dt.hr, "세대") && `임대 ${n(dt.hr, "세대")}`].filter(Boolean).join(" · ");
+  const details: Array<[string, ReactNode]> = (
+    [
+      ["규제", regulation || null],
+      ["토지거래허가", dt.lt ? `${dt.lt.st ?? ""} ${dt.lt.s ?? ""} ~ ${dt.lt.e ?? ""}`.trim() : null],
+      ["전매 구분", dt.tr ?? null],
+      ["추진위·조합 사무실", dt.on ?? null],
+      ["사무실 주소", dt.oa ?? null],
+      ["사무실 전화", dt.op ? <a href={`tel:${dt.op}`} className="text-primary hover:underline">{dt.op}</a> : null],
+      ["시공사", dt.cs?.length ? dt.cs.join(", ") : null],
+      ["신축 아파트명", dt.an ?? null],
+      ["세대수", households || null],
+      ["구역면적", n(dt.ar, "㎡")],
+      ["토지등소유자", n(dt.ow, "명")],
+      ["용적률 / 건폐율", dt.fa != null || dt.bc != null ? `${dt.fa ?? "-"}% / ${dt.bc ?? "-"}%` : null],
+      ["최고층", n(dt.mx, "층")],
+      ["평당 공사비", n(dt.cc, "만원")],
+    ] as Array<[string, ReactNode]>
+  ).filter(([, v]) => v != null && v !== "");
 
   function check() {
     setBusy(true);
@@ -250,7 +275,7 @@ function ZoneRightDateSection({ zone, stats, onSaved }: { zone: RedevelopmentZon
     <section className="border-b border-border px-4 py-3 sm:px-5">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-bold text-foreground">
-          권리산정기준일 <span className="text-[11px] font-normal text-muted-foreground">(재개발닷컴 상세 페이지 기준)</span>
+          권리산정일 · 세부내용 <span className="text-[11px] font-normal text-muted-foreground">(재개발닷컴 상세 페이지 기준)</span>
         </h3>
         <button
           type="button"
@@ -269,6 +294,59 @@ function ZoneRightDateSection({ zone, stats, onSaved }: { zone: RedevelopmentZon
         </p>
       ) : (
         <p className="mt-1.5 text-xs text-muted-foreground">아직 확인하지 않았습니다.</p>
+      )}
+      {details.length > 0 && (
+        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+          {details.map(([k, v]) => (
+            <Fragment key={k}>
+              <dt className="text-muted-foreground">{k}</dt>
+              <dd className="text-foreground">{v}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
+      {pg.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-bold text-foreground">
+            진행 현황
+            {ps?.cur != null && (
+              <span className="ml-2 font-normal text-muted-foreground">
+                현재 단계 {ps.cur.toLocaleString("ko-KR")}일째{ps.med != null ? ` (같은 유형 구역 중앙값 ${ps.med.toLocaleString("ko-KR")}일)` : ""}
+              </span>
+            )}
+          </p>
+          <ol className="mt-1.5 flex flex-wrap gap-1.5">
+            {pg.map((p) => (
+              <li
+                key={p.n}
+                className={`rounded-sm border px-2 py-1 text-xs ${p.done ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-border bg-muted/40 text-muted-foreground"}`}
+              >
+                {p.done ? "✓ " : ""}
+                {p.n}
+                {p.d && <span className="ml-1 tabular-nums">{dot(p.d)}</span>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {gn.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-bold text-foreground">최근 고시·공고</p>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {gn.map((g, i) => (
+              <li key={`${g.s ?? i}`} className="text-foreground">
+                <span className="mr-1.5 tabular-nums text-muted-foreground">{g.d ? dot(g.d) : "-"}</span>
+                {g.s ? (
+                  <a href={`https://jaegebal.com/gnotices/${g.s}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    {g.t}
+                  </a>
+                ) : (
+                  g.t
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
     </section>
