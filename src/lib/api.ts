@@ -4171,6 +4171,8 @@ export type RedevelopmentZone = {
   isInterest?: boolean;
   /** 재개발닷컴 최신 수집에서 사라진 구역으로 표시된 시각(삭제는 안 함) — 구버전 서버 응답에는 없을 수 있다. */
   missingSince?: string | null;
+  /** 재개발닷컴 구역 지표(짧은 키, `ZoneStats` 형식) — 구역 업데이트로 갱신된 값. 없으면 저장해 둔 정적 지표를 쓴다. */
+  stats?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -5888,7 +5890,7 @@ export type JaegebalSyncStatus = {
   all?: boolean;
   /** 실행 주체: 관리자가 지금 실행(manual) / 자동 업데이트 설정(auto) — 구버전 서버 응답에는 없을 수 있다. */
   trigger?: "manual" | "auto";
-  changes: Array<{ key: string; name: string; field: "stage" | "projectType" | "new" | "missing" | "restored"; from?: string | null; to?: string | null }>;
+  changes: Array<{ key: string; name: string; field: "stage" | "projectType" | "new" | "missing" | "restored" | "stats"; from?: string | null; to?: string | null }>;
 };
 
 /** 재개발닷컴 구역을 지정한 구(최대 3개)만 가져와 반영하도록 서버에 요청한다(백그라운드, 관리자). */
@@ -5955,7 +5957,7 @@ export async function fetchJaegebalSyncStatus(): Promise<JaegebalSyncStatus> {
   return readJsonResponse(res);
 }
 
-export type ZoneChangeType = "new" | "stage" | "projectType" | "missing" | "restored";
+export type ZoneChangeType = "new" | "stage" | "projectType" | "missing" | "restored" | "stats";
 
 /** 재개발닷컴 구역 업데이트 1회 실행 기록(변경이 없던 실행 포함). */
 export type JaegebalSyncRun = {
@@ -5974,6 +5976,8 @@ export type JaegebalSyncRun = {
   typeCount: number;
   missingCount: number;
   restoredCount: number;
+  /** 주요 지표 변경 구역 수 — 구버전 서버 응답에는 없을 수 있다. */
+  statsCount?: number;
 };
 
 export type JaegebalZoneChange = {
@@ -6038,6 +6042,32 @@ export async function fetchAuctionsOfficialPriceBatch(ids: string[]): Promise<Au
 }
 
 /** 블로그만 다시 조사(가벼움). */
+/** 재개발닷컴 상세 페이지에서 읽은 권리산정기준일(rb: 기준일, rz: 일부 구역 기준일, rf: 확인 시각). */
+export type ZoneRightDate = { rb: string | null; rz: Array<{ d: string; n?: string | null }>; rf: string };
+
+export async function saveZoneRightDate(zoneId: string, body: { developId: string; rb: string | null; rz: Array<{ d: string; n?: string | null }> }): Promise<ZoneRightDate> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/right-date`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "권리산정기준일을 저장하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+/** 서버가 재개발닷컴 상세 페이지에서 권리산정기준일을 직접 읽어 저장한다. */
+export async function fetchZoneRightDate(zoneId: string): Promise<ZoneRightDate> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/right-date/fetch`, {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "권리산정기준일을 확인하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export async function refreshZoneBlog(zoneId: string): Promise<ZoneBlogInfo> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/zones/${encodeURIComponent(zoneId)}/blog-refresh`, {
     method: "POST",

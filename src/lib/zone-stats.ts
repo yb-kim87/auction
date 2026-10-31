@@ -21,6 +21,9 @@ export type ZoneStats = {
   /** 토지 비율 % [혼합, 단독, 근린] */ lr?: Array<number | null>;
   /** 역세권 비율 % [350m, 500m] */ st?: Array<number | null>;
   /** 세부 단계 */ ds?: string;
+  /** 권리산정기준일(상세 페이지에서 확인) */ rb?: string | null;
+  /** 일부 구역 권리산정기준일 */ rz?: Array<{ d: string; n?: string | null }>;
+  /** 권리산정기준일 확인 시각(ISO) */ rf?: string;
 };
 
 let cache: Promise<Record<string, ZoneStats>> | null = null;
@@ -30,7 +33,10 @@ export function loadZoneStats(): Promise<Record<string, ZoneStats>> {
   return cache;
 }
 
-export function zoneStatsOf(all: Record<string, ZoneStats> | null, zone: Pick<RedevelopmentZone, "sourceKey">): ZoneStats | null {
+/** 저장해 둔 정적 지표 위에 구역 업데이트로 DB에 갱신된 지표(`zone.stats`)를 덮어 쓴다(DB에 없는 항목은 정적 값 유지). */
+export function zoneStatsOf(all: Record<string, ZoneStats> | null, zone: Pick<RedevelopmentZone, "sourceKey" | "stats">): ZoneStats | null {
   const id = /(\d+)$/.exec(zone.sourceKey ?? "")?.[1];
-  return (all && id && all[id]) || null;
+  const base = (all && id && all[id]) || null;
+  if (!zone.stats || Object.keys(zone.stats).length === 0) return base;
+  return { ...(base ?? {}), ...(zone.stats as ZoneStats) };
 }

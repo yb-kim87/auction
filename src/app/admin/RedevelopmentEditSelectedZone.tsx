@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchZoneResearch, refreshZoneBlog, type RedevelopmentMapAuction, type RedevelopmentZone, type ZoneBlogInfo } from "@/lib/api";
+import { fetchZoneResearch, fetchZoneRightDate, refreshZoneBlog, type RedevelopmentMapAuction, type RedevelopmentZone, type ZoneBlogInfo, type ZoneRightDate } from "@/lib/api";
 import { loadZoneStats, zoneStatsOf, type ZoneStats } from "@/lib/zone-stats";
 import { zoneBusinessTypeLabel, zoneStyle } from "@/lib/zone-stage-style";
 import { PROGRESS_STEPS, stageDisplayLabel, stagePosition } from "@/lib/zone-progress";
@@ -223,6 +223,55 @@ function ZoneStatsSection({ stats }: { stats: ZoneStats }) {
   );
 }
 
+/** 권리산정기준일 — 목록 데이터에는 없고 재개발닷컴 상세 페이지에만 있다. 버튼을 누르면 서버가 그 구역 상세 페이지를 직접 받아 값을 읽고 저장한다. */
+function ZoneRightDateSection({ zone, stats }: { zone: RedevelopmentZone; stats: ZoneStats | null }) {
+  const [saved, setSaved] = useState<ZoneRightDate | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const rb = saved ? saved.rb : stats?.rb;
+  const rz = saved ? saved.rz : (stats?.rz ?? []);
+  const rf = saved?.rf ?? stats?.rf;
+  const checked = rf != null;
+
+  function check() {
+    setBusy(true);
+    setError(null);
+    fetchZoneRightDate(zone.id)
+      .then(setSaved)
+      .catch((err) => setError(err instanceof Error ? err.message : "권리산정기준일을 확인하지 못했습니다."))
+      .finally(() => setBusy(false));
+  }
+
+  const dot = (d: string) => d.replace(/^\d{2}(\d{2})-(\d{2})-(\d{2})$/, "$1.$2.$3");
+  return (
+    <section className="border-b border-border px-4 py-3 sm:px-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-bold text-foreground">
+          권리산정기준일 <span className="text-[11px] font-normal text-muted-foreground">(재개발닷컴 상세 페이지 기준)</span>
+        </h3>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={check}
+          className="rounded-sm border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          {busy ? "확인 중..." : checked ? "다시 확인" : "권리산정일 확인하기"}
+        </button>
+      </div>
+      {checked ? (
+        <p className="mt-1.5 text-sm text-foreground">
+          <b>{rb ? dot(rb) : "정보 없음"}</b>
+          {rz.length > 0 && <span className="text-muted-foreground"> (일부 {rz.map((z) => dot(z.d)).join(", ")})</span>}
+          <span className="ml-2 text-[11px] text-muted-foreground">확인 {new Date(rf as string).toLocaleDateString("ko-KR")}</span>
+        </p>
+      ) : (
+        <p className="mt-1.5 text-xs text-muted-foreground">아직 확인하지 않았습니다.</p>
+      )}
+      {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
+    </section>
+  );
+}
+
 /** 지도에서 구역(라벨·다각형)을 눌렀을 때 — 구역 정보, 구역 안 경매물건, 그리고 경매물건 조사와 같은 레이아웃의 호가·실거래 조사 패널
  * (+ 구역 조사 시작 버튼)을 팝업으로 보여 준다. */
 export function RedevelopmentEditSelectedZone({
@@ -367,6 +416,7 @@ export function RedevelopmentEditSelectedZone({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ZoneProgress zone={zone} />
           {stats && <ZoneStatsSection stats={stats} />}
+          {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} />}
           <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />
           <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} />
         </div>

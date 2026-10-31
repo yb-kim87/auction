@@ -16,14 +16,16 @@ const TYPE_LABEL: Record<ZoneChangeType, string> = {
   missing: "사라진 구역",
   restored: "복구",
   projectType: "사업유형 변경",
+  stats: "주요 지표 변경",
 };
-const TYPE_ORDER: ZoneChangeType[] = ["stage", "new", "missing", "restored", "projectType"];
+const TYPE_ORDER: ZoneChangeType[] = ["stage", "new", "missing", "restored", "projectType", "stats"];
 const TYPE_BADGE: Record<ZoneChangeType, string> = {
   stage: "border-blue-200 bg-blue-50 text-blue-700",
   new: "border-emerald-200 bg-emerald-50 text-emerald-700",
   missing: "border-gray-300 bg-gray-100 text-gray-700",
   restored: "border-amber-200 bg-amber-50 text-amber-800",
   projectType: "border-purple-200 bg-purple-50 text-purple-700",
+  stats: "border-cyan-200 bg-cyan-50 text-cyan-700",
 };
 const STATE_LABEL: Record<string, string> = { running: "진행 중", done: "완료", blocked: "보안 확인으로 중단", failed: "일부 오류", interrupted: "서버 재시작으로 중단" };
 
@@ -34,7 +36,7 @@ const dateTimeText = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 
 const countOf = (run: JaegebalSyncRun, t: ZoneChangeType) =>
-  ({ stage: run.stageCount, new: run.newCount, missing: run.missingCount, restored: run.restoredCount, projectType: run.typeCount })[t];
+  ({ stage: run.stageCount, new: run.newCount, missing: run.missingCount, restored: run.restoredCount, projectType: run.typeCount, stats: run.statsCount ?? 0 })[t];
 
 function runDistricts(run: JaegebalSyncRun): string {
   const names = run.results.map((r) => r.name || r.code).filter(Boolean);
@@ -57,7 +59,7 @@ function CountChips({ run }: { run: JaegebalSyncRun }) {
 
 function ChangeLine({ c }: { c: JaegebalZoneChange }) {
   const detail =
-    c.changeType === "stage" || c.changeType === "projectType"
+    c.changeType === "stage" || c.changeType === "projectType" || c.changeType === "stats"
       ? `${c.fromValue || "-"} → ${c.toValue || "-"}`
       : c.changeType === "new"
         ? c.toValue || ""
@@ -258,7 +260,7 @@ export function RedevelopmentUpdateHistory() {
                                           {hist.map((h) => (
                                             <li key={h.id}>
                                               {dateTimeText(h.changedAt)} · <b className="text-foreground">{TYPE_LABEL[h.changeType]}</b>
-                                              {(h.changeType === "stage" || h.changeType === "projectType") && ` — ${h.fromValue || "-"} → ${h.toValue || "-"}`}
+                                              {(h.changeType === "stage" || h.changeType === "projectType" || h.changeType === "stats") && ` — ${h.fromValue || "-"} → ${h.toValue || "-"}`}
                                               {h.changeType === "new" && h.toValue ? ` — ${h.toValue}` : ""}
                                             </li>
                                           ))}
