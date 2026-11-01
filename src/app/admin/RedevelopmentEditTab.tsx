@@ -787,20 +787,6 @@ export function RedevelopmentEditTab() {
           </form>
           {(auctionSearchMessage || recentAuctionSearches.length > 0) && (
             <div className="absolute right-0 top-full z-30 mt-1 flex w-max max-w-[min(620px,calc(100vw-24px))] flex-wrap items-center gap-1.5 rounded-md border border-primary/30 bg-background px-2 py-1.5 text-xs text-muted-foreground shadow-lg">
-              {auctionSearchMessage && <span>{auctionSearchMessage}</span>}
-              {auctionSearchMatches.map((auction) => (
-                <button
-                  key={auction.id}
-                  type="button"
-                  onClick={() => {
-                    saveRecentAuctionSearch(auction.auctionNo);
-                    focusAuctionOnMap(auction);
-                  }}
-                  className="rounded border border-primary/30 bg-primary/5 px-1.5 py-0.5 font-semibold text-primary hover:bg-primary/10"
-                >
-                  {auction.auctionNo}{auction.court ? ` · ${auction.court}` : ""}
-                </button>
-              ))}
               {recentAuctionSearches.length > 0 && (
                 <>
                   <span className="ml-1 whitespace-nowrap border-l border-border pl-2 font-semibold text-foreground">최근 검색</span>
@@ -833,6 +819,24 @@ export function RedevelopmentEditTab() {
                     비우기
                   </button>
                 </>
+              )}
+              {(auctionSearchMessage || auctionSearchMatches.length > 0) && (
+                <div className="flex basis-full flex-wrap items-center gap-1.5">
+                  {auctionSearchMessage && <span>{auctionSearchMessage}</span>}
+                  {auctionSearchMatches.map((auction) => (
+                    <button
+                      key={auction.id}
+                      type="button"
+                      onClick={() => {
+                        saveRecentAuctionSearch(auction.auctionNo);
+                        focusAuctionOnMap(auction);
+                      }}
+                      className="rounded border border-primary/30 bg-primary/5 px-1.5 py-0.5 font-semibold text-primary hover:bg-primary/10"
+                    >
+                      {auction.auctionNo}{auction.court ? ` · ${auction.court}` : ""}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}
