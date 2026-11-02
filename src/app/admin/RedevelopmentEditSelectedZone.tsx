@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchZoneResearch, fetchZoneRightDate, refreshZoneBlog, type RedevelopmentMapAuction, type RedevelopmentZone, type ZoneBlogInfo, type ZoneRightDate } from "@/lib/api";
 import { loadZoneStats, zoneStatsOf, type ZoneDetails, type ZoneStats } from "@/lib/zone-stats";
-import { zoneBusinessTypeLabel, zoneStyle } from "@/lib/zone-stage-style";
+import { zoneBusinessTypeLabel, zoneStyle, isVirtualZone } from "@/lib/zone-stage-style";
 import { PROGRESS_STEPS, stageDisplayLabel, stagePosition } from "@/lib/zone-progress";
 import { zoneStageCautions } from "@/lib/zone-stage-cautions";
 import { RedevelopmentEditResearchPanel } from "./RedevelopmentEditResearchPanel";
@@ -504,7 +504,7 @@ export function RedevelopmentEditSelectedZone({
           <ZoneProgress zone={zone} />
           {stats && <ZoneStatsSection stats={stats} />}
           {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} onSaved={onRightDateSaved} />}
-          <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />
+          {!isVirtualZone(zone) && <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />}
           <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} rightDate={stats?.rb} showNear={showNear} />
         </div>
       </div>

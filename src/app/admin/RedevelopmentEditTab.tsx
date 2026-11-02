@@ -25,13 +25,15 @@ import { RedevelopmentTraceFailurePanel } from "./RedevelopmentTraceFailurePanel
 import { RedevelopmentEditSelectedAuction } from "./RedevelopmentEditSelectedAuction";
 
 import { RedevelopmentEditAuctionList } from "./RedevelopmentEditAuctionList";
-import { zoneBusinessTypeLabel, zoneLegalDong, zonePassesFilters, zoneStyle } from "@/lib/zone-stage-style";
+import { isVirtualZone, zoneBusinessTypeLabel, zoneLegalDong, zonePassesFilters, zoneStyle } from "@/lib/zone-stage-style";
 import { PROGRESS_STEPS, stageDisplayLabel, stagePosition } from "@/lib/zone-progress";
 import { countCurrentZoneAuctions } from "@/lib/zone-auction-counts";
 import { RedevelopmentEditSelectedZone } from "./RedevelopmentEditSelectedZone";
 import { readFastResearch } from "./RedevelopmentEditResearchPanel";
 
-const SHOW_ZONE_DRAWING_BUTTONS = false;
+// 가상구역 그리기(2026-11-02 다시 켬). 이미지로 구역 그리기는 계속 숨긴다.
+const SHOW_ZONE_DRAWING_BUTTONS = true;
+const SHOW_IMAGE_ZONE_BUTTON = false;
 const SHOW_REFRESH_BUTTON = false;
 import { RedevelopmentEditZoneFilters } from "./RedevelopmentEditZoneFilters";
 import { buildZoneBoxes, DEFAULT_BOUNDARY_TOLERANCE_M, findZoneIds, NEAR_BOUNDARY_MAX_M } from "@/lib/zone-geometry";
@@ -68,7 +70,8 @@ export function RedevelopmentEditTab() {
   // 좌표를 채울 구 = 재개발닷컴 구역이 있는 서울 전체 구.
   const allGu = useMemo(() => Array.from(new Set(allJaegebalZones.map((z) => z.region).filter((r) => /구$/.test(r)))).sort(), [allJaegebalZones]);
   const mapZones = useMemo(
-    () => zones.filter((z) => z.sourceDatasetId === "jaegebal" && zonePassesFilters(z, mapTypes, mapStages)),
+    // 재개발닷컴 구역 + 관리자가 직접 그린 가상구역(sourceKey 없음). 가상구역은 사업종류·단계 필터에 걸리지 않게 항상 포함한다.
+    () => zones.filter((z) => isVirtualZone(z) || (z.sourceDatasetId === "jaegebal" && zonePassesFilters(z, mapTypes, mapStages))),
     [zones, mapTypes, mapStages],
   );
   const [auctions, setAuctions] = useState<RedevelopmentMapAuction[]>([]);
@@ -743,15 +746,15 @@ export function RedevelopmentEditTab() {
               onClick={startNewZone}
               className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
             >
-              + 새 구역 그리기
+              + 가상구역 그리기
             </button>
-            <button
+            {SHOW_IMAGE_ZONE_BUTTON && <button
               type="button"
               onClick={startNewZoneFromImage}
               className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-primary text-primary hover:bg-primary/5"
             >
               + 이미지로 구역 그리기
-            </button>
+            </button>}
           </>
         )}
         {drawing && (
@@ -846,7 +849,7 @@ export function RedevelopmentEditTab() {
       {pendingPoints && (
         <div className="rounded-sm border border-primary/40 bg-primary/5 p-4 space-y-3">
           <p className="text-sm font-semibold text-foreground">
-            {editingZone ? `"${editingZone.name}" 구역 경계 수정 저장` : "새 구역 정보 입력"}
+            {editingZone ? `"${editingZone.name}" 구역 경계 수정 저장` : "가상구역 정보 입력 (구역명을 정하면 다른 구역처럼 경매물건·호가·실거래를 조사할 수 있습니다)"}
             <span className="ml-2 text-xs font-normal text-muted-foreground">
               (꼭짓점 {pendingPoints.length}개)
             </span>
@@ -861,13 +864,13 @@ export function RedevelopmentEditTab() {
             <input
               value={form.region}
               onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))}
-              placeholder="지역명 (예: 서울특별시 강동구)"
+              placeholder="지역명 (선택, 예: 서울특별시 강동구)"
               className="px-2 py-1.5 text-sm border border-border rounded-sm bg-background"
             />
             <input
               value={form.stage}
               onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value }))}
-              placeholder="사업단계"
+              placeholder="사업단계 (선택)"
               list="redevelopment-stage-options"
               className="px-2 py-1.5 text-sm border border-border rounded-sm bg-background"
             />
@@ -1115,6 +1118,7 @@ export function RedevelopmentEditTab() {
                           }`}
                         >
                           {zone.name}
+                          {isVirtualZone(zone) && <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">가상</span>}
                         </button>
                         {(() => {
                           const consent = consentByZoneId.get(zone.id);

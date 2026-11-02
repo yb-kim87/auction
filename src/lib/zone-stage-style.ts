@@ -89,7 +89,15 @@ function resolveZoneMeta(zone: ZoneLike): { typeKey: string; group: "p" | "g" | 
 
 export type ZoneStyle = { color: string; dashed: boolean; completed: boolean; typeKey: string; missing: boolean };
 
+/** 가상구역 — 재개발닷컴 데이터가 아니라 관리자가 지도에 직접 그린 구역(sourceKey 없음). */
+export function isVirtualZone(zone: Pick<RedevelopmentZone, "sourceKey">): boolean {
+  return !zone.sourceKey;
+}
+
+export const VIRTUAL_ZONE_COLOR = "#7c3aed";
+
 export function zoneStyle(zone: ZoneLike): ZoneStyle {
+  if (isVirtualZone(zone)) return { color: VIRTUAL_ZONE_COLOR, dashed: true, completed: false, typeKey: "jaegebal", missing: false };
   const { typeKey, group } = resolveZoneMeta(zone);
   if (zone.missingSince) return { color: MISSING_ZONE_COLOR, dashed: true, completed: false, typeKey, missing: true };
   return {
