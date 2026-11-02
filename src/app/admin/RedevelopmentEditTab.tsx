@@ -962,6 +962,7 @@ export function RedevelopmentEditTab() {
             drawing={drawing}
             editingZone={editingZone}
             onFinishDraw={handleFinishDraw}
+            onCancelDraw={cancelDrawing}
             draftPointCount={draftPointCount}
             onDraftPointCountChange={setDraftPointCount}
           />

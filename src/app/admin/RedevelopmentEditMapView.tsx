@@ -61,6 +61,7 @@ export function RedevelopmentEditMapView({
   drawing,
   editingZone,
   onFinishDraw,
+  onCancelDraw,
   draftPointCount,
   onDraftPointCountChange,
   focusGu,
@@ -98,6 +99,8 @@ export function RedevelopmentEditMapView({
    * 점선으로 같이 보여준다. */
   editingZone: RedevelopmentZone | null;
   onFinishDraw: (points: RedevelopmentPoint[]) => void;
+  /** 그리기를 취소한다(그린 점을 버리고 그리기 모드 종료). */
+  onCancelDraw?: () => void;
   draftPointCount: number;
   onDraftPointCountChange: (count: number) => void;
   /** 목록 필터에서 고른 구/동 — 바뀌면 지도를 그 행정구역으로 이동한다(없으면 서울 전체). */
@@ -113,6 +116,10 @@ export function RedevelopmentEditMapView({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMap | null>(null);
   const draftPointsRef = useRef<RedevelopmentPoint[]>([]);
+  // 앞으로 가기(redo)용으로 되돌린 점을 보관한다.
+  const redoStackRef = useRef<RedevelopmentPoint[]>([]);
+  const redrawDraftRef = useRef<(() => void) | null>(null);
+  const [redoCount, setRedoCount] = useState(0);
   const draftPolylineRef = useRef<KakaoPolyline | null>(null);
   const draftMarkersRef = useRef<KakaoMarker[]>([]);
   const referencePolygonRef = useRef<KakaoPolygon | null>(null);
@@ -717,6 +724,8 @@ export function RedevelopmentEditMapView({
 
     function clearDraft() {
       draftPointsRef.current = [];
+      redoStackRef.current = [];
+      setRedoCount(0);
       draftMarkersRef.current.forEach((m) => m.setMap(null));
       draftMarkersRef.current = [];
       draftPolylineRef.current?.setMap(null);
@@ -776,12 +785,17 @@ export function RedevelopmentEditMapView({
       onDraftPointCountChangeRef.current(draftPointsRef.current.length);
     }
 
+    redrawDraftRef.current = redrawDraft;
+
     const handler = (...args: unknown[]) => {
       const mouseEvent = args[0] as KakaoMouseEvent;
       const lat = mouseEvent.latLng.getLat();
       const lng = mouseEvent.latLng.getLng();
 
       draftPointsRef.current = [...draftPointsRef.current, { lat, lng }];
+      // 새 점을 찍으면 앞으로 가기 기록은 지운다.
+      redoStackRef.current = [];
+      setRedoCount(0);
       redrawDraft();
     };
     clickListenerRef.current = handler;
@@ -796,10 +810,21 @@ export function RedevelopmentEditMapView({
   }, [ready, drawing, editingZone]);
 
   function handleUndoLastPoint() {
+    const last = draftPointsRef.current[draftPointsRef.current.length - 1];
+    if (!last) return;
+    redoStackRef.current = [...redoStackRef.current, last];
+    setRedoCount(redoStackRef.current.length);
     draftPointsRef.current = draftPointsRef.current.slice(0, -1);
-    draftMarkersRef.current[draftMarkersRef.current.length - 1]?.setMap(null);
-    draftMarkersRef.current = draftMarkersRef.current.slice(0, -1);
-    onDraftPointCountChangeRef.current(draftPointsRef.current.length);
+    redrawDraftRef.current?.();
+  }
+
+  function handleRedoPoint() {
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    if (!next) return;
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    setRedoCount(redoStackRef.current.length);
+    draftPointsRef.current = [...draftPointsRef.current, next];
+    redrawDraftRef.current?.();
   }
 
   function handleFinish() {
@@ -938,28 +963,44 @@ export function RedevelopmentEditMapView({
           )}
         </div>
         {drawing && (
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 rounded-sm border border-border bg-card/95 px-3 py-2 text-xs shadow">
-            <span className="font-semibold text-foreground">
-              신규구역 그리기 중 — 지도를 클릭해 꼭짓점을 순서대로 추가하세요 ({draftPointCount}개)
+          <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs shadow-lg">
+            <span className="whitespace-nowrap font-semibold text-foreground">
+              {draftPointCount === 0
+                ? "지도를 클릭해 구역의 첫 꼭짓점을 찍으세요"
+                : draftPointCount < 3
+                  ? `다음 꼭짓점을 찍으세요 (${draftPointCount}개)`
+                  : `꼭짓점을 더 찍거나 완료를 누르세요 (${draftPointCount}개)`}
             </span>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleUndoLastPoint}
-                disabled={draftPointCount === 0}
-                className="px-2 py-1 rounded-sm border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
-              >
-                마지막 점 취소
-              </button>
-              <button
-                type="button"
-                onClick={handleFinish}
-                disabled={draftPointCount < 3}
-                className="px-2 py-1 rounded-sm bg-primary text-primary-foreground font-semibold disabled:opacity-40"
-              >
+            <button
+              type="button"
+              onClick={handleUndoLastPoint}
+              disabled={draftPointCount === 0}
+              title="뒤로 가기 — 마지막 꼭짓점 취소"
+              aria-label="뒤로 가기"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-base text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+            >
+              ↶
+            </button>
+            <button
+              type="button"
+              onClick={handleRedoPoint}
+              disabled={redoCount === 0}
+              title="앞으로 가기 — 취소한 꼭짓점 다시"
+              aria-label="앞으로 가기"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-base text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+            >
+              ↷
+            </button>
+            {draftPointCount >= 3 && (
+              <button type="button" onClick={handleFinish} className="rounded-full bg-violet-600 px-3 py-1 font-bold text-white hover:bg-violet-700">
                 완료
               </button>
-            </div>
+            )}
+            {onCancelDraw && (
+              <button type="button" onClick={onCancelDraw} className="rounded-full px-2 py-1 font-bold text-red-600 hover:bg-red-50">
+                취소
+              </button>
+            )}
           </div>
         )}
       </div>
