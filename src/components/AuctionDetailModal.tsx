@@ -225,6 +225,14 @@ function markTenantAutoTried(id: string, on: boolean) {
   }
 }
 
+/** 입찰일이 지났는데 아직 "변경"(다음 기일 미정)인 물건 — 상세를 열면 한 번 다시 조회해 상태가 바뀌었는지 확인한다. */
+function isChangedStale(item: { caseState?: string | null; bidDate?: string | null }): boolean {
+  if ((item.caseState ?? "").trim() !== "변경") return false;
+  const k = new Date(Date.now() + 9 * 3600_000);
+  const today = `${k.getUTCFullYear()}.${String(k.getUTCMonth() + 1).padStart(2, "0")}.${String(k.getUTCDate()).padStart(2, "0")}`;
+  return (item.bidDate ?? "").replace(/-/g, ".") < today;
+}
+
 /** 임차인·점유 현황이 아직 안 올라온 상태(빈 값·"값없음"). "조사된 임차내역 없음"은 법원이 조사한 결과라 해당하지 않는다. */
 function isTenantDetailPending(value: unknown): boolean {
   const text = String(value ?? "").trim();
@@ -1866,7 +1874,7 @@ export function AuctionDetailModal({
   const tenantRefreshRef = useRef<((auto: boolean) => Promise<void>) | null>(null);
   // 임차인·점유 현황이 없는 물건 상세를 열면(누구든, 서버가 컨설팅수강생 이상만 허용) 자동으로 한 번 조회한다. 값이 올라와 있으면 채워지고, 없으면 그대로 둔다.
   useEffect(() => {
-    if (!item?.id || !isTenantDetailPending(item.tenantDetail) || !item.link?.trim()) return;
+    if (!item?.id || !(isTenantDetailPending(item.tenantDetail) || isChangedStale(item)) || !item.link?.trim()) return;
     if (!shouldAutoRefreshTenant(item.id)) return;
     const timer = setTimeout(() => void tenantRefreshRef.current?.(true), 600);
     return () => clearTimeout(timer);
@@ -2237,10 +2245,12 @@ export function AuctionDetailModal({
           setTenantRefreshMessage("");
           return;
         }
+        const before = `${item.caseState ?? ""}|${item.bidDate ?? ""}|${item.tenantDetail ?? ""}|${item.updatedAt ?? ""}`;
         for (let i = 0; i < 15; i += 1) {
           await new Promise((resolve) => setTimeout(resolve, 4000));
           const [updated] = await fetchAuctionsByIds([item.id]);
-          if (updated && !isTenantDetailPending(updated.tenantDetail)) {
+          const after = updated ? `${updated.caseState ?? ""}|${updated.bidDate ?? ""}|${updated.tenantDetail ?? ""}|${updated.updatedAt ?? ""}` : before;
+          if (updated && (after !== before || (isTenantDetailPending(item.tenantDetail) && !isTenantDetailPending(updated.tenantDetail)))) {
             setForm(toFormState(updated));
             setItemOverride(updated);
             onSaved?.(updated);
