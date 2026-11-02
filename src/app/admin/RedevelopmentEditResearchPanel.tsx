@@ -442,7 +442,8 @@ export function RedevelopmentEditResearchPanel({
           auctionPricePct: (a.appraisedValue ?? auctionItem?.appraisedValue ?? 0) > 0 && (isSold ? (a.salePrice ?? 0) : (a.minPrice ?? 0)) > 0
             ? Math.round(((isSold ? a.salePrice : a.minPrice) as number) / ((a.appraisedValue ?? auctionItem?.appraisedValue) as number) * 100)
             : null,
-          date: a.bidDate ? a.bidDate.replace(/-/g, ".") : "",
+          // 경매·낙찰 줄의 날짜 = 입찰일(낙찰 물건은 낙찰일). 지도용 목록에 없으면 경매 상세 원본에서 채운다.
+          date: (a.bidDate ?? auctionItem?.bidDate ?? "").replace(/-/g, "."),
           floor: [p?.floor ? `${p.floor}층` : "", p?.ho ? `${p.ho}호` : ""].filter(Boolean).join(" ") || a.caseState || "",
           area: p?.exclusiveArea ?? areaFromText(auctionItem?.area),
           land: p?.landShare ?? null,
@@ -1060,7 +1061,14 @@ export function RedevelopmentEditResearchPanel({
                             <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{r.typeName}</span>
                           )}
                         </td>
-                        <td className="border-b border-border px-2 py-2 tabular-nums">{r.date}</td>
+                        <td className="border-b border-border px-2 py-2 tabular-nums">
+                          {r.date}
+                          {r.date && (
+                            <span className={`block text-[10px] font-normal ${r.kind === "경매물건" && r.soldAuction ? "text-red-600" : "text-muted-foreground"}`}>
+                              {r.kind === "경매물건" ? (r.soldAuction ? "낙찰일" : "입찰일") : r.kind === "실거래" ? "거래일" : "확인일"}
+                            </span>
+                          )}
+                        </td>
                         <td className="border-b border-border px-2 py-2">{r.floor}</td>
                         <td className="border-b border-border px-2 py-2 text-right tabular-nums">{r.area ?? ""}</td>
                         <td className="border-b border-border px-2 py-2 text-right tabular-nums">{r.area != null ? (r.area / PYEONG).toFixed(1) : ""}</td>
