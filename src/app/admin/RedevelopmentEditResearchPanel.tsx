@@ -982,8 +982,7 @@ export function RedevelopmentEditResearchPanel({
                 <col className="w-[190px]" />
                 <col className="w-[90px]" />
                 <col className="w-[64px]" />
-                <col className="w-[72px]" />
-                <col className="w-[56px]" />
+                <col className="w-[84px]" />
                 <col className="w-[90px]" />
                 <col className="w-[56px]" />
                 <col className="w-[48px]" />
@@ -996,7 +995,7 @@ export function RedevelopmentEditResearchPanel({
               </colgroup>
               <thead>
                 <tr className="bg-muted text-left text-muted-foreground">
-                  {["분류", "주소", "거래일·확인일", "층·호", "전용(㎡)", "평", "대지지분(㎡)", "연식", "방", "공시가", "전세가", "최저가/호가/실매도", "구역갭", "현전세", "중개사 · 연락처"].map((h, i) => (
+                  {["분류", "주소", "거래일·확인일", "층·호", "전용(㎡)", "대지지분(㎡)", "연식", "방", "공시가", "전세가", "최저가/호가/실매도", "구역갭", "현전세", "중개사 · 연락처"].map((h, i) => (
                     <th key={h} className="whitespace-nowrap px-2 py-2 text-center font-semibold">
                       {h}
                     </th>
@@ -1071,8 +1070,10 @@ export function RedevelopmentEditResearchPanel({
                           )}
                         </td>
                         <td className="border-b border-border px-2 py-2">{r.floor}</td>
-                        <td className="border-b border-border px-2 py-2 text-right tabular-nums">{r.area ?? ""}</td>
-                        <td className="border-b border-border px-2 py-2 text-right tabular-nums">{r.area != null ? (r.area / PYEONG).toFixed(1) : ""}</td>
+                        <td className="border-b border-border px-2 py-2 text-right tabular-nums">
+                          {r.area ?? ""}
+                          {r.area != null && <span className="block text-[11px] text-muted-foreground">{(r.area / PYEONG).toFixed(1)}평</span>}
+                        </td>
                         <td className="border-b border-border px-2 py-2 text-right tabular-nums" title={r.landEst ? (r.landBasis === "ledger" ? "건축물대장 대지면적을 이 건물 호들의 전용면적 비율로 나눈 추정값" : "같은 지번 실거래의 대지권면적 비율로 추정한 값") : undefined}>
                           {r.land != null && r.land > 0 ? r.land : ""}
                           {r.land != null && r.land > 0 && <span className="block text-[11px] text-muted-foreground">{(r.land / PYEONG).toFixed(1)}평</span>}
@@ -1167,7 +1168,7 @@ export function RedevelopmentEditResearchPanel({
                 })}
                 {rows.length === 1 && (
                   <tr>
-                    <td colSpan={15} className="px-2 py-4 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-2 py-4 text-center text-muted-foreground">
                       {running ? "수집 중입니다. 완료되면 호가와 실거래가 여기에 표시됩니다." : "조사된 호가·실거래가 없습니다."}
                     </td>
                   </tr>
@@ -1240,7 +1241,7 @@ function ListingDetail({ l, busy = false, disabled = false, onFetchDetail }: { l
   const mapUrl = l.lat != null && l.lng != null ? `https://new.land.naver.com/houses?ms=${l.lat},${l.lng},17&a=DDDGG:VL&b=A1&e=RETAIL&ad=true` : null;
   return (
     <tr>
-      <td colSpan={15} className="bg-muted/30 px-4 py-3">
+      <td colSpan={14} className="bg-muted/30 px-4 py-3">
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-xs md:grid-cols-2 xl:grid-cols-3">
           {kv("매물번호", l.articleNo)}
           {kv("매물명", l.articleName)}
@@ -1324,7 +1325,7 @@ function TradeDetail({ t, naverHref }: { t: ResearchTrade; naverHref?: string })
     );
   return (
     <tr>
-      <td colSpan={15} className="bg-muted/30 px-4 py-3">
+      <td colSpan={14} className="bg-muted/30 px-4 py-3">
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-xs md:grid-cols-2 xl:grid-cols-3">
           {kv("건물명", t.buildingName)}
           {kv("지번", `${t.umdNm} ${t.jibun}`)}
