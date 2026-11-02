@@ -4231,6 +4231,8 @@ export function createRedevelopmentZone(body: {
   name: string;
   region?: string;
   stage?: string;
+  /** 사업종류(신규구역에서 직접 입력). */
+  projectType?: string;
   memo?: string;
   polygon: RedevelopmentPoint[];
   color?: string;
@@ -4250,6 +4252,7 @@ export function updateRedevelopmentZone(
     name?: string;
     region?: string;
     stage?: string;
+    projectType?: string;
     memo?: string;
     polygon?: RedevelopmentPoint[];
     color?: string | null;

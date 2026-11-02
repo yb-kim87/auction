@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchZoneResearch, fetchZoneRightDate, refreshZoneBlog, type RedevelopmentMapAuction, type RedevelopmentZone, type ZoneBlogInfo, type ZoneRightDate } from "@/lib/api";
 import { loadZoneStats, zoneStatsOf, type ZoneDetails, type ZoneStats } from "@/lib/zone-stats";
 import { zoneBusinessTypeLabel, zoneStyle, isVirtualZone } from "@/lib/zone-stage-style";
+import { STAGE_OPTION_GROUPS, TYPE_OPTION_GROUPS, ZoneOptionSelect } from "./ZoneOptionSelect";
 import { PROGRESS_STEPS, stageDisplayLabel, stagePosition } from "@/lib/zone-progress";
 import { zoneStageCautions } from "@/lib/zone-stage-cautions";
 import { RedevelopmentEditResearchPanel } from "./RedevelopmentEditResearchPanel";
@@ -364,6 +365,7 @@ export function RedevelopmentEditSelectedZone({
   onRightDateSaved,
   showNear,
   onSaveInfo,
+  autoRegion,
   onDelete,
 }: {
   zone: RedevelopmentZone;
@@ -379,19 +381,24 @@ export function RedevelopmentEditSelectedZone({
   /** 권리산정기준일을 확인·저장했을 때 — 부모의 구역 목록에도 반영한다. */
   onRightDateSaved: (zoneId: string, rd: ZoneRightDate) => void;
   /** 구역 정보(이름·지역·단계·메모) 저장 — 실패하면 throw. */
-  onSaveInfo: (zone: RedevelopmentZone, form: { name: string; region: string; stage: string; memo: string }) => Promise<void>;
+  onSaveInfo: (zone: RedevelopmentZone, form: { name: string; region: string; stage: string; memo: string; projectType?: string }) => Promise<void>;
+  /** 구역 위치로 자동 판별한 구 이름 — 지역명이 비어 있으면 미리 채워 준다. */
+  autoRegion?: string;
   onDelete: (zone: RedevelopmentZone) => Promise<void>;
 }) {
   const style = zoneStyle(zone);
   const [editingInfo, setEditingInfo] = useState(false);
-  const [infoForm, setInfoForm] = useState({ name: zone.name, region: zone.region, stage: zone.stage, memo: zone.memo ?? "" });
+  const [infoForm, setInfoForm] = useState({ name: zone.name, region: zone.region || autoRegion || "", stage: zone.stage, projectType: zone.projectType ?? "", memo: zone.memo ?? "" });
+  useEffect(() => {
+    if (autoRegion) setInfoForm((f) => (f.region.trim() ? f : { ...f, region: autoRegion }));
+  }, [autoRegion]);
   const [infoBusy, setInfoBusy] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
   async function saveInfo() {
     setInfoBusy(true);
     setInfoError(null);
     try {
-      await onSaveInfo(zone, infoForm);
+      await onSaveInfo(zone, isVirtualZone(zone) ? infoForm : { name: infoForm.name, region: infoForm.region, stage: infoForm.stage, memo: infoForm.memo });
       setEditingInfo(false);
     } catch (e) {
       setInfoError(e instanceof Error ? e.message : "구역 정보 수정 실패");
@@ -472,21 +479,14 @@ export function RedevelopmentEditSelectedZone({
 
         {editingInfo && (
           <div className="shrink-0 space-y-2 border-b border-border bg-muted/30 px-4 py-3 text-xs sm:px-5">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-              {([
-                ["name", "구역명"],
-                ["region", "지역명"],
-                ["stage", "사업단계"],
-                ["memo", "메모"],
-              ] as const).map(([key, label]) => (
-                <input
-                  key={key}
-                  value={infoForm[key]}
-                  onChange={(e) => setInfoForm((f) => ({ ...f, [key]: e.target.value }))}
-                  placeholder={label}
-                  className="w-full rounded-sm border border-border bg-background px-2 py-1.5"
-                />
-              ))}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+              <input value={infoForm.name} onChange={(e) => setInfoForm((f) => ({ ...f, name: e.target.value }))} placeholder="구역명" className="w-full rounded-sm border border-border bg-background px-2 py-1.5" />
+              <input value={infoForm.region} onChange={(e) => setInfoForm((f) => ({ ...f, region: e.target.value }))} placeholder="지역명" className="w-full rounded-sm border border-border bg-background px-2 py-1.5" />
+              {isVirtualZone(zone) && (
+                <ZoneOptionSelect value={infoForm.projectType} onChange={(v) => setInfoForm((f) => ({ ...f, projectType: v }))} groups={TYPE_OPTION_GROUPS} placeholder="사업종류 선택" />
+              )}
+              <ZoneOptionSelect value={infoForm.stage} onChange={(v) => setInfoForm((f) => ({ ...f, stage: v }))} groups={STAGE_OPTION_GROUPS} placeholder="사업단계 선택" />
+              <input value={infoForm.memo} onChange={(e) => setInfoForm((f) => ({ ...f, memo: e.target.value }))} placeholder="메모" className="w-full rounded-sm border border-border bg-background px-2 py-1.5" />
             </div>
             <div className="flex items-center gap-3">
               <button type="button" disabled={infoBusy} onClick={() => void saveInfo()} className="font-semibold text-primary hover:underline disabled:opacity-50">

@@ -94,6 +94,9 @@ export function isVirtualZone(zone: Pick<RedevelopmentZone, "sourceKey">): boole
   return !zone.sourceKey;
 }
 
+/** 신규구역 사업종류 입력 선택지. */
+export const VIRTUAL_PROJECT_TYPE_OPTIONS = ["재개발", "신속통합기획", "모아타운", "가로주택정비", "소규모재개발", "재건축", "공공재개발", "역세권활성화", "도심공공복합", "지역주택조합"];
+
 export const VIRTUAL_ZONE_COLOR = "#7c3aed";
 
 export function zoneStyle(zone: ZoneLike): ZoneStyle {
@@ -216,6 +219,8 @@ export function zoneFilterType(zone: ZoneLike): string {
 
 /** 목록 표시용 사업종류 — 저장된 메타가 없으면 기본 재개발로 추측하지 않는다. */
 export function zoneBusinessTypeLabel(zone: Pick<RedevelopmentZone, "sourceKey" | "sourceDatasetId" | "stage"> & Partial<Pick<RedevelopmentZone, "projectType" | "lastAutoSyncedAt">>): string {
+  // 가상(신규)구역은 직접 입력한 사업종류를 그대로 보여 준다.
+  if (isVirtualZone(zone)) return zone.projectType?.trim() || "사업종류 미확인";
   if (zone.sourceDatasetId !== "jaegebal") return "사업종류 미확인";
   const resolved = resolveZoneMeta(zone);
   const typeKey = resolved.known ? resolved.typeKey : undefined;

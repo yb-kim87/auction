@@ -36,6 +36,7 @@ const SHOW_ZONE_DRAWING_BUTTONS = false; // 상단 툴바 버튼은 숨기고, �
 const SHOW_IMAGE_ZONE_BUTTON = false;
 const SHOW_REFRESH_BUTTON = false;
 import { RedevelopmentEditZoneFilters } from "./RedevelopmentEditZoneFilters";
+import { STAGE_OPTION_GROUPS, TYPE_OPTION_GROUPS, ZoneOptionSelect } from "./ZoneOptionSelect";
 import { buildZoneBoxes, DEFAULT_BOUNDARY_TOLERANCE_M, findZoneIds, NEAR_BOUNDARY_MAX_M } from "@/lib/zone-geometry";
 
 const STAGE_OPTIONS = [
@@ -49,9 +50,9 @@ const STAGE_OPTIONS = [
   "준공",
 ];
 
-type ZoneFormState = { name: string; region: string; stage: string; memo: string };
+type ZoneFormState = { name: string; region: string; stage: string; projectType: string; memo: string };
 
-const EMPTY_FORM: ZoneFormState = { name: "", region: "", stage: "", memo: "" };
+const EMPTY_FORM: ZoneFormState = { name: "", region: "", stage: "", projectType: "", memo: "" };
 const RECENT_AUCTION_SEARCHES_KEY = "redev-recent-auction-searches";
 const MAX_RECENT_AUCTION_SEARCHES = 8;
 type RecentAuctionSearch = { auctionNo: string; searchedAt: number };
@@ -299,7 +300,7 @@ export function RedevelopmentEditTab() {
   function startImageRefine(zone: RedevelopmentZone) {
     setEditingZone(zone);
     setPendingPoints(null);
-    setForm({ name: zone.name, region: zone.region, stage: zone.stage, memo: zone.memo ?? "" });
+    setForm({ name: zone.name, region: zone.region, stage: zone.stage, projectType: zone.projectType ?? "", memo: zone.memo ?? "" });
     setSelectedZoneId(zone.id);
     setImageTraceSourceUrl(zone.referenceImageUrl);
     setImageTraceArea(zone.areaSqMeters);
@@ -316,7 +317,7 @@ export function RedevelopmentEditTab() {
   function startRedrawZone(zone: RedevelopmentZone) {
     setEditingZone(zone);
     setPendingPoints(null);
-    setForm({ name: zone.name, region: zone.region, stage: zone.stage, memo: zone.memo ?? "" });
+    setForm({ name: zone.name, region: zone.region, stage: zone.stage, projectType: zone.projectType ?? "", memo: zone.memo ?? "" });
     setSelectedZoneId(zone.id);
     setDrawing(true);
   }
@@ -327,9 +328,34 @@ export function RedevelopmentEditTab() {
     setPendingPoints(null);
   }
 
+  /** 그린 구역 중심 좌표의 구 이름(예: 강동구) — 지역명 자동 입력용. */
+  async function detectGu(points: RedevelopmentPoint[]): Promise<string> {
+    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY;
+    if (!appKey || points.length === 0) return "";
+    try {
+      await loadKakaoMaps(appKey);
+    } catch {
+      return "";
+    }
+    const services = window.kakao?.maps.services;
+    if (!services) return "";
+    const lat = points.reduce((s, p) => s + p.lat, 0) / points.length;
+    const lng = points.reduce((s, p) => s + p.lng, 0) / points.length;
+    return new Promise((resolve) => {
+      new services.Geocoder().coord2RegionCode(lng, lat, (result, status) => {
+        const hit = status === services.Status.OK ? (result.find((r) => r.region_type === "B") ?? result[0]) : undefined;
+        resolve(hit?.region_2depth_name ?? "");
+      });
+    });
+  }
+
   function handleFinishDraw(points: RedevelopmentPoint[]) {
     setPendingPoints(points);
     setDrawing(false);
+    // 지역명은 그린 위치로 자동 입력한다(이미 직접 적었으면 그대로 둔다).
+    void detectGu(points).then((gu) => {
+      if (gu) setForm((f) => (f.region.trim() ? f : { ...f, region: gu }));
+    });
   }
 
   /** "이 경계로 확정" 처리.
@@ -390,6 +416,7 @@ export function RedevelopmentEditTab() {
           name,
           region: form.region.trim(),
           stage: form.stage.trim(),
+          projectType: form.projectType.trim(),
           memo: form.memo.trim(),
           polygon: pendingPoints,
           boundaryType: "MANUAL",
@@ -406,13 +433,14 @@ export function RedevelopmentEditTab() {
     }
   }
 
-  async function handleSaveInfo(zone: RedevelopmentZone, form: { name: string; region: string; stage: string; memo: string }) {
+  async function handleSaveInfo(zone: RedevelopmentZone, form: { name: string; region: string; stage: string; memo: string; projectType?: string }) {
     const name = form.name.trim();
     if (!name) throw new Error("구역명을 입력해주세요.");
     await updateRedevelopmentZone(zone.id, {
       name,
       region: form.region.trim(),
       stage: form.stage.trim(),
+      ...(form.projectType !== undefined ? { projectType: form.projectType.trim() } : {}),
       memo: form.memo.trim(),
     });
     load();
@@ -869,13 +897,8 @@ export function RedevelopmentEditTab() {
               placeholder="지역명 (선택, 예: 서울특별시 강동구)"
               className="px-2 py-1.5 text-sm border border-border rounded-sm bg-background"
             />
-            <input
-              value={form.stage}
-              onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value }))}
-              placeholder="사업단계 (선택)"
-              list="redevelopment-stage-options"
-              className="px-2 py-1.5 text-sm border border-border rounded-sm bg-background"
-            />
+            <ZoneOptionSelect value={form.projectType} onChange={(v) => setForm((f) => ({ ...f, projectType: v }))} groups={TYPE_OPTION_GROUPS} placeholder="사업종류 선택 (선택)" />
+            <ZoneOptionSelect value={form.stage} onChange={(v) => setForm((f) => ({ ...f, stage: v }))} groups={STAGE_OPTION_GROUPS} placeholder="사업단계 선택 (선택)" />
             <input
               value={form.memo}
               onChange={(e) => setForm((f) => ({ ...f, memo: e.target.value }))}
@@ -883,11 +906,6 @@ export function RedevelopmentEditTab() {
               className="px-2 py-1.5 text-sm border border-border rounded-sm bg-background"
             />
           </div>
-          <datalist id="redevelopment-stage-options">
-            {STAGE_OPTIONS.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -1250,6 +1268,7 @@ export function RedevelopmentEditTab() {
           onRightDateSaved={applyRightDate}
           showNear={showNear}
           onSaveInfo={handleSaveInfo}
+          autoRegion={districtById[zonePopup.id] || undefined}
           onDelete={async (zone) => {
             if (await handleDeleteZone(zone)) setZonePopupId(null);
           }}
