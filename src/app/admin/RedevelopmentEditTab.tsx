@@ -32,7 +32,7 @@ import { RedevelopmentEditSelectedZone } from "./RedevelopmentEditSelectedZone";
 import { readFastResearch } from "./RedevelopmentEditResearchPanel";
 
 // 가상구역 그리기(2026-11-02 다시 켬). 이미지로 구역 그리기는 계속 숨긴다.
-const SHOW_ZONE_DRAWING_BUTTONS = true;
+const SHOW_ZONE_DRAWING_BUTTONS = false; // 상단 툴바 버튼은 숨기고, 지도 우측 위의 "신규구역" 버튼을 쓴다
 const SHOW_IMAGE_ZONE_BUTTON = false;
 const SHOW_REFRESH_BUTTON = false;
 import { RedevelopmentEditZoneFilters } from "./RedevelopmentEditZoneFilters";
@@ -718,51 +718,14 @@ export function RedevelopmentEditTab() {
 
   return (
     <div ref={rootRef} className="p-1 sm:p-2 space-y-3">
-      <div className="flex items-baseline gap-3">
-        <h2 className="text-lg font-bold text-foreground">재개발물건</h2>
-        <p className="text-xs text-muted-foreground">
-          좌측에서 구역·물건을 확인하고, 우측 지도에서 구역을 클릭하면 그 구역 안 경매물건이 나옵니다.
-        </p>
-      </div>
-
-      {message && (
-        <div className="text-sm px-3 py-2 rounded-sm border border-border bg-secondary/30">
-          {message}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-lg font-bold text-foreground">재개발물건</h2>
+          <p className="text-xs text-muted-foreground">
+            좌측에서 구역·물건을 확인하고, 우측 지도에서 구역을 클릭하면 그 구역 안 경매물건이 나옵니다.
+          </p>
         </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        {/* 새로고침 버튼은 숨김 — 탭을 열 때 자동으로 불러오고, 데이터를 바꾸는 작업(그리기·경매물건 업데이트)이 화면에서 빠졌다(2026-10-28). 필요하면 브라우저 새로고침. */}
-        {SHOW_REFRESH_BUTTON && (
-          <button type="button" onClick={load} disabled={loading} className="text-xs text-primary hover:underline disabled:opacity-50">
-            {loading ? "불러오는 중..." : "새로고침"}
-          </button>
-        )}
-        {/* 새 구역 그리기·이미지로 구역 그리기 버튼은 숨김(재개발닷컴 데이터로 구역을 관리하므로 현재 쓰지 않음, 2026-10-28). 코드는 보존. */}
-        {SHOW_ZONE_DRAWING_BUTTONS && !drawing && !imageTracing && !pendingPoints && (
-          <>
-            <button
-              type="button"
-              onClick={startNewZone}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
-            >
-              + 가상구역 그리기
-            </button>
-            {SHOW_IMAGE_ZONE_BUTTON && <button
-              type="button"
-              onClick={startNewZoneFromImage}
-              className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-primary text-primary hover:bg-primary/5"
-            >
-              + 이미지로 구역 그리기
-            </button>}
-          </>
-        )}
-        {drawing && (
-          <button type="button" onClick={cancelDrawing} className="text-xs text-destructive hover:underline">
-            그리기 취소
-          </button>
-        )}
-        <div className="relative ml-auto">
+        <div className="relative ml-auto flex flex-col items-end">
           <form
             className="flex items-center gap-1.5 rounded-md border-2 border-primary bg-primary/5 p-1.5 shadow-sm"
             onSubmit={(e) => {
@@ -789,7 +752,7 @@ export function RedevelopmentEditTab() {
             </button>
           </form>
           {(auctionSearchMessage || recentAuctionSearches.length > 0) && (
-            <div className="absolute right-0 top-full z-30 mt-1 flex w-max max-w-[min(620px,calc(100vw-24px))] flex-wrap items-center gap-1.5 rounded-md border border-primary/30 bg-background px-2 py-1.5 text-xs text-muted-foreground shadow-lg">
+            <div className="mt-1 flex w-max max-w-[min(620px,calc(100vw-24px))] flex-wrap items-center gap-1.5 rounded-md border border-primary/30 bg-background px-2 py-1.5 text-xs text-muted-foreground shadow-sm">
               {recentAuctionSearches.length > 0 && (
                 <>
                   <span className="ml-1 whitespace-nowrap border-l border-border pl-2 font-semibold text-foreground">최근 검색</span>
@@ -846,10 +809,49 @@ export function RedevelopmentEditTab() {
         </div>
       </div>
 
+      {message && (
+        <div className="text-sm px-3 py-2 rounded-sm border border-border bg-secondary/30">
+          {message}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        {/* 새로고침 버튼은 숨김 — 탭을 열 때 자동으로 불러오고, 데이터를 바꾸는 작업(그리기·경매물건 업데이트)이 화면에서 빠졌다(2026-10-28). 필요하면 브라우저 새로고침. */}
+        {SHOW_REFRESH_BUTTON && (
+          <button type="button" onClick={load} disabled={loading} className="text-xs text-primary hover:underline disabled:opacity-50">
+            {loading ? "불러오는 중..." : "새로고침"}
+          </button>
+        )}
+        {/* 새 구역 그리기·이미지로 구역 그리기 버튼은 숨김(재개발닷컴 데이터로 구역을 관리하므로 현재 쓰지 않음, 2026-10-28). 코드는 보존. */}
+        {SHOW_ZONE_DRAWING_BUTTONS && !drawing && !imageTracing && !pendingPoints && (
+          <>
+            <button
+              type="button"
+              onClick={startNewZone}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary text-primary-foreground"
+            >
+              + 가상구역 그리기
+            </button>
+            {SHOW_IMAGE_ZONE_BUTTON && <button
+              type="button"
+              onClick={startNewZoneFromImage}
+              className="px-3 py-1.5 text-xs font-semibold rounded-sm border border-primary text-primary hover:bg-primary/5"
+            >
+              + 이미지로 구역 그리기
+            </button>}
+          </>
+        )}
+        {drawing && (
+          <button type="button" onClick={cancelDrawing} className="text-xs text-destructive hover:underline">
+            그리기 취소
+          </button>
+        )}
+      </div>
+
       {pendingPoints && (
         <div className="rounded-sm border border-primary/40 bg-primary/5 p-4 space-y-3">
           <p className="text-sm font-semibold text-foreground">
-            {editingZone ? `"${editingZone.name}" 구역 경계 수정 저장` : "가상구역 정보 입력 (구역명을 정하면 다른 구역처럼 경매물건·호가·실거래를 조사할 수 있습니다)"}
+            {editingZone ? `"${editingZone.name}" 구역 경계 수정 저장` : "신규구역 정보 입력 (구역명을 정하면 다른 구역처럼 경매물건·호가·실거래를 조사할 수 있습니다)"}
             <span className="ml-2 text-xs font-normal text-muted-foreground">
               (꼭짓점 {pendingPoints.length}개)
             </span>
@@ -916,6 +918,19 @@ export function RedevelopmentEditTab() {
             fillHeight
             focusGu={guFilter}
             focusDong={dongFilter}
+            topRightAction={
+              !drawing && !imageTracing && !pendingPoints ? (
+                <button
+                  type="button"
+                  onClick={startNewZone}
+                  title="지도에 직접 구역을 그려 신규구역으로 저장합니다. 구역명을 정하면 다른 구역처럼 경매물건·호가·실거래를 조사할 수 있습니다."
+                  className="flex h-12 w-12 flex-col items-center justify-center rounded-md bg-violet-600 text-[11px] font-bold leading-tight text-white shadow-lg hover:bg-violet-700"
+                >
+                  <span>신규</span>
+                  <span>구역</span>
+                </button>
+              ) : null
+            }
             toolbar={
               <div className="flex flex-wrap items-center gap-1.5">
                 <RedevelopmentEditZoneFilters types={mapTypes} stages={mapStages} onTypesChange={setMapTypes} onStagesChange={setMapStages} />
@@ -1118,7 +1133,7 @@ export function RedevelopmentEditTab() {
                           }`}
                         >
                           {zone.name}
-                          {isVirtualZone(zone) && <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">가상</span>}
+                          {isVirtualZone(zone) && <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">신규</span>}
                         </button>
                         {(() => {
                           const consent = consentByZoneId.get(zone.id);

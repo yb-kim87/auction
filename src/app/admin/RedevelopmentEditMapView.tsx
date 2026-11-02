@@ -67,6 +67,7 @@ export function RedevelopmentEditMapView({
   focusDong,
   fillHeight = false,
   toolbar = null,
+  topRightAction = null,
   onAuctionClick,
   selectedAuctionId = null,
   researchPoints = null,
@@ -106,6 +107,8 @@ export function RedevelopmentEditMapView({
   fillHeight?: boolean;
   /** 지도 위쪽에 올리는 도구(사업종류·진행단계 필터 등). */
   toolbar?: React.ReactNode;
+  /** 지도 우측 위(범례 아래)에 띄우는 버튼 — 예: "신규구역" 그리기. */
+  topRightAction?: React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMap | null>(null);
@@ -889,6 +892,7 @@ export function RedevelopmentEditMapView({
         )}
         {/* 브라우저 축소 비율에서도 좌측 레이어 버튼과 닿지 않도록 넉넉한 간격을 둔다. */}
         {toolbar && <div className="absolute left-[190px] top-3 z-20">{toolbar}</div>}
+        {topRightAction && !drawing && <div className="absolute right-3 top-14 z-20">{topRightAction}</div>}
         <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
           {(
             [
@@ -936,7 +940,7 @@ export function RedevelopmentEditMapView({
         {drawing && (
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 rounded-sm border border-border bg-card/95 px-3 py-2 text-xs shadow">
             <span className="font-semibold text-foreground">
-              구역 그리기 중 — 지도를 클릭해 꼭짓점을 순서대로 추가하세요 ({draftPointCount}개)
+              신규구역 그리기 중 — 지도를 클릭해 꼭짓점을 순서대로 추가하세요 ({draftPointCount}개)
             </span>
             <div className="flex items-center gap-2 shrink-0">
               <button
