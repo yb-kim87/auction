@@ -75,14 +75,9 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
-/** 블로그에서 가져온 내용이 하나라도 있는지 — 가상구역은 있을 때만 블로그 섹션을 보여 준다. */
-function hasBlogData(blog: ZoneBlogInfo | undefined): boolean {
-  return !!blog && (!!blog.consent || blog.timeline.length > 0 || (blog.insights?.length ?? 0) > 0 || (blog.articles?.length ?? 0) > 0);
-}
-
 /** 재개발 블로그(후니동산)에서 찾은 구역 주요정보(동의율·공문 타임라인·사업 관련 내용) — 구역 조사 때 함께 갱신된다. 글 작성일이 최신인 값을 대표로, 원문 링크를 단다.
  * 대상지 선정 단계 이후 구역은 동의율에 맞춰 이미 대상지가 정해졌으므로 동의율을 강조하지 않고(있으면 참고로만, 없으면 조용히 표시) 다른 정보를 먼저 보여 준다. */
-function ZoneBlogSection({ blog, busy, onRefresh, error, afterSelection }: { blog: ZoneBlogInfo | undefined; busy: boolean; onRefresh: () => void; error?: string | null; afterSelection: boolean }) {
+function ZoneBlogSection({ blog, busy, onRefresh, error, afterSelection, virtual = false }: { blog: ZoneBlogInfo | undefined; busy: boolean; onRefresh: () => void; error?: string | null; afterSelection: boolean; virtual?: boolean }) {
   const c = blog?.consent;
   const fmt = (n: { yesPct: number | null; noPct: number | null; qualifier: string | null }) =>
     [n.yesPct != null ? `찬성 ${n.yesPct}%${n.qualifier ?? ""}` : "", n.noPct != null ? `반대 ${n.noPct}%${n.qualifier ?? ""}` : ""].filter(Boolean).join(" · ");
@@ -136,7 +131,7 @@ function ZoneBlogSection({ blog, busy, onRefresh, error, afterSelection }: { blo
     )
   ) : blog?.fetchedAt ? (
     afterSelection ? (
-      <p className="mt-3 text-xs text-muted-foreground">동의율: 확인된 데이터 없음 (대상지 선정 이후 단계라 참고 정보입니다)</p>
+      <p className="mt-3 text-xs text-muted-foreground">동의율: 확인된 데이터 없음{virtual ? " (신규구역 · 블로그에서 찾지 못했습니다)" : " (대상지 선정 이후 단계라 참고 정보입니다)"}</p>
     ) : (
       <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2" role="status">
         <p className="text-sm font-bold text-amber-900">동의율 미확인</p>
@@ -509,16 +504,7 @@ export function RedevelopmentEditSelectedZone({
           <ZoneProgress zone={zone} />
           {stats && <ZoneStatsSection stats={stats} />}
           {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} onSaved={onRightDateSaved} />}
-          {isVirtualZone(zone) && !hasBlogData(research.data?.blog) && research.data?.blog?.fetchedAt && (
-            <section className="border-b border-border px-4 py-2 text-xs text-muted-foreground sm:px-5">
-              블로그 조사: 이 구역과 관련된 글을 찾지 못했습니다
-              {research.data.blog.diagnostics ? ` (검색 ${research.data.blog.diagnostics.searched}건 · 확인 ${research.data.blog.diagnostics.opened}건)` : ""} ·{" "}
-              <button type="button" disabled={blogBusy} onClick={() => void refreshBlog()} className="text-blue-600 hover:underline disabled:opacity-50">
-                {blogBusy ? "조사 중..." : "다시 조사"}
-              </button>
-            </section>
-          )}
-          {(!isVirtualZone(zone) || hasBlogData(research.data?.blog)) && <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={isVirtualZone(zone) || (stagePosition(zone.stage) ?? -1) >= 1} />}
+          <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={isVirtualZone(zone) || (stagePosition(zone.stage) ?? -1) >= 1} virtual={isVirtualZone(zone)} />
           <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} rightDate={stats?.rb} showNear={showNear} />
         </div>
       </div>
