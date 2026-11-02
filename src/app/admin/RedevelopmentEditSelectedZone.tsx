@@ -75,6 +75,11 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
+/** 블로그에서 가져온 내용이 하나라도 있는지 — 가상구역은 있을 때만 블로그 섹션을 보여 준다. */
+function hasBlogData(blog: ZoneBlogInfo | undefined): boolean {
+  return !!blog && (!!blog.consent || blog.timeline.length > 0 || (blog.insights?.length ?? 0) > 0 || (blog.articles?.length ?? 0) > 0);
+}
+
 /** 재개발 블로그(후니동산)에서 찾은 구역 주요정보(동의율·공문 타임라인·사업 관련 내용) — 구역 조사 때 함께 갱신된다. 글 작성일이 최신인 값을 대표로, 원문 링크를 단다.
  * 대상지 선정 단계 이후 구역은 동의율에 맞춰 이미 대상지가 정해졌으므로 동의율을 강조하지 않고(있으면 참고로만, 없으면 조용히 표시) 다른 정보를 먼저 보여 준다. */
 function ZoneBlogSection({ blog, busy, onRefresh, error, afterSelection }: { blog: ZoneBlogInfo | undefined; busy: boolean; onRefresh: () => void; error?: string | null; afterSelection: boolean }) {
@@ -504,7 +509,7 @@ export function RedevelopmentEditSelectedZone({
           <ZoneProgress zone={zone} />
           {stats && <ZoneStatsSection stats={stats} />}
           {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} onSaved={onRightDateSaved} />}
-          {!isVirtualZone(zone) && <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={(stagePosition(zone.stage) ?? -1) >= 1} />}
+          {(!isVirtualZone(zone) || hasBlogData(research.data?.blog)) && <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={isVirtualZone(zone) || (stagePosition(zone.stage) ?? -1) >= 1} />}
           <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} rightDate={stats?.rb} showNear={showNear} />
         </div>
       </div>
