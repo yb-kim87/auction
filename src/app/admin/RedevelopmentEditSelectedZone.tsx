@@ -509,6 +509,15 @@ export function RedevelopmentEditSelectedZone({
           <ZoneProgress zone={zone} />
           {stats && <ZoneStatsSection stats={stats} />}
           {/^jaegebal-\d+/.test(zone.sourceKey ?? "") && <ZoneRightDateSection zone={zone} stats={stats} onSaved={onRightDateSaved} />}
+          {isVirtualZone(zone) && !hasBlogData(research.data?.blog) && research.data?.blog?.fetchedAt && (
+            <section className="border-b border-border px-4 py-2 text-xs text-muted-foreground sm:px-5">
+              블로그 조사: 이 구역과 관련된 글을 찾지 못했습니다
+              {research.data.blog.diagnostics ? ` (검색 ${research.data.blog.diagnostics.searched}건 · 확인 ${research.data.blog.diagnostics.opened}건)` : ""} ·{" "}
+              <button type="button" disabled={blogBusy} onClick={() => void refreshBlog()} className="text-blue-600 hover:underline disabled:opacity-50">
+                {blogBusy ? "조사 중..." : "다시 조사"}
+              </button>
+            </section>
+          )}
           {(!isVirtualZone(zone) || hasBlogData(research.data?.blog)) && <ZoneBlogSection blog={research.data?.blog} busy={blogBusy} error={blogError} onRefresh={() => void refreshBlog()} afterSelection={isVirtualZone(zone) || (stagePosition(zone.stage) ?? -1) >= 1} />}
           <RedevelopmentEditResearchPanel zoneId={zone.id} zoneAuctions={auctions} toleranceM={toleranceM} rightDate={stats?.rb} showNear={showNear} />
         </div>

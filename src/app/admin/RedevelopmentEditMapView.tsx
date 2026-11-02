@@ -7,6 +7,7 @@ import {
   loadKakaoMaps,
   type KakaoMap,
   type KakaoMarker,
+  type KakaoCustomOverlay,
   type KakaoMouseEvent,
   type KakaoPolygon,
   type KakaoPolyline,
@@ -120,6 +121,22 @@ export function RedevelopmentEditMapView({
   const redoStackRef = useRef<RedevelopmentPoint[]>([]);
   const redrawDraftRef = useRef<(() => void) | null>(null);
   const [redoCount, setRedoCount] = useState(0);
+  // 지적도(카카오 USE_DISTRICT 오버레이) — 구역을 필지 경계에 맞춰 그리기 쉽게 한다. 그리기를 시작하면 자동으로 켜고 끝나면 이전 상태로 되돌린다.
+  const [cadastralOn, setCadastralOn] = useState(false);
+  const cadastralBeforeDrawRef = useRef<boolean | null>(null);
+  // 재개발닷컴식 우측 도구: 위성뷰·거리뷰·거리재기(2026-11-02).
+  const [satelliteOn, setSatelliteOn] = useState(false);
+  const [roadviewOn, setRoadviewOn] = useState(false);
+  const [roadviewPano, setRoadviewPano] = useState<{ id: number; lat: number; lng: number } | null>(null);
+  const [roadviewMsg, setRoadviewMsg] = useState<string | null>(null);
+  const roadviewBoxRef = useRef<HTMLDivElement>(null);
+  const [measureOn, setMeasureOn] = useState(false);
+  const [measureM, setMeasureM] = useState(0);
+  const [measureCount, setMeasureCount] = useState(0);
+  const measurePointsRef = useRef<Array<{ lat: number; lng: number }>>([]);
+  const measureLineRef = useRef<KakaoPolyline | null>(null);
+  const measureDotsRef = useRef<KakaoCustomOverlay[]>([]);
+  const redrawMeasureRef = useRef<(() => void) | null>(null);
   const draftPolylineRef = useRef<KakaoPolyline | null>(null);
   const draftMarkersRef = useRef<KakaoMarker[]>([]);
   const referencePolygonRef = useRef<KakaoPolygon | null>(null);
@@ -809,6 +826,134 @@ export function RedevelopmentEditMapView({
     };
   }, [ready, drawing, editingZone]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !window.kakao) return;
+    const id = window.kakao.maps.MapTypeId.USE_DISTRICT;
+    if (cadastralOn) map.addOverlayMapTypeId(id);
+    else map.removeOverlayMapTypeId(id);
+    return () => {
+      map.removeOverlayMapTypeId(id);
+    };
+  }, [ready, cadastralOn]);
+
+  // 구역 그리기를 시작하면 지적도를 자동으로 켜고, 끝나면(완료·취소) 그리기 전 상태로 되돌린다.
+  useEffect(() => {
+    if (drawing) {
+      setRoadviewOn(false);
+      setMeasureOn(false);
+      if (cadastralBeforeDrawRef.current === null) {
+        cadastralBeforeDrawRef.current = cadastralOn;
+        setCadastralOn(true);
+      }
+    } else if (cadastralBeforeDrawRef.current !== null) {
+      setCadastralOn(cadastralBeforeDrawRef.current);
+      cadastralBeforeDrawRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawing]);
+
+  // 위성뷰
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !window.kakao) return;
+    map.setMapTypeId(satelliteOn ? window.kakao.maps.MapTypeId.HYBRID : window.kakao.maps.MapTypeId.ROADMAP);
+  }, [ready, satelliteOn]);
+
+  // 거리뷰: 지도 위 파란 선(로드뷰 구간)을 클릭하면 가장 가까운 파노라마를 연다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !window.kakao) return;
+    if (!roadviewOn) {
+      setRoadviewPano(null);
+      setRoadviewMsg(null);
+      return;
+    }
+    const kakao = window.kakao;
+    const overlayId = kakao.maps.MapTypeId.ROADVIEW;
+    map.addOverlayMapTypeId(overlayId);
+    const client = new kakao.maps.RoadviewClient();
+    const handler = (...args: unknown[]) => {
+      const ev = args[0] as KakaoMouseEvent;
+      const lat = ev.latLng.getLat();
+      const lng = ev.latLng.getLng();
+      client.getNearestPanoId(new kakao.maps.LatLng(lat, lng), 50, (panoId) => {
+        if (panoId) {
+          setRoadviewMsg(null);
+          setRoadviewPano({ id: panoId, lat, lng });
+        } else {
+          setRoadviewMsg("이 위치 근처에는 거리뷰가 없습니다. 파란 선 위를 클릭해 주세요.");
+        }
+      });
+    };
+    kakao.maps.event.addListener(map, "click", handler);
+    return () => {
+      map.removeOverlayMapTypeId(overlayId);
+      kakao.maps.event.removeListener(map, "click", handler);
+    };
+  }, [ready, roadviewOn]);
+
+  useEffect(() => {
+    if (!roadviewPano || !roadviewBoxRef.current || !window.kakao) return;
+    const kakao = window.kakao;
+    const viewer = new kakao.maps.Roadview(roadviewBoxRef.current);
+    viewer.setPanoId(roadviewPano.id, new kakao.maps.LatLng(roadviewPano.lat, roadviewPano.lng));
+  }, [roadviewPano]);
+
+  // 거리재기: 지도를 클릭해 점을 찍으면 이어진 선의 총 길이를 보여 준다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !window.kakao || !measureOn) return;
+    const kakao = window.kakao;
+    const clearVisuals = () => {
+      measureLineRef.current?.setMap(null);
+      measureLineRef.current = null;
+      measureDotsRef.current.forEach((d) => d.setMap(null));
+      measureDotsRef.current = [];
+    };
+    const redraw = () => {
+      clearVisuals();
+      const pts = measurePointsRef.current;
+      if (pts.length >= 2) {
+        const line = new kakao.maps.Polyline({
+          path: pts.map((p) => new kakao.maps.LatLng(p.lat, p.lng)),
+          strokeWeight: 3,
+          strokeColor: "#ef4444",
+          strokeOpacity: 0.9,
+          strokeStyle: "solid",
+        });
+        line.setMap(map);
+        measureLineRef.current = line;
+        setMeasureM(line.getLength());
+      } else {
+        setMeasureM(0);
+      }
+      measureDotsRef.current = pts.map((p) => {
+        const el = document.createElement("div");
+        el.style.cssText = "width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid #ef4444";
+        const dot = new kakao.maps.CustomOverlay({ position: new kakao.maps.LatLng(p.lat, p.lng), content: el, xAnchor: 0.5, yAnchor: 0.5, zIndex: 5 });
+        dot.setMap(map);
+        return dot;
+      });
+      setMeasureCount(pts.length);
+    };
+    redrawMeasureRef.current = redraw;
+    const handler = (...args: unknown[]) => {
+      const ev = args[0] as KakaoMouseEvent;
+      measurePointsRef.current = [...measurePointsRef.current, { lat: ev.latLng.getLat(), lng: ev.latLng.getLng() }];
+      redraw();
+    };
+    kakao.maps.event.addListener(map, "click", handler);
+    return () => {
+      kakao.maps.event.removeListener(map, "click", handler);
+      clearVisuals();
+      measurePointsRef.current = [];
+      redrawMeasureRef.current = null;
+      setMeasureM(0);
+      setMeasureCount(0);
+    };
+  }, [ready, measureOn]);
+
   function handleUndoLastPoint() {
     const last = draftPointsRef.current[draftPointsRef.current.length - 1];
     if (!last) return;
@@ -917,7 +1062,68 @@ export function RedevelopmentEditMapView({
         )}
         {/* 브라우저 축소 비율에서도 좌측 레이어 버튼과 닿지 않도록 넉넉한 간격을 둔다. */}
         {toolbar && <div className="absolute left-[190px] top-3 z-20">{toolbar}</div>}
-        {topRightAction && !drawing && <div className="absolute right-3 top-14 z-20">{topRightAction}</div>}
+        <div className="absolute right-3 top-14 z-20 flex flex-col items-end gap-2">
+          {topRightAction && !drawing && topRightAction}
+          <div className="flex flex-col overflow-hidden rounded-md border border-border bg-white shadow-lg">
+            {[
+              { label: "지적도", on: cadastralOn, onClick: () => setCadastralOn((v) => !v), title: "지적도 — 필지 경계·지번·용도지역을 지도에 겹쳐 봅니다. 구역을 그릴 때 필지 경계에 맞추기 쉽습니다." },
+              { label: "위성뷰", on: satelliteOn, onClick: () => setSatelliteOn((v) => !v), title: "위성 사진(+지명)으로 봅니다." },
+              { label: "거리뷰", on: roadviewOn, onClick: () => { setRoadviewOn((v) => !v); setMeasureOn(false); }, title: "거리뷰 — 파란 선 위를 클릭하면 그 위치의 거리뷰가 열립니다." },
+              { label: "거리재기", on: measureOn, onClick: () => { setMeasureOn((v) => !v); setRoadviewOn(false); }, title: "거리재기 — 지도를 클릭해 점을 이으면 총 거리를 보여 줍니다." },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                type="button"
+                onClick={btn.onClick}
+                aria-pressed={btn.on}
+                title={btn.title}
+                disabled={drawing && (btn.label === "거리뷰" || btn.label === "거리재기")}
+                className={`h-9 w-14 border-b border-border text-[11px] font-bold last:border-b-0 disabled:opacity-40 ${btn.on ? "bg-blue-600 text-white" : "bg-white text-foreground hover:bg-muted"}`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {measureOn && (
+          <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs shadow-lg">
+            <span className="whitespace-nowrap font-semibold text-foreground">
+              {measureCount === 0
+                ? "거리재기 — 지도를 클릭해 시작점을 찍으세요"
+                : `거리재기 — 총 ${measureM >= 1000 ? `${(measureM / 1000).toFixed(2)}km` : `${Math.round(measureM)}m`} (${measureCount}점)`}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                measurePointsRef.current = [];
+                redrawMeasureRef.current?.();
+              }}
+              disabled={measureCount === 0}
+              className="rounded-full px-2 py-1 font-bold text-muted-foreground hover:bg-muted disabled:opacity-30"
+            >
+              지우기
+            </button>
+            <button type="button" onClick={() => setMeasureOn(false)} className="rounded-full px-2 py-1 font-bold text-red-600 hover:bg-red-50">
+              종료
+            </button>
+          </div>
+        )}
+        {roadviewOn && !roadviewPano && (
+          <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold shadow-lg">
+            {roadviewMsg ?? "지도의 파란 선 위를 클릭하면 거리뷰가 열립니다"}
+          </div>
+        )}
+        {roadviewPano && (
+          <div className="absolute bottom-14 left-3 z-30 w-[min(460px,70%)] overflow-hidden rounded-md border border-border bg-white shadow-xl">
+            <div className="flex items-center justify-between bg-muted px-3 py-1 text-xs font-semibold text-foreground">
+              <span>거리뷰</span>
+              <button type="button" onClick={() => setRoadviewPano(null)} className="text-muted-foreground hover:text-foreground">
+                닫기
+              </button>
+            </div>
+            <div ref={roadviewBoxRef} className="h-[280px] w-full" />
+          </div>
+        )}
         <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
           {(
             [

@@ -11,6 +11,8 @@ export type KakaoMap = {
   setBounds: (bounds: unknown) => void;
   setCenter: (latlng: unknown) => void;
   getLevel: () => number;
+  /** 일반 지도(ROADMAP) ↔ 위성+라벨(HYBRID) 전환. */
+  setMapTypeId: (mapTypeId: unknown) => void;
   getCenter: () => { getLat: () => number; getLng: () => number };
   /** 지적편집도 등 오버레이 지도 타입 토글 — 구역도(지적도) 이미지와
    * 같은 필지 경계를 지도에도 띄워 대조하기 쉽게 하는 데 쓴다. */
@@ -45,6 +47,8 @@ export type KakaoPolygon = {
 export type KakaoPolyline = {
   setMap: (map: KakaoMap | null) => void;
   setPath: (path: unknown[]) => void;
+  /** 선의 총 길이(m) — 거리재기에 쓴다. */
+  getLength: () => number;
 };
 export type KakaoCustomOverlay = {
   setMap: (map: KakaoMap | null) => void;
@@ -70,7 +74,10 @@ declare global {
         LatLng: new (lat: number, lng: number) => KakaoLatLng;
         LatLngBounds: new () => { extend: (latlng: KakaoLatLng) => void };
         /** USE_DISTRICT = 지적편집도(필지 경계·지번 표시). */
-        MapTypeId: { USE_DISTRICT: unknown; ROADMAP: unknown; HYBRID: unknown };
+        MapTypeId: { USE_DISTRICT: unknown; ROADMAP: unknown; HYBRID: unknown; ROADVIEW: unknown };
+        /** 거리뷰(로드뷰) — 지도 위 파란 선을 클릭하면 가장 가까운 파노라마를 연다. */
+        Roadview: new (container: HTMLElement) => { setPanoId: (panoId: number, position: KakaoLatLng) => void };
+        RoadviewClient: new () => { getNearestPanoId: (position: KakaoLatLng, radius: number, callback: (panoId: number | null) => void) => void };
         Map: new (container: HTMLElement, options: { center: KakaoLatLng; level: number }) => KakaoMap;
         Marker: new (options: { position: KakaoLatLng; image?: unknown; draggable?: boolean }) => KakaoMarker;
         MarkerImage: new (src: string, size: unknown, options?: unknown) => unknown;
