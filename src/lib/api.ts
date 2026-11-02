@@ -5810,6 +5810,10 @@ export type ResearchTarget = {
   ho: string | null;
   appraisedValue: number;
   minPrice: number;
+  /** 입찰일(낙찰 물건은 낙찰일). */
+  bidDate?: string;
+  /** 낙찰가(원). 없거나 0이면 아직 낙찰 전. */
+  salePrice?: number | null;
   jibun: string | null;
   officialPrice: OfficialPriceEstimate;
 };

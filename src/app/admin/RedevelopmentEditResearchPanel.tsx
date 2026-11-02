@@ -473,8 +473,9 @@ export function RedevelopmentEditResearchPanel({
         kind: "경매물건",
         address: t.address,
         auctionNo: t.auctionNo,
-        auctionPricePct: t.appraisedValue > 0 && t.minPrice > 0 ? Math.round(t.minPrice / t.appraisedValue * 100) : null,
-        date: "",
+        auctionPricePct: t.appraisedValue > 0 && (((t.salePrice ?? 0) > 0 ? t.salePrice : t.minPrice) ?? 0) > 0 ? Math.round((((t.salePrice ?? 0) > 0 ? t.salePrice : t.minPrice) as number) / t.appraisedValue * 100) : null,
+        date: (t.bidDate ?? "").replace(/-/g, "."),
+        soldAuction: (t.salePrice ?? 0) > 0,
         floor: [t.floor ? `${t.floor}층` : "", t.ho ? `${t.ho}호` : ""].filter(Boolean).join(" "),
         area: t.exclusiveArea,
         land: t.landShare,
@@ -484,7 +485,7 @@ export function RedevelopmentEditResearchPanel({
         officialBasis: BASIS_LABEL[t.officialPrice.basis],
         jeonse: tc.jeonse,
         // API의 최저입찰가는 원 단위이므로, 조사 표의 다른 금액과 같은 만원 단위로 맞춘다.
-        ask: t.minPrice > 0 ? Math.round(t.minPrice / 10_000) : null,
+        ask: (t.salePrice ?? 0) > 0 ? Math.round((t.salePrice as number) / 10_000) : t.minPrice > 0 ? Math.round(t.minPrice / 10_000) : null,
         askGap: null,
         warrant: null,
         realGap: null,
@@ -1116,8 +1117,19 @@ export function RedevelopmentEditResearchPanel({
                         </td>
                         <td className="border-b border-border px-2 py-2 text-right tabular-nums">{rng(r.warrant, r.warrantMax)}</td>
                         <td className="border-b border-border px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                          {r.kind === "호가" &&
-                            (r.group && r.group.length > 1 ? r.group : r.listing ? [r.listing] : []).map((l) => (
+                          {r.kind === "호가" && r.group && r.group.length > 1 && (() => {
+                            // 같은 호를 여러 중개사가 올린 묶음 — 줄이 길어지지 않게 한 줄로 요약한다(상세·전화는 줄을 눌러 펼치면 중개사별로 나온다).
+                            const prices = r.group.map((l) => l.priceManwon).filter((v): v is number => v != null);
+                            const realtors = Array.from(new Set(r.group.map((l) => l.realtor ?? "-")));
+                            return (
+                              <div className="whitespace-nowrap text-foreground" title={r.group.map((l) => `${l.realtor ?? "-"} ${l.priceManwon != null ? man(l.priceManwon) : ""} ${l.realtorPhone ?? ""}`.trim()).join(" / ")}>
+                                <span className="font-semibold">{prices.length ? rng(Math.min(...prices), Math.max(...prices)) : "-"}</span>
+                                <span className="ml-1.5 text-muted-foreground">중개사 {realtors.length}곳 · 매물 {r.group.length}건</span>
+                              </div>
+                            );
+                          })()}
+                          {r.kind === "호가" && !(r.group && r.group.length > 1) &&
+                            (r.listing ? [r.listing] : []).map((l) => (
                               <div key={l.id} className="whitespace-normal">
                                 {r.group && r.group.length > 1 && l.priceManwon != null && (
                                   <span className="mr-1 font-semibold text-foreground">{man(l.priceManwon)}</span>
@@ -1146,7 +1158,9 @@ export function RedevelopmentEditResearchPanel({
                             ))}
                         </td>
                       </tr>
-                      {open && r.listing && (r.group && r.group.length > 1 ? r.group : [r.listing]).map((l) => <ListingDetail key={l.id} l={l} />)}
+                      {open && r.listing && (r.group && r.group.length > 1 ? r.group : [r.listing]).map((l) => (
+                        <ListingDetail key={l.id} l={l} busy={detailBusy === l.articleNo} disabled={detailBusy != null} onFetchDetail={() => void runListingDetail(zoneId ?? data?.zone?.id, l.articleNo)} />
+                      ))}
                       {open && r.trade && <TradeDetail t={r.trade} naverHref={r.href !== MOLIT_RT_URL ? r.href : undefined} />}
                     </Fragment>
                   );
@@ -1215,7 +1229,7 @@ function OfficialPriceBasis({ est, floor }: { est: OfficialPriceEstimate; floor:
   );
 }
 
-function ListingDetail({ l }: { l: ResearchListing }) {
+function ListingDetail({ l, busy = false, disabled = false, onFetchDetail }: { l: ResearchListing; busy?: boolean; disabled?: boolean; onFetchDetail?: () => void }) {
   const kv = (label: string, value: string | number | null | undefined) =>
     value == null || value === "" ? null : (
       <div className="flex gap-2">
@@ -1275,7 +1289,16 @@ function ListingDetail({ l }: { l: ResearchListing }) {
           {kv("처음 확인", new Date(l.firstSeenAt).toLocaleDateString("ko-KR"))}
           {kv("최근 확인", new Date(l.lastSeenAt).toLocaleDateString("ko-KR"))}
           {kv("사진", l.photoUrls.length ? `${l.photoUrls.length}장` : null)}
-          {!l.hasDetail && <div className="text-muted-foreground">상세 정보는 아직 수집 전입니다("이어서 수집"으로 가져옵니다).</div>}
+          {!l.hasDetail && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span>상세 정보는 아직 수집 전입니다.</span>
+              {onFetchDetail && (
+                <button type="button" disabled={disabled} onClick={onFetchDetail} className="rounded-sm border border-border px-2 py-0.5 text-[11px] text-foreground hover:bg-muted disabled:opacity-50" title="이 매물만 네이버 상세·단지 정보를 조회합니다(네이버 최대 3회).">
+                  {busy ? "조회 중..." : "상세 조사"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <OfficialPriceBasis est={l.officialPrice} floor={l.floor} />
         <a href={naverArticleUrl(l.articleNo)} target="_blank" rel="noreferrer" className="mt-2 mr-4 inline-block text-primary hover:underline">
