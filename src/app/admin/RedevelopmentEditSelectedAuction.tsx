@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addFavorite, fetchAuctionsByIds, fetchFavorites, removeFavorite, type RedevelopmentMapAuction, type RedevelopmentZone } from "@/lib/api";
+import { addFavorite, fetchAuctionsByIds, fetchDislikes, fetchFavorites, removeAuctionDislike, removeFavorite, setAuctionDislike, type RedevelopmentMapAuction, type RedevelopmentZone } from "@/lib/api";
 import { AuctionDetailModal } from "@/components/AuctionDetailModal";
 import { RedevelopmentEditResearchPanel } from "./RedevelopmentEditResearchPanel";
 
@@ -53,6 +53,14 @@ export function RedevelopmentEditSelectedAuction({
     }
   }
 
+  const dislikesQuery = useQuery({ queryKey: ["redev-dislikes"], queryFn: fetchDislikes, staleTime: 30_000 });
+  const dislike = useMemo(() => (dislikesQuery.data ?? []).find((d) => d.auctionId === auction.id), [dislikesQuery.data, auction.id]);
+  async function toggleDislike(next: boolean, reason?: string | null) {
+    if (next) await setAuctionDislike(auction.id, reason ?? null);
+    else await removeAuctionDislike(auction.id);
+    await queryClient.invalidateQueries({ queryKey: ["redev-dislikes"] });
+  }
+
   if (!itemQuery.data) return null;
 
   return (
@@ -66,6 +74,9 @@ export function RedevelopmentEditSelectedAuction({
       favoriteMemo={fav?.memo ?? null}
       favoriteCategory={fav?.category ?? null}
       onToggleFavorite={toggleFavorite}
+      onToggleDislike={toggleDislike}
+      isDisliked={!!dislike}
+      dislikeReason={dislike?.reason ?? null}
       extraTab={{
         label: "재개발 조사",
         content: (

@@ -8,6 +8,7 @@ import {
   fetchAuctionsByIds,
   fetchListingDetailNow,
   fetchAuctionsOfficialPriceBatch,
+  fetchDislikes,
   fetchFavorites,
   fetchRedevelopmentZoneAuctions,
   fetchZoneResearch,
@@ -715,6 +716,9 @@ export function RedevelopmentEditResearchPanel({
   // 경매물건 중 관심(★)으로 담아 둔 것은 이 표에서도 관심 표시를 한다(분류와 상관없이 관심목록에 있는 물건 전체).
   const favoritesQuery = useQuery({ queryKey: ["redev-favorites"], queryFn: fetchFavorites, staleTime: 30_000 });
   const favoriteIds = useMemo(() => new Set((favoritesQuery.data ?? []).map((f) => String(f.auctionId))), [favoritesQuery.data]);
+  // 싫어요 한 경매물건(사유 포함)도 관심처럼 표에 표시한다.
+  const dislikesQuery = useQuery({ queryKey: ["redev-dislikes"], queryFn: fetchDislikes, staleTime: 30_000 });
+  const dislikeByAuctionId = useMemo(() => new Map((dislikesQuery.data ?? []).map((d) => [String(d.auctionId), d.reason])), [dislikesQuery.data]);
 
   // 연식은 연도만 있어, 권리산정기준일 연도보다 늦은 경우만 확실한 "이후"로 본다(같은 해는 판단 불가라 표시하지 않음).
   const rightYear = rightDate && /^\d{4}/.test(rightDate) ? Number(rightDate.slice(0, 4)) : null;
@@ -1010,6 +1014,8 @@ export function RedevelopmentEditResearchPanel({
                   const gapTone = (v: number | null) => (v == null ? "" : v >= 0 ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400");
                   const late = afterRight(r);
                   const isFav = isAuctionRow && favoriteIds.has(r.key.slice(2));
+                  const dislikeReason = isAuctionRow ? dislikeByAuctionId.get(r.key.slice(2)) : undefined;
+                  const isDisliked = isAuctionRow && dislikeByAuctionId.has(r.key.slice(2));
                   return (
                     <Fragment key={r.key}>
                       <tr
@@ -1020,6 +1026,11 @@ export function RedevelopmentEditResearchPanel({
                           {isFav && (
                             <span className="mr-1 text-base leading-none text-amber-500" title="관심목록에 담아 둔 경매물건">
                               ★
+                            </span>
+                          )}
+                          {isDisliked && (
+                            <span className="mr-1 rounded bg-slate-700 px-1 py-0.5 text-[10px] font-semibold leading-none text-white" title={`싫어요${dislikeReason ? `: ${dislikeReason}` : ""}`}>
+                              싫어요
                             </span>
                           )}
                           <span className={`whitespace-nowrap rounded px-1.5 py-0.5 font-semibold ${r.kind === "경매물건" && r.soldAuction ? "bg-red-700 text-white" : kindTone[r.kind]}`}>{r.kind === "경매물건" && r.soldAuction ? "낙찰" : kindLabel[r.kind]}</span>

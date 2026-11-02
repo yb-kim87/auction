@@ -247,6 +247,35 @@ export async function addFavorite(auctionId: string, category?: string | null, m
   }
 }
 
+export type AuctionDislikeItem = { auctionId: string; reason: string | null; createdAt: string };
+
+/** 내가 싫어요 한 경매물건(사유 포함). */
+export async function fetchDislikes(): Promise<AuctionDislikeItem[]> {
+  try {
+    const res = await http.get<{ items: AuctionDislikeItem[] }>("/dislikes");
+    return res.data.items ?? [];
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "싫어요 목록을 불러오지 못했습니다."));
+  }
+}
+
+/** 싫어요 등록 또는 사유 수정. */
+export async function setAuctionDislike(auctionId: string, reason: string | null): Promise<void> {
+  try {
+    await http.put(`/dislikes/${auctionId}`, { reason: reason?.trim() || null });
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "싫어요 등록에 실패했습니다."));
+  }
+}
+
+export async function removeAuctionDislike(auctionId: string): Promise<void> {
+  try {
+    await http.delete(`/dislikes/${auctionId}`);
+  } catch (err) {
+    throw new Error(extractApiErrorMessage(err, "싫어요 해제에 실패했습니다."));
+  }
+}
+
 export async function removeFavorite(auctionId: string): Promise<void> {
   try {
     await http.delete(`/favorites/${auctionId}`);

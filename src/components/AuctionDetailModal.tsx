@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, WalletCards, TrendingDown, ShieldCheck, CircleAlert, Copy, Check } from "lucide-react";
+import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, ThumbsDown, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, WalletCards, TrendingDown, ShieldCheck, CircleAlert, Copy, Check } from "lucide-react";
 import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload, UserRole } from "@/types/auction";
 import { dedupeStrategyTagsByLabel } from "@/types/auction";
 import {
@@ -1786,6 +1786,9 @@ export function AuctionDetailModal({
   onToggleFavorite,
   onAiAnalysisClick,
   onDislike,
+  onToggleDislike,
+  isDisliked = false,
+  dislikeReason = null,
   onReviewed,
   loanRatio = null,
   appraisalRatio = null,
@@ -1831,6 +1834,10 @@ export function AuctionDetailModal({
   onToggleFavorite?: (next: boolean, category?: string | null, memo?: string | null) => Promise<void>;
   onAiAnalysisClick?: (item: AuctionItem) => void;
   onDislike?: (item: AuctionItem) => void;
+  /** 싫어요(사유 포함) — 있으면 헤더에 싫어요 버튼이 나온다. next=true면 등록·사유 수정, false면 해제. */
+  onToggleDislike?: (next: boolean, reason?: string | null) => Promise<void>;
+  isDisliked?: boolean;
+  dislikeReason?: string | null;
   onReviewed?: (item: AuctionItem) => void;
   loanRatio?: number | null;
   appraisalRatio?: number | null;
@@ -1917,6 +1924,9 @@ export function AuctionDetailModal({
   const [error, setError] = useState("");
   const [tenantRefreshBusy, setTenantRefreshBusy] = useState(false);
   const [tenantRefreshMessage, setTenantRefreshMessage] = useState("");
+  const [dislikeDialogOpen, setDislikeDialogOpen] = useState(false);
+  const [dislikeDraft, setDislikeDraft] = useState("");
+  const [dislikeBusy, setDislikeBusy] = useState(false);
   const [naverRefreshBusy, setNaverRefreshBusy] = useState(false);
   const [naverRefreshMessage, setNaverRefreshMessage] = useState("");
   const [referenceLinks, setReferenceLinks] = useState<AuctionReferenceLink[]>([]);
@@ -2457,6 +2467,80 @@ export function AuctionDetailModal({
                 <Heart size={isFavorite ? 18 : 14} className={isFavorite ? "fill-current" : ""} />
                 {!isFavorite && <span>관심등록</span>}
               </button>
+            )}
+            {!editable && onToggleDislike && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDislikeDraft(dislikeReason ?? "");
+                  setDislikeDialogOpen(true);
+                }}
+                aria-label={isDisliked ? "싫어요 사유 수정·해제" : "싫어요"}
+                title={isDisliked ? `싫어요${dislikeReason ? `: ${dislikeReason}` : ""}` : "싫어요 (사유 입력)"}
+                className={
+                  isDisliked
+                    ? "h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-xs border border-slate-700 bg-slate-700 text-white hover:bg-slate-600 transition-colors"
+                    : "h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs border border-border text-muted-foreground hover:bg-secondary transition-colors"
+                }
+              >
+                <ThumbsDown size={14} className={isDisliked ? "fill-current" : ""} />
+                <span>{isDisliked ? "싫어요" : "싫어요"}</span>
+              </button>
+            )}
+            {dislikeDialogOpen && onToggleDislike && (
+              <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/40 p-4" onMouseDown={() => setDislikeDialogOpen(false)}>
+                <div className="w-full max-w-md rounded-xl bg-card p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+                  <p className="text-sm font-bold text-foreground">싫어요 {isDisliked ? "사유 수정" : "등록"}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{item.auctionNo} · 왜 싫은지 적어 두면 목록에서 함께 보입니다.</p>
+                  <textarea
+                    value={dislikeDraft}
+                    onChange={(e) => setDislikeDraft(e.target.value)}
+                    rows={4}
+                    placeholder="사유 (예: 선순위 임차인 대항력, 가격 메리트 없음, 위치 불리 등)"
+                    className="mt-3 w-full resize-none rounded-lg border border-border bg-background p-2.5 text-sm outline-none focus:border-primary"
+                    autoFocus
+                  />
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    {isDisliked && (
+                      <button
+                        type="button"
+                        disabled={dislikeBusy}
+                        onClick={async () => {
+                          setDislikeBusy(true);
+                          try {
+                            await onToggleDislike(false);
+                            setDislikeDialogOpen(false);
+                          } finally {
+                            setDislikeBusy(false);
+                          }
+                        }}
+                        className="mr-auto rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary disabled:opacity-50"
+                      >
+                        싫어요 해제
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setDislikeDialogOpen(false)} className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary">
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      disabled={dislikeBusy}
+                      onClick={async () => {
+                        setDislikeBusy(true);
+                        try {
+                          await onToggleDislike(true, dislikeDraft);
+                          setDislikeDialogOpen(false);
+                        } finally {
+                          setDislikeBusy(false);
+                        }
+                      }}
+                      className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-600 disabled:opacity-50"
+                    >
+                      {isDisliked ? "사유 저장" : "싫어요 등록"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
             {!editable && preview.link && (
               <a
