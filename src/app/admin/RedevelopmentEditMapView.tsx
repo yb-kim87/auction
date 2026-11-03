@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchDislikes, fetchFavorites } from "@/lib/api";
 import type { RedevelopmentMapAuction, RedevelopmentPoint, RedevelopmentZone, ResearchMapPoints } from "@/lib/api";
 import { zoneStyle, ZONE_TYPE_LEGEND } from "@/lib/zone-stage-style";
 import {
@@ -477,13 +479,18 @@ export function RedevelopmentEditMapView({
   const [auctionScope, setAuctionScope] = useState<"all" | "active" | "sold">("all");
   const [showAsks, setShowAsks] = useState(true);
   const [showTrades, setShowTrades] = useState(true);
+  // 관심(★)·싫어요 표시 — 목록/상세와 같은 쿼리 키를 써서 캐시를 공유한다.
+  const favoritesQuery = useQuery({ queryKey: ["redev-favorites"], queryFn: fetchFavorites, staleTime: 30_000 });
+  const dislikesQuery = useQuery({ queryKey: ["redev-dislikes"], queryFn: fetchDislikes, staleTime: 30_000 });
+  const favIds = useMemo(() => new Set((favoritesQuery.data ?? []).filter((f) => f.category === "재개발").map((f) => f.auctionId)), [favoritesQuery.data]);
+  const dislikeReasons = useMemo(() => new Map((dislikesQuery.data ?? []).map((d) => [d.auctionId, d.reason ?? ""])), [dislikesQuery.data]);
   useEffect(() => {
     if (!ready || !mapRef.current || !window.kakao) return;
     const kakao = window.kakao;
     const map = mapRef.current;
     const MAX_PER_KIND = 250;
     type Bounds = { getSouthWest: () => { getLat: () => number; getLng: () => number }; getNorthEast: () => { getLat: () => number; getLng: () => number } };
-    type Item = { key: string; kind: "auction" | "ask" | "trade"; lat: number; lng: number; top: string; text: string; badge?: string; tone?: "near" | "out"; sold?: boolean; value: number; selected: boolean; ids?: string[]; row: MapPopupRow };
+    type Item = { key: string; kind: "auction" | "ask" | "trade"; lat: number; lng: number; top: string; text: string; badge?: string; tone?: "near" | "out"; sold?: boolean; value: number; selected: boolean; ids?: string[]; fav?: boolean; dislike?: boolean; row: MapPopupRow };
     const tol = toleranceM;
     // 호가·실거래도 경매처럼 "근처"를 켜지 않으면 구역 경계 안(거리 0)만 보이고, 켜면 오차범위 안의 경계 밖(근처)까지 보인다.
     const within = (d: number | null) => d == null || (showNear ? d <= tol : d <= 0);
@@ -513,6 +520,8 @@ export function RedevelopmentEditMapView({
           value: won ? won / 10000 : Infinity,
           selected: a.id === selectedAuctionId || a.id === focusAuction?.id,
           ids: [a.id],
+          fav: favIds.has(a.id),
+          dislike: dislikeReasons.has(a.id),
           row: {
             kind: "auction",
             title: `${sold ? "낙찰가" : "경매 최저가"} ${won ? formatManwon(won / 10000) : "-"}${pct != null ? ` (감정가 대비 ${pct}%)` : ""}${a.near ? " · 구역 경계 밖 근처(구역일 가능성)" : a.zoneIds.length === 0 ? " · 구역 밖" : ""}`,
@@ -572,7 +581,7 @@ export function RedevelopmentEditMapView({
     groups.forEach((g) => {
       const best = g.slice().sort((x, y) => Number(y.selected) - Number(x.selected) || x.value - y.value)[0];
       const allIds = g.flatMap((x) => x.ids ?? []);
-      const item: Item = { ...best, ids: allIds };
+      const item: Item = { ...best, ids: allIds, fav: g.some((x) => x.fav), dislike: g.some((x) => x.dislike) };
       moreByKey.set(best.key, g.filter((x) => x !== best));
       merged.push(item);
     });
@@ -619,6 +628,8 @@ export function RedevelopmentEditMapView({
       for (const i of dots) {
         const dot = document.createElement("div");
         dot.style.cssText = `width:${i.selected ? 18 : 10}px;height:${i.selected ? 18 : 10}px;border-radius:50%;background:${i.selected ? "#f97316" : colorsOf(i)[0]};border:${i.selected ? "3px solid #fff" : "2px solid #fff"};box-shadow:${i.selected ? "0 0 0 3px #f97316,0 0 14px 5px rgba(249,115,22,.8)" : "0 0 2px rgba(0,0,0,.5)"};cursor:pointer`;
+        if (!i.selected && i.fav) dot.style.boxShadow = "0 0 0 3px #facc15,0 0 6px 2px rgba(250,204,21,.9)";
+        else if (!i.selected && i.dislike) dot.style.opacity = "0.45";
         dot.addEventListener("click", clickFor(i, moreByKey.get(i.key) ?? []));
         const ov = new kakao.maps.CustomOverlay({ position: new kakao.maps.LatLng(i.lat, i.lng), content: dot, xAnchor: 0.5, yAnchor: 0.5, zIndex: colorsOf(i)[2] });
         ov.setMap(map);
@@ -654,6 +665,24 @@ export function RedevelopmentEditMapView({
         const tail = document.createElement("div");
         tail.style.cssText = `position:absolute;left:50%;bottom:-5px;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid ${bg}`;
         box.append(top, price, tail);
+        // 관심(★ 노랑 원)·싫어요(👎 빨강 원) 표시. 싫어요는 라벨을 흐리게 해 한눈에 구분한다.
+        if (i.fav || i.dislike) {
+          const marks = document.createElement("div");
+          marks.style.cssText = "position:absolute;left:-9px;top:-9px;display:flex;gap:2px";
+          const mk = (text: string, bgColor: string, fgColor: string) => {
+            const el = document.createElement("div");
+            el.style.cssText = `width:20px;height:20px;border-radius:50%;background:${bgColor};color:${fgColor};border:2px solid #fff;font-size:11px;line-height:16px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.5)`;
+            el.textContent = text;
+            return el;
+          };
+          if (i.fav) marks.append(mk("★", "#facc15", "#713f12"));
+          if (i.dislike) marks.append(mk("👎", "#ef4444", "#fff"));
+          box.append(marks);
+          if (i.dislike && !i.fav) {
+            top.style.opacity = "0.55";
+            price.style.opacity = "0.55";
+          }
+        }
         if (i.badge) {
           const badge = document.createElement("div");
           badge.style.cssText = "position:absolute;left:calc(100% + 4px);bottom:2px;background:#fff;color:#ea580c;border:1.5px solid #ea580c;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;line-height:1.5;white-space:nowrap";
@@ -701,7 +730,7 @@ export function RedevelopmentEditMapView({
       kakao.maps.event.removeListener(map, "idle", onIdle);
       shown.forEach((o) => o.setMap(null));
     };
-  }, [ready, auctions, researchPoints, toleranceM, showNear, showAuctions, auctionScope, showAsks, showTrades, selectedAuctionId, focusAuction?.id, focusAuction?.nonce]);
+  }, [ready, auctions, researchPoints, toleranceM, showNear, showAuctions, auctionScope, showAsks, showTrades, selectedAuctionId, focusAuction?.id, focusAuction?.nonce, favIds, dislikeReasons]);
 
   // 목록에서 주소를 누르면 그 물건 위치로 지도를 옮기고(확대) 라벨을 강조한다.
   useEffect(() => {
