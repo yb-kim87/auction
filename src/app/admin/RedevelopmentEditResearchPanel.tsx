@@ -1,5 +1,6 @@
 "use client";
 
+import { ThumbsDown } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { RedevelopmentEditSelectedAuction } from "./RedevelopmentEditSelectedAuction";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1029,8 +1030,8 @@ export function RedevelopmentEditResearchPanel({
                             </span>
                           )}
                           {isDisliked && (
-                            <span className="mr-1 rounded bg-slate-700 px-1 py-0.5 text-[10px] font-semibold leading-none text-white" title={`싫어요${dislikeReason ? `: ${dislikeReason}` : ""}`}>
-                              싫어요
+                            <span className="mr-1 inline-flex align-middle text-rose-500" title={`싫어요${dislikeReason ? `: ${dislikeReason}` : ""}`} aria-label="싫어요">
+                              <ThumbsDown size={17} className="fill-current" />
                             </span>
                           )}
                           <span className={`whitespace-nowrap rounded px-1.5 py-0.5 font-semibold ${r.kind === "경매물건" && r.soldAuction ? "bg-red-700 text-white" : kindTone[r.kind]}`}>{r.kind === "경매물건" && r.soldAuction ? "낙찰" : kindLabel[r.kind]}</span>
