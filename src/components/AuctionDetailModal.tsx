@@ -2644,9 +2644,20 @@ export function AuctionDetailModal({
                   </div>
                 ) : (
                   <div className="flex items-start justify-between gap-2">
-                    <p className={`${LIST_TEXT} text-foreground whitespace-pre-wrap break-words`}>
-                      {preview.memo?.trim() ? preview.memo : "메모 없음"}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <p className={`${LIST_TEXT} text-foreground whitespace-pre-wrap break-words`}>
+                        {preview.memo?.trim() ? preview.memo : isDisliked ? "" : "메모 없음"}
+                      </p>
+                      {isDisliked && (
+                        <p className={`${LIST_TEXT} ${preview.memo?.trim() ? "mt-2 border-t border-amber-300/60 pt-2" : ""} flex items-start gap-1.5 whitespace-pre-wrap break-words text-rose-600`}>
+                          <ThumbsDown size={14} className="mt-0.5 shrink-0 fill-current" />
+                          <span>
+                            <span className="font-semibold">싫어요</span>
+                            {dislikeReason ? ` — ${dislikeReason}` : ""}
+                          </span>
+                        </p>
+                      )}
+                    </div>
                     {isAdmin && (
                       <button
                         type="button"
