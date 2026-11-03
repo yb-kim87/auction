@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X, ExternalLink, MapPin, Calendar, Building2, History, Save, Trash2, Heart, ThumbsDown, Brain, Clock, FileText, Home, ChevronLeft, ChevronRight, ChevronDown, WalletCards, TrendingDown, ShieldCheck, CircleAlert, Copy, Check } from "lucide-react";
 import type { AuctionAnalysisResult, AuctionItem, UpdateAuctionPayload, UserRole } from "@/types/auction";
 import { dedupeStrategyTagsByLabel } from "@/types/auction";
@@ -1927,6 +1928,7 @@ export function AuctionDetailModal({
   const [dislikeDialogOpen, setDislikeDialogOpen] = useState(false);
   const [dislikeDraft, setDislikeDraft] = useState("");
   const [dislikeBusy, setDislikeBusy] = useState(false);
+  const [dislikeError, setDislikeError] = useState("");
   const [naverRefreshBusy, setNaverRefreshBusy] = useState(false);
   const [naverRefreshMessage, setNaverRefreshMessage] = useState("");
   const [referenceLinks, setReferenceLinks] = useState<AuctionReferenceLink[]>([]);
@@ -2473,6 +2475,7 @@ export function AuctionDetailModal({
                 type="button"
                 onClick={() => {
                   setDislikeDraft(dislikeReason ?? "");
+                  setDislikeError("");
                   setDislikeDialogOpen(true);
                 }}
                 aria-label={isDisliked ? "싫어요 사유 수정·해제" : "싫어요"}
@@ -2487,8 +2490,8 @@ export function AuctionDetailModal({
                 <span>{isDisliked ? "싫어요" : "싫어요"}</span>
               </button>
             )}
-            {dislikeDialogOpen && onToggleDislike && (
-              <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/40 p-4" onMouseDown={() => setDislikeDialogOpen(false)}>
+            {dislikeDialogOpen && onToggleDislike && typeof document !== "undefined" && createPortal(
+              <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onMouseDown={() => setDislikeDialogOpen(false)}>
                 <div className="w-full max-w-md rounded-xl bg-card p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
                   <p className="text-sm font-bold text-foreground">싫어요 {isDisliked ? "사유 수정" : "등록"}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{item.auctionNo} · 왜 싫은지 적어 두면 목록에서 함께 보입니다.</p>
@@ -2500,6 +2503,7 @@ export function AuctionDetailModal({
                     className="mt-3 w-full resize-none rounded-lg border border-border bg-background p-2.5 text-sm outline-none focus:border-primary"
                     autoFocus
                   />
+                  {dislikeError && <p className="mt-2 text-xs text-red-600">{dislikeError}</p>}
                   <div className="mt-3 flex items-center justify-end gap-2">
                     {isDisliked && (
                       <button
@@ -2507,9 +2511,12 @@ export function AuctionDetailModal({
                         disabled={dislikeBusy}
                         onClick={async () => {
                           setDislikeBusy(true);
+                          setDislikeError("");
                           try {
                             await onToggleDislike(false);
                             setDislikeDialogOpen(false);
+                          } catch (err) {
+                            setDislikeError(err instanceof Error ? err.message : "싫어요 해제에 실패했습니다.");
                           } finally {
                             setDislikeBusy(false);
                           }
@@ -2527,9 +2534,12 @@ export function AuctionDetailModal({
                       disabled={dislikeBusy}
                       onClick={async () => {
                         setDislikeBusy(true);
+                        setDislikeError("");
                         try {
                           await onToggleDislike(true, dislikeDraft);
                           setDislikeDialogOpen(false);
+                        } catch (err) {
+                          setDislikeError(err instanceof Error ? err.message : "싫어요 등록에 실패했습니다.");
                         } finally {
                           setDislikeBusy(false);
                         }
@@ -2540,7 +2550,8 @@ export function AuctionDetailModal({
                     </button>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body,
             )}
             {!editable && preview.link && (
               <a

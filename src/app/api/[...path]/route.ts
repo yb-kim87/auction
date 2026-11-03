@@ -122,3 +122,10 @@ export async function PATCH(
 ) {
   return proxyRequest(request, params.path);
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { path: string[] } },
+) {
+  return proxyRequest(request, params.path);
+}
