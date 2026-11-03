@@ -121,6 +121,37 @@ function estimateSaleFromListings({
   return { targetJeonse, selected, expected: targetJeonse + averageGap, averageGap, strict: strict.length >= 3 };
 }
 
+/** 구역별 예상 구역갭 — 실거래(갭 = 실매도 − 추정 전세가)와 현재 호가(갭 = (호가 − 추정 전세가) × 0.85, 미체결이라 보수적)를
+ * 최근일수록 크게 가중해 평균한다. 공시가를 추정하지 못한 건은 제외한다. */
+function analyzeZoneGap({ listings, trades, rate }: { listings: ResearchListing[]; trades: ResearchTrade[]; rate: number }): { gap: number; tradeCount: number; listingCount: number } | null {
+  const daysSince = (value: string) => {
+    const time = new Date(value.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3")).getTime();
+    return Number.isFinite(time) ? Math.max(0, (Date.now() - time) / 86_400_000) : 365;
+  };
+  let weightTotal = 0;
+  let weighted = 0;
+  let tradeCount = 0;
+  let listingCount = 0;
+  for (const l of listings) {
+    if (l.gone || l.priceManwon == null || l.officialPrice.manwon == null) continue;
+    const gap = (l.priceManwon - Math.round(l.officialPrice.manwon * rate)) * 0.85;
+    const weight = 0.75 + Math.exp(-daysSince(l.confirmedAt ?? "") / 365) * 0.35;
+    weighted += gap * weight;
+    weightTotal += weight;
+    listingCount += 1;
+  }
+  for (const t of trades) {
+    if (t.isCancelled || t.dealAmountManwon == null || t.officialPrice.manwon == null) continue;
+    const gap = t.dealAmountManwon - Math.round(t.officialPrice.manwon * rate);
+    const weight = 0.35 + Math.exp(-daysSince(t.contractDate) / 365) * 1.55;
+    weighted += gap * weight;
+    weightTotal += weight;
+    tradeCount += 1;
+  }
+  if (weightTotal === 0) return null;
+  return { gap: Math.round(weighted / weightTotal), tradeCount, listingCount };
+}
+
 const areaFromText = (value: string | null | undefined) => {
   const n = Number(String(value ?? "").replace(/[^\d.]/g, ""));
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -214,6 +245,9 @@ type Row = {
   soldAuction?: boolean;
   /** 같은 구역 현재 호가를 반영해 역산한 예상 매도가(낙찰 경매 비교용). */
   expectedSale?: number | null;
+  /** 경매 줄: 이 구역의 예상 구역갭(분석값 또는 직접 입력)과 그 설명. */
+  expectedGap?: number | null;
+  expectedGapNote?: string;
   /** 주소를 누르면 열 상세 페이지(네이버 매물 / 같은 지번 네이버 단지 / 국토부 실거래가 공개시스템). */
   /** 같은 호로 추정돼 묶인 호가 행의 범위/구성원(group이 2개 이상일 때만). 값은 최저~최고로 표시한다. */
   group?: ResearchListing[];
@@ -401,6 +435,38 @@ export function RedevelopmentEditResearchPanel({
     return m;
   }, [auctionPriceQuery.data]);
 
+  // 구역별 예상 구역갭: 분석값을 보여 주고, 직접 입력하면 그 값을 쓴다(브라우저에 구역별로 저장).
+  const gapZoneKey = zoneId ?? data?.zone?.id ?? "";
+  const [gapOverrideText, setGapOverrideText] = useState("");
+  useEffect(() => {
+    try {
+      setGapOverrideText(localStorage.getItem(`redev-zone-gap-${gapZoneKey}`) ?? "");
+    } catch {
+      setGapOverrideText("");
+    }
+  }, [gapZoneKey]);
+  function changeGapOverride(text: string) {
+    setGapOverrideText(text);
+    try {
+      if (text.trim() === "") localStorage.removeItem(`redev-zone-gap-${gapZoneKey}`);
+      else localStorage.setItem(`redev-zone-gap-${gapZoneKey}`, text);
+    } catch {
+      // 저장 불가 환경이면 이 화면에서만 쓴다.
+    }
+  }
+  const gapOverride = gapOverrideText.trim() !== "" && Number.isFinite(Number(gapOverrideText)) ? Math.round(Number(gapOverrideText)) : null;
+  const gapAnalysis = useMemo(
+    () => analyzeZoneGap({ listings: data?.listings ?? [], trades: data?.trades ?? [], rate: params.ratePct / 100 }),
+    [data?.listings, data?.trades, params.ratePct],
+  );
+  const zoneGap = gapOverride ?? gapAnalysis?.gap ?? null;
+  const zoneGapNote =
+    gapOverride != null
+      ? "직접 입력한 구역갭"
+      : gapAnalysis
+        ? `이 구역 실거래 ${gapAnalysis.tradeCount}건·호가 ${gapAnalysis.listingCount}건 가중 평균`
+        : "";
+
   const rows = useMemo<Row[]>(() => {
     const t = data?.target;
     const hasZoneAuctions = relatedZoneAuctions.length > 0;
@@ -425,17 +491,6 @@ export function RedevelopmentEditResearchPanel({
         const auctionItem = auctionItemById.get(a.id);
         const official = p?.officialPrice.manwon ?? null;
         const ac = calc(official);
-        const estimatedSale = isSold
-          ? estimateSaleFromListings({
-              listings: data?.listings ?? [],
-              trades: data?.trades ?? [],
-              rate,
-              official,
-              area: p?.exclusiveArea ?? areaFromText(auctionItem?.area),
-              year: a.builtYear || auctionItem?.builtYear || null,
-              rooms: null,
-            })?.expected ?? null
-          : null;
         out.push({
           key: `a-${a.id}`,
           kind: "경매물건",
@@ -464,7 +519,9 @@ export function RedevelopmentEditResearchPanel({
           soldGap: null,
           cancelled: false,
           soldAuction: isSold,
-          expectedSale: estimatedSale,
+          expectedSale: ac.jeonse != null && zoneGap != null ? ac.jeonse + zoneGap : null,
+          expectedGap: zoneGap,
+          expectedGapNote: zoneGapNote,
         });
       }
     }
@@ -495,6 +552,9 @@ export function RedevelopmentEditResearchPanel({
         sold: null,
         soldGap: null,
         cancelled: false,
+        expectedSale: tc.jeonse != null && zoneGap != null ? tc.jeonse + zoneGap : null,
+        expectedGap: zoneGap,
+        expectedGapNote: zoneGapNote,
       });
     }
 
@@ -587,7 +647,7 @@ export function RedevelopmentEditResearchPanel({
         return a.i - b.i;
       })
       .map((x) => x.r);
-  }, [data, params, zoneId, relatedZoneAuctions, auctionPriceById, auctionBuiltYearById, auctionItemById]);
+  }, [data, params, zoneId, relatedZoneAuctions, auctionPriceById, auctionBuiltYearById, auctionItemById, zoneGap, zoneGapNote]);
 
   // 긴 표와 하단에 고정되는 가로 스크롤바의 위치를 동기화한다.
   useEffect(() => {
@@ -942,6 +1002,33 @@ export function RedevelopmentEditResearchPanel({
             </span>
           </div>
 
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-emerald-600/40 bg-emerald-50/60 px-3 py-2 text-xs dark:bg-emerald-950/20">
+            <span className="font-bold text-foreground">예상 구역갭</span>
+            <span className="text-foreground">
+              분석: <b className="text-emerald-700 dark:text-emerald-400">{gapAnalysis ? `${man(gapAnalysis.gap)}만` : "자료 부족"}</b>
+              {gapAnalysis && <span className="ml-1 text-muted-foreground">(실거래 {gapAnalysis.tradeCount}건·호가 {gapAnalysis.listingCount}건 최근일수록 가중 평균, 호가는 85%만 반영)</span>}
+            </span>
+            <label className="flex items-center gap-1.5 text-foreground">
+              직접 입력
+              <input
+                type="number"
+                className="w-24 rounded-sm border border-border bg-background px-1.5 py-1 text-xs text-foreground"
+                value={gapOverrideText}
+                placeholder={gapAnalysis ? String(gapAnalysis.gap) : "만원"}
+                onChange={(e) => changeGapOverride(e.target.value)}
+              />
+              만원
+            </label>
+            {gapOverride != null && (
+              <button type="button" onClick={() => changeGapOverride("")} className="text-muted-foreground hover:text-foreground hover:underline">
+                분석값으로 되돌리기
+              </button>
+            )}
+            <span className="text-muted-foreground">
+              경매 줄의 예상 매도가 = 추정 전세가 + 예상 구역갭{gapOverride != null ? " (직접 입력값 적용 중)" : ""}
+            </span>
+          </div>
+
           {data?.target && (
             <div className="rounded-xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-100 via-white to-amber-50 px-5 py-4 shadow-md dark:from-emerald-950/50 dark:via-card dark:to-amber-950/30">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -1115,7 +1202,7 @@ export function RedevelopmentEditResearchPanel({
                             {r.kind === "경매물건" ? (r.soldAuction ? "낙찰가" : "최저가") : r.kind === "실거래" ? "실매도" : "호가"}
                           </span>
                           {r.expectedSale != null && (
-                            <span className="mt-1 block whitespace-nowrap rounded bg-emerald-700 px-1.5 py-0.5 text-[10px] font-bold text-white" title="같은 구역의 실거래·현재 호가를 가중 반영해 계산한 예상 매도가">
+                            <span className="mt-1 block whitespace-nowrap rounded bg-emerald-700 px-1.5 py-0.5 text-[10px] font-bold text-white" title="추정 전세가 + 이 구역의 예상 구역갭(분석값 또는 직접 입력)">
                               예상 매도가 {man(r.expectedSale)}
                             </span>
                           )}
@@ -1127,6 +1214,12 @@ export function RedevelopmentEditResearchPanel({
                         </td>
                         <td className={`border-b border-border px-2 py-2 text-right tabular-nums ${gapTone(r.sold != null ? r.soldGap : r.askGap)}`}>
                           <span className="whitespace-nowrap">{r.sold != null ? man(r.soldGap) : rng(r.askGap, r.askGapMax)}</span>
+                          {r.kind === "경매물건" && r.expectedGap != null && (
+                            <>
+                              <span className="block whitespace-nowrap font-semibold text-emerald-700 dark:text-emerald-400">{man(r.expectedGap)}</span>
+                              <span className="block text-[10px] font-normal leading-snug text-muted-foreground">예상 구역갭 · {r.expectedGapNote}</span>
+                            </>
+                          )}
                         </td>
                         <td className="border-b border-border px-2 py-2 text-right tabular-nums">{rng(r.warrant, r.warrantMax)}</td>
                         <td className="border-b border-border px-2 py-2" onClick={(e) => e.stopPropagation()}>
