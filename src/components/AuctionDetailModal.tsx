@@ -2575,12 +2575,25 @@ export function AuctionDetailModal({
           </div>
         </div>
 
-        {!editable && isFavorite && favoriteMemo && (
-          <div className="flex items-start gap-2 px-4 sm:px-5 py-2.5 bg-primary/[0.06] border-b border-primary/15">
-            <Heart size={14} className="mt-0.5 shrink-0 fill-current text-primary" />
-            <p className="text-xs text-foreground whitespace-pre-wrap break-words">
-              <span className="font-semibold text-primary">메모</span> · {favoriteMemo}
-            </p>
+        {!editable && ((isFavorite && favoriteMemo) || isDisliked) && (
+          <div className="border-b border-primary/15 bg-primary/[0.06] px-4 py-2.5 sm:px-5 space-y-1.5">
+            {isFavorite && favoriteMemo && (
+              <div className="flex items-start gap-2">
+                <Heart size={14} className="mt-0.5 shrink-0 fill-current text-primary" />
+                <p className="text-xs text-foreground whitespace-pre-wrap break-words">
+                  <span className="font-semibold text-primary">메모</span> · {favoriteMemo}
+                </p>
+              </div>
+            )}
+            {isDisliked && (
+              <div className="flex items-start gap-2">
+                <ThumbsDown size={14} className="mt-0.5 shrink-0 fill-current text-rose-500" />
+                <p className="text-xs text-foreground whitespace-pre-wrap break-words">
+                  <span className="font-semibold text-rose-600">싫어요</span>
+                  {dislikeReason ? ` · ${dislikeReason}` : ""}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
