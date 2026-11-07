@@ -10,45 +10,12 @@ import {
   type JaegebalSyncStatus,
 } from "@/lib/api";
 
-/** 재개발닷컴 지역 코드(서울 25개 구). */
-const SEOUL_DISTRICTS: Array<[string, string]> = [
-  ["11110", "종로구"], ["11140", "중구"], ["11170", "용산구"], ["11200", "성동구"], ["11215", "광진구"],
-  ["11230", "동대문구"], ["11260", "중랑구"], ["11290", "성북구"], ["11305", "강북구"], ["11320", "도봉구"],
-  ["11350", "노원구"], ["11380", "은평구"], ["11410", "서대문구"], ["11440", "마포구"], ["11470", "양천구"],
-  ["11500", "강서구"], ["11530", "구로구"], ["11545", "금천구"], ["11560", "영등포구"], ["11590", "동작구"],
-  ["11620", "관악구"], ["11650", "서초구"], ["11680", "강남구"], ["11710", "송파구"], ["11740", "강동구"],
-];
-/** 재개발닷컴 지역 코드(경기 시·군·구, 2026-11-07 추가) — 서버 GYEONGGI_DISTRICT_NAMES와 같은 표. */
-const GYEONGGI_DISTRICTS: Array<[string, string]> = [
-  ["41111", "수원시 장안구"], ["41113", "수원시 권선구"], ["41115", "수원시 팔달구"], ["41117", "수원시 영통구"],
-  ["41131", "성남시 수정구"], ["41133", "성남시 중원구"], ["41135", "성남시 분당구"],
-  ["41150", "의정부시"], ["41171", "안양시 만안구"], ["41173", "안양시 동안구"],
-  ["41192", "부천시 원미구"], ["41194", "부천시 소사구"], ["41196", "부천시 오정구"],
-  ["41210", "광명시"], ["41220", "평택시"], ["41250", "동두천시"],
-  ["41271", "안산시 상록구"], ["41273", "안산시 단원구"],
-  ["41281", "고양시 덕양구"], ["41285", "고양시 일산동구"], ["41287", "고양시 일산서구"],
-  ["41290", "과천시"], ["41310", "구리시"], ["41360", "남양주시"], ["41370", "오산시"], ["41390", "시흥시"],
-  ["41410", "군포시"], ["41430", "의왕시"], ["41450", "하남시"],
-  ["41461", "용인시 처인구"], ["41463", "용인시 기흥구"], ["41465", "용인시 수지구"],
-  ["41480", "파주시"], ["41500", "이천시"], ["41550", "안성시"], ["41570", "김포시"], ["41590", "화성시"],
-  ["41610", "광주시"], ["41630", "양주시"], ["41650", "포천시"], ["41670", "여주시"],
-  ["41800", "연천군"], ["41820", "가평군"], ["41830", "양평군"],
-];
-const REGION_GROUPS: Array<{ label: string; districts: Array<[string, string]> }> = [
-  { label: "서울", districts: SEOUL_DISTRICTS },
-  { label: "경기", districts: GYEONGGI_DISTRICTS },
-];
-const DISTRICTS = [...SEOUL_DISTRICTS, ...GYEONGGI_DISTRICTS];
-const DISTRICT_NAME = new Map(DISTRICTS);
-const NORMAL_MAX_DISTRICTS = 3; // 이보다 많으면 서버가 느린 간격(요청 60초·구 사이 120초)으로 실행
 const POLL_MS = 5000;
 const MAX_CHANGES_SHOWN = 30;
 const DEFAULT_INTERVAL_DAYS = 14;
 
 const FIELD_LABEL: Record<string, string> = { stage: "단계 변경", projectType: "사업유형 변경", new: "신규", missing: "사라짐 표시", restored: "복구" };
 
-const namesOf = (codes: string[]) => codes.map((c) => DISTRICT_NAME.get(c) ?? c);
-const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((c) => b.includes(c));
 const kstDateTime = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 
@@ -71,80 +38,14 @@ function daysLabel(d: Date | string, from = new Date()): string {
   return diff <= 0 ? "오늘" : diff === 1 ? "내일" : `${diff}일 후`;
 }
 
-/** 예상 소요 시간(분) — 서버 간격과 같은 계산: 3개 이하 30초 간격, 4개 이상 요청 60초·구 사이 120초. */
-function estimateMinutes(n: number): number {
-  if (n <= 0) return 0;
-  return n <= NORMAL_MAX_DISTRICTS ? Math.max(1, Math.round((n * 30 + (n - 1) * 30) / 60)) : Math.round((n * 60 + (n - 1) * 120) / 60);
-}
-
-/** 구 선택(전체 선택/해제 + 서울·경기 묶음별 선택/해제 + 지역 버튼). 자동 업데이트 대상과 수동 업데이트 대상은 각각 따로 고른다. */
-function DistrictPicker({ value, onChange, disabled }: { value: string[]; onChange: (codes: string[]) => void; disabled?: boolean }) {
-  const all = value.length === DISTRICTS.length;
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(all ? [] : DISTRICTS.map(([c]) => c))}
-          className="rounded-sm border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40"
-        >
-          {all ? "전체 해제" : "전체 선택"}
-        </button>
-        <span className="text-muted-foreground">{value.length}/{DISTRICTS.length}개 선택</span>
-      </div>
-      {REGION_GROUPS.map(({ label, districts }) => {
-        const codes = districts.map(([c]) => c);
-        const picked = codes.filter((c) => value.includes(c)).length;
-        const groupAll = picked === codes.length;
-        return (
-          <div key={label} className="space-y-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-foreground">{label}</span>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange(groupAll ? value.filter((c) => !codes.includes(c)) : Array.from(new Set([...value, ...codes])))}
-                className="rounded-sm border border-border px-1.5 py-0.5 text-[11px] text-foreground hover:bg-muted disabled:opacity-40"
-              >
-                {groupAll ? `${label} 해제` : `${label} 전체`}
-              </button>
-              <span className="text-[11px] text-muted-foreground">{picked}/{codes.length}</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {districts.map(([code, name]) => {
-                const on = value.includes(code);
-                return (
-                  <button
-                    key={code}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onChange(on ? value.filter((c) => c !== code) : [...value, code])}
-                    className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border text-foreground hover:bg-muted"} disabled:opacity-40`}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** 재개발닷컴 구역 업데이트 패널 — ① 자동 업데이트(대상 구·주기·켜기를 정하고 "설정 저장", 서버가 설정한 주기·시각에 실행, 기본 꺼짐·14일·03:00)
- *  ② 수동 업데이트(구를 따로 골라 바로 실행). 두 구 선택은 서로 별개다. */
+/** 재개발닷컴 구역 업데이트 패널 — ① 자동 업데이트(주기·실행 시각·켜기를 정하고 "설정 저장", 서버가 설정한 주기·시각에 실행, 기본 꺼짐·14일·03:00)
+ *  ② 수동 업데이트(바로 실행). 재개발닷컴에는 서울·경기·인천 전체를 요청 1번으로 받아 구는 서버가 나눠 반영하므로 구를 고르지 않는다. */
 export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished: () => void; summary?: ReactNode }) {
-  // 수동 업데이트용 구 선택
-  const [selected, setSelected] = useState<string[]>([]);
   const [status, setStatus] = useState<JaegebalSyncStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  // 자동 업데이트: 서버에 저장된 값과, 저장 전에 편집 중인 값(주기·대상 구). 켜짐/꺼짐은 스위치가 즉시 저장한다.
+  // 자동 업데이트: 서버에 저장된 값과, 저장 전에 편집 중인 값(주기·시각). 켜짐/꺼짐은 스위치가 즉시 저장한다.
   const [auto, setAuto] = useState<JaegebalAutoSettings | null>(null);
-  const [draftCodes, setDraftCodes] = useState<string[]>([]);
   const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
   const [timeInput, setTimeInput] = useState(DEFAULT_RUN_TIME); // 실행 시각(한국시간) HH:MM
   const [autoBusy, setAutoBusy] = useState(false);
@@ -157,7 +58,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
 
   function applySaved(s: JaegebalAutoSettings) {
     setAuto(s);
-    setDraftCodes(s.codes);
     setIntervalInput(String(s.intervalDays));
     setTimeInput(`${pad2(s.runHour ?? 3)}:${pad2(s.runMinute ?? 0)}`);
   }
@@ -192,24 +92,12 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     return () => clearInterval(timer);
   }, [auto?.enabled, running]);
 
-  /** 선택한 구를 지금 바로 업데이트(자동 업데이트 설정과 별개). 구가 많으면 서버가 느린 간격으로 실행한다. */
+  /** 지금 바로 업데이트(자동 업데이트 설정과 별개). 서울·경기·인천 전체를 요청 1번으로 받아 반영한다. */
   async function startNow() {
-    if (selected.length > NORMAL_MAX_DISTRICTS) {
-      const ok = window.confirm(
-        `선택한 ${selected.length}개 구를 수동 업데이트합니다.\n\n` +
-          `• 구가 ${NORMAL_MAX_DISTRICTS}개를 넘으면 사이트에 부담을 주지 않도록 느린 간격(요청 60초·구 사이 120초)으로 실행합니다.\n` +
-          `• 약 ${estimateMinutes(selected.length)}분 걸립니다. 화면을 닫아도 서버에서 계속 진행됩니다.\n` +
-          "• 사이트 보안 확인이 뜨면 즉시 전체를 멈추고, 구 오류가 2번 연속이면 멈춥니다.\n" +
-          "• 최근 6시간 안에 이미 수집한 구는 건너뜁니다.\n" +
-          "• 진행 중에는 서버를 배포·재시작하지 마세요(끊기면 다시 실행하세요. 끝낸 구는 건너뛰고 이어서 합니다).\n\n" +
-          "시작할까요?",
-      );
-      if (!ok) return;
-    }
     setError(null);
     setStarting(true);
     try {
-      setStatus(await startJaegebalSync(selected));
+      setStatus(await startJaegebalSync([]));
     } catch (e) {
       setError(e instanceof Error ? e.message : "업데이트를 시작하지 못했습니다.");
     } finally {
@@ -217,7 +105,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     }
   }
 
-  /** 설정 저장 — 업데이트 주기와 대상 구를 저장한다(켜짐/꺼짐은 스위치가 따로 즉시 저장). */
+  /** 설정 저장 — 업데이트 주기와 실행 시각을 저장한다(켜짐/꺼짐은 스위치가 따로 즉시 저장). */
   async function saveSettings() {
     setAutoMessage(null);
     setError(null);
@@ -231,16 +119,12 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
       setError("실행 시각(한국시간)을 입력하세요.");
       return;
     }
-    if (auto?.enabled && !draftCodes.length) {
-      setError("자동 업데이트가 켜져 있어 대상 구를 하나 이상 선택해야 합니다. 끄려면 스위치를 끄세요.");
-      return;
-    }
     setAutoBusy(true);
     try {
-      const saved = await saveJaegebalAutoSettings({ intervalDays: days, runHour: Number(tm[1]), runMinute: Number(tm[2]), codes: draftCodes });
+      const saved = await saveJaegebalAutoSettings({ intervalDays: days, runHour: Number(tm[1]), runMinute: Number(tm[2]) });
       applySaved(saved);
       setAutoMessage(
-        `설정을 저장했습니다 — ${saved.intervalDays}일마다 · 매 ${pad2(saved.runHour ?? 3)}:${pad2(saved.runMinute ?? 0)} · 대상 ${saved.codes.length}개 구` +
+        `설정을 저장했습니다 — ${saved.intervalDays}일마다 · 매 ${pad2(saved.runHour ?? 3)}:${pad2(saved.runMinute ?? 0)}` +
           (saved.enabled && saved.nextRunAt ? ` · 다음 실행 ${daysLabel(saved.nextRunAt)}인 ${kstWhen(saved.nextRunAt)}` : saved.enabled ? "" : " (자동 업데이트는 꺼져 있습니다)"),
       );
     } catch (e) {
@@ -250,22 +134,18 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     }
   }
 
-  /** 스위치 — 알림톡의 "자동 반복 발송"처럼 누르는 즉시 켜고 끈다. 이미 저장된 설정(주기·대상 구)대로 동작한다. */
+  /** 스위치 — 알림톡의 "자동 반복 발송"처럼 누르는 즉시 켜고 끈다. 이미 저장된 설정(주기·시각)대로 동작한다. */
   async function toggleAuto() {
     if (!auto) return;
     setAutoMessage(null);
     setError(null);
-    if (!auto.enabled && !auto.codes.length) {
-      setError("저장된 대상 구가 없습니다. 아래에서 대상 구를 선택하고 \"설정 저장\"을 먼저 눌러 주세요.");
-      return;
-    }
     setAutoBusy(true);
     try {
       const saved = await saveJaegebalAutoSettings({ enabled: !auto.enabled });
       setAuto(saved);
       setAutoMessage(
         saved.enabled
-          ? `자동 업데이트를 켰습니다 — ${saved.nextRunAt ? `${daysLabel(saved.nextRunAt)}인 ${kstWhen(saved.nextRunAt)}에 처음 실행되고, ` : ""}이후 ${saved.intervalDays}일마다 같은 시각에 대상 ${saved.codes.length}개 구를 업데이트합니다.`
+          ? `자동 업데이트를 켰습니다 — ${saved.nextRunAt ? `${daysLabel(saved.nextRunAt)}인 ${kstWhen(saved.nextRunAt)}에 처음 실행되고, ` : ""}이후 ${saved.intervalDays}일마다 같은 시각에 서울·경기·인천 구역을 업데이트합니다.`
           : "자동 업데이트를 껐습니다. 저장된 설정은 그대로 남아 있습니다.",
       );
     } catch (e) {
@@ -277,17 +157,16 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
 
   const doneCount = status?.results.filter((r) => r.name || r.error || r.warning).length ?? 0;
   const autoOn = !!auto?.enabled;
-  const savedNames = auto ? namesOf(auto.codes) : [];
   const savedTime = auto ? `${pad2(auto.runHour ?? 3)}:${pad2(auto.runMinute ?? 0)}` : DEFAULT_RUN_TIME;
-  const dirty = !!auto && (Number(intervalInput) !== auto.intervalDays || timeInput !== savedTime || !sameSet(draftCodes, auto.codes));
+  const dirty = !!auto && (Number(intervalInput) !== auto.intervalDays || timeInput !== savedTime);
   const preview = previewNextRun(Number(intervalInput), timeInput);
 
   return (
     <div className="space-y-2">
       {summary}
       <p className="text-muted-foreground">
-        <b className="text-foreground">자동 업데이트</b>는 스위치를 켜면 저장된 대상 구·주기대로 서버가 설정한 주기·시각에 실행하고(대상·주기·시각은 <b className="text-foreground">설정 저장</b>으로 저장), <b className="text-foreground">수동 업데이트</b>는 아래에서 구를 따로 골라 바로 실행합니다(두 선택은 서로 별개).
-        사이트에 부담을 주지 않도록 요청 사이에 간격을 두며, 보안 확인이 뜨면 자동으로 멈춥니다.
+        <b className="text-foreground">자동 업데이트</b>는 스위치를 켜면 저장된 주기·시각에 서버가 실행하고(주기·시각은 <b className="text-foreground">설정 저장</b>으로 저장), <b className="text-foreground">수동 업데이트</b>는 아래 버튼으로 바로 실행합니다.
+        서울·경기·인천 전체를 재개발닷컴에 요청 1번으로 받아 구별로 나눠 반영하며, 보안 확인이 뜨면 자동으로 멈춥니다.
       </p>
 
       {/* 자동 업데이트 — 알림톡 탭의 "자동 반복 발송"과 같은 디자인(켜지면 초록색). 스위치는 즉시 켜고 끄며, 주기·대상 구는 "설정 저장"으로 저장한다. */}
@@ -309,12 +188,10 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             <p className={`text-xs font-semibold ${autoOn ? "text-emerald-700" : "text-foreground"}`}>{autoOn ? "자동 업데이트 작동 중" : "자동 업데이트 꺼짐"}</p>
             <p className="text-[11px] text-muted-foreground">
               {autoOn && auto
-                ? `서버가 ${auto.intervalDays}일마다 ${savedTime}(한국시간)에 ${auto.codes.length}개 구(${savedNames.slice(0, 5).join(", ")}${savedNames.length > 5 ? " 외" : ""})를 자동으로 업데이트합니다.${
+                ? `서버가 ${auto.intervalDays}일마다 ${savedTime}(한국시간)에 서울·경기·인천 구역을 자동으로 업데이트합니다.${
                     auto.nextRunAt ? ` 다음 실행: ${kstWhen(auto.nextRunAt)} (${daysLabel(auto.nextRunAt)}).` : ""
                   }${auto.lastRunAt ? ` 마지막 자동 실행: ${kstDateTime(auto.lastRunAt)}.` : ""}`
-                : auto && auto.codes.length
-                  ? `켜면 ${preview ? `${daysLabel(preview)}인 ${kstWhen(preview)}에 처음 실행되고 ` : ""}이후 ${auto.intervalDays}일마다 같은 시각에 대상 ${auto.codes.length}개 구를 자동으로 업데이트합니다. 지금은 자동으로 실행되지 않습니다.`
-                  : "켜두면 서버가 정해진 주기·시각에 대상 구를 자동으로 업데이트합니다. 먼저 대상 구를 선택하고 설정 저장을 눌러 주세요. 지금은 자동으로 실행되지 않습니다."}
+                : `켜면 ${preview ? `${daysLabel(preview)}인 ${kstWhen(preview)}에 처음 실행되고 ` : ""}이후 ${auto?.intervalDays ?? DEFAULT_INTERVAL_DAYS}일마다 같은 시각에 서울·경기·인천 구역을 자동으로 업데이트합니다. 지금은 자동으로 실행되지 않습니다.`}
             </p>
           </div>
         </div>
@@ -357,12 +234,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             이 설정으로 켜면 <b className="text-foreground">{daysLabel(preview)}인 {kstWhen(preview)}</b>에 처음 실행되고, 이후 {Number(intervalInput)}일마다 같은 시각에 실행됩니다.
           </p>
         )}
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">
-            자동 업데이트 대상 구 <span className="text-[11px]">(스위치가 꺼져 있어도 대상은 저장됩니다. 스위치는 저장된 설정대로 동작합니다)</span>
-          </p>
-          <DistrictPicker value={draftCodes} onChange={setDraftCodes} disabled={!auto || autoBusy} />
-        </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -372,7 +243,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           >
             {autoBusy ? "저장 중…" : "설정 저장"}
           </button>
-          {dirty && <span className="text-[11px] text-amber-600">저장되지 않은 주기·시각·대상 변경이 있습니다 — &quot;설정 저장&quot;을 눌러야 자동 업데이트에 적용됩니다</span>}
+          {dirty && <span className="text-[11px] text-amber-600">저장되지 않은 주기·시각 변경이 있습니다 — &quot;설정 저장&quot;을 눌러야 자동 업데이트에 적용됩니다</span>}
         </div>
       </div>
       {autoMessage && <p className="text-emerald-700">{autoMessage}</p>}
@@ -380,26 +251,22 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
         마지막 반영 후 <b className="text-foreground">2주</b>가 지나면 재개발 텔레그램 채널로 업데이트 요청 알림이 옵니다(매일 오전 10시 확인). 자동 업데이트를 켜 두면 성공한 실행도 마지막 반영으로 봅니다.
       </p>
 
-      {/* 수동 업데이트 — 자동 업데이트와 별개로 구를 따로 골라 바로 실행 */}
+      {/* 수동 업데이트 — 자동 업데이트와 별개로 바로 실행 */}
       <div className="space-y-2 rounded-sm border border-border px-3 py-2">
-        <p className="text-xs font-semibold text-foreground">수동 업데이트 <span className="font-normal text-muted-foreground">— 자동 업데이트 설정과 별개로, 고른 구를 바로 실행합니다</span></p>
-        <DistrictPicker value={selected} onChange={setSelected} disabled={running} />
+        <p className="text-xs font-semibold text-foreground">수동 업데이트 <span className="font-normal text-muted-foreground">— 자동 업데이트 설정과 별개로, 지금 바로 서울·경기·인천 구역을 업데이트합니다(최근 6시간 안에 수집했으면 건너뜁니다)</span></p>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={!selected.length || running || starting}
+            disabled={running || starting}
             onClick={startNow}
             className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
           >
-            {running ? "업데이트 중…" : starting ? "시작 중…" : `선택한 ${selected.length}개 구 수동 업데이트`}
+            {running ? "업데이트 중…" : starting ? "시작 중…" : "구역도 업데이트"}
           </button>
-          {selected.length > NORMAL_MAX_DISTRICTS && !running && (
-            <span className="text-muted-foreground">약 {estimateMinutes(selected.length)}분 걸립니다(느린 간격으로 실행)</span>
-          )}
           {running && status && (
             <span className="text-muted-foreground">
               {status.trigger === "auto" ? "[자동] " : ""}
-              {doneCount}/{status.codes.length}개 구 진행{status.all ? " (느린 순차 — 화면을 닫아도 계속됩니다)" : ""} — 끝나면 지도가 자동으로 새로 불러와집니다
+              {doneCount}/{status.codes.length}개 지역 반영 — 끝나면 지도가 자동으로 새로 불러와집니다
             </span>
           )}
         </div>
@@ -419,7 +286,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           </p>
           {status.results.map((r) => (
             <p key={r.code} className="text-muted-foreground">
-              <b className="text-foreground">{r.name ?? DISTRICT_NAME.get(r.code) ?? r.code}</b>
+              <b className="text-foreground">{r.name ?? r.code}</b>
               {r.fetched != null &&
                 ` — 가져옴 ${r.fetched} · 신규 ${r.created ?? 0} · 변경 ${r.updated ?? 0} · 사라짐 표시 ${r.markedMissing ?? 0} · 복구 ${r.restored ?? 0}`}
               {!!r.skippedManual && ` · 수동 수정 보호로 건너뜀 ${r.skippedManual}`}
