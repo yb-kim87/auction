@@ -10,14 +10,35 @@ import {
   type JaegebalSyncStatus,
 } from "@/lib/api";
 
-/** 재개발닷컴 구 코드(서울 25개 구). */
-const DISTRICTS: Array<[string, string]> = [
+/** 재개발닷컴 지역 코드(서울 25개 구). */
+const SEOUL_DISTRICTS: Array<[string, string]> = [
   ["11110", "종로구"], ["11140", "중구"], ["11170", "용산구"], ["11200", "성동구"], ["11215", "광진구"],
   ["11230", "동대문구"], ["11260", "중랑구"], ["11290", "성북구"], ["11305", "강북구"], ["11320", "도봉구"],
   ["11350", "노원구"], ["11380", "은평구"], ["11410", "서대문구"], ["11440", "마포구"], ["11470", "양천구"],
   ["11500", "강서구"], ["11530", "구로구"], ["11545", "금천구"], ["11560", "영등포구"], ["11590", "동작구"],
   ["11620", "관악구"], ["11650", "서초구"], ["11680", "강남구"], ["11710", "송파구"], ["11740", "강동구"],
 ];
+/** 재개발닷컴 지역 코드(경기 시·군·구, 2026-11-07 추가) — 서버 GYEONGGI_DISTRICT_NAMES와 같은 표. */
+const GYEONGGI_DISTRICTS: Array<[string, string]> = [
+  ["41111", "수원시 장안구"], ["41113", "수원시 권선구"], ["41115", "수원시 팔달구"], ["41117", "수원시 영통구"],
+  ["41131", "성남시 수정구"], ["41133", "성남시 중원구"], ["41135", "성남시 분당구"],
+  ["41150", "의정부시"], ["41171", "안양시 만안구"], ["41173", "안양시 동안구"],
+  ["41192", "부천시 원미구"], ["41194", "부천시 소사구"], ["41196", "부천시 오정구"],
+  ["41210", "광명시"], ["41220", "평택시"], ["41250", "동두천시"],
+  ["41271", "안산시 상록구"], ["41273", "안산시 단원구"],
+  ["41281", "고양시 덕양구"], ["41285", "고양시 일산동구"], ["41287", "고양시 일산서구"],
+  ["41290", "과천시"], ["41310", "구리시"], ["41360", "남양주시"], ["41370", "오산시"], ["41390", "시흥시"],
+  ["41410", "군포시"], ["41430", "의왕시"], ["41450", "하남시"],
+  ["41461", "용인시 처인구"], ["41463", "용인시 기흥구"], ["41465", "용인시 수지구"],
+  ["41480", "파주시"], ["41500", "이천시"], ["41550", "안성시"], ["41570", "김포시"], ["41590", "화성시"],
+  ["41610", "광주시"], ["41630", "양주시"], ["41650", "포천시"], ["41670", "여주시"],
+  ["41800", "연천군"], ["41820", "가평군"], ["41830", "양평군"],
+];
+const REGION_GROUPS: Array<{ label: string; districts: Array<[string, string]> }> = [
+  { label: "서울", districts: SEOUL_DISTRICTS },
+  { label: "경기", districts: GYEONGGI_DISTRICTS },
+];
+const DISTRICTS = [...SEOUL_DISTRICTS, ...GYEONGGI_DISTRICTS];
 const DISTRICT_NAME = new Map(DISTRICTS);
 const NORMAL_MAX_DISTRICTS = 3; // 이보다 많으면 서버가 느린 간격(요청 60초·구 사이 120초)으로 실행
 const POLL_MS = 5000;
@@ -56,7 +77,7 @@ function estimateMinutes(n: number): number {
   return n <= NORMAL_MAX_DISTRICTS ? Math.max(1, Math.round((n * 30 + (n - 1) * 30) / 60)) : Math.round((n * 60 + (n - 1) * 120) / 60);
 }
 
-/** 구 선택(전체 선택/해제 + 25개 구 버튼). 자동 업데이트 대상과 수동 업데이트 대상은 각각 따로 고른다. */
+/** 구 선택(전체 선택/해제 + 서울·경기 묶음별 선택/해제 + 지역 버튼). 자동 업데이트 대상과 수동 업데이트 대상은 각각 따로 고른다. */
 function DistrictPicker({ value, onChange, disabled }: { value: string[]; onChange: (codes: string[]) => void; disabled?: boolean }) {
   const all = value.length === DISTRICTS.length;
   return (
@@ -72,22 +93,43 @@ function DistrictPicker({ value, onChange, disabled }: { value: string[]; onChan
         </button>
         <span className="text-muted-foreground">{value.length}/{DISTRICTS.length}개 선택</span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {DISTRICTS.map(([code, name]) => {
-          const on = value.includes(code);
-          return (
-            <button
-              key={code}
-              type="button"
-              disabled={disabled}
-              onClick={() => onChange(on ? value.filter((c) => c !== code) : [...value, code])}
-              className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border text-foreground hover:bg-muted"} disabled:opacity-40`}
-            >
-              {name}
-            </button>
-          );
-        })}
-      </div>
+      {REGION_GROUPS.map(({ label, districts }) => {
+        const codes = districts.map(([c]) => c);
+        const picked = codes.filter((c) => value.includes(c)).length;
+        const groupAll = picked === codes.length;
+        return (
+          <div key={label} className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-foreground">{label}</span>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(groupAll ? value.filter((c) => !codes.includes(c)) : Array.from(new Set([...value, ...codes])))}
+                className="rounded-sm border border-border px-1.5 py-0.5 text-[11px] text-foreground hover:bg-muted disabled:opacity-40"
+              >
+                {groupAll ? `${label} 해제` : `${label} 전체`}
+              </button>
+              <span className="text-[11px] text-muted-foreground">{picked}/{codes.length}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {districts.map(([code, name]) => {
+                const on = value.includes(code);
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChange(on ? value.filter((c) => c !== code) : [...value, code])}
+                    className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border text-foreground hover:bg-muted"} disabled:opacity-40`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -69,6 +69,7 @@ export function RedevelopmentEditMapView({
   onDraftPointCountChange,
   focusGu,
   focusDong,
+  focusPoints,
   fillHeight = false,
   toolbar = null,
   topRightAction = null,
@@ -109,6 +110,8 @@ export function RedevelopmentEditMapView({
   /** 목록 필터에서 고른 구/동 — 바뀌면 지도를 그 행정구역으로 이동한다(없으면 서울 전체). */
   focusGu?: string;
   focusDong?: string;
+  /** 고른 구/동에 속한 구역 좌표 — 서울 경계 파일에 없는 지역(경기 등)이면 이 좌표 범위로 지도를 옮긴다. */
+  focusPoints?: RedevelopmentPoint[];
   /** true면 600px 고정 대신 부모 높이를 꽉 채운다(재개발닷컴식 좌측 정보/우측 큰 지도 레이아웃). */
   fillHeight?: boolean;
   /** 지도 위쪽에 올리는 도구(사업종류·진행단계 필터 등). */
@@ -118,6 +121,9 @@ export function RedevelopmentEditMapView({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMap | null>(null);
+  // 구/동 필터가 바뀔 때만 지도를 옮기도록 좌표는 ref로 읽는다(좌표 배열이 다시 만들어져도 지도가 튀지 않게).
+  const focusPointsRef = useRef(focusPoints);
+  focusPointsRef.current = focusPoints;
   const draftPointsRef = useRef<RedevelopmentPoint[]>([]);
   // 앞으로 가기(redo)용으로 되돌린 점을 보관한다.
   const redoStackRef = useRef<RedevelopmentPoint[]>([]);
@@ -263,6 +269,14 @@ export function RedevelopmentEditMapView({
     type Ring = number[][];
     type GeoFeature = { properties: { name: string; gu?: string }; geometry: { type: string; coordinates: Ring[] | Ring[][] } };
     const kind = focusDong ? "dong" : "gu";
+    // 서울 경계 파일에 없는 지역(경기 시·구 등)은 그 지역 구역들의 좌표 범위로 옮긴다.
+    const fitToZonePoints = () => {
+      const pts = focusPointsRef.current ?? [];
+      if (!pts.length) return;
+      const bounds = new kakao.maps.LatLngBounds();
+      for (const p of pts) bounds.extend(new kakao.maps.LatLng(p.lat, p.lng));
+      map.setBounds(bounds);
+    };
     fetch(`/geo/seoul-${kind}.json`)
       .then((r) => r.json() as Promise<{ features: GeoFeature[] }>)
       .then((data) => {
@@ -270,7 +284,10 @@ export function RedevelopmentEditMapView({
         const feats = data.features.filter((f) =>
           kind === "dong" ? f.properties.name.replace(/\d+(?=동$)/, "") === (focusDong ?? "").replace(/\d+가$/, "") && (!focusGu || f.properties.gu === focusGu) : f.properties.name === focusGu,
         );
-        if (feats.length === 0) return;
+        if (feats.length === 0) {
+          fitToZonePoints();
+          return;
+        }
         const bounds = new kakao.maps.LatLngBounds();
         for (const f of feats) {
           const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates as Ring[]] : (f.geometry.coordinates as Ring[][]);
@@ -278,7 +295,9 @@ export function RedevelopmentEditMapView({
         }
         map.setBounds(bounds);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) fitToZonePoints();
+      });
     return () => {
       cancelled = true;
     };

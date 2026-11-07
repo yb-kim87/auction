@@ -52,6 +52,15 @@ const STAGE_OPTIONS = [
 
 type ZoneFormState = { name: string; region: string; stage: string; projectType: string; memo: string };
 
+/** 구역 region → 목록을 묶을 지역 이름. 서울은 "강동구", 경기는 "수원시 장안구"·"광명시"처럼
+ * 카카오 역지오코딩(region_2depth_name)과 같은 모양으로 맞춘다(경기 구역 추가, 2026-11-07). 못 읽으면 "". */
+function districtFromRegion(region: string): string {
+  const r = region.trim().replace(/^(서울특별시|서울시|서울|경기도|경기)\s+/, "");
+  const gu = r.match(/(?:^|\s)((?:[가-힣]+시\s)?[가-힣]+구)$/);
+  if (gu) return gu[1];
+  return /^[가-힣]+[시군]$/.test(r) && !/(특별|광역|특별자치)시$/.test(r) ? r : "";
+}
+
 const EMPTY_FORM: ZoneFormState = { name: "", region: "", stage: "", projectType: "", memo: "" };
 const RECENT_AUCTION_SEARCHES_KEY = "redev-recent-auction-searches";
 const MAX_RECENT_AUCTION_SEARCHES = 8;
@@ -125,8 +134,8 @@ export function RedevelopmentEditTab() {
     const fromRegion: Record<string, string> = {};
     const needGeocode: RedevelopmentZone[] = [];
     for (const z of pending) {
-      const m = z.region.match(/[가-힣]+구$/);
-      if (m) fromRegion[z.id] = m[0];
+      const gu = districtFromRegion(z.region);
+      if (gu) fromRegion[z.id] = gu;
       else if (z.polygon.length > 0) needGeocode.push(z);
       else fromRegion[z.id] = "";
     }
@@ -238,6 +247,13 @@ export function RedevelopmentEditTab() {
       ).sort((a, b) => a.localeCompare(b, "ko")),
     [zones, districtById, dongById, guFilter],
   );
+  // 지도 이동용: 고른 구/동에 속한 구역들의 경계 좌표(서울 경계 파일에 없는 경기 지역에서 쓴다).
+  const focusPoints = useMemo(() => {
+    if (!guFilter && !dongFilter) return [];
+    return zones
+      .filter((z) => (!guFilter || districtById[z.id] === guFilter) && (!dongFilter || dongById[z.id] === dongFilter))
+      .flatMap((z) => z.polygon);
+  }, [zones, districtById, dongById, guFilter, dongFilter]);
   const filteredCount = groupedZones.reduce((n, [, l]) => n + l.length, 0);
   const [expandedDistrict, setExpandedDistrict] = useState<string | null | undefined>(undefined);
   // 처음에는 첫 구를 열고 나머지는 접는다. 한 번에 한 구를 열어 다른 구도 쉽게 찾는다.
@@ -936,6 +952,7 @@ export function RedevelopmentEditTab() {
             fillHeight
             focusGu={guFilter}
             focusDong={dongFilter}
+            focusPoints={focusPoints}
             topRightAction={
               !drawing && !imageTracing && !pendingPoints ? (
                 <button
