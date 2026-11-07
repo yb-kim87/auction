@@ -5997,6 +5997,14 @@ export async function fetchJaegebalSyncStatus(): Promise<JaegebalSyncStatus> {
   return readJsonResponse(res);
 }
 
+/** 나눠서 실행의 이어하기 위치(다음 시작 타일 번호). */
+export type JaegebalTileProgress = { next: number; lastTo: number | null; total: number | null };
+export async function fetchJaegebalTileProgress(): Promise<JaegebalTileProgress> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/tile-progress`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "진행 위치를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export type ZoneChangeType = "new" | "stage" | "projectType" | "missing" | "restored" | "stats";
 
 /** 재개발닷컴 구역 업데이트 1회 실행 기록(변경이 없던 실행 포함). */

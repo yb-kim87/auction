@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   fetchJaegebalAutoSettings,
   fetchJaegebalSyncStatus,
+  fetchJaegebalTileProgress,
+  type JaegebalTileProgress,
   saveJaegebalAutoSettings,
   startJaegebalSync,
   type JaegebalAutoSettings,
@@ -49,7 +51,8 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
   const [timeInput, setTimeInput] = useState(DEFAULT_RUN_TIME); // 실행 시각(한국시간) HH:MM
   const [autoBusy, setAutoBusy] = useState(false);
-  const [tileFromInput, setTileFromInput] = useState("1"); // 나눠서 실행할 타일 시작 번호
+  const [tileFromInput, setTileFromInput] = useState("1"); // 나눠서 실행할 타일 시작 번호(지난번 끝 다음 번호로 자동 채움)
+  const [tileProgress, setTileProgress] = useState<JaegebalTileProgress | null>(null);
   const [tileToInput, setTileToInput] = useState("10"); // 나눠서 실행할 타일 끝 번호
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
   const wasRunning = useRef(false);
@@ -65,9 +68,20 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   }
 
   // 열 때 서버의 현재 실행 상태와 자동 업데이트 설정을 한 번 확인한다.
+  function loadTileProgress() {
+    fetchJaegebalTileProgress()
+      .then((p) => {
+        setTileProgress(p);
+        setTileFromInput(String(p.next));
+        setTileToInput((cur) => (Number(cur) < p.next ? String(p.next + 2) : cur)); // 끝 번호가 시작보다 작아지면 3개 단위로 맞춘다
+      })
+      .catch(() => undefined);
+  }
+
   useEffect(() => {
     fetchJaegebalSyncStatus().then(setStatus).catch(() => undefined);
     fetchJaegebalAutoSettings().then(applySaved).catch(() => undefined);
+    loadTileProgress();
   }, []);
 
   useEffect(() => {
@@ -75,6 +89,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     if (!running && wasRunning.current) {
       wasRunning.current = false;
       onFinishedRef.current();
+      loadTileProgress();
       // 자동 실행이 끝났다면 다음 예정 시각이 바뀐다(편집 중인 값은 건드리지 않고 저장된 값만 갱신).
       fetchJaegebalAutoSettings().then(setAuto).catch(() => undefined);
     }
@@ -266,7 +281,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             {running ? "업데이트 중…" : starting ? "시작 중…" : "구역도 업데이트"}
           </button>
           <span className="flex items-center gap-1">
-            <span className="text-muted-foreground">나눠서 실행: 타일</span>
+            <span className="text-muted-foreground">나눠서 실행: 타일{tileProgress?.lastTo ? ` (지난번 ${tileProgress.lastTo}번까지 완료)` : ""}</span>
             <input
               type="number"
               min={1}
@@ -284,7 +299,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
               disabled={running || starting}
               className="w-14 rounded-sm border border-border bg-background px-1.5 py-1 text-xs"
             />
-            <span className="text-muted-foreground">번{status?.tileRange?.total ? ` (전체 ${status.tileRange.total}개)` : ""}</span>
+            <span className="text-muted-foreground">번{tileProgress?.total ?? status?.tileRange?.total ? ` (전체 ${tileProgress?.total ?? status?.tileRange?.total}개)` : ""}</span>
             <button
               type="button"
               disabled={running || starting}
