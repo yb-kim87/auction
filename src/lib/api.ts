@@ -5922,6 +5922,8 @@ export type JaegebalSyncStatus = {
   results: JaegebalSyncResult[];
   /** 사이트 보안 확인에 걸려 중단됨 — 자동으로 다시 시도하지 않는다. */
   blocked: string | null;
+  /** 지금 하는 일(예: "경계 포함 전체 받는 중 — 타일 3/12"). 구버전 서버 응답에는 없다. */
+  phase?: string | null;
   /** 구 4개 이상/전체라 느린 순차 간격(요청 60초·구 사이 120초)으로 실행 중인지(구버전 서버 응답에는 없을 수 있다). */
   all?: boolean;
   /** 실행 주체: 관리자가 지금 실행(manual) / 자동 업데이트 설정(auto) — 구버전 서버 응답에는 없을 수 있다. */

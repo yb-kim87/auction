@@ -266,7 +266,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           {running && status && (
             <span className="text-muted-foreground">
               {status.trigger === "auto" ? "[자동] " : ""}
-              {doneCount}/{status.codes.length}개 지역 반영 — 끝나면 지도가 자동으로 새로 불러와집니다
+              {status.phase ? `${status.phase} · ` : ""}{doneCount}/{status.codes.length}개 지역 반영 — 끝나면 지도가 자동으로 새로 불러와집니다
             </span>
           )}
         </div>
