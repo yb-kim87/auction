@@ -49,6 +49,8 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
   const [timeInput, setTimeInput] = useState(DEFAULT_RUN_TIME); // 실행 시각(한국시간) HH:MM
   const [autoBusy, setAutoBusy] = useState(false);
+  const [tileFromInput, setTileFromInput] = useState("1"); // 나눠서 실행할 타일 시작 번호
+  const [tileToInput, setTileToInput] = useState("10"); // 나눠서 실행할 타일 끝 번호
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
   const wasRunning = useRef(false);
   const onFinishedRef = useRef(onFinished);
@@ -263,22 +265,43 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           >
             {running ? "업데이트 중…" : starting ? "시작 중…" : "구역도 업데이트"}
           </button>
-          <button
-            type="button"
-            disabled={running || starting}
-            onClick={() => void startNow({ from: 1, to: 10 })}
-            className="rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
-          >
-            나눠서 ① 앞 10개
-          </button>
-          <button
-            type="button"
-            disabled={running || starting}
-            onClick={() => void startNow({ from: 11, to: 99 })}
-            className="rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
-          >
-            나눠서 ② 나머지(11번~)
-          </button>
+          <span className="flex items-center gap-1">
+            <span className="text-muted-foreground">나눠서 실행: 타일</span>
+            <input
+              type="number"
+              min={1}
+              value={tileFromInput}
+              onChange={(e) => setTileFromInput(e.target.value)}
+              disabled={running || starting}
+              className="w-14 rounded-sm border border-border bg-background px-1.5 py-1 text-xs"
+            />
+            <span>~</span>
+            <input
+              type="number"
+              min={1}
+              value={tileToInput}
+              onChange={(e) => setTileToInput(e.target.value)}
+              disabled={running || starting}
+              className="w-14 rounded-sm border border-border bg-background px-1.5 py-1 text-xs"
+            />
+            <span className="text-muted-foreground">번{status?.tileRange?.total ? ` (전체 ${status.tileRange.total}개)` : ""}</span>
+            <button
+              type="button"
+              disabled={running || starting}
+              onClick={() => {
+                const from = Number(tileFromInput);
+                const to = Number(tileToInput);
+                if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) {
+                  setError("타일 번호는 1 이상의 정수이고, 끝 번호가 시작 번호 이상이어야 합니다.");
+                  return;
+                }
+                void startNow({ from, to });
+              }}
+              className="rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
+            >
+              이 범위만 업데이트
+            </button>
+          </span>
           {running && status && (
             <span className="text-muted-foreground">
               {status.trigger === "auto" ? "[자동] " : ""}
