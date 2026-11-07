@@ -54,6 +54,14 @@ const PROJECT_TYPE_KEY: Record<string, string> = {
   가상구역: "virtual",
   시장정비: "market",
   공공주택지구: "public_area",
+  // 재개발닷컴 세부 사업유형 이름(detail_type_display_name) 중 위에 없는 것
+  공동재건축: "shared_jaegeunchook",
+  단독재건축: "dandok_jaegeunchook",
+  장기전세주택: "long_jeonsae",
+  재개발촉진지역: "jaegebal_area",
+  "소규모 관리지역": "small_town",
+  "민간도심복합(성장거점형)": "dosimprivate_growth",
+  기타: "etc",
 };
 
 type ZoneLike = Pick<RedevelopmentZone, "sourceKey" | "stage"> &
