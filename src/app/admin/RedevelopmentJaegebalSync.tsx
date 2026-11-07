@@ -278,7 +278,7 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
             onClick={() => void startNow()}
             className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
           >
-            {running ? "업데이트 중…" : starting ? "시작 중…" : "구역도 업데이트"}
+            {running ? "업데이트 중…" : starting ? "시작 중…" : "전체 실행 (구역도 업데이트)"}
           </button>
           <span className="flex items-center gap-1">
             <span className="text-muted-foreground">나눠서 실행: 타일{tileProgress?.lastTo ? ` (지난번 ${tileProgress.lastTo}번까지 완료)` : ""}</span>
