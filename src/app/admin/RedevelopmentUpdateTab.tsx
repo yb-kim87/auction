@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJaegebalZoneSummary, type JaegebalZoneSummary } from "@/lib/api";
 import { RedevelopmentJaegebalSync } from "./RedevelopmentJaegebalSync";
+import { RedevelopmentTileRaw } from "./RedevelopmentTileRaw";
 
 const dateTime = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
@@ -51,6 +52,8 @@ export function RedevelopmentUpdateTab() {
           }
         />
       </div>
+
+      <RedevelopmentTileRaw />
     </div>
   );
 }

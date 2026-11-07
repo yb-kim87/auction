@@ -6005,6 +6005,49 @@ export async function fetchJaegebalTileProgress(): Promise<JaegebalTileProgress>
   return readJsonResponse(res);
 }
 
+/** 타일 원본 수집(1~21번) — 관리자가 넣은 device-id로 서버가 호출해 DB에 저장. */
+export type JaegebalTileRawStatus = {
+  running: boolean;
+  from: number | null;
+  to: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  results: Array<{ tile: number; status?: number; count?: number; error?: string }>;
+  blocked: string | null;
+};
+export type JaegebalTileRawRow = { tileNo: number; deviceId: string | null; fetchedAt: string; status: number | null; itemCount: number | null };
+export type JaegebalTileRawDetail = JaegebalTileRawRow & { raw: Array<Record<string, unknown>> | null };
+
+export async function startJaegebalTileRaw(deviceId: string, from: number, to: number): Promise<JaegebalTileRawStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-tiles/run`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ deviceId, from, to }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "타일 수집을 시작하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchJaegebalTileRawStatus(): Promise<JaegebalTileRawStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-tiles/status`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "타일 수집 상태를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchJaegebalTileRawList(): Promise<{ total: number; tiles: JaegebalTileRawRow[] }> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-tiles`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "저장된 타일을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchJaegebalTileRawDetail(no: number): Promise<JaegebalTileRawDetail> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-tiles/${no}`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "타일 결과를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export type ZoneChangeType = "new" | "stage" | "projectType" | "missing" | "restored" | "stats";
 
 /** 재개발닷컴 구역 업데이트 1회 실행 기록(변경이 없던 실행 포함). */
