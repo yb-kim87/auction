@@ -93,11 +93,11 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   }, [auto?.enabled, running]);
 
   /** 지금 바로 업데이트(자동 업데이트 설정과 별개). 서울·경기·인천 전체를 요청 1번으로 받아 반영한다. */
-  async function startNow() {
+  async function startNow(tileRange?: { from: number; to: number }) {
     setError(null);
     setStarting(true);
     try {
-      setStatus(await startJaegebalSync([]));
+      setStatus(await startJaegebalSync([], tileRange));
     } catch (e) {
       setError(e instanceof Error ? e.message : "업데이트를 시작하지 못했습니다.");
     } finally {
@@ -258,15 +258,31 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           <button
             type="button"
             disabled={running || starting}
-            onClick={startNow}
+            onClick={() => void startNow()}
             className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
           >
             {running ? "업데이트 중…" : starting ? "시작 중…" : "구역도 업데이트"}
           </button>
+          <button
+            type="button"
+            disabled={running || starting}
+            onClick={() => void startNow({ from: 1, to: 10 })}
+            className="rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
+          >
+            나눠서 ① 앞 10개
+          </button>
+          <button
+            type="button"
+            disabled={running || starting}
+            onClick={() => void startNow({ from: 11, to: 99 })}
+            className="rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
+          >
+            나눠서 ② 나머지(11번~)
+          </button>
           {running && status && (
             <span className="text-muted-foreground">
               {status.trigger === "auto" ? "[자동] " : ""}
-              {status.phase ? `${status.phase} · ` : ""}{doneCount}/{status.codes.length}개 지역 반영 — 끝나면 지도가 자동으로 새로 불러와집니다
+              {status.tileRange ? `[타일 ${status.tileRange.from}~${Math.min(status.tileRange.to, status.tileRange.total ?? status.tileRange.to)}번만] ` : ""}{status.phase ? `${status.phase} · ` : ""}{doneCount}/{status.codes.length}개 지역 반영 — 끝나면 지도가 자동으로 새로 불러와집니다
             </span>
           )}
         </div>

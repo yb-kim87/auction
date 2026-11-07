@@ -5928,17 +5928,19 @@ export type JaegebalSyncStatus = {
   all?: boolean;
   /** 실행 주체: 관리자가 지금 실행(manual) / 자동 업데이트 설정(auto) — 구버전 서버 응답에는 없을 수 있다. */
   trigger?: "manual" | "auto";
+  /** 나눠서 실행 중인 타일 범위(1부터). */
+  tileRange?: { from: number; to: number; total?: number } | null;
   changes: Array<{ key: string; name: string; field: "stage" | "projectType" | "new" | "missing" | "restored" | "stats"; from?: string | null; to?: string | null }>;
 };
 
 /** 재개발닷컴 구역을 지정한 구(최대 3개)만 가져와 반영하도록 서버에 요청한다(백그라운드, 관리자). */
-export async function startJaegebalSync(codes: string[]): Promise<JaegebalSyncStatus> {
+export async function startJaegebalSync(codes: string[], tileRange?: { from: number; to: number }): Promise<JaegebalSyncStatus> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync`, {
     method: "POST",
     cache: "no-store",
     credentials: FETCH_CREDENTIALS,
     headers: withJsonHeaders(),
-    body: JSON.stringify({ codes }),
+    body: JSON.stringify(tileRange ? { codes, tileFrom: tileRange.from, tileTo: tileRange.to } : { codes }),
   });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "구역도 업데이트를 시작하지 못했습니다.");
   return readJsonResponse(res);
