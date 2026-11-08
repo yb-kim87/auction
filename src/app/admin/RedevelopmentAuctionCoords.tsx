@@ -5,7 +5,7 @@ import { fetchAuctionCoordBackfillStatus, startAuctionCoordBackfill, type Auctio
 
 const POLL_MS = 4000;
 
-/** 구역도 업데이트 탭 — 경매물건 좌표 채우기(경기·인천). 주소를 카카오로 좌표로 바꿔, 재개발 구역 경계 100m 이내인 물건만 저장한다. 이후 새로 가져오는 물건은 크롤링 때 자동으로 채운다. */
+/** 구역도 업데이트 탭 — 경매물건 좌표 채우기(전체). 주소를 카카오로 좌표로 바꿔, 재개발 구역 경계 100m 이내인 물건만 저장한다. 이후 새로 가져오는 물건은 크롤링 때 자동으로 채운다. */
 export function RedevelopmentAuctionCoords() {
   const [status, setStatus] = useState<AuctionCoordBackfillStatus | null>(null);
   const [starting, setStarting] = useState(false);
@@ -25,11 +25,11 @@ export function RedevelopmentAuctionCoords() {
   }, [running]);
 
   async function start() {
-    if (!window.confirm("경기·인천 경매물건 중 좌표가 없는 물건의 주소를 카카오로 변환합니다(수천 건일 수 있고 몇 분 걸립니다). 진행할까요?")) return;
+    if (!window.confirm("좌표가 없는 모든 경매물건의 주소를 카카오로 변환합니다(수천 건일 수 있고 몇 분 걸립니다). 진행할까요?")) return;
     setError(null);
     setStarting(true);
     try {
-      setStatus(await startAuctionCoordBackfill(true));
+      setStatus(await startAuctionCoordBackfill(false));
     } catch (e) {
       setError(e instanceof Error ? e.message : "시작하지 못했습니다.");
     } finally {
@@ -40,11 +40,11 @@ export function RedevelopmentAuctionCoords() {
   return (
     <div className="rounded-sm border border-border bg-card px-4 py-3 text-xs space-y-1.5">
       <p className="font-semibold text-foreground">
-        경매물건 좌표 채우기 <span className="font-normal text-muted-foreground">— 경기·인천 경매물건 중 좌표가 없는 물건의 주소를 카카오로 좌표로 바꿔 모두 저장합니다. 재개발 구역 안이거나 경계 100m 이내인 물건은 따로 표시해 지도에 보여 줍니다. 새로 가져오는 물건은 크롤링할 때 자동으로 채우고, 구역이 바뀌면 표시가 자동으로 다시 계산됩니다.</span>
+        경매물건 좌표 채우기 <span className="font-normal text-muted-foreground">— 좌표가 없는 모든 경매물건의 주소를 카카오로 좌표로 바꿔 지역·용도와 상관없이 저장합니다. 재개발 구역 안이거나 경계 100m 이내인 물건은 따로 표시해 지도에 보여 줍니다. 새로 가져오는 물건은 크롤링할 때 자동으로 채우고, 구역이 바뀌면 표시가 자동으로 다시 계산됩니다.</span>
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={running || starting} onClick={() => void start()} className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40">
-          {running ? "채우는 중…" : starting ? "시작 중…" : "경기·인천 좌표 채우기"}
+          {running ? "채우는 중…" : starting ? "시작 중…" : "좌표 채우기 (전체)"}
         </button>
         {status && status.startedAt && (
           <span className="text-muted-foreground">
