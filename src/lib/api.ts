@@ -6066,6 +6066,27 @@ export async function redeployJaegebalServer(): Promise<{ requested: boolean; pr
   return readJsonResponse(res);
 }
 
+export type AuctionCoordBackfillStatus = { running: boolean; total: number; done: number; saved: number; startedAt: string | null; finishedAt: string | null; error: string | null };
+
+/** 좌표 없는 경매물건의 좌표를 서버가 채운다(구역 근처만 저장). outsideOnly=true면 서울 빌라는 빼고 경기·인천만. */
+export async function startAuctionCoordBackfill(outsideOnly: boolean): Promise<AuctionCoordBackfillStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/auction-coords/backfill`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ outsideOnly }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "좌표 채우기를 시작하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchAuctionCoordBackfillStatus(): Promise<AuctionCoordBackfillStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/auction-coords/status`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "좌표 채우기 상태를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export async function fetchJaegebalPendingBoundaries(): Promise<JaegebalPendingBoundary[]> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/pending-boundaries`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "경계 대기 목록을 불러오지 못했습니다.");

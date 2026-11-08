@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchJaegebalZoneSummary, type JaegebalZoneSummary } from "@/lib/api";
+import { RedevelopmentAuctionCoords } from "./RedevelopmentAuctionCoords";
 import { RedevelopmentDeviceId } from "./RedevelopmentDeviceId";
 import { RedevelopmentJaegebalSync } from "./RedevelopmentJaegebalSync";
 import { RedevelopmentPendingBoundaries } from "./RedevelopmentPendingBoundaries";
@@ -58,6 +59,8 @@ export function RedevelopmentUpdateTab() {
 
       {/* 타일 원본 수집(RedevelopmentTileRaw)은 21개 타일 수집을 마쳐 화면에서 숨겼다(2026-11-08). 컴포넌트·API는 남겨 둠. */}
       <RedevelopmentPendingBoundaries onFinished={loadSummary} />
+
+      <RedevelopmentAuctionCoords />
     </div>
   );
 }
