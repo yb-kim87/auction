@@ -6031,6 +6031,41 @@ export type JaegebalBoundaryFetchStatus = {
   blocked: string | null;
 };
 
+/** 재개발닷컴 호출에 쓰는 디바이스 아이디 — 전체·자동 업데이트와 새 구역 경계 받기가 같은 값을 쓴다. */
+export type JaegebalDeviceSettings = { deviceId: string; defaultDeviceId: string; custom: boolean };
+
+export async function fetchJaegebalDeviceSettings(): Promise<JaegebalDeviceSettings> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/device-id`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "디바이스 아이디를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function saveJaegebalDeviceId(deviceId: string): Promise<JaegebalDeviceSettings> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/device-id`, {
+    method: "PATCH",
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ deviceId }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "디바이스 아이디를 저장하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export type JaegebalEgressInfo = { ip: string | null; ipError: string | null; deploymentId: string | null; startedAt: string; redeployConfigured: boolean };
+
+export async function fetchJaegebalEgress(): Promise<JaegebalEgressInfo> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/egress`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "서버 IP를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function redeployJaegebalServer(): Promise<{ requested: boolean; previousDeploymentId: string | null }> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/redeploy`, { method: "POST", cache: "no-store", credentials: FETCH_CREDENTIALS, headers: withJsonHeaders(), body: "{}" });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "재배포를 요청하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
 export async function fetchJaegebalPendingBoundaries(): Promise<JaegebalPendingBoundary[]> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/pending-boundaries`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
   if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "경계 대기 목록을 불러오지 못했습니다.");

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchJaegebalZoneSummary, type JaegebalZoneSummary } from "@/lib/api";
+import { RedevelopmentDeviceId } from "./RedevelopmentDeviceId";
 import { RedevelopmentJaegebalSync } from "./RedevelopmentJaegebalSync";
 import { RedevelopmentPendingBoundaries } from "./RedevelopmentPendingBoundaries";
 
@@ -31,6 +32,8 @@ export function RedevelopmentUpdateTab() {
         <h2 className="text-lg font-bold text-foreground">구역도 업데이트</h2>
         <span className="text-xs text-muted-foreground">재개발닷컴의 구역 경계·단계·사업유형을 새로 가져와 반영합니다. 업데이트가 끝나면 구역·지도 탭에 바로 보입니다.</span>
       </div>
+
+      <RedevelopmentDeviceId />
 
       <div className="rounded-sm border border-border bg-card px-4 py-3 text-xs space-y-1.5">
         {error && <p className="text-destructive">{error}</p>}
