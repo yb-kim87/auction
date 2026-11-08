@@ -4,8 +4,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   fetchJaegebalAutoSettings,
   fetchJaegebalSyncStatus,
-  fetchJaegebalTileProgress,
-  type JaegebalTileProgress,
   saveJaegebalAutoSettings,
   startJaegebalSync,
   type JaegebalAutoSettings,
@@ -51,9 +49,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   const [intervalInput, setIntervalInput] = useState(String(DEFAULT_INTERVAL_DAYS));
   const [timeInput, setTimeInput] = useState(DEFAULT_RUN_TIME); // 실행 시각(한국시간) HH:MM
   const [autoBusy, setAutoBusy] = useState(false);
-  const [tileFromInput, setTileFromInput] = useState("1"); // 나눠서 실행할 타일 시작 번호(지난번 끝 다음 번호로 자동 채움)
-  const [tileProgress, setTileProgress] = useState<JaegebalTileProgress | null>(null);
-  const [tileToInput, setTileToInput] = useState("10"); // 나눠서 실행할 타일 끝 번호
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
   const wasRunning = useRef(false);
   const onFinishedRef = useRef(onFinished);
@@ -68,20 +63,9 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   }
 
   // 열 때 서버의 현재 실행 상태와 자동 업데이트 설정을 한 번 확인한다.
-  function loadTileProgress() {
-    fetchJaegebalTileProgress()
-      .then((p) => {
-        setTileProgress(p);
-        setTileFromInput(String(p.next));
-        setTileToInput((cur) => (Number(cur) < p.next ? String(p.next + 2) : cur)); // 끝 번호가 시작보다 작아지면 3개 단위로 맞춘다
-      })
-      .catch(() => undefined);
-  }
-
   useEffect(() => {
     fetchJaegebalSyncStatus().then(setStatus).catch(() => undefined);
     fetchJaegebalAutoSettings().then(applySaved).catch(() => undefined);
-    loadTileProgress();
   }, []);
 
   useEffect(() => {
@@ -89,7 +73,6 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
     if (!running && wasRunning.current) {
       wasRunning.current = false;
       onFinishedRef.current();
-      loadTileProgress();
       // 자동 실행이 끝났다면 다음 예정 시각이 바뀐다(편집 중인 값은 건드리지 않고 저장된 값만 갱신).
       fetchJaegebalAutoSettings().then(setAuto).catch(() => undefined);
     }
@@ -110,11 +93,11 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
   }, [auto?.enabled, running]);
 
   /** 지금 바로 업데이트(자동 업데이트 설정과 별개). 서울·경기·인천 전체를 요청 1번으로 받아 반영한다. */
-  async function startNow(tileRange?: { from: number; to: number }) {
+  async function startNow() {
     setError(null);
     setStarting(true);
     try {
-      setStatus(await startJaegebalSync([], tileRange));
+      setStatus(await startJaegebalSync([]));
     } catch (e) {
       setError(e instanceof Error ? e.message : "업데이트를 시작하지 못했습니다.");
     } finally {
@@ -280,47 +263,13 @@ export function RedevelopmentJaegebalSync({ onFinished, summary }: { onFinished:
           >
             {running ? "업데이트 중…" : starting ? "시작 중…" : "전체 실행 (구역도 업데이트)"}
           </button>
-          <span className="flex items-center gap-1">
-            <span className="text-muted-foreground">나눠서 실행: 타일{tileProgress?.lastTo ? ` (지난번 ${tileProgress.lastTo}번까지 완료)` : ""}</span>
-            <input
-              type="number"
-              min={1}
-              value={tileFromInput}
-              onChange={(e) => setTileFromInput(e.target.value)}
-              disabled={running || starting}
-              className="w-14 rounded-sm border border-border bg-background px-1.5 py-1 text-xs"
-            />
-            <span>~</span>
-            <input
-              type="number"
-              min={1}
-              value={tileToInput}
-              onChange={(e) => setTileToInput(e.target.value)}
-              disabled={running || starting}
-              className="w-14 rounded-sm border border-border bg-background px-1.5 py-1 text-xs"
-            />
-            <span className="text-muted-foreground">번{tileProgress?.total ?? status?.tileRange?.total ? ` (전체 ${tileProgress?.total ?? status?.tileRange?.total}개)` : ""}</span>
-            <button
-              type="button"
-              disabled={running || starting}
-              onClick={() => {
-                const from = Number(tileFromInput);
-                const to = Number(tileToInput);
-                if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) {
-                  setError("타일 번호는 1 이상의 정수이고, 끝 번호가 시작 번호 이상이어야 합니다.");
-                  return;
-                }
-                void startNow({ from, to });
-              }}
-              className="rounded-sm border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
-            >
-              이 범위만 업데이트
-            </button>
+          <span className="text-muted-foreground">
+            큰 범위(서울·경기·인천 전체)를 <b className="text-foreground">1회만 요청</b>해 단계·지표·신규·사라짐을 반영합니다. 기존 구역 경계는 바꾸지 않고, 새 구역은 거친 경계로 등록해 아래 "경계 대기 목록"에 남깁니다.
           </span>
           {running && status && (
             <span className="text-muted-foreground">
               {status.trigger === "auto" ? "[자동] " : ""}
-              {status.tileRange ? `[타일 ${status.tileRange.from}~${Math.min(status.tileRange.to, status.tileRange.total ?? status.tileRange.to)}번만] ` : ""}{status.phase ? `${status.phase} · ` : ""}{doneCount}/{status.codes.length}개 지역 반영 — 끝나면 지도가 자동으로 새로 불러와집니다
+              {status.phase ? `${status.phase} · ` : ""}{doneCount}/{status.codes.length}개 지역 반영 — 끝나면 지도가 자동으로 새로 불러와집니다
             </span>
           )}
         </div>
