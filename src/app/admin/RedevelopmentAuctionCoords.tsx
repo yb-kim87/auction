@@ -40,7 +40,7 @@ export function RedevelopmentAuctionCoords() {
   return (
     <div className="rounded-sm border border-border bg-card px-4 py-3 text-xs space-y-1.5">
       <p className="font-semibold text-foreground">
-        경매물건 좌표 채우기 <span className="font-normal text-muted-foreground">— 경기·인천 경매물건 중 좌표가 없는 물건의 주소를 카카오로 좌표로 바꿔, 재개발 구역 경계 100m 이내인 물건만 저장합니다(지도 점 표시용). 새로 가져오는 물건은 크롤링할 때 자동으로 채웁니다.</span>
+        경매물건 좌표 채우기 <span className="font-normal text-muted-foreground">— 경기·인천 경매물건 중 좌표가 없는 물건의 주소를 카카오로 좌표로 바꿔 모두 저장합니다. 재개발 구역 안이거나 경계 100m 이내인 물건은 따로 표시해 지도에 보여 줍니다. 새로 가져오는 물건은 크롤링할 때 자동으로 채우고, 구역이 바뀌면 표시가 자동으로 다시 계산됩니다.</span>
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={running || starting} onClick={() => void start()} className="rounded-sm border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40">
