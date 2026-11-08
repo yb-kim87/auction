@@ -24,6 +24,11 @@ function ZoneProgress({ zone }: { zone: RedevelopmentZone }) {
   const cautions = zoneStageCautions(zoneBusinessTypeLabel(zone), stage);
   return (
     <section className="border-b border-border px-4 py-3 sm:px-5">
+      {zone.boundaryPendingAt && !zone.missingSince && (
+        <p className="mb-2 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <b>경계 보완 필요</b> — 새로 발견된 구역이라 큰 범위 응답의 거친 경계로 표시 중입니다. 재개발물건 → 구역도 업데이트 탭의 "새 구역 경계 대기 목록"에서 정밀 경계를 받을 수 있습니다.
+        </p>
+      )}
       {zone.missingSince && (
         <p className="mb-2 rounded-sm border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
           <b className="text-foreground">사라진 구역</b> — 재개발닷컴 최신 수집({new Date(zone.missingSince).toLocaleDateString("ko-KR")})에서 이 구역이 보이지 않았습니다.

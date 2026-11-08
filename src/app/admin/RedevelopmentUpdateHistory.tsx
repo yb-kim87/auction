@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  fetchJaegebalPendingBoundaries,
   fetchJaegebalSyncRun,
   fetchJaegebalSyncRuns,
   fetchJaegebalZoneHistory,
@@ -84,6 +85,7 @@ export function RedevelopmentUpdateHistory() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [filter, setFilter] = useState<ZoneChangeType | "all">("all");
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
   const [zoneHistory, setZoneHistory] = useState<Record<string, JaegebalZoneChange[] | "loading" | "error">>({});
 
   const loadRuns = useCallback(() => {
@@ -97,6 +99,12 @@ export function RedevelopmentUpdateHistory() {
   }, []);
 
   useEffect(loadRuns, [loadRuns]);
+  // 아직 정밀 경계를 받지 않은 새 구역 표시용(구역도 업데이트 탭의 경계 대기 목록과 같은 기준).
+  useEffect(() => {
+    fetchJaegebalPendingBoundaries()
+      .then((r) => setPendingKeys(new Set(r.map((x) => x.sourceKey))))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {
@@ -244,6 +252,9 @@ export function RedevelopmentUpdateHistory() {
                                   <div className="flex items-start justify-between gap-2">
                                     <span>
                                       <ChangeLine c={c} />
+                                      {c.changeType === "new" && pendingKeys.has(c.zoneKey) && (
+                                        <span className="ml-1.5 rounded-sm border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">경계 보완 필요</span>
+                                      )}
                                     </span>
                                     <button type="button" onClick={() => toggleZoneHistory(c.zoneKey)} className="shrink-0 text-muted-foreground hover:text-foreground hover:underline">
                                       {openKey === c.zoneKey ? "이력 닫기" : "구역 이력"}

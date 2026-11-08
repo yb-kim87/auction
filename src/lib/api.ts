@@ -4200,6 +4200,8 @@ export type RedevelopmentZone = {
   isInterest?: boolean;
   /** 재개발닷컴 최신 수집에서 사라진 구역으로 표시된 시각(삭제는 안 함) — 구버전 서버 응답에는 없을 수 있다. */
   missingSince?: string | null;
+  /** 새 구역인데 정밀 경계를 아직 받지 않아 거친 경계로 표시 중인 시각 — 구버전 서버 응답에는 없을 수 있다. */
+  boundaryPendingAt?: string | null;
   /** 재개발닷컴 구역 지표(짧은 키, `ZoneStats` 형식) — 구역 업데이트로 갱신된 값. 없으면 저장해 둔 정적 지표를 쓴다. */
   stats?: Record<string, unknown> | null;
   createdAt: string;
@@ -6017,6 +6019,41 @@ export type JaegebalTileRawStatus = {
 };
 export type JaegebalTileRawRow = { tileNo: number; deviceId: string | null; fetchedAt: string; status: number | null; itemCount: number | null };
 export type JaegebalTileRawDetail = JaegebalTileRawRow & { raw: Array<Record<string, unknown>> | null };
+
+/** 경계 대기(거친 경계) 새 구역 — 관리자가 골라 정밀 경계를 받는다. */
+export type JaegebalPendingBoundary = { id: string; sourceKey: string; name: string; region: string; stage: string; pendingAt: string; points: number };
+export type JaegebalBoundaryFetchStatus = {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  simplify: string | null;
+  results: Array<{ name: string; points?: number; updated?: number; error?: string }>;
+  blocked: string | null;
+};
+
+export async function fetchJaegebalPendingBoundaries(): Promise<JaegebalPendingBoundary[]> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/pending-boundaries`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "경계 대기 목록을 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function startJaegebalBoundaryFetch(sourceKeys: string[], simplify: string): Promise<JaegebalBoundaryFetchStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/pending-boundaries/fetch`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: FETCH_CREDENTIALS,
+    headers: withJsonHeaders(),
+    body: JSON.stringify({ sourceKeys, simplify }),
+  });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "경계 받기를 시작하지 못했습니다.");
+  return readJsonResponse(res);
+}
+
+export async function fetchJaegebalBoundaryFetchStatus(): Promise<JaegebalBoundaryFetchStatus> {
+  const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-sync/pending-boundaries/status`, { cache: "no-store", credentials: FETCH_CREDENTIALS });
+  if (!res.ok) throw new Error((await parseErrorMessage(res)) ?? "경계 받기 상태를 불러오지 못했습니다.");
+  return readJsonResponse(res);
+}
 
 export async function startJaegebalTileRaw(deviceId: string, from: number, to: number): Promise<JaegebalTileRawStatus> {
   const res = await apiFetch(`${API_BASE}/redevelopment-research/jaegebal-tiles/run`, {

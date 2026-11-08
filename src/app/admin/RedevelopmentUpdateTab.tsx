@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJaegebalZoneSummary, type JaegebalZoneSummary } from "@/lib/api";
 import { RedevelopmentJaegebalSync } from "./RedevelopmentJaegebalSync";
-import { RedevelopmentTileRaw } from "./RedevelopmentTileRaw";
+import { RedevelopmentPendingBoundaries } from "./RedevelopmentPendingBoundaries";
 
 const dateTime = (iso: string) =>
   new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
@@ -53,7 +53,8 @@ export function RedevelopmentUpdateTab() {
         />
       </div>
 
-      <RedevelopmentTileRaw />
+      {/* 타일 원본 수집(RedevelopmentTileRaw)은 21개 타일 수집을 마쳐 화면에서 숨겼다(2026-11-08). 컴포넌트·API는 남겨 둠. */}
+      <RedevelopmentPendingBoundaries onFinished={loadSummary} />
     </div>
   );
 }
