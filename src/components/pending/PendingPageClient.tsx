@@ -57,6 +57,13 @@ export function PendingPageClient() {
         </p>
         <div className="mt-8 flex flex-col gap-2">
           <Link
+            href="/courses/my"
+            className="w-full py-2.5 text-[15px] font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
+          >
+            내 강의 보기
+          </Link>
+          <p className="text-[13px] text-muted-foreground">수강권이 부여된 강의는 승인 전에도 시청할 수 있습니다.</p>
+          <Link
             href="/account"
             className="w-full py-2.5 text-[15px] font-semibold border border-border rounded-sm hover:bg-secondary/40 transition-colors"
           >
