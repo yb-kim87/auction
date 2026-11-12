@@ -5,7 +5,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, LogOut } from "lucide-react";
 import { clearAuthCookie } from "@/lib/auth";
-import { logoutUser } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { fetchMyCourses, logoutUser } from "@/lib/api";
 import { useProfileStore } from "@/store/useProfileStore";
 
 export function PendingPageClient() {
@@ -18,6 +19,10 @@ export function PendingPageClient() {
   useEffect(() => {
     fetchProfile().catch(() => {});
   }, [fetchProfile]);
+
+  // 유효한 수강권(수강 중)이 있을 때만 "내 강의 보기"를 보여 준다.
+  const coursesQuery = useQuery({ queryKey: ["my-courses"], queryFn: fetchMyCourses, staleTime: 30_000, retry: false });
+  const hasActiveCourse = (coursesQuery.data ?? []).some((c) => c.isAuto || new Date(c.expiresAt).getTime() > Date.now());
 
   const handleLogout = async () => {
     try {
@@ -56,13 +61,17 @@ export function PendingPageClient() {
           승인 후 다시 로그인해 주세요.
         </p>
         <div className="mt-8 flex flex-col gap-2">
-          <Link
-            href="/courses/my"
-            className="w-full py-2.5 text-[15px] font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
-          >
-            내 강의 보기
-          </Link>
-          <p className="text-[13px] text-muted-foreground">수강권이 부여된 강의는 승인 전에도 시청할 수 있습니다.</p>
+          {hasActiveCourse && (
+            <>
+              <Link
+                href="/courses/my"
+                className="w-full py-2.5 text-[15px] font-semibold bg-primary text-primary-foreground rounded-sm hover:bg-accent transition-colors"
+              >
+                내 강의 보기
+              </Link>
+              <p className="text-[13px] text-muted-foreground">수강권이 부여된 강의는 승인 전에도 시청할 수 있습니다.</p>
+            </>
+          )}
           <Link
             href="/account"
             className="w-full py-2.5 text-[15px] font-semibold border border-border rounded-sm hover:bg-secondary/40 transition-colors"
